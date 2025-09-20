@@ -1,7 +1,7 @@
 name: 'feature 이슈 생성'
 description: '새로운 기능 추가'
 labels: [👍feature👍]
-title: '[featrue] 이슈 제목을 입력해주세요(명사형)'
+title: '[feature] 이슈 제목을 입력해주세요(명사형)'
 body:
   - type: input
     id: dueDate
