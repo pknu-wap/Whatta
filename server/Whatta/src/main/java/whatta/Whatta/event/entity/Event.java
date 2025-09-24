@@ -43,10 +43,8 @@ public class Event {
     @Builder.Default
     private LocalDate endDate = LocalDate.now();
 
-    @Builder.Default
-    private LocalTime startTime = LocalTime.now();
-    @Builder.Default
-    private LocalTime endTime = LocalTime.now();
+    private LocalTime startTime;
+    private LocalTime endTime;
 
     @Valid
     private Repeat repeat;
@@ -54,6 +52,8 @@ public class Event {
     @NotNull
     private String colorKey;
 
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
     @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
 }
