@@ -12,6 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
+@ValidRepeat
 public class Repeat {
 
     private int interval;
