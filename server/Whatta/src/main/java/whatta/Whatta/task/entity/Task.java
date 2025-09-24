@@ -18,7 +18,7 @@ import java.util.List;
 @Document("tasks")
 @AllArgsConstructor
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class Task {
 
     @Id
@@ -46,6 +46,7 @@ public class Task {
     private Repeat repeat;
 
     @NotNull
+    @Builder.Default
     private Long orderByNumber = 0L;
 
     @NotNull

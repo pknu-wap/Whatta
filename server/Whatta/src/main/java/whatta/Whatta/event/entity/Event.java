@@ -19,7 +19,7 @@ import java.util.List;
 @Document("events")
 @AllArgsConstructor
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class Event {
 
     @Id
