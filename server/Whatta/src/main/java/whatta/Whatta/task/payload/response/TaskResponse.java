@@ -1,0 +1,47 @@
+package whatta.Whatta.task.payload.response;
+
+import lombok.Builder;
+import lombok.Getter;
+import whatta.Whatta.task.entity.Task;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+
+@Getter
+@Builder
+public class TaskResponse {
+
+    private final String id;
+    private final String userId;
+    private final String title;
+    private final String content;
+    private final List<String> labels;
+    private final boolean completed;
+    private final LocalDate placementDate;
+    private final LocalTime placementTime;
+    private final LocalDateTime dueDateTime;
+    private final Long orderByNumber;
+    private final String colorKey;
+    private final LocalDateTime createdAt;
+    private final LocalDateTime updatedAt;
+
+    public static TaskResponse fromEntity(Task task) {
+        return TaskResponse.builder()
+                .id(task.getId())
+                .userId(task.getUserId())
+                .title(task.getTitle())
+                .content(task.getContent())
+                .labels(task.getLabels())
+                .completed(task.isCompleted())
+                .placementDate(task.getPlacementDate())
+                .placementTime(task.getPlacementTime())
+                .dueDateTime(task.getDueDateTime())
+                .orderByNumber(task.getOrderByNumber())
+                .colorKey(task.getColorKey())
+                .createdAt(task.getCreatedAt())
+                .updatedAt(task.getUpdatedAt())
+                .build();
+    }
+}
