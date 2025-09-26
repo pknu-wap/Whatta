@@ -1,7 +1,8 @@
 package whatta.Whatta.task.payload.request;
 
+import jakarta.validation.Valid;
 import lombok.Getter;
-import whatta.Whatta.task.entity.Task;
+import whatta.Whatta.global.payload.request.RepeatRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -21,6 +22,9 @@ public class TaskUpdateRequest {
     private LocalTime placementTime;//배치시간
 
     private LocalDateTime dueDateTime; //마감일, 마감시간
+
+    @Valid
+    private RepeatRequest repeat;
 
     private Long orderByNumber;//정렬
     private String colorKey;

@@ -2,6 +2,7 @@ package whatta.Whatta.task.payload.response;
 
 import lombok.Builder;
 import lombok.Getter;
+import whatta.Whatta.global.payload.response.RepeatResponse;
 import whatta.Whatta.task.entity.Task;
 
 import java.time.LocalDate;
@@ -22,6 +23,7 @@ public class TaskResponse {
     private final LocalDate placementDate;
     private final LocalTime placementTime;
     private final LocalDateTime dueDateTime;
+    private final RepeatResponse repeat;
     private final Long orderByNumber;
     private final String colorKey;
     private final LocalDateTime createdAt;
@@ -38,6 +40,7 @@ public class TaskResponse {
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
+                .repeat(task.getRepeat() != null ? RepeatResponse.fromEntity(task.getRepeat()) : null)
                 .orderByNumber(task.getOrderByNumber())
                 .colorKey(task.getColorKey())
                 .createdAt(task.getCreatedAt())
