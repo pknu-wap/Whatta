@@ -1,6 +1,7 @@
 package whatta.Whatta.global.entity;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import whatta.Whatta.global.anotation.ValidRepeat;
@@ -13,6 +14,7 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 @ValidRepeat
+@Builder
 public class Repeat {
 
     private int interval;
