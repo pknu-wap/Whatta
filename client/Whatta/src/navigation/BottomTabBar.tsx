@@ -1,7 +1,13 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native'
 import PagerView from 'react-native-pager-view'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { DrawerToggleButton } from '@react-navigation/drawer'
+import {
+  useNavigation,
+  type NavigationProp,
+  type ParamListBase,
+} from '@react-navigation/native'
 
 import TaskDetail from '@/screens/More/TaskDetailScreen'
 import MyPageStack from '@/navigation/MyPageStack'
@@ -22,7 +28,7 @@ enum Tab {
   TaskDetail = 4,
 }
 
-export default function ScheduleWithTabs() {
+export default function BottomBar() {
   const pageRef = useRef<PagerView>(null)
   const [tab, setTab] = useState<Tab>(Tab.Day) // 초기값 = Day
 
@@ -44,8 +50,36 @@ export default function ScheduleWithTabs() {
     console.log(idx)
   }
 
+  const navigation = useNavigation<NavigationProp<ParamListBase>>()
+
+  useEffect(() => {
+    const stack = navigation.getParent()
+    const drawer = navigation.getParent()
+    if (!drawer) return
+
+    const titleMap: Record<Tab, string> = {
+      [Tab.Day]: '일간',
+      [Tab.Week]: '주간',
+      [Tab.Month]: '월간',
+      [Tab.MyPage]: '마이페이지',
+      [Tab.TaskDetail]: '테스크',
+    }
+
+    drawer.setOptions({
+      headerShown: isPageTab, // 캘린더에서만 헤더 표시
+      headerTitle: titleMap[tab],
+      headerLeft: () => <DrawerToggleButton />,
+      swipeEnabled: isPageTab, // 마이페이지/테스크는 스와이프 막기
+      headerStyle: { height: 105 },
+      headerTitleStyle: { fontSize: 16, color: colors.text.title },
+    })
+  }, [navigation, isPageTab, tab])
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView
+      style={styles.container}
+      edges={isPageTab ? ['bottom'] : ['top', 'bottom']}
+    >
       {/* 내용 영역 */}
       {isPageTab ? (
         <PagerView
@@ -80,7 +114,7 @@ export default function ScheduleWithTabs() {
         <TouchableOpacity style={styles.tab} onPress={() => goTab(Tab.TaskDetail)}>
           <MaterialIcons
             name="task"
-            size={30}
+            size={25}
             color={tab === Tab.TaskDetail ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
@@ -89,7 +123,7 @@ export default function ScheduleWithTabs() {
         <TouchableOpacity style={styles.tab} onPress={() => goTab(Tab.Day)}>
           <FontAwesome5
             name="dailymotion"
-            size={30}
+            size={25}
             color={tab === Tab.Day ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
@@ -98,7 +132,7 @@ export default function ScheduleWithTabs() {
         <TouchableOpacity style={styles.tab} onPress={() => goTab(Tab.Week)}>
           <MaterialCommunityIcons
             name="calendar-week"
-            size={30}
+            size={25}
             color={tab === Tab.Week ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
@@ -107,7 +141,7 @@ export default function ScheduleWithTabs() {
         <TouchableOpacity style={styles.tab} onPress={() => goTab(Tab.Month)}>
           <MaterialIcons
             name="calendar-month"
-            size={30}
+            size={25}
             color={tab === Tab.Month ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
@@ -116,7 +150,7 @@ export default function ScheduleWithTabs() {
         <TouchableOpacity style={styles.tab} onPress={() => goTab(Tab.MyPage)}>
           <MaterialIcons
             name="account-box"
-            size={30}
+            size={25}
             color={tab === Tab.MyPage ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
@@ -126,20 +160,19 @@ export default function ScheduleWithTabs() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: colors.neutral.surface },
 
   pagerView: { flex: 1 },
   page: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   tabBar: {
-    flex: 0.2,
+    flex: 0.1,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 4,
-    borderTopColor: 'pink',
-    backgroundColor: '#fff',
+    borderTopWidth: 2,
+    borderTopColor: colors.primary.main,
+    backgroundColor: colors.neutral.surface,
   },
   tab: { padding: 20 },
 })
