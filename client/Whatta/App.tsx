@@ -1,14 +1,15 @@
+import 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
 import { StyleSheet, Text, View } from 'react-native'
-import ScheduleWithTabs from '@/screens/Calender/ScheduleWithTabs'
+import { NavigationContainer } from '@react-navigation/native'
 import colors from '@/styles/colors'
+import RootStack from '@/navigation/RootStack'
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <ScheduleWithTabs></ScheduleWithTabs>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <RootStack />
+    </NavigationContainer>
   )
 }
 
