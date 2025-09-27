@@ -6,14 +6,14 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.global.entity.Repeat;
+import whatta.Whatta.global.payload.request.RepeatRequest;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Getter
 public class EventCreateRequest {
-    @NotNull
-    private String userId;
 
     private String title;
     private String content;
@@ -22,22 +22,12 @@ public class EventCreateRequest {
     private LocalDate startDate;
     private LocalDate endDate;
 
+    private LocalTime startTime;
+    private LocalTime endTime;
+
     @Valid
-    private Repeat repeat;
+    private RepeatRequest repeat;
 
     @NotNull
     private String colorKey;
-
-    public Event toEntity() {
-        return Event.builder()
-                .userId(userId)
-                .title(title)
-                .content(content)
-                .labels(labels)
-                .startDate(startDate)
-                .endDate(endDate)
-                .repeat(repeat)
-                .colorKey(colorKey)
-                .build();
-    }
 }
