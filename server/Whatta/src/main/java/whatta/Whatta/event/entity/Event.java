@@ -55,4 +55,9 @@ public class Event {
     private LocalDateTime createdAt = LocalDateTime.now();
     @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+
+    public boolean isPeriod() { return !startDate.equals(endDate); }
+    public boolean hasTime() { return startTime!=null && endTime!=null; }
+    public boolean isRepeat() { return repeat != null; }
 }
