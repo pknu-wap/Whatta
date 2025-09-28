@@ -5,8 +5,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import whatta.Whatta.event.entity.Event;
-import whatta.Whatta.global.entity.Repeat;
 import whatta.Whatta.global.payload.request.RepeatRequest;
 
 import java.time.LocalDate;

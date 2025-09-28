@@ -14,7 +14,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@ValidRepeat
 @Builder
 public class Repeat {
 
@@ -25,10 +24,4 @@ public class Repeat {
     private List<String> on;
 
     private LocalDate endDate;
-
-    public Repeat (RepeatRequest repeatRequest) {
-        this.interval = repeatRequest.getInterval();
-        this.unit = repeatRequest.getUnit();
-        this.on = repeatRequest.getOn();
-    }
 }
