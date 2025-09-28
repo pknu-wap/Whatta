@@ -1,6 +1,7 @@
 package whatta.Whatta.event.payload.request;
 
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -22,7 +23,10 @@ public class EventCreateRequest {
     private LocalDate startDate;
     private LocalDate endDate;
 
+    @Schema(type = "string", format = "time", example = "18:00:00")
     private LocalTime startTime;
+
+    @Schema(type = "string", format = "time", example = "18:00:00")
     private LocalTime endTime;
 
     @Valid
