@@ -19,7 +19,7 @@ export default function MyPageStack() {
   return (
     <Stack.Navigator>
       {/* 목록(섹션 리스트) */}
-      <Stack.Screen name="MyPage" component={MyPageScreen} options={{ title: '설정' }} />
+      <Stack.Screen name="MyPage" component={MyPageScreen} />
 
       {/* 플레이스홀더들: 나중에 실제 화면으로 대체 */}
       <Stack.Screen
