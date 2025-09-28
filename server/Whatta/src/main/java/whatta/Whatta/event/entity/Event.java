@@ -46,7 +46,6 @@ public class Event {
     private LocalTime startTime;
     private LocalTime endTime;
 
-    @Valid
     private Repeat repeat;
 
     @NotNull
