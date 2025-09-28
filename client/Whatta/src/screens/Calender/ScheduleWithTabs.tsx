@@ -4,7 +4,7 @@ import PagerView from 'react-native-pager-view'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import TaskDetail from '@/screens/More/TaskDetailScreen'
-import MyPage from '@/screens/MyPage/MyPageScreen'
+import MyPageStack from '@/navigation/MyPageStack'
 import Day from '@/screens/Calender/DayView'
 import Week from '@/screens/Calender/WeekView'
 import Month from '@/screens/Calender/MonthView'
@@ -69,28 +69,19 @@ export default function ScheduleWithTabs() {
           </View>
         </PagerView>
       ) : tab === Tab.MyPage ? (
-        <View style={styles.page}>
-          <MyPage />
-        </View>
+        <MyPageStack />
       ) : (
-        <View style={styles.page}>
-          <TaskDetail />
-        </View>
+        <TaskDetail />
       )}
 
       {/* 하단 바 */}
       <View style={styles.tabBar}>
         {/* 테스크 상세 */}
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => goTab(Tab.TaskDetail)}
-        >
+        <TouchableOpacity style={styles.tab} onPress={() => goTab(Tab.TaskDetail)}>
           <MaterialIcons
             name="task"
             size={30}
-            color={
-              tab === Tab.TaskDetail ? colors.secondary.main : colors.text.body
-            }
+            color={tab === Tab.TaskDetail ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
 
@@ -126,9 +117,7 @@ export default function ScheduleWithTabs() {
           <MaterialIcons
             name="account-box"
             size={30}
-            color={
-              tab === Tab.MyPage ? colors.secondary.main : colors.text.body
-            }
+            color={tab === Tab.MyPage ? colors.secondary.main : colors.text.body}
           />
         </TouchableOpacity>
       </View>
