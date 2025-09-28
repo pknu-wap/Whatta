@@ -6,10 +6,8 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
-import whatta.Whatta.event.payload.response.Response;
-import whatta.Whatta.event.repository.EventRepository;
+import whatta.Whatta.global.payload.response.Response;
 import whatta.Whatta.event.service.EventService;
 
 @RestController
@@ -25,5 +23,11 @@ public class EventController {
     public ResponseEntity<?> createEvent (@RequestBody @Validated EventCreateRequest request) {
         eventService.createEvent(request);
         return Response.ok("success create event");
+    }
+
+    @GetMapping("/{eventId}")
+    @Operation(summary = "일정 상세 조회", description = "eventId로 일정의 상세 정보를 조회합니다.")
+    public ResponseEntity<?> getEvent(@PathVariable String eventId) {
+        return Response.ok("success get event", eventService.getEventDetails(eventId));
     }
 }
