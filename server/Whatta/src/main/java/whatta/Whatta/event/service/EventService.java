@@ -6,6 +6,8 @@ import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
 import whatta.Whatta.event.payload.response.EventDetailsResponse;
 import whatta.Whatta.event.repository.EventRepository;
+import whatta.Whatta.global.exception.ErrorCode;
+import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.payload.response.RepeatResponse;
 import whatta.Whatta.global.util.LabelsBuilder;
 
@@ -43,7 +45,7 @@ public class EventService {
     public EventDetailsResponse getEventDetails(String eventId) {
 
         Event event = eventRepository.findEventByIdAndUserId(eventId, "user123") //TODO: 게스트 로그인 구현 후, user 정보로 대체
-                .orElseThrow(() -> new RuntimeException("Event with id " + eventId + " not found"));
+                .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUNT));
 
         return EventDetailsResponse.builder()
                 .title(event.getTitle())
@@ -60,7 +62,7 @@ public class EventService {
     }
 
     private LocalDateTime buildDateTime(LocalDate date, LocalTime time) {
-        LocalTime t = (time != null) ? time : LocalTime.MIDNIGHT; //시간지정이 없으면
+        LocalTime t = (time != null) ? time : LocalTime.MIDNIGHT; //시간지정이 없으면 자정으로
         return LocalDateTime.of(date, t);
     }
 }
