@@ -9,11 +9,13 @@ import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.payload.response.RepeatResponse;
-import whatta.Whatta.global.util.LabelsBuilder;
+import whatta.Whatta.user.entity.User;
+import whatta.Whatta.user.repository.UserRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -21,16 +23,21 @@ import java.util.List;
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final UserRepository userRepository;
 
     public void createEvent(EventCreateRequest request) { //TODO: user 정보 받아와서 함께 db에 저장
 
-        List<String> labels = LabelsBuilder.BuildLabels(request.getLabels(), "일정");
+        User user = userRepository.findByInstallationId("user123")
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        //유저의 라벨 목록에 있는 라벨인지
+        validateLabelsInUserSettings(user, request.getLabels());
 
         Event event = Event.builder()
-                .userId("user123")
+                .userId(user.getInstallationId()) //임시로 userId가 아닌 installationId로
                 .title(request.getTitle())
                 .content(request.getContent())
-                .labels(labels)
+                .labels(request.getLabels())
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .startTime(request.getStartTime())
@@ -40,6 +47,15 @@ public class EventService {
                 .build();
 
         eventRepository.save(event);
+    }
+    private void validateLabelsInUserSettings(User user, List<String> labels) { //TODO: 이후에 validator util 빼야 함
+        List<String> userLabels = new ArrayList<>(user.getUserSetting().getLabels());
+
+        for (String label : labels) {
+            if(userLabels.stream().noneMatch(l -> l.equalsIgnoreCase(label))) {
+                throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
+            }
+        }
     }
 
     public EventDetailsResponse getEventDetails(String eventId) {
