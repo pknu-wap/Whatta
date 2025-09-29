@@ -11,7 +11,8 @@ public enum ErrorCode {
 
     USER_NOT_EXIST(HttpStatus.BAD_REQUEST, "800", "존재하지 않는 계정입니다."),
 
-    LABEL_NOT_FOUND(HttpStatus.BAD_REQUEST, "900", "요청 라벨이 사용자의 라벨 목록에 없습니다.");
+    LABEL_NOT_FOUND(HttpStatus.BAD_REQUEST, "900", "요청 라벨이 사용자의 라벨 목록에 없습니다."),
+    TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "900", "라벨은 최대 3개까지 설정할 수 있습니다.");
 
 
 

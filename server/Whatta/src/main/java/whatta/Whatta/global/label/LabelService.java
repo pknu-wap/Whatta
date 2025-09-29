@@ -47,6 +47,9 @@ public class LabelService {
             labels.add(label);
         }
 
+        if(labels.size() > 10)
+            throw new RestApiException(ErrorCode.TOO_MANY_LABELS);
+
         //정렬
         Collator collator = Collator.getInstance(Locale.KOREAN);
         collator.setStrength(Collator.PRIMARY);
