@@ -20,6 +20,11 @@ const colors = {
     warning: '#FF9747',
     info: '#4775FF',
   },
+  task: {
+    example: '#b8ccfbff',
+    // 추가 색상들...
+  },
+  
 }
 
 export default colors
