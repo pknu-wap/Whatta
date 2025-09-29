@@ -2,6 +2,7 @@ import React from 'react'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import MyPageScreen from '@/screens/MyPage/MyPageScreen'
 import { PlaceholderScreen } from '@/screens/MyPage/PlaceholderScreen'
+import RemainderScreen from '@/screens/MyPage/Remainder/RemainderScreen'
 
 export type MyPageStackList = {
   MyPage: undefined
@@ -39,7 +40,7 @@ export default function MyPageStack() {
       />
       <Stack.Screen
         name="NotifDefaults"
-        component={PlaceholderScreen}
+        component={RemainderScreen}
         options={{ title: '리마인드 기본값' }}
       />
       <Stack.Screen
