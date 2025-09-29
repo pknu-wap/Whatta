@@ -8,8 +8,8 @@ export default function TaskDetailPopup() {
   const [hasContent] = useState(true)
   const [hasSchedule] = useState(true) 
 
-  const [reminderOn, setReminderOn] = useState(true)
-  const [dueOn, setDueOn] = useState(true)
+  const [reminderOn, setReminderOn] = useState(false)
+  const [dueOn, setDueOn] = useState(false)
 
   return (
     <View style={s.container}>
