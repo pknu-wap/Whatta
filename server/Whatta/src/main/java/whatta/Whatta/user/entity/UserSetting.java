@@ -26,9 +26,4 @@ public class UserSetting {
     private List<String> labels = new ArrayList<>();
 
     //TODO: 알림 default 값은 알림 구현할 때 함께 구현하기
-
-    public void updateLabels(List<String> labels) {
-        this.labels.clear();
-        this.labels.addAll(labels);
-    }
 }
