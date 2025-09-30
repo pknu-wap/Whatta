@@ -24,8 +24,4 @@ public class User {
     private RefreshToken refreshToken;
 
     private UserSetting userSetting;
-
-    public void updateUserSetting(UserSetting userSetting) {
-        this.userSetting = userSetting;
-    }
 }
