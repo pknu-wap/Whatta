@@ -32,6 +32,7 @@ public class EventService {
 
         //유저의 라벨 목록에 있는 라벨인지
         validateLabelsInUserSettings(user, request.getLabels());
+        validateDateTimeOrder(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
 
         Event event = Event.builder()
                 .userId(user.getInstallationId()) //임시로 userId가 아닌 installationId로
@@ -47,6 +48,16 @@ public class EventService {
                 .build();
 
         eventRepository.save(event);
+    }
+    private void validateDateTimeOrder(LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
+        if(startDate != endDate && startDate.isAfter(endDate)) {
+            throw new RestApiException(ErrorCode.DATE_ORDER_INVALID);
+        }
+        if(startTime != null && endTime != null) {
+            if(startTime.isAfter(endTime)) {
+                throw new RestApiException(ErrorCode.TIME_ORDER_INVALID);
+            }
+        }
     }
     private void validateLabelsInUserSettings(User user, List<String> labels) { //TODO: 이후에 validator util 빼야 함
         List<String> userLabels = new ArrayList<>(user.getUserSetting().getLabels());
