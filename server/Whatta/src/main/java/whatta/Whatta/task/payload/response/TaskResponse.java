@@ -19,7 +19,7 @@ public class TaskResponse {
     private final String title;
     private final String content;
     private final List<String> labels;
-    private final boolean completed;
+    private final Boolean completed;
     private final LocalDate placementDate;
     private final LocalTime placementTime;
     private final LocalDateTime dueDateTime;
@@ -29,22 +29,5 @@ public class TaskResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
-    public static TaskResponse fromEntity(Task task) {
-        return TaskResponse.builder()
-                .id(task.getId())
-                .userId(task.getUserId())
-                .title(task.getTitle())
-                .content(task.getContent())
-                .labels(task.getLabels())
-                .completed(task.isCompleted())
-                .placementDate(task.getPlacementDate())
-                .placementTime(task.getPlacementTime())
-                .dueDateTime(task.getDueDateTime())
-                .repeat(task.getRepeat() != null ? RepeatResponse.fromEntity(task.getRepeat()) : null)
-                .orderByNumber(task.getOrderByNumber())
-                .colorKey(task.getColorKey())
-                .createdAt(task.getCreatedAt())
-                .updatedAt(task.getUpdatedAt())
-                .build();
-    }
+
 }

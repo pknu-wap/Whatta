@@ -38,7 +38,7 @@ public class Task {
     private List<String> labels = new ArrayList<>();
 
     @Builder.Default
-    private boolean completed = false; //진행 전(false) / 완료(true)
+    private Boolean completed = false; //진행 전(false) / 완료(true)
 
     private LocalDate placementDate;//null 유무로 배치 유무를 판단
     private LocalTime placementTime;
