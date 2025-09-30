@@ -22,7 +22,7 @@ public class TaskCreateRequest {
     private List<String> labels;//라벨
 
     @NotNull(message = "진행상태를 입력해주세요.")
-    private boolean completed; //기본은 false
+    private Boolean completed; //기본은 false
 
     private LocalDate placementDate;//배치일
     private LocalTime placementTime;//배치시간
@@ -37,22 +37,5 @@ public class TaskCreateRequest {
 
     @NotNull(message = "색상을 입력해주세요.")
     private String colorKey;
-
-    public Task toEntity(String userId){
-        return Task.builder()
-                .userId(userId)
-                .title(title)
-                .content(content)
-                .labels(labels)
-                .completed(completed)
-                .placementDate(placementDate)
-                .placementTime(placementTime)
-                .dueDateTime(dueDateTime)
-                .repeat(repeat != null ? repeat.toEntity() : null)
-                .orderByNumber(orderByNumber)
-                .colorKey(colorKey)
-                .build();
-    }
-
 
 }
