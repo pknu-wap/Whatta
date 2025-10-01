@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import whatta.Whatta.global.anotation.ValidRepeat;
 import whatta.Whatta.global.enums.RepeatUnit;
+import whatta.Whatta.global.payload.request.RepeatRequest;
 
 import java.time.LocalDate;
 import java.util.List;

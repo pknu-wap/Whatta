@@ -19,6 +19,7 @@ public class RepeatResponse {
     private final LocalDate endDate;
 
     public static RepeatResponse fromEntity(Repeat repeat){ //변환로직은 추후에 서비스로 이동
+        if (repeat == null) return null;
         return RepeatResponse.builder()
                 .interval(repeat.getInterval())
                 .unit(repeat.getUnit())
