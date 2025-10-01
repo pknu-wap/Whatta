@@ -3,15 +3,20 @@ package whatta.Whatta.task.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import whatta.Whatta.global.exception.ErrorCode;
+import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
+import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.TaskResponse;
 import whatta.Whatta.task.repository.TaskRepository;
 import whatta.Whatta.user.entity.User;
+import whatta.Whatta.user.repository.UserRepository;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -19,14 +24,14 @@ import java.util.List;
 public class TaskService {
 
     private final TaskRepository taskRepository;
-    private final UserRepositoy userRepositoy;
+    private final UserRepository userRepositoy;
     private final TaskMapper taskMapper;
 
     //task 생성
-    public TaskResponse CreateTask(String userId, TaskCreateRequest request) {
+    public TaskResponse createTask(String userId, TaskCreateRequest request) {
 
         User user = userRepositoy.findByInstallationId(userId)
-                .orElseThrow(() -> RestApiException(ErrorCode.USER_NOT_EXIST));
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
         validateLabelsInUserSettings(user, request.getLabels());
 
@@ -38,7 +43,7 @@ public class TaskService {
     }
 
     //task 업데이트
-    public TaskResponse UpdateTask(String userId, String taskId, TaskCreateRequest request) {
+    public TaskResponse updateTask(String userId, String taskId, TaskUpdateRequest request) {
 
         Task originalTask = taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
@@ -73,6 +78,24 @@ public class TaskService {
         taskRepository.deleteById(taskId);
     }
 
+    //task 상세 조회
+    @Transactional(readOnly = true)
+    public TaskResponse findTaskById(String userId, String taskId) {
+        Task task = taskRepository.findByIdAndUserId(taskId, userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
+
+        return taskMapper.toResponse(task);
+    }
+
+    //task 목록 조회
+    @Transactional(readOnly = true)
+    public List<TaskResponse> findTasksByUser(String userId) {
+        List<Task> tasks = taskRepository.findByUserId(userId);
+
+        return tasks.stream()
+                .map(taskMapper :: toResponse)
+                .collect(Collectors.toList());
+    }
 
 
 

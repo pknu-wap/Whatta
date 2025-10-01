@@ -25,7 +25,7 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     List<Task> findByUserIdAndPlacementDateBetween(String userId, LocalDate startDate, LocalDate endDate);
 
     /*
-    TaskId랑 UserId로 Task 조회
+    TaskId랑 UserId로 Task 상세 조회
      */
     Optional<Task> findByIdAndUserId(String id, String userId);
 
