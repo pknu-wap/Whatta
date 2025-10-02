@@ -181,11 +181,9 @@ const ScheduleDetailScreen = () => {
                   style={styles.repeatOptionRow}
                   onPress={() => {
                     setSelectedFrequency(option.value)
-                    if (option.value === 'NONE') {
-                      setRepeatEndType(0)
-                    } else if (
-                      selectedFrequency === 'NONE' &&
-                      option.value !== 'NONE'
+                    if (
+                      option.value === 'NONE' ||
+                      selectedFrequency === 'NONE'
                     ) {
                       setRepeatEndType(0)
                     }
