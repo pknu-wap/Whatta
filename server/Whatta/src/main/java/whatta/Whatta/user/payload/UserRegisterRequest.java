@@ -1,10 +1,9 @@
 package whatta.Whatta.user.payload;
 
 import lombok.Getter;
-import whatta.Whatta.user.entity.UserSetting;
 
 @Getter
-public class UserRegisterRequest {
+public record UserRegisterRequest (
 
-    private UserSetting userSetting;
+) {
 }
