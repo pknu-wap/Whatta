@@ -11,10 +11,8 @@ import whatta.Whatta.global.label.payload.LabelsResponse;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
-import java.text.Collator;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @AllArgsConstructor
@@ -24,7 +22,7 @@ public class UserSettingService {
 
     public void createLabel(String userId, LabelRequest request) { //TODO: 추후 userId가 아닌 userDetails 받은 정보로 수정
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST)); //TODO: userSetting not found로 변경
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
         List<Label> newLabels = buildLabels(userSetting.getLabels(), request);
         userSettingRepository.save(userSetting.toBuilder()
@@ -34,12 +32,13 @@ public class UserSettingService {
     private List<Label> buildLabels(List<Label> userLabels, LabelRequest request) {
         List<Label> newLabels = new ArrayList<>(userLabels);
 
-        //중복 제거
         if(request == null) return newLabels;
 
+        //중복 제거
         String label = request.title().trim();
-        if(newLabels.stream().anyMatch(l -> l.getTitle().equalsIgnoreCase(label))) {
+        if(newLabels.stream().noneMatch(l -> l.getTitle().equalsIgnoreCase(label))) {
             newLabels.add(Label.builder()
+                            .id(generateId(newLabels))
                             .title(label)
                             .colorKey(request.colorKey())
                     .build());
@@ -49,27 +48,29 @@ public class UserSettingService {
         if(newLabels.size() > 10)
             throw new RestApiException(ErrorCode.TOO_MANY_LABELS);
 
-        //정렬
-        Collator collator = Collator.getInstance(Locale.KOREAN);
-        collator.setStrength(Collator.PRIMARY);
-        newLabels.sort(collator);
-
         return newLabels;
+    }
+    private Long generateId(List<Label> labels) {
+        return labels.stream()
+                .mapToLong(Label::getId)
+                .max()
+                .orElse(0L) + 1L;
     }
 
     public LabelsResponse getLabels(String userId) { //TODO: 추후 수정
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST)); //TODO: userSetting not found로 변경
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        if(userSetting == null || userSetting.getLabels() == null || userSetting.getLabels().isEmpty()) {
+        if(userSetting.getLabels() == null || userSetting.getLabels().isEmpty()) {
             return null;
         }
 
         List<LabelItem> labels = new ArrayList<>();
         for(Label label : userSetting.getLabels()) {
             labels.add(LabelItem.builder()
+                            .id(label.getId())
                             .title(label.getTitle())
-                            .colorkey(label.getColorKey())
+                            .colorKey(label.getColorKey())
                     .build());
         }
 
@@ -77,5 +78,4 @@ public class UserSettingService {
                 .labels(labels)
                 .build();
     }
-
 }

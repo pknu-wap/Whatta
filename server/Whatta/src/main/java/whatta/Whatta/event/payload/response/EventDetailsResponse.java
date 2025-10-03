@@ -1,7 +1,8 @@
 package whatta.Whatta.event.payload.response;
 
 import lombok.Builder;
-import whatta.Whatta.global.payload.response.RepeatResponse;
+import whatta.Whatta.global.label.Label;
+import whatta.Whatta.global.repeat.payload.RepeatResponse;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -10,7 +11,7 @@ import java.util.List;
 public record EventDetailsResponse(
         String title,
         String content,
-        List<String> labels,
+        List<Label> labels,
         boolean isPeriod,
         boolean hasTime,
         boolean isRepeat,
