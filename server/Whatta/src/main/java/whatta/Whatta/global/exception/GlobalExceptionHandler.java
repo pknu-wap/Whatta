@@ -5,7 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import whatta.Whatta.global.payload.response.Response;
+import whatta.Whatta.global.payload.Response;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {

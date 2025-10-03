@@ -22,6 +22,4 @@ public class User {
     private String installationId;
 
     private RefreshToken refreshToken;
-
-    private UserSetting userSetting;
 }
