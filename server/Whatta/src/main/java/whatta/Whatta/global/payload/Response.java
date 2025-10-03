@@ -1,4 +1,4 @@
-package whatta.Whatta.global.payload.response;
+package whatta.Whatta.global.payload;
 
 import org.springframework.http.ResponseEntity;
 
