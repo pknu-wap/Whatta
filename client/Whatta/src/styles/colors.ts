@@ -22,9 +22,9 @@ const colors = {
   },
   task: {
     example: '#b8ccfbff',
-    // 추가 색상들...
+    taskName: '#333333',
+    sideBar: '#F2F2F2',
   },
-  
 }
 
 export default colors
