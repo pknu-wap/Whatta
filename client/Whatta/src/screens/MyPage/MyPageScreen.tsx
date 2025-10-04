@@ -5,7 +5,7 @@ import type { MyPageStackList } from '@/navigation/MyPageStack'
 import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/contants'
 import colors from '@/styles/colors'
 
-type Props = NativeStackScreenProps<MyPageStackList, 'MyPage'>
+type Props = NativeStackScreenProps<MyPageStackList, 'MyPageList'>
 
 export default function MyPageScreen({ navigation }: Props) {
   return (
