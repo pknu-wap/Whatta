@@ -6,7 +6,7 @@ export default function TaskDetailPopup() {
   const [visible, setVisible] = useState(false)
   const [taskTitle] = useState('Whatta 정기 회의')
   const [hasContent] = useState(true)
-  const [hasSchedule] = useState(true) 
+  const [hasSchedule] = useState(true)
 
   const [reminderOn, setReminderOn] = useState(false)
   const [dueOn, setDueOn] = useState(false)
@@ -85,7 +85,6 @@ const s = StyleSheet.create({
     width: '80%',
     borderWidth: 1,
     borderColor: colors.text.caption,
-  
   },
 
   title: {

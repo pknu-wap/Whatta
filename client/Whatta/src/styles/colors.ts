@@ -25,6 +25,9 @@ const colors = {
     taskName: '#333333',
     sideBar: '#F2F2F2',
   },
+  icon: {
+    default: '#B4B4B4',
+  },
 }
 
 export default colors

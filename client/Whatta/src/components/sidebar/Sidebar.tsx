@@ -5,8 +5,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 
-import CheckOff from '@/assets/check_off.svg'
-import CheckOn from '@/assets/check_on.svg'
+import CheckOff from '@/assets/icons/check_off.svg'
+import CheckOn from '@/assets/icons/check_on.svg'
 
 type Task = {
   id: string
@@ -29,7 +29,7 @@ const initialTasks: Task[] = [
 
 const SECTION_HEIGHT = 260
 
-export default function Sidebar(props: DrawerContentComponentProps) {
+export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const seqRef = useRef(0) // 동시 클릭 대비
   const insets = useSafeAreaInsets()
