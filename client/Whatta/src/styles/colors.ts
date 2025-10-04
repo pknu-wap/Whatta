@@ -20,6 +20,11 @@ const colors = {
     warning: '#FF9747',
     info: '#4775FF',
   },
+  task: {
+    example: '#b8ccfbff',
+    taskName: '#333333',
+    sideBar: '#F2F2F2',
+  },
 }
 
 export default colors

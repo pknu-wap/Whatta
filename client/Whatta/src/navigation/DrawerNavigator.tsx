@@ -10,10 +10,9 @@ export default function DrawerNavigator() {
     <Drawer.Navigator
       drawerContent={(props) => <Sidebar {...props} />}
       screenOptions={{
-        drawerType: 'front',
+        drawerType: 'slide',
         headerShown: true,
-        swipeEnabled: true,
-        swipeEdgeWidth: 50,
+        drawerStyle: { width: 240 },
       }}
     >
       <Drawer.Screen name="Calendar" component={MainStack} />
