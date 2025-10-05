@@ -32,7 +32,6 @@ const SECTION_HEIGHT = 260
 export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const seqRef = useRef(0) // 동시 클릭 대비
-  const insets = useSafeAreaInsets()
 
   const now = () => ++seqRef.current + Date.now() // 항상 증가
 
@@ -52,23 +51,21 @@ export default function Sidebar() {
   const completed = tasks.filter((t) => t.done).sort(sortByRecent)
 
   return (
-    <SafeAreaView style={S.root} edges={['left', 'right', 'top']}>
-      <View style={S.board}>
-        <Section
-          title="예정"
-          data={upcoming}
-          onToggle={toggleDone}
-          style={S.sectionTitle}
-        />
-        <View style={S.divider} />
-        <Section
-          title="완료"
-          data={completed}
-          onToggle={toggleDone}
-          style={[S.sectionTitle, { marginTop: 16 }]}
-        />
-      </View>
-    </SafeAreaView>
+    <View style={S.board}>
+      <Section
+        title="예정"
+        data={upcoming}
+        onToggle={toggleDone}
+        style={S.sectionTitle}
+      />
+      <View style={S.divider} />
+      <Section
+        title="완료"
+        data={completed}
+        onToggle={toggleDone}
+        style={[S.sectionTitle, { marginTop: 16 }]}
+      />
+    </View>
   )
 }
 
@@ -84,7 +81,7 @@ function Section({
   style?: any
 }) {
   return (
-    <View style={[S.section, style]}>
+    <View>
       <Text style={[ts('date'), S.sectionTitle]}>{title}</Text>
 
       {/* 개수가 넘치면 이 안에서만 스크롤 */}
@@ -99,7 +96,6 @@ function Section({
           />
         )}
         style={{ height: SECTION_HEIGHT }}
-        contentContainerStyle={S.sectionListContent}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         showsVerticalScrollIndicator={true}
       />
@@ -145,36 +141,34 @@ const TaskCard = memo(function TaskCard({
 })
 
 const S = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.task.sideBar, borderRadius: 24 },
+  root: { flex: 1, backgroundColor: colors.task.sideBar },
   board: {
     flex: 1,
     backgroundColor: colors.task.sideBar,
-    borderRadius: 24,
+    borderTopRightRadius: 24,
     padding: 16,
-    marginTop: 40,
   },
-  section: {},
   card: {
     width: '100%',
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: colors.neutral.surface,
     paddingHorizontal: 12,
     marginTop: 5,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 700,
     marginBottom: 8,
     color: colors.task.taskName,
   },
-  sectionListContent: {},
+
   divider: {
-    height: 1, // 선의 두께
-    backgroundColor: colors.task.taskName, // 원하는 색상 (예: 옅은 회색)
-    opacity: 0.1, // 투명도를 줘서 옅게 만듭니다.
-    marginVertical: 10, // 위아래 여백 추가 (필요하다면 더 늘리거나 줄일 수 있습니다)
+    height: 1,
+    backgroundColor: colors.task.taskName,
+    opacity: 0.1,
+    marginVertical: 10,
   },
 })
