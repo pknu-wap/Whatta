@@ -131,6 +131,7 @@ const TaskCard = memo(function TaskCard({
         style={[
           ts('taskName'),
           { fontSize: 15, marginLeft: 12, color: colors.task.taskName },
+          checked && { textDecorationLine: 'line-through' },
         ]}
         numberOfLines={1}
       >
