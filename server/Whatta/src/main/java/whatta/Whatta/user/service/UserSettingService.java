@@ -9,6 +9,7 @@ import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.global.label.payload.LabelRequest;
 import whatta.Whatta.global.label.payload.LabelsResponse;
 import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.payload.response.LabelResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ public class UserSettingService {
 
     private final UserSettingRepository userSettingRepository;
 
-    public void createLabel(String userId, LabelRequest request) { //TODO: 추후 userId가 아닌 userDetails 받은 정보로 수정
+    public LabelResponse createLabel(String userId, LabelRequest request) { //TODO: 추후 userId가 아닌 userDetails 받은 정보로 수정
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
@@ -28,6 +29,13 @@ public class UserSettingService {
         userSettingRepository.save(userSetting.toBuilder()
                 .labels(newLabels)
                 .build());
+
+        Label newLabel = findLabelByTitle(newLabels, request.title().trim());
+        return LabelResponse.builder()
+                .id(newLabel.getId())
+                .title(newLabel.getTitle())
+                .colorKey(newLabel.getColorKey())
+                .build();
     }
     private List<Label> buildLabels(List<Label> userLabels, LabelRequest request) {
         List<Label> newLabels = new ArrayList<>(userLabels);
@@ -55,6 +63,15 @@ public class UserSettingService {
                 .mapToLong(Label::getId)
                 .max()
                 .orElse(0L) + 1L;
+    }
+    private Label findLabelByTitle(List<Label> labels, String title) {
+        if(labels == null || labels.isEmpty())
+            throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
+
+        return labels.stream()
+                .filter(l -> l.getTitle().equalsIgnoreCase(title.trim()))
+                .findFirst()
+                .orElseThrow(()-> new RestApiException(ErrorCode.LABEL_NOT_FOUND));
     }
 
     public LabelsResponse getLabels(String userId) { //TODO: 추후 수정
