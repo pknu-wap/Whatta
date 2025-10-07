@@ -22,7 +22,7 @@ public class UserSettingController {
     @Operation(summary = "Label 생성", description = "새로운 Label을 생성합니다.")
     public ResponseEntity<?> creatLabel(@RequestBody @Validated LabelRequest request) {
         userSettingService.createLabel("user123", request); //TODO: userId는 이후에 수정
-        return Response.ok("success create labels");
+        return Response.ok("success create labels", userSettingService.createLabel("user123", request)); //TODO: userId는 이후에 수정
     }
 
     @GetMapping("/label")
