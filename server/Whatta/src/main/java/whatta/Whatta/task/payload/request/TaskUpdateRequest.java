@@ -29,5 +29,7 @@ public class TaskUpdateRequest {
     private Long orderByNumber;//정렬
     private String colorKey;
 
+    private List<String> fieldsToClear; //null로 필드 초기화
+
 
 }

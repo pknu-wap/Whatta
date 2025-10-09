@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.global.payload.response.Response;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.request.TaskUpdateRequest;
+import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
 import whatta.Whatta.task.service.TaskService;
 
@@ -56,10 +57,18 @@ public class TaskController {
     }
 
     @GetMapping
-    @Operation(summary = "Task 목록조회", description = "사용자의 Task 목록을 조회합니다.")
-    public ResponseEntity<?> getTasksByUser() {
+    @Operation(summary = "Task 목록조회", description = "관리페이지의 모든 Task 목록을 조회합니다.")
+    public ResponseEntity<?> getAllTasks() {
         String tempUserId = "test123"; //TODO 나중에 jwt구현 후 변경
         List<TaskResponse> response = taskService.findTasksByUser(tempUserId);
-        return Response.ok("사용자의 모든 Task 목록입니다.", response);
+        return Response.ok("관리페이지 Task 목록입니다.", response);
+    }
+
+    @GetMapping(params = "view=sidebar")
+    @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 task 목록을 조회합니다.")
+    public ResponseEntity<?> getSidebarTasks() {
+        String tempUserId = "test123"; //TODO 나중에 jwt구현 후 변경
+        List<SidebarTaskResponse> response = taskService.findSidebarTasks(tempUserId);
+        return Response.ok("사이드바의 Task 목록입니다.", response);
     }
 }

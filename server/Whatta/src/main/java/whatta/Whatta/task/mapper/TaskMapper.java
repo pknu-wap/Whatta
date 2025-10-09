@@ -4,14 +4,20 @@ import org.springframework.stereotype.Component;
 import whatta.Whatta.global.payload.response.RepeatResponse;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
+import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
 
 @Component
 public class TaskMapper {
     public Task toEntity(TaskCreateRequest request, String userId){
+        //title이 null이나 blank면 기본값을 줌
+        String title = (request.getTitle() == null || request.getTitle().isBlank())
+                ? "새로운 작업"
+                : request.getTitle();
+
         return Task.builder()
                 .userId(userId)
-                .title(request.getTitle())
+                .title(title)
                 .content(request.getContent())
                 .labels(request.getLabels())
                 .completed(false)
@@ -19,7 +25,6 @@ public class TaskMapper {
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
                 .repeat(request.getRepeat().toEntity())
-                .orderByNumber(request.getOrderByNumber())
                 .colorKey(request.getColorKey())
                 .build();
     }
@@ -42,4 +47,16 @@ public class TaskMapper {
                 .updatedAt(task.getUpdatedAt())
                 .build();
     }
+
+    public SidebarTaskResponse toSidebarResponse(Task task) {
+        return SidebarTaskResponse.builder()
+                .id(task.getId())
+                .title(task.getTitle())
+                .completed(task.getCompleted())
+                .dueDateTime(task.getDueDateTime())
+                .orderByNumber(task.getOrderByNumber())
+                .build();
+
+    }
+
 }
