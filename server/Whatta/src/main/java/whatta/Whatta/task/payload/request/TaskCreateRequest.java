@@ -5,7 +5,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import whatta.Whatta.global.payload.request.RepeatRequest;
-import whatta.Whatta.task.entity.Task;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,9 +30,6 @@ public class TaskCreateRequest {
 
     @Valid
     private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
-
-    @NotNull(message = "정렬값이 없습니다.")
-    private Long orderByNumber;//정렬
 
     @NotNull(message = "색상을 입력해주세요.")
     private String colorKey;

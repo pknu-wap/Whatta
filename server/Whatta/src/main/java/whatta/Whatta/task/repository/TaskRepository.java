@@ -15,16 +15,6 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     List<Task> findByUserId(String userId);
 
     /*
-    특정 사용자의 특정 날짜(placementDate)에 해당하는 Task 목록을 조회
-     */
-    List<Task> findByUserIdAndPlacementDate(String userId, LocalDate date);
-
-    /*
-    특정 사용자의 특정 기간 사이에 있는 Task 목록을 조회
-     */
-    List<Task> findByUserIdAndPlacementDateBetween(String userId, LocalDate startDate, LocalDate endDate);
-
-    /*
     TaskId랑 UserId로 Task 상세 조회
      */
     Optional<Task> findByIdAndUserId(String id, String userId);
@@ -33,4 +23,12 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     삭제 전 taskid랑 userid로 task 존재 여부 확인
      */
     boolean existsByIdAndUserId(String id, String userId);
+
+    /*
+    userId로 조회된 Task들을 orderByNumber 오름차순으로 정렬한 뒤, 가장 첫 번째(Top) 결과를 가져옴
+     */
+    Optional<Task> findTopByUserIdOrderByOrderByNumberAsc(String userId);
+
+    // userId로 찾고, placementDate가 null인 것들만, orderByNumber 오름차순으로 정렬
+    List<Task> findByUserIdAndPlacementDateIsNullOrderByOrderByNumberAsc(String userId);
 }

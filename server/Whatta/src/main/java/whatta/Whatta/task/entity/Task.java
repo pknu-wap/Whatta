@@ -1,7 +1,6 @@
 package whatta.Whatta.task.entity;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,7 +27,6 @@ public class Task {
     @NotNull
     private String userId;
 
-    @NotBlank
     @Builder.Default
     private String title = "새로운 작업";
 
