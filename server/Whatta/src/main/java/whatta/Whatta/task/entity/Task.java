@@ -27,7 +27,8 @@ public class Task {
     @NotNull
     private String userId;
 
-    private String title;
+    @Builder.Default
+    private String title = "새로운 작업";
 
     private String content;
 
@@ -35,10 +36,10 @@ public class Task {
     private List<String> labels = new ArrayList<>();
 
     @Builder.Default
-    private boolean status = false; //진행 전(false) / 완료(true)
+    private Boolean completed = false; //진행 전(false) / 완료(true)
 
-    private LocalDate date;
-    private LocalTime time;
+    private LocalDate placementDate;//null 유무로 배치 유무를 판단
+    private LocalTime placementTime;
 
     private LocalDateTime dueDateTime;
 
