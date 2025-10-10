@@ -14,7 +14,6 @@ import java.util.List;
 @Getter
 public class TaskCreateRequest {
 
-    @NotBlank(message = "제목을 입력해주세요.")
     private String title;//타이틀
 
     private String content;//내용
