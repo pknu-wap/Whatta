@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
-import whatta.Whatta.global.payload.response.Response;
+import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.event.service.EventService;
 
 @RestController

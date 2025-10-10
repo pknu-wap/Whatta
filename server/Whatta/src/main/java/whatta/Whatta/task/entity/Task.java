@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import whatta.Whatta.global.entity.Repeat;
+import whatta.Whatta.global.repeat.Repeat;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

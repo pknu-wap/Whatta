@@ -1,14 +1,14 @@
 package whatta.Whatta.event.entity;
 
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import whatta.Whatta.global.entity.Repeat;
+import whatta.Whatta.global.label.Label;
+import whatta.Whatta.global.repeat.Repeat;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,8 +32,7 @@ public class Event {
 
     private String content;
 
-    @Builder.Default
-    private List<String> labels = new ArrayList<>();
+    private List<Label> labels; //라벨 설정하지 않으면 null
 
     @NotNull
     @Builder.Default

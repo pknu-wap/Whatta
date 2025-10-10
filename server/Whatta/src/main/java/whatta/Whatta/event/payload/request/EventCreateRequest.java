@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
-import whatta.Whatta.global.payload.request.RepeatRequest;
+import whatta.Whatta.global.repeat.payload.RepeatRequest;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -18,8 +18,9 @@ public class EventCreateRequest {
 
     private String title; //최대값 설정
     private String content; //최대값 설정
+
     @Size(max = 3, message = "선택할 수 있는 라벨의 개수는 최대 3개입니다.")
-    private List<String> labels;
+    private List<Long> labels;
 
     @NotNull(message = "날짜 지정은 필수입니다.")
     private LocalDate startDate;
