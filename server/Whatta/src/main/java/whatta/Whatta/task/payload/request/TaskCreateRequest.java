@@ -1,7 +1,6 @@
 package whatta.Whatta.task.payload.request;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import whatta.Whatta.global.payload.request.RepeatRequest;

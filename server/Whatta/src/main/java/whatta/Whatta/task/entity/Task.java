@@ -48,7 +48,7 @@ public class Task {
 
     @NotNull
     @Builder.Default
-    private Long orderByNumber = 0L;
+    private Long sortNumber = 0L;
 
     @NotNull
     private String colorKey;
