@@ -1,12 +1,14 @@
 package whatta.Whatta.task.entity;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.repeat.Repeat;
 
 import java.time.LocalDate;
@@ -27,13 +29,15 @@ public class Task {
     @NotNull
     private String userId;
 
+    @NotBlank
     @Builder.Default
     private String title = "새로운 작업";
 
     private String content;
 
+    @NotNull
     @Builder.Default
-    private List<String> labels = new ArrayList<>();
+    private List<Label> labels = new ArrayList<>();
 
     @Builder.Default
     private Boolean completed = false; //진행 전(false) / 완료(true)

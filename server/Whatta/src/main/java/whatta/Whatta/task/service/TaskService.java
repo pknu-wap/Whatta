@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -12,8 +13,8 @@ import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
 import whatta.Whatta.task.repository.TaskRepository;
-import whatta.Whatta.user.entity.User;
-import whatta.Whatta.user.repository.UserRepository;
+import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +26,14 @@ import java.util.stream.Collectors;
 public class TaskService {
 
     private final TaskRepository taskRepository;
-    private final UserRepository userRepositoy;
+    private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
 
     //task 생성
     public TaskResponse createTask(String userId, TaskCreateRequest request) {
 
-        User user = userRepositoy.findByInstallationId(userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         //가장 상단의 Task를 조회
         Task topTask = taskRepository.findTopByUserIdOrderByOrderByNumberAsc(userId).orElse(null);
@@ -46,7 +47,7 @@ public class TaskService {
             newOrderByNumber = 10000L;
         }
 
-        validateLabelsInUserSettings(user, request.getLabels());
+        LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
 
         Task newTask = taskMapper.toEntity(request, userId).toBuilder()
                 .orderByNumber(newOrderByNumber)
@@ -62,16 +63,17 @@ public class TaskService {
 
         Task originalTask = taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
-        User user = userRepositoy.findByInstallationId(userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         Task.TaskBuilder builder = originalTask.toBuilder();
 
         if(request.getTitle() != null) builder.title(request.getTitle());
         if(request.getContent() != null) builder.content(request.getContent());
         if(request.getLabels() != null) {
-            validateLabelsInUserSettings(user, request.getLabels()); //라벨 유효성 검증
-            builder.labels(request.getLabels());
+            LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
+            builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
         }
         if(request.getCompleted() != null) builder.completed(request.getCompleted());
         if(request.getPlacementDate() != null) builder.placementDate(request.getPlacementDate());
@@ -154,17 +156,5 @@ public class TaskService {
         return tasks.stream()
                 .map(taskMapper :: toSidebarResponse)
                 .collect(Collectors.toList());
-    }
-
-
-
-    private void validateLabelsInUserSettings(User user, List<String> labels) { //TODO: 이후에 validator util 빼야 함
-        List<String> userLabels = new ArrayList<>(user.getUserSetting().getLabels());
-
-        for (String label : labels) {
-            if(userLabels.stream().noneMatch(l -> l.equalsIgnoreCase(label))) {
-                throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
-            }
-        }
     }
 }

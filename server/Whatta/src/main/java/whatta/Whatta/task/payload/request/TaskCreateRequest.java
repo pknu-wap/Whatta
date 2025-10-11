@@ -1,10 +1,9 @@
 package whatta.Whatta.task.payload.request;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import whatta.Whatta.global.payload.request.RepeatRequest;
+import whatta.Whatta.global.repeat.payload.RepeatRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -17,7 +16,7 @@ public class TaskCreateRequest {
     private String title;//타이틀
 
     private String content;//내용
-    private List<String> labels;//라벨
+    private List<Long> labels;//라벨
 
     @NotNull(message = "진행상태를 입력해주세요.")
     private Boolean completed; //기본은 false
