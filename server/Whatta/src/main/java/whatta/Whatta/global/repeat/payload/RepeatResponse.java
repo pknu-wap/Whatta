@@ -1,10 +1,10 @@
-package whatta.Whatta.global.payload.response;
+package whatta.Whatta.global.repeat.payload;
 
 import lombok.Builder;
 import lombok.Getter;
 import whatta.Whatta.global.anotation.ValidRepeat;
-import whatta.Whatta.global.entity.Repeat;
-import whatta.Whatta.global.enums.RepeatUnit;
+import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.global.repeat.RepeatUnit;
 
 import java.time.LocalDate;
 import java.util.List;

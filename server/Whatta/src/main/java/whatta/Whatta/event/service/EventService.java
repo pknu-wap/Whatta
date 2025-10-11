@@ -8,9 +8,12 @@ import whatta.Whatta.event.payload.response.EventDetailsResponse;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.payload.response.RepeatResponse;
+import whatta.Whatta.global.repeat.payload.RepeatResponse;
+import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.user.entity.User;
+import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
+import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -24,21 +27,25 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final UserSettingRepository userSettingRepository;
 
     public void createEvent(EventCreateRequest request) { //TODO: user 정보 받아와서 함께 db에 저장
 
         User user = userRepository.findByInstallationId("user123")
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
+        UserSetting userSetting = userSettingRepository.findByUserId("user123")
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
+
         //유저의 라벨 목록에 있는 라벨인지
-        validateLabelsInUserSettings(user, request.getLabels());
+        LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
         validateDateTimeOrder(request.getStartDate(), request.getEndDate(), request.getStartTime(), request.getEndTime());
 
         Event event = Event.builder()
                 .userId(user.getInstallationId()) //임시로 userId가 아닌 installationId로
                 .title(request.getTitle())
                 .content(request.getContent())
-                .labels(request.getLabels())
+                .labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()))
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .startTime(request.getStartTime())
@@ -56,15 +63,6 @@ public class EventService {
         if(startTime != null && endTime != null) {
             if(startTime.isAfter(endTime)) {
                 throw new RestApiException(ErrorCode.TIME_ORDER_INVALID);
-            }
-        }
-    }
-    private void validateLabelsInUserSettings(User user, List<String> labels) { //TODO: 이후에 validator util 빼야 함
-        List<String> userLabels = new ArrayList<>(user.getUserSetting().getLabels());
-
-        for (String label : labels) {
-            if(userLabels.stream().noneMatch(l -> l.equalsIgnoreCase(label))) {
-                throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
             }
         }
     }
