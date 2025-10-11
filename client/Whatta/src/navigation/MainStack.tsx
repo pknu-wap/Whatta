@@ -31,7 +31,7 @@ type RootStackParamList = {
 
 export default function MainTabs() {
   const insets = useSafeAreaInsets()
-  const [activeTab, setActiveTab] = useState('Month') // ✅ 현재 활성 탭 이름 저장
+  const [activeTab, setActiveTab] = useState('Month')
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
 
