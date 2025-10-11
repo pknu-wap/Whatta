@@ -132,4 +132,11 @@ public class EventService {
 
         return eventMapper.toEventDetailsResponse(eventRepository.save(builder.build()));
     }
+
+    public void deleteEvent(String eventId) {
+        Event event = eventRepository.findEventByIdAndUserId(eventId, "user123") //TODO: 게스트 로그인 구현 후, user 정보로 대체
+                .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
+
+        eventRepository.delete(event);
+    }
 }
