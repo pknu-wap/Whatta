@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
+import whatta.Whatta.event.payload.request.EventUpdateRequest;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.event.service.EventService;
 
@@ -21,13 +22,19 @@ public class EventController {
     @PostMapping
     @Operation(summary = "일정 생성", description = "새로운 일정을 생성합니다.")
     public ResponseEntity<?> createEvent (@RequestBody @Validated EventCreateRequest request) {
-        eventService.createEvent(request);
-        return Response.ok("success create event");
+        return Response.ok("success create event", eventService.createEvent(request));
     }
 
     @GetMapping("/{eventId}")
     @Operation(summary = "일정 상세 조회", description = "eventId로 일정의 상세 정보를 조회합니다.")
     public ResponseEntity<?> getEvent(@PathVariable String eventId) {
         return Response.ok("success get event", eventService.getEventDetails(eventId));
+    }
+
+    @PutMapping("/{eventId}")
+    @Operation(summary = "일정 수정", description = "해당 일정을 수정합니다.")
+    public ResponseEntity<?> updateEvent(@PathVariable String eventId,
+                                         @RequestBody @Validated EventUpdateRequest request) {
+        return Response.ok("success edit event", eventService.updateEvent(eventId, request));
     }
 }
