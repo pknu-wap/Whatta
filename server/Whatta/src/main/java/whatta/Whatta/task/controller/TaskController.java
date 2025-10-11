@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import whatta.Whatta.global.payload.response.Response;
+import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
