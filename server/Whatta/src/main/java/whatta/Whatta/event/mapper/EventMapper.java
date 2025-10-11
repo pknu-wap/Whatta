@@ -11,6 +11,7 @@ public class EventMapper {
     public EventDetailsResponse toEventDetailsResponse(Event event) {
 
         return EventDetailsResponse.builder()
+                .id(event.getId())
                 .title(event.getTitle())
                 .content(event.getContent())
                 .labels(LabelsResponse.fromEntity(event.getLabels()))

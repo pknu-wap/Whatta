@@ -12,6 +12,7 @@ import java.util.List;
 
 @Builder
 public record EventDetailsResponse(
+        String id,
         String title,
         String content,
         LabelsResponse labels,

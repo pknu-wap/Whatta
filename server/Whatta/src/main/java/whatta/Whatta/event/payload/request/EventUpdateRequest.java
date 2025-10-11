@@ -18,9 +18,7 @@ public record EventUpdateRequest(
         @Size(max = 3, message = "선택할 수 있는 라벨의 개수는 최대 3개입니다.")
         List<Long> labels,
 
-        @NotNull(message = "날짜 지정은 필수입니다.")
         LocalDate startDate,
-        @NotNull(message = "날짜 지정은 필수입니다. 기간 설정을 하지 않을 경우, 시작 날짜와 동일해야 합니다.")
         LocalDate endDate,
 
         @Schema(type = "string", format = "time", example = "18:00:00")
@@ -30,7 +28,6 @@ public record EventUpdateRequest(
 
         @Valid
         RepeatRequest repeat,
-        @NotBlank(message = "일정 타임 박스의 컬러 값은 필수입니다.")
         @Schema(example = "FFFFFF")
         String colorKey,
 
