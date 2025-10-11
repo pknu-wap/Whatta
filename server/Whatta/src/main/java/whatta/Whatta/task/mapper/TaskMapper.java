@@ -41,7 +41,7 @@ public class TaskMapper {
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
                 .repeat(RepeatResponse.fromEntity(task.getRepeat()))
-                .orderByNumber(task.getOrderByNumber())
+                .sortNumber(task.getSortNumber())
                 .colorKey(task.getColorKey())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
@@ -54,7 +54,7 @@ public class TaskMapper {
                 .title(task.getTitle())
                 .completed(task.getCompleted())
                 .dueDateTime(task.getDueDateTime())
-                .orderByNumber(task.getOrderByNumber())
+                .sortNumber(task.getSortNumber())
                 .build();
 
     }
