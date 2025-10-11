@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import MainTabs from '@/navigation/MainStack'
+import ScheduleDetailScreen from '@/screens/More/ScheduleDetailScreen'
 
 const Root = createNativeStackNavigator()
 
@@ -16,6 +17,11 @@ export default function RootNavigator() {
         options={{
           headerTitle: '',
         }}
+      />
+      <Root.Screen
+        name="AddSchedule"
+        component={ScheduleDetailScreen}
+        options={{ presentation: 'modal' }}
       />
     </Root.Navigator>
   )
