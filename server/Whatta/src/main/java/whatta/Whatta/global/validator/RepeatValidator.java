@@ -3,7 +3,7 @@ package whatta.Whatta.global.validator;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import whatta.Whatta.global.anotation.ValidRepeat;
-import whatta.Whatta.global.payload.request.RepeatRequest;
+import whatta.Whatta.global.repeat.payload.RepeatRequest;
 
 import java.util.regex.Pattern;
 
