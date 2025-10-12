@@ -28,8 +28,7 @@ public class Task {
 
     @NotNull
     private String userId;
-
-    @NotBlank
+    
     @Builder.Default
     private String title = "새로운 작업";
 
