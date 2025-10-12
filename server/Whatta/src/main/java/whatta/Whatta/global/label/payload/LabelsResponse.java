@@ -11,7 +11,10 @@ public record LabelsResponse(
         List<LabelItem> labels
 ) {
     public static LabelsResponse fromEntity(List<Label> labels) { //TODO: 리팩토링 예정
-        if(labels == null || labels.isEmpty()) return null;
+        if(labels == null || labels.isEmpty())
+               return LabelsResponse.builder()
+                       .labels(new ArrayList<>())
+                       .build();
         List<LabelItem> items = new ArrayList<>();
         for(Label label : labels) {
             items.add(LabelItem.builder()
@@ -20,7 +23,9 @@ public record LabelsResponse(
                     .colorKey(label.getColorKey())
                     .build());
         }
-        return new LabelsResponse(items);
+        return LabelsResponse.builder()
+                .labels(items)
+                .build();
     }
 
 }
