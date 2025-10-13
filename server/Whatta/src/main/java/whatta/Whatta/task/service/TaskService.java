@@ -36,21 +36,21 @@ public class TaskService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         //가장 상단의 Task를 조회
-        Task topTask = taskRepository.findTopByUserIdOrderByOrderByNumberAsc(userId).orElse(null);
+        Task topTask = taskRepository.findTopByUserIdOrderBySortNumberAsc(userId).orElse(null);
 
         //정렬 로직 구현
-        Long newOrderByNumber;
+        Long newSortNumber;
         if(topTask != null){
-            newOrderByNumber = topTask.getOrderByNumber() / 2;
+            newSortNumber = topTask.getSortNumber() / 2;
         }
         else {
-            newOrderByNumber = 10000L;
+            newSortNumber = 10000L;
         }
 
         LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
 
-        Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
-                .orderByNumber(newOrderByNumber)
+        Task newTask = taskMapper.toEntity(request, userId).toBuilder()
+                .sortNumber(newSortNumber)
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
@@ -80,7 +80,7 @@ public class TaskService {
         if(request.getPlacementTime() != null) builder.placementTime(request.getPlacementTime());
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
         if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
-        if(request.getOrderByNumber() != null) builder.orderByNumber(request.getOrderByNumber());
+        if(request.getSortNumber() != null) builder.sortNumber(request.getSortNumber());
         if(request.getColorKey() != null) builder.colorKey(request.getColorKey());
 
         //명시된 field를 null로 초기화
@@ -147,11 +147,11 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    //사이드바 task 목록 조회
+//    사이드바 task 목록 조회
     @Transactional(readOnly = true)
     public  List<SidebarTaskResponse> findSidebarTasks(String userId){
         List<Task> tasks = taskRepository.
-                findByUserIdAndPlacementDateIsNullOrderByOrderByNumberAsc(userId);
+                findByUserIdAndPlacementDateIsNullOrderBySortNumberAsc(userId);
 
         return tasks.stream()
                 .map(taskMapper :: toSidebarResponse)
