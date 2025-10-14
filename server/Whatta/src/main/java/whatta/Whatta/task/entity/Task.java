@@ -28,12 +28,15 @@ public class Task {
 
     @NotNull
     private String userId;
-    
+
+    @NotBlank
     @Builder.Default
     private String title = "새로운 작업";
 
     //ToDo @lob으로 바꿔줘야할거 같음
-    private String content;
+    @NotBlank
+    @Builder.Default
+    private String content = "";
 
     @NotNull
     @Builder.Default
@@ -42,9 +45,8 @@ public class Task {
     @Builder.Default
     private Boolean completed = false; //진행 전(false) / 완료(true)
 
-    private LocalDate placementDate;//null 유무로 배치 유무를 판단
+    private LocalDate placementDate; //null 유무로 배치 유무를 판단
     private LocalTime placementTime;
-
     private LocalDateTime dueDateTime;
 
     @Valid
