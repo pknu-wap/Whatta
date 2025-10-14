@@ -21,17 +21,23 @@ public class JwtTokenProvider {
     @Value("${jwt.secret}")
     private String secretKey;
 
-    //30일 유효
-    private final long tokenValidTime = 30 * 24 * 60 * 60 * 1000L;
+    private final long accessTokenValidTime = 30 * 60 * 1000L;//유효기간 30분
+    private final long refreshTokenValidTime = 14 * 24 * 60 * 60 * 1000L;//유효기간 14일
 
+    public String createAccessToken(String installationId) {
+        return createToken(installationId, accessTokenValidTime);
+    }
+    public String createRefreshToken(String installationId) {
+        return createToken(installationId, refreshTokenValidTime);
+    }
     //JWT 토큰 생성
-    public String createToken(String installationId) {
-        Claims claims = Jwts.claims().setSubject(installationId);
+    public String createToken(String subject, Long validTime) {
+        Claims claims = Jwts.claims().setSubject(subject);
         Date now = new Date();
         return Jwts.builder()
                 .setClaims(claims) //정보 저장
                 .setIssuedAt(now) //토큰 발행 시간 정보
-                .setExpiration(new Date(now.getTime() + tokenValidTime)) //만료시간
+                .setExpiration(new Date(now.getTime() + validTime)) //만료시간
                 .signWith(SignatureAlgorithm.HS256, secretKey) //암호화 알고리즘과 secretKey값 세팅
                 .compact();
     }
