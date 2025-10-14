@@ -3,7 +3,7 @@ package whatta.Whatta.task.payload.request;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import whatta.Whatta.global.payload.request.RepeatRequest;
+import whatta.Whatta.global.repeat.payload.RepeatRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

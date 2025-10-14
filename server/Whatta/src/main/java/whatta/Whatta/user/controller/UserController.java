@@ -21,10 +21,10 @@ public class UserController {
 
     private final UserService userService;
 
-    @PostMapping
-    @Operation(summary = "유저 생성", description = "임시로 만든 테스트를 위한 API 입니다.")
-    public ResponseEntity<?> registerUser(@RequestBody @Validated UserRegisterRequest request){
-        userService.createUser(request);
-        return Response.ok("success register"); //TODO: 추후 accessToken 보내야 함
+    @PostMapping("/guest/login")
+    @Operation(summary = "Jwt 발급", description = "게스트 로그인 및 Jwt 발급")
+    public ResponseEntity<?> guestLogin(@RequestBody GuestLoginRequest request){
+        String jwt = userService.proccessGuestLogin request);
+        return Response.ok("로그인 성공 및 토큰 발급 완료", new JwtRep); //TODO: 추후 accessToken 보내야 함
     }
 }
