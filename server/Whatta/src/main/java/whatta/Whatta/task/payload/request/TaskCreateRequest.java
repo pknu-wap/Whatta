@@ -16,7 +16,7 @@ public class TaskCreateRequest {
     private String title;//타이틀
 
     private String content;//내용
-    private List<String> labels;//라벨
+    private List<Long> labels;//라벨
 
     @NotNull(message = "진행상태를 입력해주세요.")
     private Boolean completed; //기본은 false

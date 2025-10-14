@@ -14,7 +14,7 @@ public class TaskUpdateRequest {
 
     private String title;//타이틀
     private String content;//내용
-    private List<String> labels;//라벨
+    private List<Long> labels;//라벨
 
     private Boolean completed; //Boolean값은 null값을 가질 수 있음.
 

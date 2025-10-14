@@ -2,13 +2,12 @@ package whatta.Whatta.task.payload.response;
 
 import lombok.Builder;
 import lombok.Getter;
-import whatta.Whatta.global.payload.response.RepeatResponse;
-import whatta.Whatta.task.entity.Task;
+import whatta.Whatta.global.label.payload.LabelsResponse;
+import whatta.Whatta.global.repeat.payload.RepeatResponse;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.List;
 
 @Getter
 @Builder
@@ -18,7 +17,7 @@ public class TaskResponse {
     private final String userId;
     private final String title;
     private final String content;
-    private final List<String> labels;
+    private final LabelsResponse labels;
     private final Boolean completed;
     private final LocalDate placementDate;
     private final LocalTime placementTime;
