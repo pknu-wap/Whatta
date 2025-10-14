@@ -13,6 +13,7 @@ const colors = {
     title: '#1B1B1B',
     body: '#3C3C3C',
     caption: '#AFAFAF',
+    zero: '#000000',
   },
   feedback: {
     success: '#51E856',
@@ -22,9 +23,16 @@ const colors = {
   },
   task: {
     example: '#b8ccfbff',
-    // 추가 색상들...
+    taskName: '#333333',
+    sideBar: '#F2F2F2',
+    sunday: '#FF474A',
   },
-  
+  icon: {
+    default: '#B4B4B4',
+  },
+  calendar: {
+    background: '#E8CCFF',
+  },
 }
 
 export default colors

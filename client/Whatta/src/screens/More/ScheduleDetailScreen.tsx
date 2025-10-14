@@ -75,13 +75,11 @@ const ScheduleDetailScreen = () => {
   const [isStartTimePickerVisible, setStartTimePickerVisible] = useState(false)
   const [isEndDatePickerVisible, setEndDatePickerVisible] = useState(false)
   const [isEndTimePickerVisible, setEndTimePickerVisible] = useState(false)
-  const [isRepeatEndDatePickerVisible, setRepeatEndDatePickerVisible] =
-    useState(false)
+  const [isRepeatEndDatePickerVisible, setRepeatEndDatePickerVisible] = useState(false)
   const [repeatEndDate, setRepeatEndDate] = useState(new Date())
 
   const [isRepeatSettingsVisible, setIsRepeatSettingsVisible] = useState(false)
-  const [selectedFrequency, setSelectedFrequency] =
-    useState<RepeatFrequency>('NONE')
+  const [selectedFrequency, setSelectedFrequency] = useState<RepeatFrequency>('NONE')
   const [repeatEndType, setRepeatEndType] = useState(0)
 
   // ---------------------------------------------------------------
@@ -181,12 +179,7 @@ const ScheduleDetailScreen = () => {
                   style={styles.repeatOptionRow}
                   onPress={() => {
                     setSelectedFrequency(option.value)
-                    if (option.value === 'NONE') {
-                      setRepeatEndType(0)
-                    } else if (
-                      selectedFrequency === 'NONE' &&
-                      option.value !== 'NONE'
-                    ) {
+                    if (option.value === 'NONE' || selectedFrequency === 'NONE') {
                       setRepeatEndType(0)
                     }
                   }}
@@ -195,8 +188,7 @@ const ScheduleDetailScreen = () => {
                   <View
                     style={[
                       styles.radioButton,
-                      selectedFrequency === option.value &&
-                        styles.radioButtonSelected,
+                      selectedFrequency === option.value && styles.radioButtonSelected,
                     ]}
                   />
                 </Pressable>
@@ -229,8 +221,7 @@ const ScheduleDetailScreen = () => {
                     <View
                       style={[
                         styles.radioButton,
-                        repeatEndType === option.type &&
-                          styles.radioButtonSelected,
+                        repeatEndType === option.type && styles.radioButtonSelected,
                       ]}
                     />
                   </Pressable>
@@ -263,10 +254,7 @@ const ScheduleDetailScreen = () => {
     <View style={styles.container}>
       {/* 테스트를 위한 모달 열기 버튼 */}
       <Text>여기에 캘린더나 버튼이 들어갑니다.</Text>
-      <Pressable
-        style={styles.openModalButton}
-        onPress={() => setModalVisible(true)}
-      >
+      <Pressable style={styles.openModalButton} onPress={() => setModalVisible(true)}>
         <Text style={styles.openModalButtonText}>일정 상세 모달 열기</Text>
       </Pressable>
 
@@ -298,12 +286,8 @@ const ScheduleDetailScreen = () => {
             <View style={styles.contentContainer}>
               {/* 제목 */}
               <View style={styles.itemRow}>
-                <Pressable
-                  onPress={() => setIsColorPickerVisible((prev) => !prev)}
-                >
-                  <Text style={[styles.colorDot, { color: selectedColor }]}>
-                    ●
-                  </Text>
+                <Pressable onPress={() => setIsColorPickerVisible((prev) => !prev)}>
+                  <Text style={[styles.colorDot, { color: selectedColor }]}>●</Text>
                 </Pressable>
                 <TextInput
                   style={styles.titleInput}
@@ -338,14 +322,10 @@ const ScheduleDetailScreen = () => {
               {/* 날짜/시간 */}
               <View style={styles.datePickerGroup}>
                 <Pressable onPress={() => setStartDatePickerVisible(true)}>
-                  <Text style={styles.dateText}>
-                    {formatDateOnly(startDate)}
-                  </Text>
+                  <Text style={styles.dateText}>{formatDateOnly(startDate)}</Text>
                 </Pressable>
                 <Pressable onPress={() => setStartTimePickerVisible(true)}>
-                  <Text style={styles.timeText}>
-                    {formatTimeOnly(startDate)}
-                  </Text>
+                  <Text style={styles.timeText}>{formatTimeOnly(startDate)}</Text>
                 </Pressable>
               </View>
               <Text style={styles.arrowText}>→</Text>
@@ -442,12 +422,7 @@ const ScheduleDetailScreen = () => {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) =>
-            handleDateChange(
-              setStartDate,
-              setStartDatePickerVisible,
-              event,
-              selectedDate,
-            )
+            handleDateChange(setStartDate, setStartDatePickerVisible, event, selectedDate)
           }
           textColor="#000000"
         />
@@ -459,12 +434,7 @@ const ScheduleDetailScreen = () => {
           mode="time"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) =>
-            handleDateChange(
-              setStartDate,
-              setStartTimePickerVisible,
-              event,
-              selectedDate,
-            )
+            handleDateChange(setStartDate, setStartTimePickerVisible, event, selectedDate)
           }
           textColor="#000000"
         />
@@ -476,12 +446,7 @@ const ScheduleDetailScreen = () => {
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) =>
-            handleDateChange(
-              setEndDate,
-              setEndDatePickerVisible,
-              event,
-              selectedDate,
-            )
+            handleDateChange(setEndDate, setEndDatePickerVisible, event, selectedDate)
           }
           textColor="#000000"
         />
@@ -493,12 +458,7 @@ const ScheduleDetailScreen = () => {
           mode="time"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(event, selectedDate) =>
-            handleDateChange(
-              setEndDate,
-              setEndTimePickerVisible,
-              event,
-              selectedDate,
-            )
+            handleDateChange(setEndDate, setEndTimePickerVisible, event, selectedDate)
           }
           textColor="#000000"
         />
