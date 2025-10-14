@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.security.JwtTokenProvider;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.payload.response.LoginResponse;
 import whatta.Whatta.user.repository.UserRepository;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
@@ -20,26 +21,30 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider;
 
     @Transactional
-    public String processGuestLogin(String installationId) {
+    public LoginResponse processGuestLogin(String installationId) {
         //해당 installationId를 가진 유저를 확인하고 없으면 새로 생성
-        Optional<User> userOptional = userRepository.findByInstallationId(installationId);
+        User user = userRepository.findByInstallationId(installationId).orElseGet(() -> {
 
-        User user;
-        if(userOptional.isPresent()) {
-            user = userOptional.get();
-        }
-        else{
-            user = User.builder()
+            User newUser = User.builder()
                     .installationId(installationId)
                     .build();
-            userRepository.save(user);
+            userRepository.save(newUser);
 
-            userSettingRepository.save(UserSetting.builder()
+            UserSetting setting = UserSetting.builder()
                     .userId(installationId)
-                    .build());
-        }
+                    .build();
+            userSettingRepository.save(setting);
 
+            return newUser;
+        });
+        //각각 토큰 발급
+        String accessToken = jwtTokenProvider.createAccessToken(user.getInstallationId());
+        String refreshToken = jwtTokenProvider.createRefreshToken(user.getInstallationId());
 
-        return jwtTokenProvider.createToken(user.getInstallationId());
+        //refresh토큰 저장
+        user.updateRefreshToken(refreshToken);
+        userRepository.save(user);
+
+        return new LoginResponse(accessToken, refreshToken);
     }
 }

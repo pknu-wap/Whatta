@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.user.payload.request.GuestLoginRequest;
-import whatta.Whatta.user.payload.response.JwtResponse;
+import whatta.Whatta.user.payload.response.LoginResponse;
 import whatta.Whatta.user.service.UserService;
 
 @RestController
@@ -24,7 +24,7 @@ public class UserController {
     @PostMapping("/guest/login")
     @Operation(summary = "Jwt 발급", description = "게스트 로그인 및 Jwt 발급")
     public ResponseEntity<?> guestLogin(@RequestBody GuestLoginRequest request){
-        String jwt = userService.processGuestLogin(request.getInstallationId());
-        return Response.ok("로그인 성공 및 토큰 발급 완료", new JwtResponse(jwt));
+        LoginResponse response = userService.processGuestLogin(request.getInstallationId());
+        return Response.ok("로그인 성공 및 토큰 발급 완료", response);
     }
 }
