@@ -43,7 +43,7 @@ public class TaskMapper {
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
-                .repeat(RepeatResponse.fromEntity(task.getRepeat()))
+                .repeat(RepeatRespons.fromEntity(task.getRepeat()))
                 .sortNumber(task.getSortNumber())
                 .colorKey(task.getColorKey())
                 .createdAt(task.getCreatedAt())

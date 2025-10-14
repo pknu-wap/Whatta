@@ -32,6 +32,7 @@ public class Task {
     @Builder.Default
     private String title = "새로운 작업";
 
+    //ToDo @lob으로 바꿔줘야할거 같음
     private String content;
 
     @NotNull
