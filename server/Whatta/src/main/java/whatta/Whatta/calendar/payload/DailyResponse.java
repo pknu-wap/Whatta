@@ -1,10 +1,15 @@
 package whatta.Whatta.calendar.payload;
 
 import lombok.Builder;
-import whatta.Whatta.calendar.payload.dto.CalendarDailyEventsResult;
+import whatta.Whatta.calendar.payload.dto.*;
+
+import java.util.List;
 
 @Builder
 public record DailyResponse(
-        CalendarDailyEventsResult events
+        List<CalendarAllDayEventItem> allDayEvents,
+        List<CalendarAllDayTaskItem> allDayTasks,
+        List<CalendarTimedEventItem> timedEvents,
+        List<CalendarTimedTaskItem> timedTasks
 ) {
 }
