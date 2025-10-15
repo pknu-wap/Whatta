@@ -25,6 +25,7 @@ public class SecurityConfig {
                 .sessionManagement(session
                         -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/users/guest/login", "/api/auth/refresh").permitAll()
                         .anyRequest().authenticated()
                 )
