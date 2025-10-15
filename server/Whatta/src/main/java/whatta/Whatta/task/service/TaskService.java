@@ -49,7 +49,7 @@ public class TaskService {
 
         LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
 
-        Task newTask = taskMapper.toEntity(request, userId).toBuilder()
+        Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
                 .sortNumber(newSortNumber)
                 .build();
 
