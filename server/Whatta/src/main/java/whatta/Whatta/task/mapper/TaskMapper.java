@@ -27,7 +27,7 @@ public class TaskMapper {
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
-                .repeat(request.getRepeat().toEntity())
+                .repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
                 .colorKey(request.getColorKey())
                 .build();
     }
