@@ -21,5 +21,9 @@ public class User {
     @NotNull
     private String installationId;
 
-    private RefreshToken refreshToken;
+    private String refreshToken;
+
+    public void updateRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
+    }
 }
