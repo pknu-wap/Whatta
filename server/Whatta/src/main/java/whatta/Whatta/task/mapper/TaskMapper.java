@@ -13,14 +13,10 @@ import whatta.Whatta.user.entity.UserSetting;
 @Component
 public class TaskMapper {
     public Task toEntity(TaskCreateRequest request, UserSetting userSetting){
-        //title이 null이나 blank면 기본값을 줌
-        String title = (request.getTitle() == null || request.getTitle().isBlank())
-                ? "새로운 작업"
-                : request.getTitle();
 
         return Task.builder()
                 .userId(userSetting.getUserId())
-                .title(title)
+                .title(request.getTitle())
                 .content(request.getContent())
                 .labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()))
                 .completed(false)

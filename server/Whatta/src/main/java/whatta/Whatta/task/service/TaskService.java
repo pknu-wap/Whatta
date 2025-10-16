@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
@@ -16,6 +17,7 @@ import whatta.Whatta.task.repository.TaskRepository;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,6 +40,7 @@ public class TaskService {
         //가장 상단의 Task를 조회
         Task topTask = taskRepository.findTopByUserIdOrderBySortNumberAsc(userId).orElse(null);
 
+
         //정렬 로직 구현
         Long newSortNumber;
         if(topTask != null){
@@ -49,7 +52,23 @@ public class TaskService {
 
         LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
 
+        String title = (request.getTitle() == null || request.getTitle().isBlank())
+                ? "새로운 작업"
+                : request.getTitle();
+
+        String content = (request.getContent() == null || request.getContent().isBlank())
+                ? ""
+                :request.getContent();
+
+        List<Label> labels = (request.getLabels() == null || request.getLabels().isEmpty())
+                ? new ArrayList<>()
+                : LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels());
+
+
         Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
+                .title(title)
+                .content(content)
+                .labels(labels)
                 .sortNumber(newSortNumber)
                 .build();
 
@@ -69,9 +88,9 @@ public class TaskService {
 
         Task.TaskBuilder builder = originalTask.toBuilder();
 
-        if(request.getTitle() != null) builder.title(request.getTitle());
+        if(request.getTitle() != null && !request.getTitle().isBlank()) builder.title(request.getTitle());
         if(request.getContent() != null) builder.content(request.getContent());
-        if(request.getLabels() != null) {
+        if(request.getLabels() != null && !request.getLabels().isEmpty()) {
             LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
             builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
         }
@@ -85,11 +104,14 @@ public class TaskService {
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
-        if(request.getFieldsToClear() != null) {
+        if(request.getFieldsToClear() != null && !request.getFieldsToClear().isEmpty()) {
             for (String fieldName : request.getFieldsToClear()) {
-                switch (fieldName) { //title이나 completed, colorkey, orderByNumber는 null로 초기화안함
+                switch (fieldName) { //completed, colorkey, orderByNumber는 null로 초기화안함
+                    case "title":
+                        builder.title("새로운 작업");
+                        break;
                     case "content":
-                        builder.content(null);
+                        builder.content("");
                         break;
                     case "labels":
                         builder.labels(new ArrayList<>());
@@ -110,6 +132,7 @@ public class TaskService {
                 }
             }
         }
+        builder.updatedAt(LocalDateTime.now());
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
