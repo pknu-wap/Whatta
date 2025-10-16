@@ -1,9 +1,11 @@
 package whatta.Whatta.event.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
@@ -14,6 +16,8 @@ import whatta.Whatta.event.service.EventService;
 @RestController
 @RequestMapping("/api/event")
 @AllArgsConstructor
+@PreAuthorize("isAuthenticated()")
+@SecurityRequirement(name = "BearerAuth")
 @Tag(name = "Event", description = "일정 API")
 public class EventController {
 
