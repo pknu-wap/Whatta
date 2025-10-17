@@ -26,9 +26,17 @@ public class CalendarViewController {
 
     private final CalendarViewService calendarViewService;
 
-    @GetMapping
+    @GetMapping("/daily")
     @Operation(summary = "일간 조회", description = "해당 날짜의 일정과 작업을 조회합니다.")
-    public ResponseEntity<?> getDaily(@AuthenticationPrincipal String userId,  @RequestParam LocalDate date) {
+    public ResponseEntity<?> getDaily(@AuthenticationPrincipal String userId, @RequestParam LocalDate date) {
         return Response.ok("success get events and tasks for " + date, calendarViewService.getDaily(userId, date));
+    }
+
+    @GetMapping("/weekly")
+    @Operation(summary = "주간 조회", description = "startDate 와 endDate 에 포함되거나 걸치는 일정과 작업을 조회합니다.")
+    public ResponseEntity<?> getWeekly(@AuthenticationPrincipal String userId,
+                                       @RequestParam LocalDate startDate, @RequestParam LocalDate endDate) {
+        return Response.ok("success get events and tasks between " + startDate + " and " + endDate,
+                calendarViewService.getWeekly(userId, startDate, endDate));
     }
 }

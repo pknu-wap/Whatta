@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import whatta.Whatta.calendar.payload.dto.CalendarAllDayEventItem;
-import whatta.Whatta.calendar.payload.dto.CalendarDailyEventsResult;
+import whatta.Whatta.calendar.payload.dto.CalendarEventsResult;
 import whatta.Whatta.calendar.payload.dto.CalendarTimedEventItem;
 
 import java.time.LocalDate;
@@ -21,7 +21,7 @@ public class CalendarEventsRepositoryCustom {
 
     private final MongoTemplate mongoTemplate;
 
-    public CalendarDailyEventsResult getDailyViewByUserId(String userId, LocalDate date) {
+    public CalendarEventsResult getDailyViewByUserId(String userId, LocalDate date) {
 
         AggregationOperation commonMatch = Aggregation.match(
                 Criteria.where("userId").is(userId)
@@ -66,14 +66,74 @@ public class CalendarEventsRepositoryCustom {
                         allDayOperations.toArray(new AggregationOperation[0])).as("allDayEvents")
                         .and(timedOperations.toArray(new AggregationOperation[0])).as("timedEvents"));
 
-        CalendarDailyEventsResult result = mongoTemplate.aggregate(aggregation,
+        CalendarEventsResult result = mongoTemplate.aggregate(aggregation,
                         "events",
-                CalendarDailyEventsResult.class)
+                CalendarEventsResult.class)
                 .getUniqueMappedResult();
 
         return (result != null)
-                ? result : new CalendarDailyEventsResult(
+                ? result : new CalendarEventsResult(
                         List.<CalendarAllDayEventItem>of(),
                         List.<CalendarTimedEventItem>of());
+    }
+
+    public CalendarEventsResult getWeeklyViewByUserId(String userId, LocalDate start, LocalDate end) {
+
+        AggregationOperation commonMatch = Aggregation.match(
+                Criteria.where("userId").is(userId)
+                        .and("startDate").lte(end)
+                        .and("endDate").gte(start)
+
+
+        );
+
+        List<AggregationOperation> allDayOperations = new ArrayList<>();
+        allDayOperations.add(Aggregation.match(Criteria.where("startTime").is(null)));
+        allDayOperations.add(
+                Aggregation.project()
+                        .and("_id").as("id")
+                        .and("title").as("title")
+                        .and("colorKey").as("colorKey")
+                        .and("labels._id").as("labels")
+                        .andExpression("startDate != endDate").as("isPeriod")
+                        .and("startDate").as("startDate")
+                        .and("endDate").as("endDate")
+                        .andExpression("repeat != null").as("IsRepeat"));
+        allDayOperations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("startDate"))));
+
+        List<AggregationOperation> timedOperations = new ArrayList<>();
+        timedOperations.add(Aggregation.match(Criteria.where("startTime").ne(null)));
+        timedOperations.add(
+                Aggregation.project()
+                        .and("_id").as("id")
+                        .and("title").as("title")
+                        .and("colorKey").as("colorKey")
+                        .and("labels._id").as("labels")
+                        .and("startTime").as("startTime")
+                        .and("endTime").as("endTime")
+                        .andExpression("startDate != endDate").as("isPeriod")
+                        .and("startDate").as("startDate")
+                        .and("endDate").as("endDate")
+                        .andExpression("repeat != null").as("IsRepeat"));
+        timedOperations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("startDate"),
+                Sort.Order.asc("startTime"))));
+
+        Aggregation aggregation = Aggregation.newAggregation(
+                commonMatch,
+                Aggregation.facet(
+                                allDayOperations.toArray(new AggregationOperation[0])).as("allDayEvents")
+                        .and(timedOperations.toArray(new AggregationOperation[0])).as("timedEvents"));
+
+        CalendarEventsResult result = mongoTemplate.aggregate(aggregation,
+                        "events",
+                        CalendarEventsResult.class)
+                .getUniqueMappedResult();
+
+        return (result != null)
+                ? result : new CalendarEventsResult(
+                List.<CalendarAllDayEventItem>of(),
+                List.<CalendarTimedEventItem>of());
     }
 }

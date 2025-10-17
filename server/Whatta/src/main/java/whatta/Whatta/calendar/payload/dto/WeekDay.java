@@ -1,12 +1,10 @@
-package whatta.Whatta.calendar.payload;
+package whatta.Whatta.calendar.payload.dto;
 
-import lombok.Builder;
-import whatta.Whatta.calendar.payload.dto.*;
-
+import java.time.LocalDate;
 import java.util.List;
 
-@Builder
-public record DailyResponse(
+public record WeekDay(
+        LocalDate date,
         List<CalendarAllDayEventItem> allDayEvents,
         List<CalendarAllDayTaskItem> allDayTasks,
         List<CalendarTimedEventItem> timedEvents,
