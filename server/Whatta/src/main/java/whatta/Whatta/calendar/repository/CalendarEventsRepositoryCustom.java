@@ -7,9 +7,9 @@ import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
-import whatta.Whatta.calendar.payload.dto.CalendarAllDayEventItem;
-import whatta.Whatta.calendar.payload.dto.CalendarEventsResult;
-import whatta.Whatta.calendar.payload.dto.CalendarTimedEventItem;
+import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
+import whatta.Whatta.calendar.repository.dto.CalendarEventsResult;
+import whatta.Whatta.calendar.repository.dto.CalendarTimedEventItem;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -83,8 +83,6 @@ public class CalendarEventsRepositoryCustom {
                 Criteria.where("userId").is(userId)
                         .and("startDate").lte(end)
                         .and("endDate").gte(start)
-
-
         );
 
         List<AggregationOperation> allDayOperations = new ArrayList<>();

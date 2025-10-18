@@ -1,13 +1,16 @@
 package whatta.Whatta.calendar.payload.dto;
 
+import lombok.Builder;
+
 import java.time.LocalDate;
 import java.util.List;
 
+@Builder
 public record WeekDay(
         LocalDate date,
-        List<CalendarAllDayEventItem> allDayEvents,
-        List<CalendarAllDayTaskItem> allDayTasks,
-        List<CalendarTimedEventItem> timedEvents,
-        List<CalendarTimedTaskItem> timedTasks
+        List<AllDayEvent> allDayEvents,
+        List<AllDayTask> allDayTasks,
+        List<TimedEvent> timedEvents,
+        List<TimedTask> timedTasks
 ) {
 }
