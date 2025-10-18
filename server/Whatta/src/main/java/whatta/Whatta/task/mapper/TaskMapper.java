@@ -1,30 +1,29 @@
 package whatta.Whatta.task.mapper;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.global.payload.response.RepeatResponse;
+import whatta.Whatta.global.label.payload.LabelsResponse;
+import whatta.Whatta.global.repeat.payload.RepeatResponse;
+import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
+import whatta.Whatta.user.entity.UserSetting;
 
 @Component
 public class TaskMapper {
-    public Task toEntity(TaskCreateRequest request, String userId){
-        //title이 null이나 blank면 기본값을 줌
-        String title = (request.getTitle() == null || request.getTitle().isBlank())
-                ? "새로운 작업"
-                : request.getTitle();
+    public Task toEntity(TaskCreateRequest request, UserSetting userSetting){
 
         return Task.builder()
-                .userId(userId)
-                .title(title)
+                .userId(userSetting.getUserId())
+                .title(request.getTitle())
                 .content(request.getContent())
-                .labels(request.getLabels())
+                .labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()))
                 .completed(false)
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
-                .repeat(request.getRepeat().toEntity())
+                .repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
                 .colorKey(request.getColorKey())
                 .build();
     }
@@ -35,13 +34,13 @@ public class TaskMapper {
                 .userId(task.getUserId())
                 .title(task.getTitle())
                 .content(task.getContent())
-                .labels(task.getLabels())
+                .labels(LabelsResponse.fromEntity(task.getLabels()))
                 .completed(task.getCompleted())
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
                 .repeat(RepeatResponse.fromEntity(task.getRepeat()))
-                .orderByNumber(task.getOrderByNumber())
+                .sortNumber(task.getSortNumber())
                 .colorKey(task.getColorKey())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
@@ -54,7 +53,7 @@ public class TaskMapper {
                 .title(task.getTitle())
                 .completed(task.getCompleted())
                 .dueDateTime(task.getDueDateTime())
-                .orderByNumber(task.getOrderByNumber())
+                .sortNumber(task.getSortNumber())
                 .build();
 
     }

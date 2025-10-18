@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum ErrorCode {
 
-    EVENT_NOT_FOUNT(HttpStatus.NOT_FOUND, "600", "해당 일정이 존재하지 않습니다."),
+    EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "600", "해당 일정이 존재하지 않습니다."),
     REQUIRED_DATE_MISSING(HttpStatus.BAD_REQUEST, "601", "일정은 날짜 지정이 필수입니다."),
     DATE_ORDER_INVALID(HttpStatus.BAD_REQUEST, "602", "끝나는 날짜가 시작 날짜보다 앞서선 안됩니다."),
     TIME_ORDER_INVALID(HttpStatus.BAD_REQUEST, "602", "끝나는 시간보다 시작 시간보다 앞서선 안됩니다."),
@@ -15,6 +15,7 @@ public enum ErrorCode {
 
     USER_NOT_EXIST(HttpStatus.BAD_REQUEST, "800", "존재하지 않는 계정입니다."),
     USER_SETTING_NOT_FOUND(HttpStatus.NOT_FOUND, "801", "해당 계정의 설정이 존재하지 않습니다."),
+    INVALID_TOKEN(HttpStatus.BAD_REQUEST, "802", "유효하지 않은 토큰입니다."),
 
     LABEL_NOT_FOUND(HttpStatus.BAD_REQUEST, "900", "요청 라벨이 사용자의 라벨 목록에 없습니다."),
     TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "901", "라벨은 최대 3개까지 설정할 수 있습니다.");

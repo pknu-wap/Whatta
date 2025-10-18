@@ -2,7 +2,7 @@ package whatta.Whatta.task.payload.request;
 
 import jakarta.validation.Valid;
 import lombok.Getter;
-import whatta.Whatta.global.payload.request.RepeatRequest;
+import whatta.Whatta.global.repeat.payload.RepeatRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,7 +14,7 @@ public class TaskUpdateRequest {
 
     private String title;//타이틀
     private String content;//내용
-    private List<String> labels;//라벨
+    private List<Long> labels;//라벨
 
     private Boolean completed; //Boolean값은 null값을 가질 수 있음.
 
@@ -26,7 +26,7 @@ public class TaskUpdateRequest {
     @Valid
     private RepeatRequest repeat;
 
-    private Long orderByNumber;//정렬
+    private Long sortNumber;//정렬
     private String colorKey;
 
     private List<String> fieldsToClear; //null로 필드 초기화

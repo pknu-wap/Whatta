@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.global.label.Label;
+import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -12,9 +14,10 @@ import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
 import whatta.Whatta.task.repository.TaskRepository;
-import whatta.Whatta.user.entity.User;
-import whatta.Whatta.user.repository.UserRepository;
+import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.repository.UserSettingRepository;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,31 +28,48 @@ import java.util.stream.Collectors;
 public class TaskService {
 
     private final TaskRepository taskRepository;
-    private final UserRepository userRepositoy;
+    private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
 
     //task 생성
     public TaskResponse createTask(String userId, TaskCreateRequest request) {
 
-        User user = userRepositoy.findByInstallationId(userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         //가장 상단의 Task를 조회
-        Task topTask = taskRepository.findTopByUserIdOrderByOrderByNumberAsc(userId).orElse(null);
+        Task topTask = taskRepository.findTopByUserIdOrderBySortNumberAsc(userId).orElse(null);
+
 
         //정렬 로직 구현
-        Long newOrderByNumber;
+        Long newSortNumber;
         if(topTask != null){
-            newOrderByNumber = topTask.getOrderByNumber() / 2;
+            newSortNumber = topTask.getSortNumber() / 2;
         }
         else {
-            newOrderByNumber = 10000L;
+            newSortNumber = 10000L;
         }
 
-        validateLabelsInUserSettings(user, request.getLabels());
+        LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
 
-        Task newTask = taskMapper.toEntity(request, userId).toBuilder()
-                .orderByNumber(newOrderByNumber)
+        String title = (request.getTitle() == null || request.getTitle().isBlank())
+                ? "새로운 작업"
+                : request.getTitle();
+
+        String content = (request.getContent() == null || request.getContent().isBlank())
+                ? ""
+                :request.getContent();
+
+        List<Label> labels = (request.getLabels() == null || request.getLabels().isEmpty())
+                ? new ArrayList<>()
+                : LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels());
+
+
+        Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
+                .title(title)
+                .content(content)
+                .labels(labels)
+                .sortNumber(newSortNumber)
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
@@ -62,32 +82,36 @@ public class TaskService {
 
         Task originalTask = taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
-        User user = userRepositoy.findByInstallationId(userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         Task.TaskBuilder builder = originalTask.toBuilder();
 
-        if(request.getTitle() != null) builder.title(request.getTitle());
+        if(request.getTitle() != null && !request.getTitle().isBlank()) builder.title(request.getTitle());
         if(request.getContent() != null) builder.content(request.getContent());
-        if(request.getLabels() != null) {
-            validateLabelsInUserSettings(user, request.getLabels()); //라벨 유효성 검증
-            builder.labels(request.getLabels());
+        if(request.getLabels() != null && !request.getLabels().isEmpty()) {
+            LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
+            builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
         }
         if(request.getCompleted() != null) builder.completed(request.getCompleted());
         if(request.getPlacementDate() != null) builder.placementDate(request.getPlacementDate());
         if(request.getPlacementTime() != null) builder.placementTime(request.getPlacementTime());
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
         if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
-        if(request.getOrderByNumber() != null) builder.orderByNumber(request.getOrderByNumber());
+        if(request.getSortNumber() != null) builder.sortNumber(request.getSortNumber());
         if(request.getColorKey() != null) builder.colorKey(request.getColorKey());
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
-        if(request.getFieldsToClear() != null) {
+        if(request.getFieldsToClear() != null && !request.getFieldsToClear().isEmpty()) {
             for (String fieldName : request.getFieldsToClear()) {
-                switch (fieldName) { //title이나 completed, colorkey, orderByNumber는 null로 초기화안함
+                switch (fieldName) { //completed, colorkey, orderByNumber는 null로 초기화안함
+                    case "title":
+                        builder.title("새로운 작업");
+                        break;
                     case "content":
-                        builder.content(null);
+                        builder.content("");
                         break;
                     case "labels":
                         builder.labels(new ArrayList<>());
@@ -108,6 +132,7 @@ public class TaskService {
                 }
             }
         }
+        builder.updatedAt(LocalDateTime.now());
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
@@ -145,26 +170,14 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    //사이드바 task 목록 조회
+//    사이드바 task 목록 조회
     @Transactional(readOnly = true)
     public  List<SidebarTaskResponse> findSidebarTasks(String userId){
         List<Task> tasks = taskRepository.
-                findByUserIdAndPlacementDateIsNullOrderByOrderByNumberAsc(userId);
+                findByUserIdAndPlacementDateIsNullOrderBySortNumberAsc(userId);
 
         return tasks.stream()
                 .map(taskMapper :: toSidebarResponse)
                 .collect(Collectors.toList());
-    }
-
-
-
-    private void validateLabelsInUserSettings(User user, List<String> labels) { //TODO: 이후에 validator util 빼야 함
-        List<String> userLabels = new ArrayList<>(user.getUserSetting().getLabels());
-
-        for (String label : labels) {
-            if(userLabels.stream().noneMatch(l -> l.equalsIgnoreCase(label))) {
-                throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
-            }
-        }
     }
 }
