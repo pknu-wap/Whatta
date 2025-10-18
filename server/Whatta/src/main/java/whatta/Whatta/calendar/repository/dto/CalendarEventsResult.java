@@ -1,8 +1,8 @@
-package whatta.Whatta.calendar.payload.dto;
+package whatta.Whatta.calendar.repository.dto;
 
 import java.util.List;
 
-public record CalendarDailyEventsResult(
+public record CalendarEventsResult(
         List<CalendarAllDayEventItem> allDayEvents,
         List<CalendarTimedEventItem> timedEvents
 ) {

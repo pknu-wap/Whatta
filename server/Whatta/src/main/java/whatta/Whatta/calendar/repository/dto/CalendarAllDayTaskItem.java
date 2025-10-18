@@ -1,11 +1,13 @@
-package whatta.Whatta.calendar.payload.dto;
+package whatta.Whatta.calendar.repository.dto;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public record CalendarAllDayTaskItem(
         String id,
         String title,
         List<Long> labels,
-        boolean completed
+        boolean completed,
+        LocalDate placementDate
 ) {
 }

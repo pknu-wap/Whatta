@@ -1,0 +1,68 @@
+package whatta.Whatta.calendar.mapper;
+
+import org.springframework.stereotype.Component;
+import whatta.Whatta.calendar.payload.dto.AllDayEvent;
+import whatta.Whatta.calendar.payload.dto.AllDayTask;
+import whatta.Whatta.calendar.payload.dto.TimedEvent;
+import whatta.Whatta.calendar.payload.dto.TimedTask;
+import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
+import whatta.Whatta.calendar.repository.dto.CalendarAllDayTaskItem;
+import whatta.Whatta.calendar.repository.dto.CalendarTimedEventItem;
+import whatta.Whatta.calendar.repository.dto.CalendarTimedTaskItem;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+
+@Component
+public class CalendarMapper {
+    public AllDayEvent allDayEventItemToResponse(CalendarAllDayEventItem item) {
+        return AllDayEvent.builder()
+                .id(item.id())
+                .title(item.title())
+                .colorKey(item.colorKey())
+                .labels(item.labels())
+                .isPeriod(item.isPeriod())
+                .startDate(item.startDate())
+                .endDate(item.endDate())
+                .isRepeat(item.isRepeat())
+                .build();
+    }
+
+    public AllDayTask allDayTaskItemToResponse(CalendarAllDayTaskItem item) {
+        return AllDayTask.builder()
+                .id(item.id())
+                .title(item.title())
+                .labels(item.labels())
+                .completed(item.completed())
+                .placementDate(item.placementDate())
+                .build();
+    }
+
+    public TimedEvent timedEventItemToResponse(CalendarTimedEventItem item, LocalDate date, LocalTime start, LocalTime end) {
+        return TimedEvent.builder()
+                .id(item.id())
+                .title(item.title())
+                .colorKey(item.colorKey())
+                .labels(item.labels())
+                .placementDate(date)
+                .clippedStartTime(start)
+                .clippedEndTime(end)
+                .isPeriod(item.isPeriod())
+                .startAt(LocalDateTime.of(item.startDate(), item.startTime()))
+                .endAt(LocalDateTime.of(item.endDate(), item.endTime()))
+                .isRepeat(item.isRepeat())
+                .build();
+    }
+
+    public TimedTask timedTaskItemToResponse(CalendarTimedTaskItem item) {
+        return TimedTask.builder()
+                .id(item.id())
+                .title(item.title())
+                .labels(item.labels())
+                .completed(item.completed())
+                .placementDate(item.placementDate())
+                .placementTime(item.placementTime())
+                .build();
+    }
+}
