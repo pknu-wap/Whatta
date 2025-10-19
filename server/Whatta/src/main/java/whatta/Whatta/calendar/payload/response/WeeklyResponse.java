@@ -8,7 +8,7 @@ import java.util.List;
 
 @Builder
 public record WeeklyResponse(
-        List<AllDaySpanEvent> spanEvents, //시간 지정을 하지 않은 기간 일정
+        List<AllDaySpanEvent> allDaySpanEvents, //시간 지정을 하지 않은 기간 일정
         List<WeekDay> days
 ) {
 }

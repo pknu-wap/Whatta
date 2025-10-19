@@ -159,7 +159,7 @@ public class CalendarViewService {
         }
 
         return WeeklyResponse.builder()
-                .spanEvents(spanEvents)
+                .allDaySpanEvents(spanEvents)
                 .days(days)
                 .build();
     }
