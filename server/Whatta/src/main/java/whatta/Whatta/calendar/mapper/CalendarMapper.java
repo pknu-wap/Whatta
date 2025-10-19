@@ -1,14 +1,8 @@
 package whatta.Whatta.calendar.mapper;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.calendar.payload.dto.AllDayEvent;
-import whatta.Whatta.calendar.payload.dto.AllDayTask;
-import whatta.Whatta.calendar.payload.dto.TimedEvent;
-import whatta.Whatta.calendar.payload.dto.TimedTask;
-import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
-import whatta.Whatta.calendar.repository.dto.CalendarAllDayTaskItem;
-import whatta.Whatta.calendar.repository.dto.CalendarTimedEventItem;
-import whatta.Whatta.calendar.repository.dto.CalendarTimedTaskItem;
+import whatta.Whatta.calendar.payload.dto.*;
+import whatta.Whatta.calendar.repository.dto.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,6 +57,28 @@ public class CalendarMapper {
                 .completed(item.completed())
                 .placementDate(item.placementDate())
                 .placementTime(item.placementTime())
+                .build();
+    }
+
+    public MonthSpanEvent MonthlyEventResultToSpanResponse(CalendarMonthlyEventResult result) {
+        return MonthSpanEvent.builder()
+                .id(result.id())
+                .title(result.title())
+                .colorKey(result.colorKey())
+                .labels(result.labels())
+                .startDate(result.startDate())
+                .endDate(result.endDate())
+                .isRepeat(result.isRepeat())
+                .build();
+    }
+
+    public MonthEvent MonthlyEventResultToResponse(CalendarMonthlyEventResult result) {
+        return MonthEvent.builder()
+                .id(result.id())
+                .title(result.title())
+                .colorKey(result.colorKey())
+                .labels(result.labels())
+                .isRepeat(result.isRepeat())
                 .build();
     }
 }

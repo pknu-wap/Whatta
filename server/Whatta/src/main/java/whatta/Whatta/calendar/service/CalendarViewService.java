@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.calendar.mapper.CalendarMapper;
 import whatta.Whatta.calendar.payload.dto.*;
+import whatta.Whatta.calendar.payload.response.MonthlyResponse;
 import whatta.Whatta.calendar.repository.dto.*;
 import whatta.Whatta.calendar.payload.response.DailyResponse;
 import whatta.Whatta.calendar.payload.response.WeeklyResponse;
@@ -12,6 +13,7 @@ import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,10 +47,7 @@ public class CalendarViewService {
     public WeeklyResponse getWeekly(String userId, LocalDate start, LocalDate end) {
 
         //날짜 리스트
-        List<LocalDate> datesInRange = new ArrayList<>();
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-            datesInRange.add(date);
-        }
+        List<LocalDate> datesInRange = buildDateRange(start, end);
 
         //db 조회를 병렬로
         CompletableFuture<CalendarEventsResult> eventsFuture =
@@ -122,5 +121,68 @@ public class CalendarViewService {
                 .spanEvents(spanEvents)
                 .days(days)
                 .build();
+    }
+
+    public MonthlyResponse getMonthly(String userId, YearMonth month) {
+
+        LocalDate start = month.atDay(1);
+        LocalDate end = month.atEndOfMonth();
+
+        List<LocalDate> datesInRange = buildDateRange(start, end);
+
+        //db 조회를 병렬로
+        CompletableFuture<List<CalendarMonthlyEventResult>> eventsFuture =
+                CompletableFuture.supplyAsync(() -> calendarEventsRepository.getMonthlyViewByUserId(userId, start, end), calendarExecutor);
+        CompletableFuture<List<CalendarMonthlyTaskCountResult>> tasksFuture =
+                CompletableFuture.supplyAsync(() -> calendarTasksRepository.getMonthlyViewByUserId(userId, start, end), calendarExecutor);
+
+        //두 조회가 끝난 후 조립
+        List<CalendarMonthlyEventResult> eventsResult = eventsFuture.join();
+        List<CalendarMonthlyTaskCountResult> tasksResult = tasksFuture.join();
+
+        Map<LocalDate, List<MonthEvent>> eventByDate = new HashMap<>();
+        Map<LocalDate, Integer> taskCountByDate = new HashMap<>();
+        for(LocalDate date : datesInRange) {
+            eventByDate.put(date, new ArrayList<>());
+            taskCountByDate.put(date, 0);
+        }
+
+        //기간 event
+        List<MonthSpanEvent> spanEvents = new ArrayList<>();
+        for(CalendarMonthlyEventResult event : eventsResult) {
+            if (event.isSpan()) {
+                spanEvents.add(calendarMapper.MonthlyEventResultToSpanResponse(event));
+            }
+            else {
+                eventByDate.get(event.startDate()).add(calendarMapper.MonthlyEventResultToResponse(event));
+            }
+        }
+
+        //task
+        for(CalendarMonthlyTaskCountResult task : tasksResult) {
+            taskCountByDate.put(task.placementDate(), task.count());
+        }
+
+        List<MonthDay> days = new ArrayList<>();
+        for(LocalDate date : datesInRange) {
+            days.add(MonthDay.builder()
+                            .date(date)
+                            .events(eventByDate.get(date))
+                            .taskCount(taskCountByDate.get(date))
+                    .build());
+        }
+
+        return MonthlyResponse.builder()
+                .spanEvents(spanEvents)
+                .days(days)
+                .build();
+    }
+
+    private List<LocalDate> buildDateRange(LocalDate start, LocalDate end) {
+        List<LocalDate> dates = new ArrayList<>();
+        for(LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            dates.add(date);
+        }
+        return dates;
     }
 }
