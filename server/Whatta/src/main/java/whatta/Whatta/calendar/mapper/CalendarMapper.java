@@ -10,8 +10,18 @@ import java.time.LocalTime;
 
 @Component
 public class CalendarMapper {
+
     public AllDayEvent allDayEventItemToResponse(CalendarAllDayEventItem item) {
         return AllDayEvent.builder()
+                .id(item.id())
+                .title(item.title())
+                .colorKey(item.colorKey())
+                .labels(item.labels())
+                .isRepeat(item.isRepeat())
+                .build();
+    }
+    public AllDaySpanEvent allDayEventItemToSpanResponse(CalendarAllDayEventItem item) {
+        return AllDaySpanEvent.builder()
                 .id(item.id())
                 .title(item.title())
                 .colorKey(item.colorKey())
@@ -29,17 +39,15 @@ public class CalendarMapper {
                 .title(item.title())
                 .labels(item.labels())
                 .completed(item.completed())
-                .placementDate(item.placementDate())
                 .build();
     }
 
-    public TimedEvent timedEventItemToResponse(CalendarTimedEventItem item, LocalDate date, LocalTime start, LocalTime end) {
+    public TimedEvent timedEventItemToResponse(CalendarTimedEventItem item, LocalTime start, LocalTime end) {
         return TimedEvent.builder()
                 .id(item.id())
                 .title(item.title())
                 .colorKey(item.colorKey())
                 .labels(item.labels())
-                .placementDate(date)
                 .clippedStartTime(start)
                 .clippedEndTime(end)
                 .isPeriod(item.isPeriod())
@@ -55,7 +63,6 @@ public class CalendarMapper {
                 .title(item.title())
                 .labels(item.labels())
                 .completed(item.completed())
-                .placementDate(item.placementDate())
                 .placementTime(item.placementTime())
                 .build();
     }

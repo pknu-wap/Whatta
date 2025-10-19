@@ -72,10 +72,10 @@ public class CalendarViewService {
         }
 
         //시간지정 없는 기간 event
-        List<AllDayEvent> spanEvents = new ArrayList<>();
+        List<AllDaySpanEvent> spanEvents = new ArrayList<>();
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
             if (event.isPeriod()) {
-                spanEvents.add(calendarMapper.allDayEventItemToResponse(event));
+                spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(event));
             }
             else {  //시간지정 없고 기간도 없는 event
                 allDayEventsByDate.get(event.startDate()).add(calendarMapper.allDayEventItemToResponse(event));
@@ -97,7 +97,7 @@ public class CalendarViewService {
                 LocalTime clippedEndTime = date.equals(event.endDate()) ? event.endTime() : LocalTime.MAX; //date가 기간의 마지막 날이 아니면 -> 24시로 끊음
 
                 timedEventsByDate.get(date)
-                        .add(calendarMapper.timedEventItemToResponse(event, date, clippedStartTime, clippedEndTime));
+                        .add(calendarMapper.timedEventItemToResponse(event, clippedStartTime, clippedEndTime));
             }
         }
 
