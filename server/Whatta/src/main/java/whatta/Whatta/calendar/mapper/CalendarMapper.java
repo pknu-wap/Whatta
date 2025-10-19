@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 import whatta.Whatta.calendar.payload.dto.*;
 import whatta.Whatta.calendar.repository.dto.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -26,7 +25,7 @@ public class CalendarMapper {
                 .title(item.title())
                 .colorKey(item.colorKey())
                 .labels(item.labels())
-                .isPeriod(item.isPeriod())
+                .isSpan(item.isSpan())
                 .startDate(item.startDate())
                 .endDate(item.endDate())
                 .isRepeat(item.isRepeat())
@@ -50,7 +49,7 @@ public class CalendarMapper {
                 .labels(item.labels())
                 .clippedStartTime(start)
                 .clippedEndTime(end)
-                .isPeriod(item.isPeriod())
+                .isSpan(item.isSpan())
                 .startAt(LocalDateTime.of(item.startDate(), item.startTime()))
                 .endAt(LocalDateTime.of(item.endDate(), item.endTime()))
                 .isRepeat(item.isRepeat())

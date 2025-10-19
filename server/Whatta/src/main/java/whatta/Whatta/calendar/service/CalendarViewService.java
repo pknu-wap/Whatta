@@ -33,13 +33,54 @@ public class CalendarViewService {
 
     public DailyResponse getDaily(String userId, LocalDate date) {
 
-        CalendarEventsResult eventsResult = calendarEventsRepository.getDailyViewByUserId(userId, date);
-        CalendarTasksResult tasksResult = calendarTasksRepository.getDailyViewByUserId(userId, date);
+        //db 조회를 병렬로
+        CompletableFuture<CalendarEventsResult> eventsFuture =
+                CompletableFuture.supplyAsync(() -> calendarEventsRepository.getDailyViewByUserId(userId,date), calendarExecutor);
+        CompletableFuture<CalendarTasksResult> tasksFuture =
+                CompletableFuture.supplyAsync(() -> calendarTasksRepository.getDailyViewByUserId(userId, date), calendarExecutor);
+
+        //두 조회가 끝난 후 조립
+        CalendarEventsResult eventsResult = eventsFuture.join();
+        CalendarTasksResult tasksResult = tasksFuture.join();
+
+        List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
+        List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event
+        for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
+            if (event.isSpan()) {
+                spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(event));
+            }
+            else {  //시간지정 없고 기간도 없는 event
+                allDayEvents.add(calendarMapper.allDayEventItemToResponse(event));
+            }
+        }
+
+        //시간지정 없는 task
+        List<AllDayTask> allDayTasks = new ArrayList<>();
+        for(CalendarAllDayTaskItem task : tasksResult.allDayTasks()) {
+            allDayTasks.add(calendarMapper.allDayTaskItemToResponse(task));
+        }
+
+        //시간지정 있는 event -> 해당 날짜에 알맞게 클리핑
+        List<TimedEvent> timedEvents = new ArrayList<>();
+        for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
+            LocalTime clippedStartTime = date.equals(event.startDate()) ? event.startTime() : LocalTime.MIN; //date가 기간의 첫날이 아니면 -> 0시부터
+            LocalTime clippedEndTime = date.equals(event.endDate()) ? event.endTime() : LocalTime.MAX; //date가 기간의 마지막 날이 아니면 -> 24시로 끊음
+
+            timedEvents.add(calendarMapper.timedEventItemToResponse(event, clippedStartTime, clippedEndTime));
+        }
+
+        //시간지정 있는 task
+        List<TimedTask> timedTasks = new ArrayList<>();
+        for(CalendarTimedTaskItem task : tasksResult.timedTasks()) {
+            timedTasks.add(calendarMapper.timedTaskItemToResponse(task));
+        }
+
         return DailyResponse.builder()
-                .allDayEvents(eventsResult.allDayEvents())
-                .allDayTasks(tasksResult.allDayTasks())
-                .timedEvents(eventsResult.timedEvents())
-                .timedTasks(tasksResult.timedTasks())
+                .allDaySpanEvents(spanEvents)
+                .allDayEvents(allDayEvents)
+                .allDayTasks(allDayTasks)
+                .timedEvents(timedEvents)
+                .timedTasks(timedTasks)
                 .build();
 
     }
@@ -74,7 +115,7 @@ public class CalendarViewService {
         //시간지정 없는 기간 event
         List<AllDaySpanEvent> spanEvents = new ArrayList<>();
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
-            if (event.isPeriod()) {
+            if (event.isSpan()) {
                 spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(event));
             }
             else {  //시간지정 없고 기간도 없는 event

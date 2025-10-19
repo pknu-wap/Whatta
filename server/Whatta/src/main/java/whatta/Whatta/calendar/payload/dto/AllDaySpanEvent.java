@@ -12,7 +12,7 @@ public record AllDaySpanEvent(
         String colorKey,
         List<Long> labels,
 
-        boolean isPeriod,
+        boolean isSpan,
         LocalDate startDate,
         LocalDate endDate,
 

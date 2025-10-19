@@ -15,7 +15,7 @@ public record TimedEvent(
         LocalTime clippedStartTime,
         LocalTime clippedEndTime,
 
-        boolean isPeriod,
+        boolean isSpan,
         LocalDateTime startAt,
         LocalDateTime endAt,
 

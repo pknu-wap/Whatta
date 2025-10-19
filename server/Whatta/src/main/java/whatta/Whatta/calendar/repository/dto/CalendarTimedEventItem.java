@@ -12,7 +12,7 @@ public record CalendarTimedEventItem(
         LocalTime startTime,
         LocalTime endTime,
 
-        boolean isPeriod,
+        boolean isSpan,
         LocalDate startDate,
         LocalDate endDate,
 

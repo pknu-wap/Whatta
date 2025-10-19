@@ -5,7 +5,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
@@ -38,7 +37,7 @@ public class CalendarEventsRepositoryCustom {
                 .and("title").as("title")
                 .and("colorKey").as("colorKey")
                 .and("labels._id").as("labels")
-                .andExpression("startDate != endDate").as("isPeriod")
+                .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
                 .andExpression("repeat != null").as("IsRepeat"));
@@ -53,7 +52,7 @@ public class CalendarEventsRepositoryCustom {
                 .and("labels._id").as("labels")
                 .and("startTime").as("startTime")
                 .and("endTime").as("endTime")
-                .andExpression("startDate != endDate").as("isPeriod")
+                .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
                 .andExpression("repeat != null").as("IsRepeat"));
@@ -95,7 +94,7 @@ public class CalendarEventsRepositoryCustom {
                         .and("title").as("title")
                         .and("colorKey").as("colorKey")
                         .and("labels._id").as("labels")
-                        .andExpression("startDate != endDate").as("isPeriod")
+                        .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
                         .andExpression("repeat != null").as("IsRepeat"));
@@ -112,7 +111,7 @@ public class CalendarEventsRepositoryCustom {
                         .and("labels._id").as("labels")
                         .and("startTime").as("startTime")
                         .and("endTime").as("endTime")
-                        .andExpression("startDate != endDate").as("isPeriod")
+                        .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
                         .andExpression("repeat != null").as("IsRepeat"));
