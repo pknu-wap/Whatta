@@ -30,9 +30,9 @@ public class EventService {
     private final UserSettingRepository userSettingRepository;
     private final EventMapper eventMapper;
 
-    public EventDetailsResponse createEvent(EventCreateRequest request) { //TODO: user 정보 받아와서 함께 db에 저장
+    public EventDetailsResponse createEvent(String userId, EventCreateRequest request) {
 
-        User user = userRepository.findByInstallationId("user123")
+        User user = userRepository.findUserById(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
         UserSetting userSetting = userSettingRepository.findByUserId("user123")
@@ -43,7 +43,7 @@ public class EventService {
         validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
 
         Event.EventBuilder eventBuilder = Event.builder()
-                .userId(user.getInstallationId())
+                .userId(user.getId())
                 .startDate(request.startDate())
                 .endDate(request.endDate())
                 .repeat((request.repeat() == null) ? null : request.repeat().toEntity())
@@ -53,7 +53,7 @@ public class EventService {
         if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting,request.labels()));
         if(request.startTime() != null && request.endTime() != null) {
             eventBuilder.startTime(request.startTime());
-            eventBuilder.endTime(request.endTime()); //TODO: 시작 시간만 설정할 경우 고려해야 함 -> 나중에 수정
+            eventBuilder.endTime(request.endTime());
         }
 
        return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
@@ -69,17 +69,17 @@ public class EventService {
         }
     }
 
-    public EventDetailsResponse getEventDetails(String eventId) {
+    public EventDetailsResponse getEventDetails(String userId, String eventId) {
 
-        Event event = eventRepository.findEventByIdAndUserId(eventId, "user123") //TODO: 게스트 로그인 구현 후, user 정보로 대체
+        Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         return eventMapper.toEventDetailsResponse(event);
     }
 
-    public EventDetailsResponse updateEvent(String eventId, EventUpdateRequest request) {
+    public EventDetailsResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
 
-        Event originalEvent = eventRepository.findEventByIdAndUserId(eventId, "user123") //TODO: 게스트 로그인 구현 후, user 정보로 대체
+        Event originalEvent = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         UserSetting userSetting = userSettingRepository.findByUserId("user123")
@@ -133,8 +133,8 @@ public class EventService {
         return eventMapper.toEventDetailsResponse(eventRepository.save(builder.build()));
     }
 
-    public void deleteEvent(String eventId) {
-        Event event = eventRepository.findEventByIdAndUserId(eventId, "user123") //TODO: 게스트 로그인 구현 후, user 정보로 대체
+    public void deleteEvent(String userId, String eventId) {
+        Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         eventRepository.delete(event);
