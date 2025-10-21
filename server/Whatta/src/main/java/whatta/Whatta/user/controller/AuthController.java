@@ -22,7 +22,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/refresh")
-    @Operation(summary = "Jwt 재발급", description = "Jwt Refresh토큰 재발급")
+    @Operation(summary = "Jwt 재발급", description = "refresh token을 이용하여 access token을 재발급합니다.")
     public ResponseEntity<?> refreshToken(HttpServletRequest request) {
         LoginResponse response = authService.refreshToken(request);
         return Response.ok("토큰이 재발급되었습니다.", response);

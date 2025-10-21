@@ -31,7 +31,7 @@ public class UserService {
             userRepository.save(newUser);
 
             UserSetting setting = UserSetting.builder()
-                    .userId(installationId)
+                    .userId(newUser.getId())
                     .build();
             userSettingRepository.save(setting);
 
