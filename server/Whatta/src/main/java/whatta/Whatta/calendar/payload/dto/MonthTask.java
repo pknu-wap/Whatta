@@ -1,13 +1,11 @@
 package whatta.Whatta.calendar.payload.dto;
 
-import lombok.Builder;
-
 import java.util.List;
 
-@Builder
-public record AllDayTask(
+public record MonthTask(
         String id,
         String title,
+        String colorKey,
         List<Long> labels,
         boolean completed
 ) {

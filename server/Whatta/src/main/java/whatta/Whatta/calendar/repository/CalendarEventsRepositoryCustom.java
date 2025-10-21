@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
 import whatta.Whatta.calendar.repository.dto.CalendarEventsResult;
+import whatta.Whatta.calendar.repository.dto.CalendarMonthlyEventResult;
 import whatta.Whatta.calendar.repository.dto.CalendarTimedEventItem;
 
 import java.time.LocalDate;
@@ -36,7 +37,7 @@ public class CalendarEventsRepositoryCustom {
                 .and("title").as("title")
                 .and("colorKey").as("colorKey")
                 .and("labels._id").as("labels")
-                .andExpression("startDate != endDate").as("isPeriod")
+                .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
                 .andExpression("repeat != null").as("IsRepeat"));
@@ -51,7 +52,7 @@ public class CalendarEventsRepositoryCustom {
                 .and("labels._id").as("labels")
                 .and("startTime").as("startTime")
                 .and("endTime").as("endTime")
-                .andExpression("startDate != endDate").as("isPeriod")
+                .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
                 .andExpression("repeat != null").as("IsRepeat"));
@@ -63,18 +64,18 @@ public class CalendarEventsRepositoryCustom {
         Aggregation aggregation = Aggregation.newAggregation(
                 commonMatch,
                 Aggregation.facet(
-                        allDayOperations.toArray(new AggregationOperation[0])).as("allDayEvents")
+                                allDayOperations.toArray(new AggregationOperation[0])).as("allDayEvents")
                         .and(timedOperations.toArray(new AggregationOperation[0])).as("timedEvents"));
 
         CalendarEventsResult result = mongoTemplate.aggregate(aggregation,
                         "events",
-                CalendarEventsResult.class)
+                        CalendarEventsResult.class)
                 .getUniqueMappedResult();
 
         return (result != null)
                 ? result : new CalendarEventsResult(
-                        List.<CalendarAllDayEventItem>of(),
-                        List.<CalendarTimedEventItem>of());
+                List.<CalendarAllDayEventItem>of(),
+                List.<CalendarTimedEventItem>of());
     }
 
     public CalendarEventsResult getWeeklyViewByUserId(String userId, LocalDate start, LocalDate end) {
@@ -93,7 +94,7 @@ public class CalendarEventsRepositoryCustom {
                         .and("title").as("title")
                         .and("colorKey").as("colorKey")
                         .and("labels._id").as("labels")
-                        .andExpression("startDate != endDate").as("isPeriod")
+                        .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
                         .andExpression("repeat != null").as("IsRepeat"));
@@ -110,7 +111,7 @@ public class CalendarEventsRepositoryCustom {
                         .and("labels._id").as("labels")
                         .and("startTime").as("startTime")
                         .and("endTime").as("endTime")
-                        .andExpression("startDate != endDate").as("isPeriod")
+                        .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
                         .andExpression("repeat != null").as("IsRepeat"));
@@ -133,5 +134,34 @@ public class CalendarEventsRepositoryCustom {
                 ? result : new CalendarEventsResult(
                 List.<CalendarAllDayEventItem>of(),
                 List.<CalendarTimedEventItem>of());
+    }
+
+    public List<CalendarMonthlyEventResult> getMonthlyViewByUserId(String userId, LocalDate start, LocalDate end) {
+
+        List<AggregationOperation> operations = new ArrayList<>();
+        operations.add(Aggregation.match(
+                Criteria.where("userId").is(userId)
+                        .and("startDate").lte(end)
+                        .and("endDate").gte(start))
+        );
+
+        operations.add(Aggregation.project()
+                .and("_id").as("id")
+                .and("title").as("title")
+                .and("colorKey").as("colorKey")
+                .and("labels._id").as("labels")
+                .andExpression("startDate != endDate").as("isSpan")
+                .and("startDate").as("startDate")
+                .and("endDate").as("endDate")
+                .andExpression("repeat != null").as("IsRepeat"));
+        operations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("startDate"),
+                Sort.Order.asc("endDate"))));
+
+        Aggregation aggregation = Aggregation.newAggregation(operations);
+
+        return mongoTemplate
+                .aggregate(aggregation, "events", CalendarMonthlyEventResult.class)
+                .getMappedResults();
     }
 }

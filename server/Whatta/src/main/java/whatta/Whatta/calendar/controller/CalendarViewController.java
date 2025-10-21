@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,6 +16,7 @@ import whatta.Whatta.calendar.service.CalendarViewService;
 import whatta.Whatta.global.payload.Response;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 
 @RestController
 @RequestMapping("/api/calendar")
@@ -38,5 +40,13 @@ public class CalendarViewController {
                                        @RequestParam LocalDate startDate, @RequestParam LocalDate endDate) {
         return Response.ok("success get events and tasks between " + startDate + " and " + endDate,
                 calendarViewService.getWeekly(userId, startDate, endDate));
+    }
+
+    @GetMapping("/monthly")
+    @Operation(summary = "월간 조회", description = "해당 월의 일정과 작업을 조회합니다.")
+    public ResponseEntity<?> getMonthly(@AuthenticationPrincipal String userId,
+                                       @RequestParam
+                                       @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
+        return Response.ok("success get events and tasks for " + month, calendarViewService.getMonthly(userId, month));
     }
 }

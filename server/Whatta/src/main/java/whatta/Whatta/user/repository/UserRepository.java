@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findByInstallationId(String installationId);
+    Optional<User> findUserById(String Id);
 }

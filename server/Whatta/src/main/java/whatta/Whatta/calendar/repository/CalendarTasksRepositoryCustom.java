@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayTaskItem;
+import whatta.Whatta.calendar.repository.dto.CalendarMonthlyTaskCountResult;
 import whatta.Whatta.calendar.repository.dto.CalendarTasksResult;
 import whatta.Whatta.calendar.repository.dto.CalendarTimedTaskItem;
 
@@ -122,6 +123,28 @@ public class CalendarTasksRepositoryCustom {
                 ? result : new CalendarTasksResult(
                 List.<CalendarAllDayTaskItem>of(),
                 List.<CalendarTimedTaskItem>of());
+
+    }
+
+    public List<CalendarMonthlyTaskCountResult> getMonthlyViewByUserId(String userId, LocalDate start, LocalDate end) {
+
+        List<AggregationOperation> operations = new ArrayList<>();
+        operations.add(Aggregation.match(
+                Criteria.where("userId").is(userId)
+                        .and("placementDate").gte(start).lte(end)));
+        operations.add(Aggregation.group("placementDate")
+                .count().as("count"));
+        operations.add(Aggregation.project("count")
+                .and("_id").as("placementDate"));
+        operations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("placementDate")
+        )));
+
+        Aggregation aggregation = Aggregation.newAggregation(operations);
+
+        return mongoTemplate
+                .aggregate(aggregation, "tasks", CalendarMonthlyTaskCountResult.class)
+                .getMappedResults();
 
     }
 

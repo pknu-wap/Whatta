@@ -31,15 +31,15 @@ public class UserService {
             userRepository.save(newUser);
 
             UserSetting setting = UserSetting.builder()
-                    .userId(installationId)
+                    .userId(newUser.getId())
                     .build();
             userSettingRepository.save(setting);
 
             return newUser;
         });
         //각각 토큰 발급
-        String accessToken = jwtTokenProvider.createAccessToken(user.getInstallationId());
-        String refreshToken = jwtTokenProvider.createRefreshToken(user.getInstallationId());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId());
+        String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         //refresh토큰 저장
         user.updateRefreshToken(refreshToken);

@@ -2,7 +2,6 @@ package whatta.Whatta.calendar.payload.dto;
 
 import lombok.Builder;
 
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -12,7 +11,6 @@ public record TimedTask (
         String title,
         List<Long> labels,
         boolean completed,
-        LocalDate placementDate,
         LocalTime placementTime
 ) {
 }

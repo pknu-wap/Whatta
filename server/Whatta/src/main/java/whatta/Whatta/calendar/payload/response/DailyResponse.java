@@ -1,6 +1,7 @@
 package whatta.Whatta.calendar.payload.response;
 
 import lombok.Builder;
+import whatta.Whatta.calendar.payload.dto.*;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayTaskItem;
 import whatta.Whatta.calendar.repository.dto.CalendarTimedEventItem;
@@ -10,9 +11,10 @@ import java.util.List;
 
 @Builder
 public record DailyResponse(
-        List<CalendarAllDayEventItem> allDayEvents,
-        List<CalendarAllDayTaskItem> allDayTasks,
-        List<CalendarTimedEventItem> timedEvents,
-        List<CalendarTimedTaskItem> timedTasks
+        List<AllDaySpanEvent> allDaySpanEvents,
+        List<AllDayEvent> allDayEvents,
+        List<AllDayTask> allDayTasks,
+        List<TimedEvent> timedEvents,
+        List<TimedTask> timedTasks
 ) {
 }

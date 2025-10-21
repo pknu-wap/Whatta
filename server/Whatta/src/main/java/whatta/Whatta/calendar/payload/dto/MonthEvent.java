@@ -5,10 +5,12 @@ import lombok.Builder;
 import java.util.List;
 
 @Builder
-public record AllDayTask(
+public record MonthEvent(
         String id,
         String title,
+        String colorKey,
         List<Long> labels,
-        boolean completed
+
+        Boolean isRepeat
 ) {
 }

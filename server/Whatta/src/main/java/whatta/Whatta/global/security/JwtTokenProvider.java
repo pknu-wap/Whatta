@@ -24,11 +24,11 @@ public class JwtTokenProvider {
     private final long accessTokenValidTime = 30 * 60 * 1000L;//유효기간 30분
     private final long refreshTokenValidTime = 14 * 24 * 60 * 60 * 1000L;//유효기간 14일
 
-    public String createAccessToken(String installationId) {
-        return createToken(installationId, accessTokenValidTime);
+    public String createAccessToken(String userId) {
+        return createToken(userId, accessTokenValidTime);
     }
-    public String createRefreshToken(String installationId) {
-        return createToken(installationId, refreshTokenValidTime);
+    public String createRefreshToken(String userId) {
+        return createToken(userId, refreshTokenValidTime);
     }
     //JWT 토큰 생성
     public String createToken(String subject, Long validTime) {
@@ -44,14 +44,14 @@ public class JwtTokenProvider {
 
     //토큰에서 회원 정보 추출
     public Authentication getAuthentication(String token) {
-         String installationId = Jwts.parserBuilder()
+         String userId = Jwts.parserBuilder()
                 .setSigningKey(secretKey)
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
 
-         return new UsernamePasswordAuthenticationToken(installationId, "", Collections.emptyList());
+         return new UsernamePasswordAuthenticationToken(userId, "", Collections.emptyList());
     }
 
     //토큰 유효성 + 만료일자 확인
