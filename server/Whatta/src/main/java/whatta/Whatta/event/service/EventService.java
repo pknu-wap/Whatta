@@ -59,10 +59,10 @@ public class EventService {
        return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
     }
     private void validateDateTimeOrder(LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
-        if(startDate != endDate && startDate.isAfter(endDate)) {
+        if(startDate.isAfter(endDate)) {
             throw new RestApiException(ErrorCode.DATE_ORDER_INVALID);
         }
-        if(startTime != null && endTime != null) {
+        if(startDate.equals(endDate) && startTime != null && endTime != null) {
             if(startTime.isAfter(endTime)) {
                 throw new RestApiException(ErrorCode.TIME_ORDER_INVALID);
             }
