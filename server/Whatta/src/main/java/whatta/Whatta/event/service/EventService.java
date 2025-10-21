@@ -35,7 +35,7 @@ public class EventService {
         User user = userRepository.findUserById(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        UserSetting userSetting = userSettingRepository.findByUserId("user123")
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         //유저의 라벨 목록에 있는 라벨인지
@@ -82,7 +82,7 @@ public class EventService {
         Event originalEvent = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
-        UserSetting userSetting = userSettingRepository.findByUserId("user123")
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
