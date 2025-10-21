@@ -9,7 +9,7 @@ public enum ErrorCode {
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "600", "해당 일정이 존재하지 않습니다."),
     REQUIRED_DATE_MISSING(HttpStatus.BAD_REQUEST, "601", "일정은 날짜 지정이 필수입니다."),
     DATE_ORDER_INVALID(HttpStatus.BAD_REQUEST, "602", "끝나는 날짜가 시작 날짜보다 앞서선 안됩니다."),
-    TIME_ORDER_INVALID(HttpStatus.BAD_REQUEST, "602", "끝나는 시간보다 시작 시간보다 앞서선 안됩니다."),
+    TIME_ORDER_INVALID(HttpStatus.BAD_REQUEST, "602", "끝나는 시간이 시작 시간보다 앞서선 안됩니다."),
 
     TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "700", "해당 작업이 존재하지 않습니다."),
 

@@ -1,16 +1,16 @@
-package whatta.Whatta.calendar.repository.dto;
+package whatta.Whatta.calendar.payload.dto;
+
+import lombok.Builder;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 
-public record CalendarTimedEventItem(
+@Builder
+public record AllDaySpanEvent(
         String id,
         String title,
         String colorKey,
         List<Long> labels,
-        LocalTime startTime,
-        LocalTime endTime,
 
         boolean isSpan,
         LocalDate startDate,
