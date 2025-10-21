@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
@@ -25,14 +26,16 @@ public class EventController {
 
     @PostMapping
     @Operation(summary = "일정 생성", description = "새로운 일정을 생성합니다.")
-    public ResponseEntity<?> createEvent (@RequestBody @Validated EventCreateRequest request) {
-        return Response.ok("success create event", eventService.createEvent(request));
+    public ResponseEntity<?> createEvent (@AuthenticationPrincipal String userId,
+                                          @RequestBody @Validated EventCreateRequest request) {
+        return Response.ok("success create event", eventService.createEvent(userId, request));
     }
 
     @GetMapping("/{eventId}")
     @Operation(summary = "일정 상세 조회", description = "eventId로 일정의 상세 정보를 조회합니다.")
-    public ResponseEntity<?> getEvent(@PathVariable String eventId) {
-        return Response.ok("success get event", eventService.getEventDetails(eventId));
+    public ResponseEntity<?> getEvent(@AuthenticationPrincipal String userId,
+                                      @PathVariable String eventId) {
+        return Response.ok("success get event", eventService.getEventDetails(userId, eventId));
     }
 
     @PutMapping("/{eventId}")
@@ -42,15 +45,17 @@ public class EventController {
                     + "<br> 특정 필드를 초기화(비우기 또는 null 처리)할 때 사용합니다."
                     + "<br> 타입: <code>array&lt;string&gt;</code>"
                     + "<br> 초기화 불가 필드: startDate, endDate, colorKey")
-    public ResponseEntity<?> updateEvent(@PathVariable String eventId,
+    public ResponseEntity<?> updateEvent(@AuthenticationPrincipal String userId,
+                                         @PathVariable String eventId,
                                          @RequestBody @Validated EventUpdateRequest request) {
-        return Response.ok("success edit event", eventService.updateEvent(eventId, request));
+        return Response.ok("success edit event", eventService.updateEvent(userId, eventId, request));
     }
 
     @DeleteMapping("/{eventId}")
     @Operation(summary = "일정 삭제", description = "해당 일정을 삭제합니다.")
-    public ResponseEntity<?> deleteEvent(@PathVariable String eventId) {
-        eventService.deleteEvent(eventId);
+    public ResponseEntity<?> deleteEvent(@AuthenticationPrincipal String userId,
+                                         @PathVariable String eventId) {
+        eventService.deleteEvent(userId, eventId);
         return Response.ok("success delete event");
     }
 }

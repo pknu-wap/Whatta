@@ -29,12 +29,12 @@ public class AuthService {
             throw new RestApiException(ErrorCode.INVALID_TOKEN);
         }
 
-        //installationId 추출
+        //userId 추출
         Authentication authentication = jwtTokenProvider.getAuthentication(refreshToken);
-        String installationId = authentication.getName();
+        String userId = authentication.getName();
 
         //user 조회 및 refreshToken 일치 확인
-        User user = userRepository.findByInstallationId(installationId)
+        User user = userRepository.findUserById(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
         if(!user.getRefreshToken().equals(refreshToken)) {
@@ -42,8 +42,8 @@ public class AuthService {
         }
 
         //토큰 생성
-        String newAccessToken = jwtTokenProvider.createAccessToken(installationId);
-        String newRefreshToken = jwtTokenProvider.createRefreshToken(installationId);
+        String newAccessToken = jwtTokenProvider.createAccessToken(userId);
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
 
         //DB에 저장
         user.updateRefreshToken(newRefreshToken);

@@ -21,7 +21,7 @@ public class UserSettingService {
 
     private final UserSettingRepository userSettingRepository;
 
-    public LabelResponse createLabel(String userId, LabelRequest request) { //TODO: 추후 userId가 아닌 userDetails 받은 정보로 수정
+    public LabelResponse createLabel(String userId, LabelRequest request) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
@@ -74,7 +74,7 @@ public class UserSettingService {
                 .orElseThrow(()-> new RestApiException(ErrorCode.LABEL_NOT_FOUND));
     }
 
-    public LabelsResponse getLabels(String userId) { //TODO: 추후 수정
+    public LabelsResponse getLabels(String userId) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
