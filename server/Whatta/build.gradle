@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'whatta'
-version = '0.0.1-SNAPSHOT'
+version = '0.0.1'
 description = 'Demo project for Spring Boot'
 
 java {
