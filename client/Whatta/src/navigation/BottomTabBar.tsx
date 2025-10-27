@@ -19,6 +19,7 @@ import FontAwesome5 from '@expo/vector-icons/FontAwesome5'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import colors from '@/styles/colors'
+import { ts } from '@/styles/typography';
 
 enum Tab {
   Day = 0,
@@ -71,7 +72,7 @@ export default function BottomBar() {
       headerLeft: () => <DrawerToggleButton />,
       swipeEnabled: isPageTab, // 마이페이지/테스크는 스와이프 막기
       headerStyle: { height: 105 },
-      headerTitleStyle: { fontSize: 16, color: colors.text.title },
+      headerTitleStyle: { ...ts('date'), color: colors.text.title },
     })
   }, [navigation, isPageTab, tab])
 

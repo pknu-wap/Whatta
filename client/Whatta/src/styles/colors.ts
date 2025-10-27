@@ -8,6 +8,8 @@ const colors = {
   neutral: {
     background: '#F4F4F4',
     surface: '#FFFFFF',
+    timeline : '#B3B3B3',
+    gray : '#808080',
   },
   text: {
     title: '#1B1B1B',
@@ -20,11 +22,10 @@ const colors = {
     warning: '#FF9747',
     info: '#4775FF',
   },
-  task: {
-    example: '#b8ccfbff',
-    // 추가 색상들...
-  },
-  
+  task : {
+    chipback: '#CCD9FF',
+    chipbar: '#4775FF',
+  }
 }
 
 export default colors
