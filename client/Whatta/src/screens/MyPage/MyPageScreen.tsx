@@ -12,11 +12,6 @@ export default function MyPageScreen({ navigation }: Props) {
     <SectionList<MyItem, MySection>
       sections={MY_SECTIONS}
       keyExtractor={(item) => item.key}
-      renderSectionHeader={({ section }) => (
-        <View style={S.sectionHeader}>
-          <Text style={S.sectionTitle}>{section.title}</Text>
-        </View>
-      )}
       renderItem={({ item }) => (
         <Pressable style={S.item} onPress={() => navigation.navigate(item.route)}>
           <View style={{ flex: 1 }}>
