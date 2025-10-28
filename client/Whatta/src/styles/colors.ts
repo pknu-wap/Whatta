@@ -8,6 +8,8 @@ const colors = {
   neutral: {
     background: '#F4F4F4',
     surface: '#FFFFFF',
+    timeline : '#B3B3B3',
+    gray : '#808080',
   },
   text: {
     title: '#1B1B1B',
@@ -26,6 +28,8 @@ const colors = {
     taskName: '#333333',
     sideBar: '#F2F2F2',
     sunday: '#FF474A',
+    chipback: '#CCD9FF',
+    chipbar: '#4775FF',
   },
   icon: {
     default: '#B4B4B4',
