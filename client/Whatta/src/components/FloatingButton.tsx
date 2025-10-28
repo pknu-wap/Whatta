@@ -157,7 +157,7 @@ const S = StyleSheet.create({
   wrap: {
     position: 'absolute',
     alignItems: 'flex-end',
-    bottom: 124,
+    bottom: 114,
     right: 18,
   },
   overlay: { backgroundColor: 'rgba(255,255,255,0.7)' },

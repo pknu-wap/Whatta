@@ -21,7 +21,7 @@ import DayIcon from '@/assets/icons/day.svg'
 import TaskIcon from '@/assets/icons/task.svg'
 import colors from '@/styles/colors'
 
-const TAB_BAR_H = 120
+const TAB_BAR_H = 100
 const Tab = createBottomTabNavigator()
 
 type RootStackParamList = {
