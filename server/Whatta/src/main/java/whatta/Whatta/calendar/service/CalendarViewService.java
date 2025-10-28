@@ -108,6 +108,9 @@ public class CalendarViewService {
         CalendarEventsResult eventsResult = eventsFuture.join();
         CalendarTasksResult tasksResult = tasksFuture.join();
 
+        //라벨 리스트
+        LabelsResponse labelPalette = buildLabelPalette(userId, eventsResult,tasksResult);
+
         Map<LocalDate, List<AllDayEvent>> allDayEventsByDate = new HashMap<>();
         Map<LocalDate, List<AllDayTask>>  allDayTasksByDate  = new HashMap<>();
         Map<LocalDate, List<TimedEvent>>  timedEventsByDate  = new HashMap<>();
@@ -167,6 +170,7 @@ public class CalendarViewService {
         }
 
         return WeeklyResponse.builder()
+                .labelPalette(labelPalette)
                 .allDaySpanEvents(spanEvents)
                 .days(days)
                 .build();
