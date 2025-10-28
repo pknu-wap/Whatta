@@ -5,7 +5,7 @@ import { PlaceholderScreen } from '@/screens/MyPage/PlaceholderScreen'
 import RemainderScreen from '@/screens/MyPage/Remainder/RemainderScreen'
 
 export type MyPageStackList = {
-  MyPage: undefined
+  MyPageList: undefined
   Profile: undefined
   Preferences: undefined
   UsageReminders: undefined
@@ -20,7 +20,7 @@ export default function MyPageStack() {
   return (
     <Stack.Navigator>
       {/* 목록(섹션 리스트) */}
-      <Stack.Screen name="MyPage" component={MyPageScreen} />
+      <Stack.Screen name="MyPageList" component={MyPageScreen} />
 
       {/* 플레이스홀더들: 나중에 실제 화면으로 대체 */}
       <Stack.Screen
