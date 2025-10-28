@@ -10,14 +10,17 @@ import whatta.Whatta.calendar.payload.response.DailyResponse;
 import whatta.Whatta.calendar.payload.response.WeeklyResponse;
 import whatta.Whatta.calendar.repository.CalendarEventsRepositoryCustom;
 import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
+import whatta.Whatta.global.exception.ErrorCode;
+import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.global.label.payload.LabelsResponse;
+import whatta.Whatta.global.util.LabelUtils;
+import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.YearMonth;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -29,6 +32,7 @@ public class CalendarViewService {
     private final CalendarTasksRepositoryCustom calendarTasksRepository;
     private final Executor calendarExecutor;
     private final CalendarMapper calendarMapper;
+    private final UserSettingRepository userSettingRepository;
 
 
     public DailyResponse getDaily(String userId, LocalDate date) {
@@ -42,6 +46,9 @@ public class CalendarViewService {
         //두 조회가 끝난 후 조립
         CalendarEventsResult eventsResult = eventsFuture.join();
         CalendarTasksResult tasksResult = tasksFuture.join();
+
+        //라벨 리스트
+        LabelsResponse labelPalette = buildLabelPalette(userId, eventsResult,tasksResult);
 
         List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
         List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event
@@ -76,6 +83,7 @@ public class CalendarViewService {
         }
 
         return DailyResponse.builder()
+                .labelPalette(labelPalette)
                 .allDaySpanEvents(spanEvents)
                 .allDayEvents(allDayEvents)
                 .allDayTasks(allDayTasks)
@@ -99,6 +107,9 @@ public class CalendarViewService {
         //두 조회가 끝난 후 조립
         CalendarEventsResult eventsResult = eventsFuture.join();
         CalendarTasksResult tasksResult = tasksFuture.join();
+
+        //라벨 리스트
+        LabelsResponse labelPalette = buildLabelPalette(userId, eventsResult,tasksResult);
 
         Map<LocalDate, List<AllDayEvent>> allDayEventsByDate = new HashMap<>();
         Map<LocalDate, List<AllDayTask>>  allDayTasksByDate  = new HashMap<>();
@@ -159,9 +170,52 @@ public class CalendarViewService {
         }
 
         return WeeklyResponse.builder()
+                .labelPalette(labelPalette)
                 .allDaySpanEvents(spanEvents)
                 .days(days)
                 .build();
+    }
+
+    private LabelsResponse buildLabelPalette(String userId, CalendarEventsResult eventsResult, CalendarTasksResult tasksResult) {
+        Set<Long> labelIds = new HashSet<>();
+        if(eventsResult != null) {
+            //allDayEvent
+            for(CalendarAllDayEventItem item : eventsResult.allDayEvents()) {
+                if(item.labels() != null && !item.labels().isEmpty()) {
+                    labelIds.addAll(item.labels());
+                }}
+
+            //timedEvent
+            for(CalendarTimedEventItem item : eventsResult.timedEvents()) {
+                if(item.labels() != null && !item.labels().isEmpty()) {
+                    labelIds.addAll(item.labels());
+                }}
+        }
+
+        if(tasksResult != null) {
+            //allDayTask
+            for(CalendarAllDayTaskItem item : tasksResult.allDayTasks()) {
+                if(item.labels() != null && !item.labels().isEmpty()) {
+                    labelIds.addAll(item.labels());
+                }}
+
+            //timedTask
+            for(CalendarTimedTaskItem item : tasksResult.timedTasks()) {
+                if(item.labels() != null && !item.labels().isEmpty()) {
+                    labelIds.addAll(item.labels());
+                }}
+        }
+
+        if(labelIds.isEmpty())
+            return LabelsResponse.builder()
+                    .labels(List.of())
+                    .build();
+
+
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        return LabelsResponse.fromEntity(LabelUtils.getTitleAndColorKeyByIds(userSetting, new ArrayList<>(labelIds)));
     }
 
     public MonthlyResponse getMonthly(String userId, YearMonth month) {
@@ -180,6 +234,9 @@ public class CalendarViewService {
         //두 조회가 끝난 후 조립
         List<CalendarMonthlyEventResult> eventsResult = eventsFuture.join();
         List<CalendarMonthlyTaskCountResult> tasksResult = tasksFuture.join();
+
+        //라벨 리스트
+        LabelsResponse labelPalette = buildMonthlyLabelPalette(userId, eventsResult);
 
         Map<LocalDate, List<MonthEvent>> eventByDate = new HashMap<>();
         Map<LocalDate, Integer> taskCountByDate = new HashMap<>();
@@ -214,9 +271,30 @@ public class CalendarViewService {
         }
 
         return MonthlyResponse.builder()
+                .labelPalette(labelPalette)
                 .spanEvents(spanEvents)
                 .days(days)
                 .build();
+    }
+
+    //TODO: 현재 월간은 이벤트만 라벨 목록을 반환함 -> 추후 task도 라벨id를 가지도록 리팩토링해야 함
+    private LabelsResponse buildMonthlyLabelPalette(String userId, List<CalendarMonthlyEventResult> monthlyEvents) {
+        Set<Long> labelIds = new LinkedHashSet<>();
+        for (CalendarMonthlyEventResult item : monthlyEvents) {
+            if (item.labels() != null && !item.labels().isEmpty()) {
+                labelIds.addAll(item.labels());
+            }
+        }
+        if (labelIds.isEmpty()) {
+            return LabelsResponse.builder()
+                    .labels(List.of())
+                    .build();
+        }
+
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        return LabelsResponse.fromEntity(LabelUtils.getTitleAndColorKeyByIds(userSetting, new ArrayList<>(labelIds)));
     }
 
     private List<LocalDate> buildDateRange(LocalDate start, LocalDate end) {
