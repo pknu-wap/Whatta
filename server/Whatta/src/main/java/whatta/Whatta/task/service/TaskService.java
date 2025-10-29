@@ -9,6 +9,7 @@ import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
+import whatta.Whatta.task.payload.request.SidebarTaskUpdateRequest;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
@@ -179,5 +180,19 @@ public class TaskService {
         return tasks.stream()
                 .map(taskMapper :: toSidebarResponse)
                 .collect(Collectors.toList());
+    }
+
+    public SidebarTaskResponse updateSidebarTask(String userId, String taskId, SidebarTaskUpdateRequest request) {
+        Task task = taskRepository.findByIdAndUserId(taskId, userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
+
+        Task updatedTask = task.toBuilder()
+                .title(request.title())
+                .sortNumber(request.sortNumber())
+                .completed(request.completed())
+                .completedAt(request.completed() ? LocalDateTime.now() : null)
+                .build();
+
+        return taskMapper.toSidebarResponse(taskRepository.save(updatedTask));
     }
 }

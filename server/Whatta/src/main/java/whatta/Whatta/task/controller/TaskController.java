@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.global.payload.Response;
+import whatta.Whatta.task.payload.request.SidebarTaskUpdateRequest;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
@@ -72,11 +73,18 @@ public class TaskController {
         return Response.ok("관리페이지 Task 목록입니다.", response);
     }
 
-    @GetMapping(params = "view=sidebar")
-    @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 task 목록을 조회합니다.")
+    @GetMapping("/sidebar")
+    @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 Task 목록을 조회합니다.")
     public ResponseEntity<?> getSidebarTasks(@AuthenticationPrincipal String userId) {
-        String tempUserId = "test123"; //TODO 나중에 jwt구현 후 변경
         List<SidebarTaskResponse> response = taskService.findSidebarTasks(userId);
         return Response.ok("사이드바의 Task 목록입니다.", response);
+    }
+
+    @PutMapping(value = "/sidebar/{taskId}")
+    @Operation(summary = "사이드바 Task 수정", description = "배치되지 않은 사이드바 Task의 제목 및 정렬 값을 수정합니다.")
+    public ResponseEntity<?> updateSidebarTasks(@AuthenticationPrincipal String userId,
+                                                @PathVariable String taskId,
+                                                @RequestBody @Validated SidebarTaskUpdateRequest request) {
+        return Response.ok("Task 수정 성공했습니다.", taskService.updateSidebarTask(userId, taskId, request));
     }
 }

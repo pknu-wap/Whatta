@@ -52,6 +52,7 @@ public class TaskMapper {
                 .id(task.getId())
                 .title(task.getTitle())
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .dueDateTime(task.getDueDateTime())
                 .sortNumber(task.getSortNumber())
                 .build();
