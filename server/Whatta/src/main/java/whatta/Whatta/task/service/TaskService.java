@@ -188,9 +188,9 @@ public class TaskService {
 
         Task updatedTask = task.toBuilder()
                 .title(request.title())
-                .sortNumber(request.sortNumber())
+                .sortNumber(request.completed() ? null : request.sortNumber()) //완료된 task는 최신 완료 순서대로 정렬되기 때문에 sortNumber값은 필요가 없음
                 .completed(request.completed())
-                .completedAt(request.completed() ? LocalDateTime.now() : null)
+                .completedAt(request.completed() ? LocalDateTime.now() : null) //미완료인 경우, 완료 시기는 필요없음
                 .build();
 
         return taskMapper.toSidebarResponse(taskRepository.save(updatedTask));
