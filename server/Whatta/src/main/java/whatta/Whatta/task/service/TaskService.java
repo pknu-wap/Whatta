@@ -101,7 +101,6 @@ public class TaskService {
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
         if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
         if(request.getSortNumber() != null) builder.sortNumber(request.getSortNumber());
-        if(request.getColorKey() != null) builder.colorKey(request.getColorKey());
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨

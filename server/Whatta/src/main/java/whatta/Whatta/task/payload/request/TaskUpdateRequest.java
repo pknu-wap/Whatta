@@ -27,7 +27,6 @@ public class TaskUpdateRequest {
     private RepeatRequest repeat;
 
     private Long sortNumber;//정렬
-    private String colorKey;
 
     private List<String> fieldsToClear; //null로 필드 초기화
 
