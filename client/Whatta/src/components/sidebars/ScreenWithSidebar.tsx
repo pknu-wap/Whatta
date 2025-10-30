@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react'
 import { StyleSheet, View, Pressable, Dimensions } from 'react-native'
-import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useDrawer } from '@/providers/DrawerProvider'
+import Animated, { interpolate, useAnimatedStyle, useAnimatedProps } from 'react-native-reanimated'
 
 import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
@@ -60,6 +60,10 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     width: sbWidth,
   }))
 
+  const animatedProps = useAnimatedProps(() => ({
+  pointerEvents: (progress.value > 0 ? 'auto' : 'none') as 'auto' | 'none',
+}));
+
   return (
     <View
       style={{ flex: 1, backgroundColor: colors.neutral.surface }}
@@ -67,7 +71,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     >
       {/* 바깥 영역 탭, 닫기 */}
       <Animated.View style={[S.tapCatcher, { top: headerTotalH, zIndex: 30 }]}
-      pointerEvents={progress.value > 0 ? 'auto' : 'none'}>
+      animatedProps={animatedProps}>
         <Pressable style={{ flex: 1 }} onPress={close} />
       </Animated.View>
 
@@ -90,7 +94,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       {/* 헤더 고정 */}
       <SafeAreaView edges={['top']} 
       style={[S.headerSafe]}
-      pointerEvents="box-none">
+      >
         <Header />
       </SafeAreaView>
 
