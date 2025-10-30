@@ -39,7 +39,7 @@ public class ClovaOcrClient {
                     .timestamp(System.currentTimeMillis())
                     .lang("ko")
                     .images(List.of(request.image()))
-                    .enableTableDetection(true)
+                    .enableTableDetection(false)
                     .build();
 
             connection.connect();
