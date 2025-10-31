@@ -12,6 +12,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useFocusEffect } from '@react-navigation/native';
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography';
@@ -73,8 +74,15 @@ useEffect(() => {
     const hour = now.getHours();
     const min = now.getMinutes();
     const elapsed = hour + min / 60; // 현재 시각(시 단위)
-    const top = (elapsed - 0) * ROW_H; // 0시부터 경과한 높이
-    setNowTop(top);
+    const topPos = (elapsed - 0) * ROW_H; // 0시부터 경과한 높이
+    setNowTop(topPos);
+
+    setTimeout(() => {
+      gridScrollRef.current?.scrollTo({
+        y: topPos - Dimensions.get('window').height / 2 + ROW_H / 2,
+        animated: false,
+      });
+    }, 500);
   };
 
   updateNowTop(); // 첫 실행
@@ -82,11 +90,24 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, []);
 
+// ✅ DayView 화면이 다시 보일 때도 중앙으로 스크롤
+useFocusEffect(
+  React.useCallback(() => {
+    if (nowTop != null && gridScrollRef.current) {
+      gridScrollRef.current.scrollTo({
+        y: nowTop - Dimensions.get('window').height / 2 + ROW_H / 2,
+        animated: false,
+      });
+    }
+  }, [nowTop])
+);
+
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150);
   const [contentH, setContentH] = useState(150);
   const [thumbTop, setThumbTop] = useState(0);
   const boxScrollRef = useRef<ScrollView>(null);
+  const gridScrollRef = useRef<ScrollView>(null);
 
   const onLayoutWrap = (e: any) => setWrapH(e.nativeEvent.layout.height);
   const onContentSizeChange = (_: number, h: number) => setContentH(h);
@@ -170,10 +191,10 @@ useEffect(() => {
 
       {/* ✅ 시간대 그리드 */}
         <ScrollView
-  style={S.gridScroll}
-  contentContainerStyle={S.gridContent}
-  showsVerticalScrollIndicator={false}
->
+        ref={gridScrollRef}
+        style={S.gridScroll}
+        contentContainerStyle={S.gridContent}
+        showsVerticalScrollIndicator={false}>
   {HOURS.map((h, i) => {
   const isLast = i === HOURS.length - 1; // ✅ 마지막 행 여부 계산
 
@@ -209,6 +230,7 @@ useEffect(() => {
 )}
 {/* ✅ 드래그 가능한 일정 박스 */}
 <DraggableFixedEvent />
+<DraggableTaskBox />
 <DraggableTaskBox />
 <DraggableFlexalbeEvent />
 </ScrollView>
