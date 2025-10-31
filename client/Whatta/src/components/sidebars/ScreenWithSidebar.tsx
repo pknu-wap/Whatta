@@ -2,47 +2,45 @@ import React, { useMemo } from 'react'
 import { StyleSheet, View, Pressable, Dimensions } from 'react-native'
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useDrawer } from '@/providers/DrawerProvider'
 
+import { useDrawer } from '@/providers/DrawerProvider'
 import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
+
 import colors from '@/styles/colors'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
-const BASE_HEADER_H = 70
+const BASE_HEADER_H = 58
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
   const { progress, width: sbWidth, close } = useDrawer()
   const insets = useSafeAreaInsets()
   const headerTotalH = useMemo(() => BASE_HEADER_H + insets.top, [insets.top])
 
-  // 화면 너비 계산
   const screenWidth = useMemo(() => Dimensions.get('window').width, [])
 
-  // 컨텐츠만 이동/축소 (헤더 고정)
+  /** ✅ 콘텐츠 밀림 및 축소 애니메이션 */
   const contentStyle = useAnimatedStyle(() => {
     const isPush = mode === 'push'
 
     if (isPush) {
-      // 축소 비율 계산: (전체 너비 - 사이드바 너비) / 전체 너비
       const scaleValue = interpolate(
         progress.value,
         [0, 1],
         [1, (screenWidth - sbWidth) / screenWidth],
       )
 
-      // 이동 거리 계산 (밀기 효과)
       const translateXValue = interpolate(progress.value, [0, 1], [0, sbWidth])
 
-      // 축소 후 화면 중앙에 오도록 함: (1 - scaleValue) * screenWidth / 2 만큼 왼쪽으로 이동
       const centerOffset = interpolate(
         progress.value,
         [0, 1],
-        [0, -((1 - scaleValue) * screenWidth) / 2], // 음수(-)를 사용하여 왼쪽으로 이동
+        [0, -((1 - scaleValue) * screenWidth) / 2],
       )
 
       return {
+        paddingTop: headerTotalH,
         transform: [
           { translateX: translateXValue + centerOffset },
           { scaleX: scaleValue },
@@ -51,13 +49,20 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     }
 
     return {
-      transform: undefined,
+      paddingTop: headerTotalH,
     }
   })
 
+  /** ✅ 사이드바 슬라이드 */
   const sidebarStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: interpolate(progress.value, [0, 1], [-sbWidth, 0]) }],
     width: sbWidth,
+  }))
+
+  /** ✅ 오버레이 클릭 감지 (tap catcher) */
+  const tapCatcherStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
+    pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
   }))
 
   return (
@@ -65,34 +70,37 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       style={{ flex: 1, backgroundColor: colors.neutral.surface }}
       pointerEvents="box-none"
     >
-      {/* 바깥 영역 탭, 닫기 */}
-      <Animated.View style={[S.tapCatcher, { top: headerTotalH, zIndex: 30 }]}>
+      {/* ✅ 메인 콘텐츠 */}
+      <Animated.View style={[S.content, contentStyle, { zIndex: 35 }]}>
+        {children}
+      </Animated.View>
+
+      {/* ✅ 사이드바가 열렸을 때 화면 클릭 시 닫기 */}
+      <Animated.View
+        style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 30 }]}
+      >
         <Pressable style={{ flex: 1 }} onPress={close} />
       </Animated.View>
 
-      {/* 사이드바 항상 위 */}
+      {/* ✅ 사이드바 영역 */}
       <Animated.View
         style={[
           S.sidebarWrap,
           sidebarStyle,
-          {
-            top: headerTotalH,
-            bottom: 0,
-            zIndex: 40,
-          },
+          { top: headerTotalH, bottom: 0, zIndex: 40 },
         ]}
         pointerEvents="auto"
       >
         <Sidebar />
       </Animated.View>
 
-      {/* 헤더 고정 */}
-      <SafeAreaView edges={['top']} style={[S.headerSafe]}>
+      {/* ✅ 헤더 고정 */}
+      <SafeAreaView
+        edges={['top']}
+        style={[S.headerSafeFixed, { height: headerTotalH, zIndex: 50 }]}
+      >
         <Header />
       </SafeAreaView>
-
-      {/* 컨텐츠: 축소 및 이동 애니메이션 적용 */}
-      <Animated.View style={[S.content, contentStyle]}>{children}</Animated.View>
     </View>
   )
 }
@@ -102,15 +110,22 @@ const S = StyleSheet.create({
     position: 'absolute',
     backgroundColor: colors.neutral.surface,
   },
-  headerSafe: {
+  headerSafeFixed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     backgroundColor: colors.neutral.surface,
   },
-  content: { flex: 1, backgroundColor: colors.neutral.surface },
+  content: {
+    flex: 1,
+    backgroundColor: colors.neutral.surface,
+  },
   tapCatcher: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0)',
   },
 })

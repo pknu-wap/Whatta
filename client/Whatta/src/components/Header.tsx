@@ -14,6 +14,17 @@ import { ts } from '@/styles/typography'
 
 const AnimatedMenu = Animated.createAnimatedComponent(Menu)
 
+// 날짜 포맷/이동 유틸
+const toISO = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const shiftDay = (iso: string, diff: number) => {
+  const [y, m, dd] = iso.split('-').map(Number)
+  const d = new Date(y, m - 1, dd)
+  d.setDate(d.getDate() + diff)
+  return toISO(d)
+}
+
 /* util */
 const fmt = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number)
@@ -31,8 +42,7 @@ const today = () => {
 }
 
 export default function Header() {
-  const { progress, toggle } = useDrawer()
-  const [selectedDate, setSelectedDate] = useState(today())
+  const { progress, toggle, selectedDate, setSelectedDate, setMonth } = useDrawer()
   const [calVisible, setCalVisible] = useState(false)
   const headerRef = useRef<View>(null)
 
@@ -48,8 +58,13 @@ export default function Header() {
     setCalVisible(true)
   }, [])
   const closeCalendar = useCallback(() => setCalVisible(false), [])
-  const goPrevDay = useCallback(() => setSelectedDate((d) => addDays(d, -1)), [])
-  const goNextDay = useCallback(() => setSelectedDate((d) => addDays(d, +1)), [])
+  const goPrevDay = useCallback(() => {
+    setSelectedDate(shiftDay(selectedDate, -1))
+  }, [selectedDate, setSelectedDate])
+
+  const goNextDay = useCallback(() => {
+    setSelectedDate(shiftDay(selectedDate, +1))
+  }, [selectedDate, setSelectedDate])
 
   const title = useMemo(() => fmt(selectedDate), [selectedDate])
   const dateTextColor = calVisible ? colors.primary.main : colors.text.title
@@ -105,6 +120,7 @@ export default function Header() {
         onClose={closeCalendar}
         currentDate={selectedDate}
         onSelectDate={setSelectedDate}
+        onChangeMonth={(ym) => setMonth(ym)} // 달만 변경(YYYY-MM-01)
       />
     </View>
   )
