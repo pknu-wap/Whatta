@@ -47,6 +47,7 @@ type Props = {
   onClose: () => void
   currentDate: string
   onSelectDate: (date: string) => void
+  onChangeMonth?: (ym: string) => void // 'YYYY-MM-01'
 }
 
 const getMonthName = (month: number) => {
@@ -60,6 +61,7 @@ export default function CalendarModal({
   onClose,
   currentDate,
   onSelectDate,
+  onChangeMonth,
 }: Props) {
   const [ymVisible, setYmVisible] = useState(false)
   // 월의 기준 날짜 (YYYY-MM-DD 형식)
@@ -72,6 +74,51 @@ export default function CalendarModal({
     const now = new Date().getFullYear()
     return Array.from({ length: 101 }, (_, i) => now - 50 + i)
   }, [])
+
+  // 이전/다음 달 이동
+  const gotoPrevMonth = useCallback(() => {
+    const y = Number(currentMonth.slice(0, 4))
+    const m = Number(currentMonth.slice(5, 7))
+    const newYear = m === 1 ? y - 1 : y
+    const newMonth = m === 1 ? 12 : m - 1
+    const next = `${newYear}-${pad(newMonth)}-01`
+    setCurrentMonth(next)
+    setPickYear(newYear)
+    setPickMonth(newMonth)
+    onChangeMonth?.(next)
+  }, [currentMonth, onChangeMonth])
+
+  const gotoNextMonth = useCallback(() => {
+    const y = Number(currentMonth.slice(0, 4))
+    const m = Number(currentMonth.slice(5, 7))
+    const newYear = m === 12 ? y + 1 : y
+    const newMonth = m === 12 ? 1 : m + 1
+    const next = `${newYear}-${pad(newMonth)}-01`
+    setCurrentMonth(next)
+    setPickYear(newYear)
+    setPickMonth(newMonth)
+    onChangeMonth?.(next)
+  }, [currentMonth, onChangeMonth])
+
+  // 월/연도 선택 후 적용
+  const confirmYM = useCallback(() => {
+    const next = `${pickYear}-${pad(pickMonth)}-01`
+    setCurrentMonth(next)
+    onChangeMonth?.(next)
+    setYmVisible(false)
+  }, [pickYear, pickMonth, onChangeMonth])
+
+  // 오늘로 이동
+  const goToday = useCallback(() => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = now.getMonth() + 1
+    const next = `${y}-${pad(m)}-01`
+    setCurrentMonth(next)
+    setPickYear(y)
+    setPickMonth(m)
+    onChangeMonth?.(next)
+  }, [onChangeMonth])
 
   useEffect(() => {
     if (!visible) {
@@ -104,16 +151,6 @@ export default function CalendarModal({
 
   const openYM = () => setYmVisible(true)
   const closeYM = () => setYmVisible(false)
-
-  const confirmYM = useCallback(() => {
-    const newYear = pickYear
-    const newMonth = pickMonth
-    const newMonthStart = `${newYear}-${pad(newMonth)}-01`
-
-    setCurrentMonth(newMonthStart)
-
-    setYmVisible(false)
-  }, [pickYear, pickMonth])
 
   // 이전/다음 달 계산 및 갱신
   const navigateMonth = useCallback(
@@ -175,7 +212,7 @@ export default function CalendarModal({
     return (
       <View style={HeaderStyles.headerContainer}>
         <TouchableOpacity
-          onPress={handlePrevMonth}
+          onPress={gotoPrevMonth}
           style={HeaderStyles.arrowButton}
           hitSlop={10}
         >
@@ -192,7 +229,7 @@ export default function CalendarModal({
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={handleNextMonth}
+          onPress={gotoNextMonth}
           style={HeaderStyles.arrowButton}
           hitSlop={10}
         >

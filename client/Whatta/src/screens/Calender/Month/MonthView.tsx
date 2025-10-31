@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native'
-
+import { useDrawer } from '@/providers/DrawerProvider'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 
 // --------------------------------------------------------------------
@@ -633,11 +633,17 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({
 // 4. 메인 컴포넌트: MonthView
 // --------------------------------------------------------------------
 export default function MonthView() {
+  const { selectedDate, setSelectedDate } = useDrawer()
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
   const [allSchedules, setAllSchedules] = useState<ScheduleData[]>(
     INITIAL_DUMMY_SCHEDULES,
   )
   const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
+
+  // 전역 날짜 변경 → 현재 달 재계산
+  useEffect(() => {
+    if (selectedDate !== focusedDateISO) setFocusedDateISO(selectedDate)
+  }, [selectedDate])
 
   const focusedDate = new Date(focusedDateISO)
 
@@ -655,14 +661,10 @@ export default function MonthView() {
   }, [focusedDateISO, allSchedules])
 
   const handleDatePress = (dateItem: CalendarDateItem) => {
-    if (!dateItem.isCurrentMonth) {
-      return
-    }
-
-    const newDate = dateItem.fullDate
-    const newDateISO = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`
-
-    setFocusedDateISO(newDateISO)
+    if (!dateItem.isCurrentMonth) return
+    const d = dateItem.fullDate
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    setSelectedDate(iso) // 전역 갱신 -> 헤더/모달/다른 뷰와 동기화
   }
 
   const handleToggleComplete = (id: string) => {
