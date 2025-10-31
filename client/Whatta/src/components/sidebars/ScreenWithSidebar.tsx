@@ -11,7 +11,7 @@ import colors from '@/styles/colors'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
-const BASE_HEADER_H = 70
+const BASE_HEADER_H = 58
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
   const { progress, width: sbWidth, close } = useDrawer()
@@ -66,15 +66,19 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   }))
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.neutral.surface }} pointerEvents="box-none">
-      
+    <View
+      style={{ flex: 1, backgroundColor: colors.neutral.surface }}
+      pointerEvents="box-none"
+    >
       {/* ✅ 메인 콘텐츠 */}
       <Animated.View style={[S.content, contentStyle, { zIndex: 35 }]}>
         {children}
       </Animated.View>
 
       {/* ✅ 사이드바가 열렸을 때 화면 클릭 시 닫기 */}
-      <Animated.View style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 30 }]}>
+      <Animated.View
+        style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 30 }]}
+      >
         <Pressable style={{ flex: 1 }} onPress={close} />
       </Animated.View>
 
