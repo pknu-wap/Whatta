@@ -70,7 +70,8 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       pointerEvents="box-none"
     >
       {/* 바깥 영역 탭, 닫기 */}
-      <Animated.View style={[S.tapCatcher, { top: headerTotalH, zIndex: 30 }]}>
+      <Animated.View style={[S.tapCatcher, { top: headerTotalH, zIndex: 30 }]}
+      animatedProps={animatedProps}>
         <Pressable style={{ flex: 1 }} onPress={close} />
       </Animated.View>
 
