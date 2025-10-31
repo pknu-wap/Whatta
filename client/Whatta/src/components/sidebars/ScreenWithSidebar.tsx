@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react'
 import { StyleSheet, View, Pressable, Dimensions } from 'react-native'
-import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-
+import Animated, { interpolate, useAnimatedStyle, useAnimatedProps } from 'react-native-reanimated' 
 import { useDrawer } from '@/providers/DrawerProvider'
 import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
