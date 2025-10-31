@@ -1,21 +1,55 @@
 import 'react-native-gesture-handler'
-import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, Text, View } from 'react-native'
+import React, { createContext, useState, useCallback } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import colors from '@/styles/colors'
 import RootStack from '@/navigation/RootStack'
 
-export default function App() {
-  return (
-    <NavigationContainer>
-      <RootStack />
-    </NavigationContainer>
-  )
+// ✅ 타입 정의
+export interface LabelItem {
+  id: string
+  name: string
+  color: string
+  enabled: boolean
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.neutral.background,
-  },
+interface FilterContextType {
+  labels: LabelItem[]
+  toggleLabel: (id: string) => void
+  toggleAll: () => void
+}
+
+// ✅ Context 생성
+export const FilterContext = createContext<FilterContextType>({
+  labels: [],
+  toggleLabel: () => {},
+  toggleAll: () => {},
 })
+
+export default function App() {
+  const [labels, setLabels] = useState<LabelItem[]>([
+    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
+    { id: '2', name: '시간표', color: '#B04FFF', enabled: true },
+    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
+    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
+  ])
+
+  // ✅ 특정 라벨 토글
+  const toggleLabel = useCallback((id: string) => {
+    setLabels(prev =>
+      prev.map(l => (l.id === id ? { ...l, enabled: !l.enabled } : l))
+    )
+  }, [])
+
+  // ✅ 전체 토글
+  const toggleAll = useCallback(() => {
+    const allOn = labels.every(l => l.enabled)
+    setLabels(prev => prev.map(l => ({ ...l, enabled: !allOn })))
+  }, [labels])
+
+  return (
+    <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>
+      <NavigationContainer>
+        <RootStack />
+      </NavigationContainer>
+    </FilterContext.Provider>
+  )
+}
