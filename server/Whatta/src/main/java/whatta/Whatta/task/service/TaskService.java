@@ -9,7 +9,6 @@ import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.util.LabelUtils;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
-import whatta.Whatta.task.payload.request.SidebarTaskUpdateRequest;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
@@ -95,12 +94,23 @@ public class TaskService {
             LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
             builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
         }
-        if(request.getCompleted() != null) builder.completed(request.getCompleted());
+        if(request.getCompleted() != null) {
+            builder.completed(request.getCompleted());
+            //기존-미완료에서 완료로 변경시 현재 시간 적용
+            if (Boolean.FALSE.equals(originalTask.getCompleted())
+                    && Boolean.TRUE.equals(request.getCompleted()))
+                builder.completedAt(LocalDateTime.now());
+            //기존-완료에서 미완료로 변경시 현재 시간 적용
+            else if (Boolean.TRUE.equals(originalTask.getCompleted())
+                    && Boolean.FALSE.equals(request.getCompleted()))
+                builder.completedAt(null);
+        }
         if(request.getPlacementDate() != null) builder.placementDate(request.getPlacementDate());
         if(request.getPlacementTime() != null) builder.placementTime(request.getPlacementTime());
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
         if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
         if(request.getSortNumber() != null) builder.sortNumber(request.getSortNumber());
+
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
@@ -128,7 +138,9 @@ public class TaskService {
                     case "repeat":
                         builder.repeat(null);
                         break;
-
+                    case "completedAt":
+                        builder.completedAt(null);
+                        break;
                 }
             }
         }
@@ -181,17 +193,4 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    public SidebarTaskResponse updateSidebarTask(String userId, String taskId, SidebarTaskUpdateRequest request) {
-        Task task = taskRepository.findByIdAndUserId(taskId, userId)
-                .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
-
-        Task updatedTask = task.toBuilder()
-                .title(request.title())
-                .sortNumber(request.completed() ? null : request.sortNumber()) //완료된 task는 최신 완료 순서대로 정렬되기 때문에 sortNumber값은 필요가 없음
-                .completed(request.completed())
-                .completedAt(request.completed() ? LocalDateTime.now() : null) //미완료인 경우, 완료 시기는 필요없음
-                .build();
-
-        return taskMapper.toSidebarResponse(taskRepository.save(updatedTask));
-    }
 }
