@@ -1,9 +1,11 @@
 import 'react-native-gesture-handler'
-import React, { createContext, useState, useCallback } from 'react'
+import React, { createContext, useState, useCallback, useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import RootStack from '@/navigation/RootStack'
+import { ensureAuthReady } from '@/app/bootstrap'
+import { ActivityIndicator, View } from 'react-native'
 
-// ✅ 타입 정의
+// ✅ 라벨 타입
 export interface LabelItem {
   id: string
   name: string
@@ -17,7 +19,7 @@ interface FilterContextType {
   toggleAll: () => void
 }
 
-// ✅ Context 생성
+// ✅ 전역 라벨 컨텍스트
 export const FilterContext = createContext<FilterContextType>({
   labels: [],
   toggleLabel: () => {},
@@ -25,25 +27,45 @@ export const FilterContext = createContext<FilterContextType>({
 })
 
 export default function App() {
-  const [labels, setLabels] = useState<LabelItem[]>([
-    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
-    { id: '2', name: '시간표', color: '#B04FFF', enabled: true },
-    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
-    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
-  ])
+  const [ready, setReady] = useState(false)
 
-  // ✅ 특정 라벨 토글
-  const toggleLabel = useCallback((id: string) => {
-    setLabels(prev =>
-      prev.map(l => (l.id === id ? { ...l, enabled: !l.enabled } : l))
-    )
+  // ✅ 앱 시작 시 게스트 로그인 / 인증 준비
+  useEffect(() => {
+    (async () => {
+      try {
+        await ensureAuthReady()
+      } finally {
+        setReady(true)
+      }
+    })()
   }, [])
 
-  // ✅ 전체 토글
+  // ✅ 라벨 상태 (시간표 제거됨)
+  const [labels, setLabels] = useState<LabelItem[]>([
+    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
+    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
+    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
+    { id: '5', name: '수업', color: '#B04FFF', enabled: true },
+  ])
+
+  // ✅ 개별 토글
+  const toggleLabel = useCallback((id: string) => {
+    setLabels(prev => prev.map(l => (l.id === id ? { ...l, enabled: !l.enabled } : l)))
+  }, [])
+
+  // ✅ 전체 on/off
   const toggleAll = useCallback(() => {
     const allOn = labels.every(l => l.enabled)
     setLabels(prev => prev.map(l => ({ ...l, enabled: !allOn })))
   }, [labels])
+
+  if (!ready) {
+    return (
+      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+        <ActivityIndicator size="large" />
+      </View>
+    )
+  }
 
   return (
     <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>

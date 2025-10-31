@@ -1,27 +1,33 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, PanResponder } from 'react-native';
 import AnimatedRe, { interpolateColor, useAnimatedProps } from 'react-native-reanimated';
 import { useDrawer } from '@/providers/DrawerProvider';
 import CalendarModal from '@/components/CalendarModal';
-import { useNavigation } from '@react-navigation/native';
-
 import Menu from '@/assets/icons/menu.svg';
 import Filter from '@/assets/icons/filter.svg';
 import Left from '@/assets/icons/left.svg';
 import Right from '@/assets/icons/right.svg';
 import colors from '@/styles/colors';
+import { useNavigation } from '@react-navigation/native';
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu);
 
+/* --- 타입 추가(오류 해결 핵심) --- */
+type CustomSwitchProps = {
+  value: boolean;
+  onToggle: () => void;
+};
+
+/* 날짜 util */
 const fmt = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  const w = ['일','월','화','수','목','금','토'][new Date(y, m - 1, d).getDay()];
+  const [y,m,d] = iso.split('-').map(Number);
+  const w = ['일','월','화','수','목','금','토'][new Date(y, m-1, d).getDay()];
   return `${y}년 ${String(m).padStart(2,'0')}월 ${String(d).padStart(2,'0')}일 (${w})`;
 };
 
 const addDays = (iso: string, delta: number) => {
   const [y,m,d] = iso.split('-').map(Number);
-  const nd = new Date(y, m - 1, d + delta);
+  const nd = new Date(y, m-1, d+delta);
   return `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
 };
 
@@ -30,11 +36,10 @@ const today = () => {
   return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
 };
 
-type CustomSwitchProps = { value: boolean; onToggle: () => void };
-
+/* 스위치 UI */
 const CustomSwitch = ({ value, onToggle }: CustomSwitchProps) => (
   <TouchableOpacity onPress={onToggle} activeOpacity={0.8}
-    style={[styles.switchTrack,{backgroundColor:value?'#B04FFF':'#ccc'}]}>
+    style={[styles.switchTrack, {backgroundColor: value ? '#B04FFF' : '#ccc'}]}>
     <View style={[
       styles.switchThumb,
       value ? {alignSelf:'flex-end'} : {alignSelf:'flex-start'}
@@ -43,62 +48,61 @@ const CustomSwitch = ({ value, onToggle }: CustomSwitchProps) => (
 );
 
 export default function Header() {
-  const navigation = useNavigation<any>();
   const { progress, toggle } = useDrawer();
-  const [selectedDate,setSelectedDate] = useState(today());
-  const [calVisible,setCalVisible] = useState(false);
-  const [popup,setPopup] = useState(false);
+  const navigation = useNavigation<any>();
 
-  // ✅ 시간표 제거된 라벨 세트
-  const [labels,setLabels] = useState([
+  const [selectedDate, setSelectedDate] = useState(today());
+  const [calVisible, setCalVisible] = useState(false);
+  const [popup, setPopup] = useState(false);
+
+  // ✅ 라벨 목록 (시간표 제거)
+  const [labels, setLabels] = useState([
     { id:'1', name:'과제', color:'#B04FFF', enabled:true },
     { id:'3', name:'약속', color:'#B04FFF', enabled:true },
     { id:'4', name:'동아리', color:'#B04FFF', enabled:true },
     { id:'5', name:'수업', color:'#B04FFF', enabled:true },
   ]);
 
+  // ✅ toggle logic (즉시 적용)
   const allOn = labels.every(l => l.enabled);
 
-  // ✅ 변경 즉시 MonthView로 전달
-  const applyFilter = (updated: any[]) => {
-    setLabels(updated);
-    navigation.navigate('Month', { labels: updated });
-  };
-
   const toggleAll = () => {
-    const updated = labels.map(l => ({...l, enabled: !allOn}));
-    applyFilter(updated);
+    const newLabels = labels.map(l => ({...l, enabled: !allOn}));
+    setLabels(newLabels);
+    navigation.setParams({ labels: newLabels });
   };
 
   const toggleLabel = (i:number) => {
-    const arr=[...labels];
-    arr[i].enabled=!arr[i].enabled;
-    applyFilter(arr);
+    const newArr = [...labels];
+    newArr[i].enabled = !newArr[i].enabled;
+    setLabels(newArr);
+    navigation.setParams({ labels: newArr });
   };
 
+  // 애니메이션 준비
   const popupOpacity = useState(new Animated.Value(1))[0];
   const sliderX = useState(new Animated.Value(0))[0];
   const maxSlide = 38;
 
   const pan = PanResponder.create({
-    onStartShouldSetPanResponder:()=>true,
-    onPanResponderMove:(_,g)=>{
-      let x = Math.min(Math.max(g.dx,0),maxSlide);
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderMove: (_, g) => {
+      let x = Math.min(Math.max(g.dx, 0), maxSlide);
       sliderX.setValue(x);
       popupOpacity.setValue(1 - x/maxSlide);
     }
   });
 
-  const menuIconProps = useAnimatedProps(()=>({
-    color:interpolateColor(progress.value,[0,1],[colors.icon.default,colors.primary.main])
+  const menuIconProps = useAnimatedProps(() => ({
+    color: interpolateColor(progress.value, [0,1], [colors.icon.default, colors.primary.main])
   }));
 
-  const title = useMemo(()=>fmt(selectedDate),[selectedDate]);
+  const title = useMemo(() => fmt(selectedDate), [selectedDate]);
 
   return (
     <View style={styles.root}>
-
-      {/* Header */}
+      
+      {/* Header 영역 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={toggle}>
           <AnimatedMenu width={28} height={28} animatedProps={menuIconProps}/>
@@ -118,11 +122,12 @@ export default function Header() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={()=>{
-            if(!popup){ sliderX.setValue(0); popupOpacity.setValue(1); }
-            setPopup(p=>!p);
-          }}>
+        {/* 필터 버튼 */}
+        <TouchableOpacity onPress={()=>{
+          sliderX.setValue(0);
+          popupOpacity.setValue(1);
+          setPopup(p=>!p);
+        }}>
           <Filter width={22} height={22}
             color={popup?colors.primary.main:colors.icon.default}
             style={{marginRight:15, marginTop:2}}
@@ -130,7 +135,7 @@ export default function Header() {
         </TouchableOpacity>
       </View>
 
-      {/* Popup */}
+      {/* 필터 팝업 */}
       {popup && (
         <Animated.View style={[styles.popupContainer,{opacity:popupOpacity}]}>
           <Animated.View style={[styles.popupBox,{opacity:popupOpacity}]}>
@@ -166,15 +171,18 @@ export default function Header() {
         </Animated.View>
       )}
 
-      <CalendarModal visible={calVisible}
+      {/* 달력 모달 */}
+      <CalendarModal
+        visible={calVisible}
         onClose={()=>setCalVisible(false)}
         currentDate={selectedDate}
-        onSelectDate={setSelectedDate}/>
+        onSelectDate={setSelectedDate}
+      />
     </View>
   );
 }
 
-/* Styles */
+/* 스타일 */
 const styles = StyleSheet.create({
   root:{ borderBottomWidth:.3, borderBottomColor:'#B3B3B3', height:48 },
 

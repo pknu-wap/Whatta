@@ -14,66 +14,117 @@ import ScreenWithSidebar from '../../../components/sidebars/ScreenWithSidebar';
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
 // --------------------------------------------------------------------
-const DARK_GRAY_COLOR = '#555555';
+const DARK_GRAY_COLOR = '#555555'
+const FONT_MAIN = '#000000'
+const FONT_SUB = '#999999'
+const COLOR_PRIMARY = '#B04FFF'
+const COLOR_LIGHT = '#EAD7FF'
 
 // 반복 일정 배경, 경계선/멀티데이 시작/종료 표시용
 const SCHEDULE_COLOR = '#B04FFF';
 // 단일 일정 및 멀티데이(기간이 긴 일정) 바 배경색
 const SCHEDULE_LIGHT_COLOR = '#E5CCFF';
 
-const CHECKBOX_SIZE = 8;
+const CHECKBOX_SIZE = 8
 
-const SCHEDULE_BOX_HEIGHT = 12;
-const TASK_BOX_HEIGHT = 12;
-const ITEM_MARGIN_VERTICAL = 2;
-const EVENT_AREA_PADDING_TOP = 5;
-const SINGLE_SCHEDULE_BORDER_WIDTH = 5;
-const TEXT_HORIZONTAL_PADDING = 4;
+const SCHEDULE_BOX_HEIGHT = 12
+const TASK_BOX_HEIGHT = 12
+const ITEM_MARGIN_VERTICAL = 2
+const EVENT_AREA_PADDING_TOP = 5
+const SINGLE_SCHEDULE_BORDER_WIDTH = 5
+const TEXT_HORIZONTAL_PADDING = 4
 
 //  HOLIDAYS: 양력 공휴일 (JS getMonth() 0-11월 기준)
 const HOLIDAYS: Record<string, string> = {
-  '0-1': '신정',
-  '2-1': '삼일절',
-  '4-1': '노동절',
-  '4-5': '어린이날',
-  '5-6': '현충일',
-  '7-14': '광복절',
-  '9-3': '개천절',
-  '9-9': '한글날',
-  '11-25': '크리스마스',
-};
+  '0-1': '신정', // 1월 1일
+  '2-1': '삼일절', // 3월 1일
+  '4-1': '노동절', // 5월 1일
+  '4-5': '어린이날', // 5월 5일
+  '5-6': '현충일', // 6월 6일
+  '7-14': '광복절', // 8월 15일
+  '9-3': '개천절', // 10월 3일
+  '9-9': '한글날', // 10월 9일
+  '11-25': '크리스마스', // 12월 25일
+}
 
-// 연도별 음력/대체공휴일 (예시: 2025)
-const LUNAR_HOLIDAYS_OFFSETS: Record<number, {
-  설날: { month: number, day: number }[],
-  추석: { month: number, day: number }[],
-  부처님오신날: { month: number, day: number },
-  대체휴일: { month: number, day: number }[],
-}> = {
+// 연도별 음력/대체공휴일 2026까지만 표시함
+const LUNAR_HOLIDAYS_OFFSETS: Record<
+  number,
+  {
+    설날: { month: number; day: number }[]
+    추석: { month: number; day: number }[]
+    부처님오신날: { month: number; day: number }
+    대체휴일: { month: number; day: number }[]
+  }
+> = {
+  2024: {
+    설날: [
+      { month: 1, day: 9 },
+      { month: 1, day: 10 },
+      { month: 1, day: 11 },
+    ],
+    추석: [
+      { month: 8, day: 16 },
+      { month: 8, day: 17 },
+      { month: 8, day: 18 },
+    ],
+    부처님오신날: { month: 4, day: 15 },
+    대체휴일: [{ month: 1, day: 12 }],
+  },
   2025: {
-    설날: [{ month: 0, day: 28 }, { month: 0, day: 29 }, { month: 0, day: 30 }],
-    추석: [{ month: 9, day: 5 }, { month: 9, day: 6 }, { month: 9, day: 7 }],
+    설날: [
+      { month: 0, day: 28 },
+      { month: 0, day: 29 },
+      { month: 0, day: 30 },
+    ],
+    추석: [
+      { month: 9, day: 5 },
+      { month: 9, day: 6 },
+      { month: 9, day: 7 },
+    ],
     부처님오신날: { month: 4, day: 24 },
     대체휴일: [{ month: 9, day: 8 }],
   },
-};
+  2026: {
+    설날: [
+      { month: 1, day: 16 },
+      { month: 1, day: 17 },
+      { month: 1, day: 18 },
+    ],
+    추석: [
+      { month: 8, day: 24 },
+      { month: 8, day: 25 },
+      { month: 8, day: 26 },
+    ],
+    부처님오신날: { month: 4, day: 24 },
+    대체휴일: [
+      { month: 2, day: 2 },
+      { month: 4, day: 25 },
+      { month: 7, day: 17 },
+      { month: 9, day: 5 },
+    ],
+  },
+}
 
 interface ScheduleData {
-  id: string;
-  name: string;
-  date: string;
-  isRecurring: boolean;
-  isTask: boolean;
-  labelId: string;
-  isCompleted: boolean;
+  id: string
+  name: string
+  date: string
+  isRecurring: boolean
+  isTask: boolean
+  labelId: string
+  isCompleted: boolean
   // optional multi-day fields
-  multiDayStart?: string;
-  multiDayEnd?: string;
+  multiDayStart?: string
+  multiDayEnd?: string
 }
 interface TaskSummaryItem {
-  isTaskSummary: true; id: string; count: number; tasks: ScheduleData[];
+  isTaskSummary: true
+  id: string
+  count: number
+  tasks: ScheduleData[]
 }
-type DisplayItem = ScheduleData | TaskSummaryItem;
+type DisplayItem = ScheduleData | TaskSummaryItem
 
 interface CalendarDateItem {
   day: number;
@@ -141,22 +192,43 @@ const today = (): string => {
 const TODAY_ISO = today();
 
 function getHolidayName(date: Date): string | null {
-  const year = date.getFullYear();
-  const month = date.getMonth(); // 0-11
-  const day = date.getDate();
-  let holidayName: string | null = null;
+  const year = date.getFullYear()
+  const month = date.getMonth() // 0-11
+  const day = date.getDate()
+  let holidayName: string | null = null
 
-  // 1) 양력
-  const solarKey = `${month}-${day}`;
-  if (HOLIDAYS[solarKey]) holidayName = HOLIDAYS[solarKey];
+  // 1. 양력 공휴일
+  const solarKey = `${month}-${day}`
+  if (HOLIDAYS[solarKey]) {
+    holidayName = HOLIDAYS[solarKey]
+  }
 
-  // (대체휴일 예시 — 필요시 확장)
-  const lunarData = LUNAR_HOLIDAYS_OFFSETS[year];
+  // 2. 음력/특정 연도 공휴일 및 대체휴일
+  const lunarData = LUNAR_HOLIDAYS_OFFSETS[year]
+
   if (lunarData) {
+    for (const h of lunarData.설날) {
+      if (h.month === month && h.day === day) {
+        holidayName = holidayName || '설날'
+        break
+      }
+    }
+
+    for (const h of lunarData.추석) {
+      if (h.month === month && h.day === day) {
+        holidayName = holidayName || '추석'
+        break
+      }
+    }
+
+    if (lunarData.부처님오신날.month === month && lunarData.부처님오신날.day === day) {
+      holidayName = holidayName || '부처님 오신 날'
+    }
+
     for (const h of lunarData.대체휴일) {
       if (h.month === month && h.day === day) {
-        holidayName = '대체휴일';
-        break;
+        holidayName = '대체휴일'
+        break
       }
     }
   }
@@ -165,7 +237,7 @@ function getHolidayName(date: Date): string | null {
     if (holidayName.length > 4) return holidayName.substring(0, 4);
     return holidayName;
   }
-  return null;
+  return null
 }
 
 function getEventsForDate(
@@ -226,44 +298,47 @@ function getDisplayItems(schedules: ScheduleData[], tasks: ScheduleData[]): Disp
       id: `task-summary-${tasks[0].date}-${tasks.length}`,
       count: tasks.length,
       tasks: tasks,
-    });
+    })
   }
-  return displayList;
+  return displayList
 }
 
 function getCalendarDates(
-  year: number, month: number, currentFocusedDate: Date, allSchedules: ScheduleData[],
+  year: number,
+  month: number,
+  currentFocusedDate: Date,
+  allSchedules: ScheduleData[],
 ): CalendarDateItem[] {
-  const dates: CalendarDateItem[] = [];
-  const firstDayOfMonth = new Date(year, month, 1);
-  const lastDayOfMonth = new Date(year, month + 1, 0);
-  const startWeekDay = firstDayOfMonth.getDay();
-  const totalDays = lastDayOfMonth.getDate();
-  const prevMonthLastDate = new Date(year, month, 0).getDate();
-  const systemTodayISO = TODAY_ISO;
+  const dates: CalendarDateItem[] = []
+  const firstDayOfMonth = new Date(year, month, 1)
+  const lastDayOfMonth = new Date(year, month + 1, 0)
+  const startWeekDay = firstDayOfMonth.getDay()
+  const totalDays = lastDayOfMonth.getDate()
+  const prevMonthLastDate = new Date(year, month, 0).getDate()
+  const systemTodayISO = TODAY_ISO
 
   for (let i = 0; i < 42; i++) {
-    const dayNum = i - startWeekDay + 1;
-    let date: number;
-    let isCurrentMonth = true;
-    let itemDate = new Date(year, month, dayNum);
+    const dayNum = i - startWeekDay + 1
+    let date: number
+    let isCurrentMonth = true
+    let itemDate = new Date(year, month, dayNum)
 
     if (dayNum < 1) {
-      date = prevMonthLastDate + dayNum;
-      isCurrentMonth = false;
-      itemDate = new Date(year, month - 1, date);
+      date = prevMonthLastDate + dayNum
+      isCurrentMonth = false
+      itemDate = new Date(year, month - 1, date)
     } else if (dayNum > totalDays) {
-      date = dayNum - totalDays;
-      isCurrentMonth = false;
-      itemDate = new Date(year, month + 1, date);
+      date = dayNum - totalDays
+      isCurrentMonth = false
+      itemDate = new Date(year, month + 1, date)
     } else {
-      date = dayNum;
+      date = dayNum
     }
 
-    const itemDateISO = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`;
-    const isToday = itemDateISO === systemTodayISO;
+    const itemDateISO = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`
+    const isToday = itemDateISO === systemTodayISO
 
-    const isFocused = currentFocusedDate.toDateString() === itemDate.toDateString();
+    const isFocused = currentFocusedDate.toDateString() === itemDate.toDateString()
 
     const holidayName = getHolidayName(itemDate);
     const isHoliday = !!holidayName;
@@ -281,9 +356,9 @@ function getCalendarDates(
       dayOfWeek: dayOfWeek,
       schedules: schedules,
       tasks: tasks,
-    });
+    })
   }
-  return dates;
+  return dates
 }
 
 // --------------------------------------------------------------------
@@ -306,8 +381,8 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({ schedule, currentDateISO, i
 
   // 멀티데이(기간이 긴 일정)
   if (schedule.multiDayStart && schedule.multiDayEnd) {
-    const isStart = currentDateISO === schedule.multiDayStart;
-    const isEnd = currentDateISO === schedule.multiDayEnd;
+    const isStart = currentDateISO === schedule.multiDayStart
+    const isEnd = currentDateISO === schedule.multiDayEnd
 
     return (
       <View style={[S.multiDayContainer, dimmedStyle]}>
@@ -315,15 +390,17 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({ schedule, currentDateISO, i
           style={[
             S.multiBarBase,
             isStart ? S.multiBarLeftEdge : null,
-            isEnd ? S.multiBarRightEdge : null
+            isEnd ? S.multiBarRightEdge : null,
           ]}
         >
           {isStart ? (
-            <Text numberOfLines={1} ellipsizeMode="tail" style={S.multiBarText}>{schedule.name}</Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={S.multiBarText}>
+              {schedule.name}
+            </Text>
           ) : null}
         </View>
       </View>
-    );
+    )
   }
 
   // Task: 단일 Task
@@ -332,10 +409,13 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({ schedule, currentDateISO, i
       <View style={[S.taskBoxNoCheckbox, S.taskBoxBordered, dimmedStyle]}>
         <Text style={S.taskText} numberOfLines={1} ellipsizeMode="tail">{schedule.name}</Text>
       </View>
-    );
+    )
   }
 
-  const isRecurring = schedule.isRecurring;
+  const isRecurring = schedule.isRecurring
+
+  // 반복 일정(진한 보라색 배경)은 흰색 텍스트, 단일 일정(연한 보라색 배경)은 검정색 텍스트
+  const textColorStyle = isRecurring ? S.recurringScheduleText : S.singleScheduleText
 
   return (
     <View
@@ -343,7 +423,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({ schedule, currentDateISO, i
         S.scheduleBox,
         isRecurring ? S.recurringSchedule : S.singleSchedule,
         !isRecurring ? S.singleScheduleBorder : null,
-        dimmedStyle
+        dimmedStyle,
       ]}
     >
       <Text style={[S.scheduleText, isRecurring ? S.recurringScheduleText : S.singleScheduleText]} numberOfLines={1} ellipsizeMode="tail">
@@ -408,9 +488,9 @@ export default function MonthView() {
   }, [focusedDate, filteredSchedules]);
 
   const renderWeeks = (dates: CalendarDateItem[]): CalendarDateItem[][] => {
-    const weeks: CalendarDateItem[][] = [];
+    const weeks: CalendarDateItem[][] = []
     for (let i = 0; i < dates.length; i += 7) {
-      weeks.push(dates.slice(i, i + 7));
+      weeks.push(dates.slice(i, i + 7))
     }
     return weeks;
   };
@@ -428,7 +508,14 @@ export default function MonthView() {
         <View style={S.dayHeader}>
           {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
             <View key={`dow-${index}`} style={S.dayCellFixed}>
-              <Text style={[ts('monthDate'), S.dayTextBase, index === 0 ? S.sunText : null, index === 6 ? S.satText : null]} >
+              <Text
+                style={[
+                  ts('monthDate'),
+                  S.dayTextBase,
+                  index === 0 ? S.sunText : null,
+                  index === 6 ? S.satText : null,
+                ]}
+              >
                 {day}
               </Text>
             </View>
@@ -448,10 +535,14 @@ export default function MonthView() {
                   const isCurrentMonth = dateItem.isCurrentMonth;
 
                   const dayOfWeekStyle = isCurrentMonth
-                    ? (i % 7 === 0 ? S.sunDate : ((i + 1) % 7 === 0 ? S.satDate : null))
-                    : null;
+                    ? i % 7 === 0
+                      ? S.sunDate
+                      : (i + 1) % 7 === 0
+                        ? S.satDate
+                        : null
+                    : null
 
-                  const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(dateItem.fullDate.getMonth() + 1).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(2, '0')}`;
+                  const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(dateItem.fullDate.getMonth() + 1).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(2, '0')}`
 
                   return (
                     <TouchableOpacity
@@ -480,7 +571,15 @@ export default function MonthView() {
                         </Text>
 
                         {dateItem.holidayName ? (
-                          <Text style={[S.holidayText, !isCurrentMonth ? S.otherMonthHolidayText : null, dateItem.holidayName === '크리스마스' ? S.smallHolidayText : null]}>
+                          <Text
+                            style={[
+                              S.holidayText,
+                              !isCurrentMonth ? S.otherMonthHolidayText : null,
+                              dateItem.holidayName === '크리스마스'
+                                ? S.smallHolidayText
+                                : null,
+                            ]}
+                          >
                             {dateItem.holidayName.substring(0, 4)}
                           </Text>
                         ) : null}
@@ -496,7 +595,7 @@ export default function MonthView() {
                                 count={it.count}
                                 isCurrentMonth={isCurrentMonth}
                               />
-                            );
+                            )
                           }
                           const scheduleItem = it as ScheduleData;
                           return (
@@ -510,7 +609,7 @@ export default function MonthView() {
                         })}
                       </View>
                     </TouchableOpacity>
-                  );
+                  )
                 })}
               </View>
             ))}
@@ -518,16 +617,16 @@ export default function MonthView() {
         </ScrollView>
       </View>
     </ScreenWithSidebar>
-  );
+  )
 }
 
 // --------------------------------------------------------------------
 // 5. 스타일시트 정의 (S) - 기존 스타일 전부 유지
 // --------------------------------------------------------------------
-const { width: screenWidth } = Dimensions.get('window');
-const horizontalPadding = 12;
-const cellWidth = (screenWidth - horizontalPadding) / 7;
-const MIN_CELL_HEIGHT = 102;
+const { width: screenWidth } = Dimensions.get('window')
+const horizontalPadding = 12
+const cellWidth = (screenWidth - horizontalPadding) / 7
+const MIN_CELL_HEIGHT = 115
 
 const S = StyleSheet.create({
   contentContainerWrapper: { flex: 1, paddingBottom: 20, paddingTop: 0 },
@@ -546,7 +645,8 @@ const S = StyleSheet.create({
 
   calendarGrid: {},
   weekRow: {
-    flexDirection: 'row', width: '100%',
+    flexDirection: 'row',
+    width: '100%',
   },
   dateCell: {
     width: cellWidth,
@@ -560,13 +660,22 @@ const S = StyleSheet.create({
     zIndex: 1,
   },
   dateNumberWrapper: {
-    height: 20, width: '100%', flexDirection: 'row', justifyContent: 'flex-start',
-    alignItems: 'center', paddingLeft: 6, paddingTop: 2, position: 'relative',
+    height: 20,
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingLeft: 6,
+    paddingTop: 2,
+    position: 'relative',
   },
   eventArea: {
-    width: '100%', paddingHorizontal: 4, paddingTop: EVENT_AREA_PADDING_TOP, paddingBottom: ITEM_MARGIN_VERTICAL,
+    width: '100%',
+    paddingHorizontal: 4,
+    paddingTop: EVENT_AREA_PADDING_TOP,
+    paddingBottom: ITEM_MARGIN_VERTICAL,
   },
-  focusedDayBorder: { borderWidth: 1.5, borderColor: '#AAAAAA', borderRadius: 4 },
+  focusedDayBorder: { borderWidth: 0.8, borderColor: '#AAAAAA', borderRadius: 4 },
   todayBorder: { borderWidth: 1.5, borderColor: '#CCCCCC', borderRadius: 4 },
   dateNumberBase: { color: 'black', zIndex: 1 },
 
@@ -581,18 +690,32 @@ const S = StyleSheet.create({
   todayDateText: { fontWeight: 'bold' },
   holidayDateText: { color: 'red' },
   todayRoundedSquare: {
-    position: 'absolute', width: 18, height: 18, borderRadius: 4,
-    top: 3, left: 5, backgroundColor: 'rgba(176, 79, 255, 0.15)', zIndex: 0,
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    top: 4,
+    left: 2,
+    backgroundColor: 'rgba(176, 79, 255, 0.15)',
+    zIndex: 0,
   },
   holidayText: {
-    position: 'absolute', right: 6, top: 3, fontSize: 8, color: 'red',
-    lineHeight: 14, fontWeight: 'normal',
+    position: 'absolute',
+    right: 6,
+    top: 3,
+    fontSize: 8,
+    color: 'red',
+    lineHeight: 14,
+    fontWeight: 'normal',
   },
   smallHolidayText: { fontSize: 7 },
-
   scheduleBox: {
-    height: SCHEDULE_BOX_HEIGHT, borderRadius: 3, justifyContent: 'center',
-    alignItems: 'flex-start', paddingHorizontal: 0, marginBottom: ITEM_MARGIN_VERTICAL,
+    height: SCHEDULE_BOX_HEIGHT,
+    borderRadius: 3,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingHorizontal: 0,
+    marginBottom: ITEM_MARGIN_VERTICAL,
   },
   //  반복 일정: 진한 보라색 배경
   recurringSchedule: {
@@ -606,7 +729,9 @@ const S = StyleSheet.create({
   },
   // 경계선: 진한 보라색
   singleScheduleBorder: {
-    borderLeftWidth: SINGLE_SCHEDULE_BORDER_WIDTH, borderRightWidth: SINGLE_SCHEDULE_BORDER_WIDTH, borderColor: SCHEDULE_COLOR,
+    borderLeftWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
+    borderRightWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
+    borderColor: SCHEDULE_COLOR,
   },
   scheduleText: {
     fontSize: 8, fontWeight: '500',
@@ -622,24 +747,43 @@ const S = StyleSheet.create({
   // 단일 일정 텍스트: 검정색
   singleScheduleText: { color: '#000', marginTop: -1, },
 
-  checkboxTouchArea: { marginRight: 1, padding: 2, alignSelf: 'center', },
+  checkboxTouchArea: { marginRight: 1, padding: 2, alignSelf: 'center' },
   checkboxBase: {
-    width: CHECKBOX_SIZE, height: CHECKBOX_SIZE, borderRadius: 3,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
+    width: CHECKBOX_SIZE,
+    height: CHECKBOX_SIZE,
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  checkboxOff: { backgroundColor: '#FFFFFF', borderColor: '#000000', },
-  checkboxOn: { backgroundColor: DARK_GRAY_COLOR, borderColor: DARK_GRAY_COLOR, },
+  checkboxOff: { backgroundColor: '#FFFFFF', borderColor: '#000000' },
+  checkboxOn: { backgroundColor: DARK_GRAY_COLOR, borderColor: DARK_GRAY_COLOR },
   checkMark: {
-    color: '#FFFFFF', fontSize: 7, fontWeight: '900', lineHeight: CHECKBOX_SIZE,
+    color: '#FFFFFF',
+    fontSize: 7,
+    fontWeight: '900',
+    lineHeight: CHECKBOX_SIZE,
   },
   taskBox: {
-    height: TASK_BOX_HEIGHT, backgroundColor: 'transparent', borderRadius: 2,
-    borderWidth: 1, borderColor: '#000000', paddingLeft: 1, paddingRight: 0,
-    flexDirection: 'row', alignItems: 'center', marginBottom: ITEM_MARGIN_VERTICAL,
+    height: TASK_BOX_HEIGHT,
+    backgroundColor: 'transparent',
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: '#000000',
+    paddingLeft: 1,
+    paddingRight: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: ITEM_MARGIN_VERTICAL,
   },
   taskBoxNoCheckbox: {
-    height: TASK_BOX_HEIGHT, backgroundColor: 'transparent', borderRadius: 2,
-    paddingLeft: 1, paddingRight: 0, justifyContent: 'center', marginBottom: ITEM_MARGIN_VERTICAL,
+    height: TASK_BOX_HEIGHT,
+    backgroundColor: 'transparent',
+    borderRadius: 2,
+    paddingLeft: 1,
+    paddingRight: 0,
+    justifyContent: 'center',
+    marginBottom: ITEM_MARGIN_VERTICAL,
   },
   taskBoxBordered: {
     borderWidth: 1,
