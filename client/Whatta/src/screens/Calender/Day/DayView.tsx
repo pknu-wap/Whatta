@@ -79,7 +79,7 @@ useEffect(() => {
 
     setTimeout(() => {
       gridScrollRef.current?.scrollTo({
-        y: topPos - Dimensions.get('window').height / 2 + ROW_H / 2,
+        y: topPos - Dimensions.get('window').height * 0.2 + ROW_H / 2,
         animated: false,
       });
     }, 500);
@@ -95,7 +95,7 @@ useFocusEffect(
   React.useCallback(() => {
     if (nowTop != null && gridScrollRef.current) {
       gridScrollRef.current.scrollTo({
-        y: nowTop - Dimensions.get('window').height / 2 + ROW_H / 2,
+        y: nowTop - Dimensions.get('window').height * 0.2 + ROW_H / 2,
         animated: false,
       });
     }
