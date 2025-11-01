@@ -218,11 +218,6 @@ function SectionUpcoming({
   onToggle: (id: string) => void
   onDragEnd: (data: Task[], from: number, to: number) => void
 }) {
-  console.log(
-    '[Sidebar titles]',
-    data.map((d) => d.title),
-  )
-
   const renderItem = ({ item, drag, isActive }: RenderItemParams<Task>) => (
     <TaskCard
       title={item.title}
