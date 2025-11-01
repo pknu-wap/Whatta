@@ -1,9 +1,10 @@
 import 'react-native-gesture-handler'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { StyleSheet, ActivityIndicator, View, Text } from 'react-native'
 import React, { createContext, useState, useCallback, useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import RootStack from '@/navigation/RootStack'
 import { ensureAuthReady } from '@/app/bootstrap'
-import { ActivityIndicator, View } from 'react-native'
 
 // ✅ 라벨 타입
 export interface LabelItem {
@@ -31,7 +32,7 @@ export default function App() {
 
   // ✅ 앱 시작 시 게스트 로그인 / 인증 준비
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       try {
         await ensureAuthReady()
       } finally {
@@ -50,28 +51,32 @@ export default function App() {
 
   // ✅ 개별 토글
   const toggleLabel = useCallback((id: string) => {
-    setLabels(prev => prev.map(l => (l.id === id ? { ...l, enabled: !l.enabled } : l)))
+    setLabels((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, enabled: !l.enabled } : l)),
+    )
   }, [])
 
   // ✅ 전체 on/off
   const toggleAll = useCallback(() => {
-    const allOn = labels.every(l => l.enabled)
-    setLabels(prev => prev.map(l => ({ ...l, enabled: !allOn })))
+    const allOn = labels.every((l) => l.enabled)
+    setLabels((prev) => prev.map((l) => ({ ...l, enabled: !allOn })))
   }, [labels])
 
   if (!ready) {
     return (
-      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
       </View>
     )
   }
 
   return (
-    <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>
-      <NavigationContainer>
-        <RootStack />
-      </NavigationContainer>
-    </FilterContext.Provider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>
+        <NavigationContainer>
+          <RootStack />
+        </NavigationContainer>
+      </FilterContext.Provider>
+    </GestureHandlerRootView>
   )
 }
