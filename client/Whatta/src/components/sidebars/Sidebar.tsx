@@ -248,8 +248,6 @@ function SectionUpcoming({
         }
         style={{ height: SECTION_HEIGHT }}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        // drag()를 핸들에서 바로 호출하므로 activationDistance는 크게 필요 없음
-        activationDistance={0}
         autoscrollThreshold={40}
         autoscrollSpeed={80}
         containerStyle={{ overflow: 'hidden' }}
@@ -322,6 +320,17 @@ const TaskCard = memo(function TaskCard({
           <CheckOff width={24} height={24} />
         )}
       </Pressable>
+
+      <Text
+        style={[
+          ts('taskName'),
+          { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
+          checked && { textDecorationLine: 'line-through' },
+        ]}
+        numberOfLines={1}
+      >
+        {title}
+      </Text>
 
       {/* 내부 정렬 드래그 */}
       <Pressable
