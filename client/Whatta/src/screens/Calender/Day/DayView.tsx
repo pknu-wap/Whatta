@@ -66,40 +66,46 @@ export default function DayView() {
 
   // ✅ 라이브바 위치 계산
 const [nowTop, setNowTop] = useState<number | null>(null);
-const ROW_H = 48; // 시간 블록 높이 (S.row의 height와 동일하게!)
+const [hasScrolledOnce, setHasScrolledOnce] = useState(false); // ✅ 추가
+const ROW_H = 48;
 
 useEffect(() => {
-  const updateNowTop = () => {
+  const updateNowTop = (shouldScroll = false) => {
     const now = new Date();
     const hour = now.getHours();
     const min = now.getMinutes();
-    const elapsed = hour + min / 60; // 현재 시각(시 단위)
-    const topPos = (elapsed - 0) * ROW_H; // 0시부터 경과한 높이
+    const elapsed = hour + min / 60;
+    const topPos = elapsed * ROW_H;
     setNowTop(topPos);
 
-    setTimeout(() => {
-      gridScrollRef.current?.scrollTo({
-        y: topPos - Dimensions.get('window').height * 0.2 + ROW_H / 2,
-        animated: false,
-      });
-    }, 500);
+    // ✅ 처음 들어올 때만 중앙으로 스크롤
+    if (shouldScroll && !hasScrolledOnce) {
+      setTimeout(() => {
+        gridScrollRef.current?.scrollTo({
+          y: topPos - Dimensions.get('window').height * 0.2 + ROW_H / 2,
+          animated: false,
+        });
+        setHasScrolledOnce(true); // 한 번만 실행되게
+      }, 500);
+    }
   };
 
-  updateNowTop(); // 첫 실행
-  const timer = setInterval(updateNowTop, 60 * 1000); // 1분마다 갱신
+  updateNowTop(true); // ✅ 처음 진입 시 (스크롤 포함)
+  const timer = setInterval(() => updateNowTop(false), 60 * 1000); // 이후엔 위치만 갱신
   return () => clearInterval(timer);
-}, []);
+}, [hasScrolledOnce]);
 
 // ✅ DayView 화면이 다시 보일 때도 중앙으로 스크롤
 useFocusEffect(
   React.useCallback(() => {
-    if (nowTop != null && gridScrollRef.current) {
+    if (nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
       gridScrollRef.current.scrollTo({
         y: nowTop - Dimensions.get('window').height * 0.2 + ROW_H / 2,
         animated: false,
       });
+      setHasScrolledOnce(true);
     }
-  }, [nowTop])
+  }, [nowTop, hasScrolledOnce])
 );
 
   // 상단 박스 스크롤바 계산
