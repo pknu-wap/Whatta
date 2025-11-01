@@ -60,7 +60,6 @@ export default function MainTabs() {
             tabBarLabelStyle: { fontSize: 12, textAlign: 'center' },
           }}
         >
-
           {/* ✅ 마이페이지 */}
           <Tab.Screen
             name="MyPage"
@@ -125,12 +124,12 @@ export default function MainTabs() {
             }}
           />
 
-          {/* ✅ 할 일 */}
+          {/* ✅ 할 일 관리 */}
           <Tab.Screen
             name="Task"
             component={TaskScreen}
             options={{
-              tabBarLabel: '할 일',
+              tabBarLabel: '할 일 관리',
               tabBarIcon: ({ focused }) => (
                 <TaskIcon
                   width={24}
