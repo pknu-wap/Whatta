@@ -2,14 +2,15 @@ import React, { useState } from 'react'
 import { View } from 'react-native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { DrawerProvider } from '@/providers/DrawerProvider'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 
+import { DrawerProvider } from '@/providers/DrawerProvider'
+
 import MyPageStack from '@/navigation/MyPageStack'
-import MonthScreen from '@/screens/Calender/Month/MonthView'
-import WeekScreen from '@/screens/Calender/Week/WeekView'
-import DayScreen from '@/screens/Calender/Day/DayView'
+import MonthView from '@/screens/Calender/Month/MonthView'
+import WeekView from '@/screens/Calender/Week/WeekView'
+import DayView from '@/screens/Calender/Day/DayView'
 import TaskScreen from '@/screens/More/TaskDetailPopup'
 
 import FabHybrid from '@/components/FloatingButton'
@@ -32,10 +33,8 @@ type RootStackParamList = {
 export default function MainTabs() {
   const insets = useSafeAreaInsets()
   const [activeTab, setActiveTab] = useState('Month')
-
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
 
-  // 활성 탭이 캘린더 관련일 때만 FAB 표시
   const showFab = ['Month', 'Week', 'Day'].includes(activeTab)
 
   return (
@@ -61,6 +60,7 @@ export default function MainTabs() {
             tabBarLabelStyle: { fontSize: 12, textAlign: 'center' },
           }}
         >
+          {/* ✅ 마이페이지 */}
           <Tab.Screen
             name="MyPage"
             component={MyPageStack}
@@ -75,9 +75,11 @@ export default function MainTabs() {
               ),
             }}
           />
+
+          {/* ✅ 월간 */}
           <Tab.Screen
             name="Month"
-            component={MonthScreen}
+            component={MonthView}
             options={{
               tabBarLabel: '월간',
               tabBarIcon: ({ focused }) => (
@@ -89,9 +91,11 @@ export default function MainTabs() {
               ),
             }}
           />
+
+          {/* ✅ 주간 */}
           <Tab.Screen
             name="Week"
-            component={WeekScreen}
+            component={WeekView}
             options={{
               tabBarLabel: '주간',
               tabBarIcon: ({ focused }) => (
@@ -103,9 +107,11 @@ export default function MainTabs() {
               ),
             }}
           />
+
+          {/* ✅ 일간 */}
           <Tab.Screen
             name="Day"
-            component={DayScreen}
+            component={DayView}
             options={{
               tabBarLabel: '일간',
               tabBarIcon: ({ focused }) => (
@@ -117,8 +123,10 @@ export default function MainTabs() {
               ),
             }}
           />
+
+          {/* ✅ 할 일 관리 */}
           <Tab.Screen
-            name="Todo"
+            name="Task"
             component={TaskScreen}
             options={{
               tabBarLabel: '할 일 관리',
@@ -132,16 +140,14 @@ export default function MainTabs() {
             }}
           />
         </Tab.Navigator>
+
+        {/* ✅ 플로팅 버튼 */}
         {showFab && (
           <FabHybrid
             bottomOffset={TAB_BAR_H + insets.bottom - 36}
             rightOffset={20}
-            onPressTop1={() => {
-              /* 할 일 추가 로직 */
-            }}
-            onPressTop2={() => {
-              /* 이미지로 추가 로직 */
-            }}
+            onPressTop1={() => {}}
+            onPressTop2={() => {}}
             onPressPrimaryWhenOpen={() => {
               navigation.navigate('AddSchedule')
             }}
