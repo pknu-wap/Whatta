@@ -5,6 +5,15 @@ import {View, Text, StyleSheet,
   Platform, Dimensions,
 } from 'react-native';
 
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useFocusEffect } from '@react-navigation/native';
+
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,28 +66,54 @@ export default function DayView() {
 
   // ✅ 라이브바 위치 계산
 const [nowTop, setNowTop] = useState<number | null>(null);
-const ROW_H = 57; // 시간 블록 높이 (S.row의 height와 동일하게!)
+const [hasScrolledOnce, setHasScrolledOnce] = useState(false); // ✅ 추가
+const ROW_H = 48;
 
 useEffect(() => {
-  const updateNowTop = () => {
+  const updateNowTop = (shouldScroll = false) => {
     const now = new Date();
     const hour = now.getHours();
     const min = now.getMinutes();
-    const elapsed = hour + min / 60; // 현재 시각(시 단위)
-    const top = (elapsed - 0) * ROW_H; // 0시부터 경과한 높이
-    setNowTop(top);
+    const elapsed = hour + min / 60;
+    const topPos = elapsed * ROW_H;
+    setNowTop(topPos);
+
+    // ✅ 처음 들어올 때만 중앙으로 스크롤
+    if (shouldScroll && !hasScrolledOnce) {
+      setTimeout(() => {
+        gridScrollRef.current?.scrollTo({
+          y: topPos - Dimensions.get('window').height * 0.2 + ROW_H / 2,
+          animated: false,
+        });
+        setHasScrolledOnce(true); // 한 번만 실행되게
+      }, 500);
+    }
   };
 
-  updateNowTop(); // 첫 실행
-  const timer = setInterval(updateNowTop, 60 * 1000); // 1분마다 갱신
+  updateNowTop(true); // ✅ 처음 진입 시 (스크롤 포함)
+  const timer = setInterval(() => updateNowTop(false), 60 * 1000); // 이후엔 위치만 갱신
   return () => clearInterval(timer);
-}, []);
+}, [hasScrolledOnce]);
+
+// ✅ DayView 화면이 다시 보일 때도 중앙으로 스크롤
+useFocusEffect(
+  React.useCallback(() => {
+    if (nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
+      gridScrollRef.current.scrollTo({
+        y: nowTop - Dimensions.get('window').height * 0.2 + ROW_H / 2,
+        animated: false,
+      });
+      setHasScrolledOnce(true);
+    }
+  }, [nowTop, hasScrolledOnce])
+);
 
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150);
   const [contentH, setContentH] = useState(150);
   const [thumbTop, setThumbTop] = useState(0);
   const boxScrollRef = useRef<ScrollView>(null);
+  const gridScrollRef = useRef<ScrollView>(null);
 
   const onLayoutWrap = (e: any) => setWrapH(e.nativeEvent.layout.height);
   const onContentSizeChange = (_: number, h: number) => setContentH(h);
@@ -95,6 +130,7 @@ useEffect(() => {
     setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c)));
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <ScreenWithSidebar mode="overlay">
   <View style={S.screen}>
     {/* ✅ 상단 테스크 박스 */}
@@ -161,10 +197,10 @@ useEffect(() => {
 
       {/* ✅ 시간대 그리드 */}
         <ScrollView
-  style={S.gridScroll}
-  contentContainerStyle={S.gridContent}
-  showsVerticalScrollIndicator={false}
->
+        ref={gridScrollRef}
+        style={S.gridScroll}
+        contentContainerStyle={S.gridContent}
+        showsVerticalScrollIndicator={false}>
   {HOURS.map((h, i) => {
   const isLast = i === HOURS.length - 1; // ✅ 마지막 행 여부 계산
 
@@ -198,9 +234,15 @@ useEffect(() => {
   <View style={[S.liveDot, { top: nowTop - 3 }]} />
   </>
 )}
+{/* ✅ 드래그 가능한 일정 박스 */}
+<DraggableFixedEvent />
+<DraggableTaskBox />
+<DraggableTaskBox />
+<DraggableFlexalbeEvent />
 </ScrollView>
     </View>
     </ScreenWithSidebar>
+    </GestureHandlerRootView>
   );
 }
 
@@ -209,6 +251,221 @@ function thumbH(visibleH: number, contentH: number) {
   const minH = 18;
   const h = (visibleH * visibleH) / Math.max(contentH, 1);
   return Math.max(minH, Math.min(h, visibleH));
+}
+
+function DraggableFixedEvent() {
+  const ROW_H = 48;
+  const translateY = useSharedValue(7 * ROW_H); // 초기 9시 위치
+
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      translateY.value += e.changeY;
+    })
+    .onEnd(() => {
+      const snapped = Math.round(translateY.value / ROW_H) * ROW_H;
+      translateY.value = withSpring(snapped);
+    });
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <GestureDetector gesture={drag}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            left: 50 + 16,
+            right: 16,
+            height: ROW_H * 3,
+            backgroundColor: '#B04FFF26',
+            paddingHorizontal: 4,
+            paddingTop: 10,
+            justifyContent: 'flex-start',
+            zIndex: 10,
+          },
+          style,
+        ]}
+      >
+        <Text
+          style={{
+            color: '#000000',
+            fontWeight: '600',
+            fontSize: 11,
+            lineHeight: 10,
+          }}
+        >
+          name(fixed)
+        </Text>
+        <Text
+          style={{
+            color: '#6B6B6B',
+            fontSize: 10,
+            marginTop: 10,
+            lineHeight: 10,
+          }}
+        >
+          place
+        </Text>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+function DraggableTaskBox() {
+  const ROW_H = 48;
+  const translateY = useSharedValue(0);
+  const translateX = useSharedValue(0);
+  const [done, setDone] = useState(false);
+
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      translateY.value += e.changeY;
+      translateX.value += e.changeX;
+    })
+    .onEnd(() => {
+      const snappedY = Math.round(translateY.value / ROW_H) * ROW_H;
+      translateY.value = withSpring(snappedY);
+      translateX.value = withSpring(0);
+    });
+
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: translateY.value + 2 },
+      { translateX: translateX.value },
+    ],
+  }));
+
+  return (
+    <GestureDetector gesture={drag}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            left: 50 + 18,
+            right: 18,
+            height: ROW_H - 4,
+            backgroundColor: '#FFFFFFB2',
+            borderWidth: 0.3,
+            borderColor: '#B3B3B3',
+            borderRadius: 10,
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            shadowColor: '#525252',
+            shadowOffset: { width: 0, height: 0 },
+            shadowRadius: 3,
+            zIndex: 20,
+          },
+          style,
+        ]}
+      >
+        <Pressable
+          onPress={() => setDone((prev) => !prev)}
+          style={{
+            width: 17,
+            height: 17,
+            borderWidth: 2,
+            borderColor: done ? '#333333' : '#333',
+            borderRadius: 6,
+            marginRight: 12,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: done ? '#333333' : '#FFF',
+          }}
+        >
+          {done && (
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontWeight: 'bold',
+                fontSize: 13,
+                lineHeight: 16,
+              }}
+            >
+              ✓
+            </Text>
+          )}
+        </Pressable>
+
+        <View>
+          <Text
+            style={{
+              color: done ? '#999' : '#000',
+              fontWeight: 'bold',
+              fontSize: 12,
+              marginBottom: 2,
+              textDecorationLine: done ? 'line-through' : 'none',
+            }}
+          >
+            Title
+          </Text>
+        </View>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+function DraggableFlexalbeEvent() {
+  const ROW_H = 48;
+  const translateY = useSharedValue(11 * ROW_H);
+
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      translateY.value += e.changeY;
+    })
+    .onEnd(() => {
+      const snapped = Math.round(translateY.value / ROW_H) * ROW_H;
+      translateY.value = withSpring(snapped);
+    });
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value + 1}],
+  }));
+
+  return (
+    <GestureDetector gesture={drag}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            left: 50 + 16,
+            right: 16,
+            height: ROW_H * 2 -2 ,
+            backgroundColor: '#668CFF',
+            paddingHorizontal: 4,
+            paddingTop: 10,
+            borderRadius: 3,
+            justifyContent: 'flex-start',
+            zIndex: 10,
+          },
+          style,
+        ]}
+      >
+        <Text
+          style={{
+            color: '#000000',
+            fontWeight: '600',
+            fontSize: 11,
+            lineHeight: 10,
+          }}
+        >
+          name(fixed)
+        </Text>
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 10,
+            marginTop: 10,
+            lineHeight: 10,
+          }}
+        >
+          place
+        </Text>
+      </Animated.View>
+    </GestureDetector>
+  );
 }
 
 /* Styles */
@@ -305,7 +562,7 @@ checkTextDone: {
 row: {
   position: 'relative',          // ✅ 가로줄 절대배치 기준
   flexDirection: 'row',
-  height: 57,
+  height: 48,
   backgroundColor: colors.neutral.surface,
   paddingHorizontal: 16,         // ✅ 휴대폰 좌/우 끝 기준 여백
   borderBottomWidth: 0,
@@ -314,7 +571,7 @@ row: {
 },
 
 timeCol: {
-  width: 64,
+  width: 50,
   //justifyContent: 'center',
   alignItems: 'flex-end',
   paddingRight: 10,
@@ -383,7 +640,7 @@ gridContent: {
 
 liveBar: {
   position: 'absolute',
-  left: 64 + 16,
+  left: 50 + 16,
   right: 16,
   height: 1,
   backgroundColor: colors.primary.main,
@@ -393,7 +650,7 @@ liveBar: {
 
 liveDot: {
   position: 'absolute',
-  left: 64 + 16 - 3, // ✅ 세로줄 기준 + 간격 - 반지름 (liveBar 시작점 기준)
+  left: 50 + 16 - 3, // ✅ 세로줄 기준 + 간격 - 반지름 (liveBar 시작점 기준)
   width: 7,
   height: 7,
   borderRadius: 5,
