@@ -17,6 +17,7 @@ public class TaskUpdateRequest {
     private List<Long> labels;//라벨
 
     private Boolean completed; //Boolean값은 null값을 가질 수 있음.
+    private LocalDateTime completedAt;
 
     private LocalDate placementDate;//배치일
     private LocalTime placementTime;//배치시간
@@ -27,7 +28,6 @@ public class TaskUpdateRequest {
     private RepeatRequest repeat;
 
     private Long sortNumber;//정렬
-    private String colorKey;
 
     private List<String> fieldsToClear; //null로 필드 초기화
 

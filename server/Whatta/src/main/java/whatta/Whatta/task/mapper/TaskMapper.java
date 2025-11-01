@@ -20,11 +20,11 @@ public class TaskMapper {
                 .content(request.getContent())
                 .labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()))
                 .completed(false)
+                .completedAt(null)
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
                 .repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
-                .colorKey(request.getColorKey())
                 .build();
     }
 
@@ -36,12 +36,12 @@ public class TaskMapper {
                 .content(task.getContent())
                 .labels(LabelsResponse.fromEntity(task.getLabels()))
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
                 .repeat(RepeatResponse.fromEntity(task.getRepeat()))
                 .sortNumber(task.getSortNumber())
-                .colorKey(task.getColorKey())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .build();
@@ -52,6 +52,7 @@ public class TaskMapper {
                 .id(task.getId())
                 .title(task.getTitle())
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .dueDateTime(task.getDueDateTime())
                 .sortNumber(task.getSortNumber())
                 .build();

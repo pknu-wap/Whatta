@@ -31,9 +31,4 @@ public class TaskCreateRequest {
 
     @Valid
     private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
-
-    @NotBlank(message = "일정 타임 박스의 컬러 값은 필수입니다.")
-    @Schema(example = "FFFFFF")
-    private String colorKey;
-
 }
