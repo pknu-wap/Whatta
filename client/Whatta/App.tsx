@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler'
 import React, { useEffect, useState } from 'react'
 import { ensureAuthReady } from '@/app/bootstrap'
-
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { StyleSheet, ActivityIndicator, View, Text } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import colors from '@/styles/colors'
@@ -29,9 +29,11 @@ export default function App() {
     )
   }
   return (
-    <NavigationContainer>
-      <RootStack />
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <RootStack />
+      </NavigationContainer>
+    </GestureHandlerRootView>
   )
 }
 

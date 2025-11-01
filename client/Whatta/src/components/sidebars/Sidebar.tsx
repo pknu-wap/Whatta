@@ -1,103 +1,294 @@
-import React, { useState, memo, useRef } from 'react'
-import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native'
-import type { DrawerContentComponentProps } from '@react-navigation/drawer'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import React, { useEffect, useMemo, useState, memo, useCallback } from 'react'
+import { View, Text, StyleSheet, Pressable, DeviceEventEmitter } from 'react-native'
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist'
+import { useFocusEffect } from '@react-navigation/native'
+
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
-
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
+import { http } from '@/lib/http'
 
-type Task = {
+// type 정의
+export type Task = {
   id: string
   title: string
-  done: boolean
-  touchedAt?: number
+  content?: string
+  labels?: any
+  completed: boolean
+  sortNumber: number // 작을수록 위
+  createdAt?: string
+  updatedAt?: string
 }
 
-const initialTasks: Task[] = [
-  { id: '1', title: 'React 공부하기', done: false },
-  { id: '2', title: '개발하기', done: false },
-  { id: '3', title: '밥 먹기', done: true },
-  { id: '4', title: 'a', done: false },
-  { id: '5', title: 'b', done: false },
-  { id: '6', title: 'c', done: true },
-  { id: '7', title: 'd', done: false },
-  { id: '8', title: 'r', done: false },
-  { id: '9', title: 'q', done: true },
-]
+// API 호출: PUT /api/task/sidebar/:id
+type SidebarPutBody = {
+  title: string
+  sortNumber: number
+  completed: boolean
+}
+
+async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
+  console.log('[SORT] send to server =>', { id: taskId, sortNumber: payload.sortNumber })
+  return http.put(`/api/task/sidebar/${taskId}`, payload)
+}
+
+// 서버 스펙: GET /api/task
+async function fetchTasksFromServer(): Promise<Task[]> {
+  const res = await http.get('/api/task')
+  const list = res?.data?.data ?? []
+  return list.map((d: any) => ({
+    id: d.id ?? d._id ?? '',
+    title: d.title,
+    content: d.content,
+    labels: d.labels,
+    completed: !!d.completed,
+    sortNumber: Number(d.sortNumber ?? 0),
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+  })) as Task[]
+}
+
+const TOP_GAP = 1024 // 최상단/최하단 배치 시 충분히 큰 간격 확보용
+function getTopSortNumber(list: Task[], excludeId?: string) {
+  const arr = list.filter((t) => t.id !== excludeId)
+  if (arr.length === 0) return 0
+  const min = Math.min(...arr.map((t) => Number(t.sortNumber)))
+  return min - TOP_GAP // 작은 수가 위
+}
+
+function getBottomSortNumber(list: Task[], excludeId?: string) {
+  const arr = list.filter((t) => t.id !== excludeId)
+  if (arr.length === 0) return 0
+  const max = Math.max(...arr.map((t) => Number(t.sortNumber)))
+  return max + TOP_GAP
+}
 
 const SECTION_HEIGHT = 260
 
 export default function Sidebar() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
-  const seqRef = useRef(0) // 동시 클릭 대비
+  const [tasks, setTasks] = useState<Task[]>([])
+  const safeTitle = (v: any) =>
+    typeof v === 'string' && v.trim().length > 0 ? v : '(제목 없음)'
 
-  const now = () => ++seqRef.current + Date.now() // 항상 증가
+  // 최초 1회 로드
+  useEffect(() => {
+    let mounted = true
+    fetchTasksFromServer()
+      .then((list) => {
+        if (!mounted) return
+        setTasks(list)
+      })
+      .catch((e) => console.warn('Task fetch failed:', e))
+    return () => {
+      mounted = false
+    }
+  }, [])
 
-  const toggleDone = (id: string) =>
+  const refresh = useCallback(async () => {
+    try {
+      const list = await fetchTasksFromServer()
+      setTasks(list)
+    } catch (e) {
+      console.warn('Task refresh failed:', e)
+    }
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true
+      refresh()
+      return () => {
+        alive = false
+      }
+    }, [refresh]),
+  )
+
+  // 토글 - 리스트 이동 시 항상 목표 섹션의 최상단으로 배치
+  const toggleDone = async (id: string) => {
+    const prevSnapshot = tasks
+
+    setTasks((prev) => {
+      const cur = prev.find((t) => t.id === id)
+      if (!cur) return prev
+      const nextCompleted = !cur.completed
+
+      // 옮겨갈 섹션의 현재 목록 기준으로 최상단 번호 부여
+      const base = nextCompleted
+        ? prev.filter((t) => t.completed)
+        : prev.filter((t) => !t.completed)
+
+      const newSort = getTopSortNumber(base, id)
+
+      return prev.map((t) =>
+        t.id === id ? { ...t, completed: nextCompleted, sortNumber: newSort } : t,
+      )
+    })
+
+    try {
+      const cur = prevSnapshot.find((t) => t.id === id)
+      if (!cur) return
+      const nextCompleted = !cur.completed
+      const base = nextCompleted
+        ? prevSnapshot.filter((t) => t.completed)
+        : prevSnapshot.filter((t) => !t.completed)
+      const newSort = getTopSortNumber(base, id)
+
+      await putSidebarTask(id, {
+        title: safeTitle(cur.title),
+        completed: nextCompleted,
+        sortNumber: newSort,
+      })
+    } catch (e) {
+      console.warn('toggleDone failed:', e)
+      setTasks(prevSnapshot)
+    }
+  }
+
+  // 예정 섹션 내부 드래그 종료 시 sortNumber 재계산 + 서버 저장
+  const onUpcomingReorderEnd = async (data: Task[], from: number, to: number) => {
+    if (from === to) return
+
+    const moved = data[to]
+    let newSort: number
+
+    if (to === 0) {
+      newSort = getTopSortNumber(data, moved.id)
+    } else if (to === data.length - 1) {
+      newSort = getBottomSortNumber(data, moved.id)
+    } else {
+      const upper = data[to - 1]
+      const lower = data[to + 1]
+      newSort = (upper.sortNumber + lower.sortNumber) / 2
+    }
+
+    const prevSnapshot = tasks
+
     setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done, touchedAt: now() } : t)),
+      prev.map((t) => (t.id === moved.id ? { ...t, sortNumber: newSort } : t)),
     )
 
-  // 정렬 규칙
-  // 완료: 최근에 체크 한 순서
-  // 예정: 최근에 취소 한 순서
-  // touchedAt이 없는 항목은 아래쪽으로
-  const sortByRecent = (a: Task, b: Task) =>
-    (b.touchedAt ?? -Infinity) - (a.touchedAt ?? -Infinity)
+    try {
+      await putSidebarTask(moved.id, {
+        title: safeTitle(moved.title),
+        sortNumber: newSort,
+        completed: moved.completed,
+      })
+    } catch (e) {
+      console.warn('reorder failed:', e)
+      setTasks(prevSnapshot)
+    }
+  }
 
-  const upcoming = tasks.filter((t) => !t.done).sort(sortByRecent)
-  const completed = tasks.filter((t) => t.done).sort(sortByRecent)
+  // 예정/완료 분리 (sortNumber 오름차순: 작은 값이 위)
+  const upcoming = useMemo(
+    () => tasks.filter((t) => !t.completed).sort((a, b) => a.sortNumber - b.sortNumber),
+    [tasks],
+  )
+  const completed = useMemo(
+    () => tasks.filter((t) => t.completed).sort((a, b) => a.sortNumber - b.sortNumber),
+    [tasks],
+  )
 
   return (
     <View style={S.board}>
-      <Section
+      <SectionUpcoming
         title="예정"
         data={upcoming}
         onToggle={toggleDone}
-        style={S.sectionTitle}
+        onDragEnd={onUpcomingReorderEnd}
       />
+
       <View style={S.divider} />
-      <Section
-        title="완료"
-        data={completed}
-        onToggle={toggleDone}
-        style={[S.sectionTitle, { marginTop: 16 }]}
+
+      <SectionCompleted title="완료" data={completed} onToggle={toggleDone} />
+    </View>
+  )
+}
+
+// 예정(드래그 가능)
+function SectionUpcoming({
+  title,
+  data,
+  onToggle,
+  onDragEnd,
+}: {
+  title: string
+  data: Task[]
+  onToggle: (id: string) => void
+  onDragEnd: (data: Task[], from: number, to: number) => void
+}) {
+  console.log(
+    '[Sidebar titles]',
+    data.map((d) => d.title),
+  )
+
+  const renderItem = ({ item, drag, isActive }: RenderItemParams<Task>) => (
+    <TaskCard
+      title={item.title}
+      checked={item.completed}
+      onToggle={() => onToggle(item.id)}
+      // 내부 정렬 드래그
+      onLongPressHandle={drag}
+      isActive={!!isActive}
+    />
+  )
+
+  return (
+    <View>
+      <Text style={[ts('date'), S.sectionTitle]}>{title}</Text>
+
+      <DraggableFlatList
+        data={data}
+        extraData={data}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        onDragEnd={({ data: newData, from, to }) =>
+          onDragEnd(newData as Task[], from, to)
+        }
+        style={{ height: SECTION_HEIGHT }}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        // drag()를 핸들에서 바로 호출하므로 activationDistance는 크게 필요 없음
+        activationDistance={0}
+        autoscrollThreshold={40}
+        autoscrollSpeed={80}
+        containerStyle={{ overflow: 'hidden' }}
+        showsVerticalScrollIndicator
       />
     </View>
   )
 }
 
-function Section({
+// 완료(드래그 불가)(드래그 불가)
+function SectionCompleted({
   title,
   data,
   onToggle,
-  style,
 }: {
   title: string
   data: Task[]
   onToggle: (id: string) => void
-  style?: any
 }) {
   return (
     <View>
       <Text style={[ts('date'), S.sectionTitle]}>{title}</Text>
-
-      {/* 개수가 넘치면 이 안에서만 스크롤 */}
-      <FlatList
+      <DraggableFlatList
         data={data}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <TaskCard
             title={item.title}
-            checked={item.done}
+            checked={item.completed}
             onToggle={() => onToggle(item.id)}
           />
         )}
+        // 드래그 불가하게
+        onDragBegin={() => {}}
+        onDragEnd={() => {}}
+        activationDistance={99999}
         style={{ height: SECTION_HEIGHT }}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator
       />
     </View>
   )
@@ -107,13 +298,18 @@ const TaskCard = memo(function TaskCard({
   title,
   checked,
   onToggle,
+  onLongPressHandle,
+  isActive,
 }: {
   title: string
   checked: boolean
   onToggle: () => void
+  onLongPressHandle?: () => void // 우측 3점(핸들) 롱프레스 → 내부 정렬
+  isActive?: boolean
 }) {
   return (
-    <View style={S.card}>
+    <View style={[S.card, isActive && { opacity: 0.9 }]}>
+      {/* 체크 토글 */}
       <Pressable
         onPress={onToggle}
         hitSlop={10}
@@ -127,22 +323,21 @@ const TaskCard = memo(function TaskCard({
         )}
       </Pressable>
 
-      <Text
-        style={[
-          ts('taskName'),
-          { fontSize: 15, marginLeft: 12, color: colors.task.taskName },
-          checked && { textDecorationLine: 'line-through' },
-        ]}
-        numberOfLines={1}
+      {/* 내부 정렬 드래그 */}
+      <Pressable
+        onLongPress={onLongPressHandle}
+        delayLongPress={180}
+        hitSlop={12}
+        accessibilityLabel="drag handle"
+        style={S.handle}
       >
-        {title}
-      </Text>
+        <Text style={S.handleText}>···</Text>
+      </Pressable>
     </View>
   )
 })
 
 const S = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.task.sideBar },
   board: {
     flex: 1,
     backgroundColor: colors.task.sideBar,
@@ -157,19 +352,32 @@ const S = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.neutral.surface,
     paddingHorizontal: 12,
-    marginTop: 5,
+    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 700,
+    fontWeight: '700',
     marginBottom: 8,
     color: colors.task.taskName,
   },
-
   divider: {
     height: 1,
     backgroundColor: colors.task.taskName,
     opacity: 0.1,
     marginVertical: 10,
+  },
+  handle: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginLeft: 6,
+  },
+  handleText: {
+    fontSize: 22,
+    lineHeight: 22,
+    includeFontPadding: false,
+    textAlign: 'center',
+    opacity: 0.5,
   },
 })
