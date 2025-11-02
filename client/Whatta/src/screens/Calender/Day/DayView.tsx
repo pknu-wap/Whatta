@@ -18,6 +18,7 @@ import colors from '@/styles/colors'
 import { ts } from '@/styles/typography';
 import { LinearGradient } from 'expo-linear-gradient';
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
+import api from '@/api/client'
 
 
 
@@ -42,27 +43,15 @@ function FullBleed({ children, padH = 12, fill = false }:
   );
 }
 
-/* Mock */
-type TaskChip = { id: string; title: string };
-type CheckItem = { id: string; title: string; done: boolean };
-
-const PROJECTS: TaskChip[] = [
-  { id: 'p1', title: 'ABC 프로젝트' },
-  { id: 'p2', title: 'ABC 프로젝트' },
-  { id: 'p3', title: 'ABC 프로젝트' },
-];
-const INITIAL_CHECKS: CheckItem[] = [
-  { id: 'c1', title: 'B하기', done: false },
-  { id: 'c2', title: 'C하기', done: false },
-  { id: 'c3', title: 'D하기', done: true },
-  { id: 'c4', title: 'E하기', done: false },
-  { id: 'c5', title: 'F하기', done: true },
-];
+const INITIAL_CHECKS: any[] = []; // ✅ 기본값 빈 배열로 설정
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i ); // 0시 ~ 24시
 
 export default function DayView() {
   const [checks, setChecks] = useState(INITIAL_CHECKS);
+  const [events, setEvents] = useState<any[]>([])
+  const [spanEvents, setSpanEvents] = useState<any[]>([]) // ✅ 추가
+  const [tasks, setTasks] = useState<any[]>([]) // ✅ 추가
 
   // ✅ 라이브바 위치 계산
 const [nowTop, setNowTop] = useState<number | null>(null);
@@ -108,6 +97,57 @@ useFocusEffect(
   }, [nowTop, hasScrolledOnce])
 );
 
+useEffect(() => {
+  const fetchDailyEvents = async () => {
+    try {
+      const res = await api.get('/calendar/daily', {
+        params: { date: '2025-11-02' },
+      });
+
+      const data = res.data.data;
+      const timed = data.timedEvents || [];
+      const timedTasks = data.timedTasks || []; // ✅ 추가
+      const allDay = data.allDayTasks || [];
+      const floating = data.floatingTasks || [];
+
+      // ✅ 시간 있는 일정 (이벤트)
+      const timelineEvents = timed.filter(
+        (e: any) =>
+          !e.isSpan &&
+          e.clippedEndTime !== '23:59:59.999999999' &&
+          e.clippedStartTime &&
+          e.clippedEndTime
+      );
+
+      // ✅ 기간형 일정
+      const span = timed.filter(
+        (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999'
+      );
+
+      setEvents(timelineEvents);
+      setSpanEvents(span);
+      setTasks(timedTasks); // ✅ 시간 지정 테스크도 상태로 저장
+
+      setChecks([
+        ...allDay.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          done: t.completed ?? false,
+        })),
+        ...floating.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          done: t.completed ?? false,
+        })),
+      ]);
+    } catch (err) {
+      console.error('❌ 일간 일정 불러오기 실패:', err);
+    }
+  };
+
+  fetchDailyEvents();
+}, []);
+
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150);
   const [contentH, setContentH] = useState(150);
@@ -134,40 +174,63 @@ useFocusEffect(
     <ScreenWithSidebar mode="overlay">
   <View style={S.screen}>
     {/* ✅ 상단 테스크 박스 */}
-    <FullBleed padH={12}>
-      {/* ⬇️ 래퍼 추가 */}
-      <View style={S.taskBoxWrap}>
-        <View style={S.taskBox} onLayout={onLayoutWrap}>
-          <ScrollView
-            ref={boxScrollRef}
-            onScroll={onScroll}
-            onContentSizeChange={onContentSizeChange}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-            contentContainerStyle={S.boxContent}
-            bounces={false}
-          >
-            {PROJECTS.map((t, i) => (
-              <View key={t.id} style={[S.chip, i === 0 && { marginTop: 8 }]}>
-                <View style={S.chipBar} />
-                <Text style={S.chipText} numberOfLines={1}>{t.title}</Text>
-              </View>
-            ))}
+<FullBleed padH={12}>
+  <View style={S.taskBoxWrap}>
+    <View style={S.taskBox} onLayout={onLayoutWrap}>
+      <ScrollView
+        ref={boxScrollRef}
+        onScroll={onScroll}
+        onContentSizeChange={onContentSizeChange}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        contentContainerStyle={S.boxContent}
+        bounces={false}
+      >
+        {spanEvents.map((t, i) => {
+  const baseColor =
+  t.colorKey && t.colorKey.toUpperCase() !== 'FFFFFF'
+    ? `#${t.colorKey}`
+    : '#8B5CF6'; // ✅ 컬러키가 흰색인 경우 기본 보라색 대체
+const bgWithOpacity = `${baseColor}26`;
 
-            {checks.map((c) => (
-  <Pressable key={c.id} style={S.checkRow} onPress={() => toggleCheck(c.id)}>
-    <View style={S.checkboxWrap}>
-      <View style={[S.checkbox, c.done && S.checkboxOn]}>
-        {c.done && <Text style={S.checkmark}>✓</Text>}
-      </View>
+  return (
+    <View
+      key={t.id ?? i}
+      style={[
+        S.chip,
+        i === 0 && { marginTop: 8 },
+        { backgroundColor: bgWithOpacity }, // ✅ colorKey 기반 배경
+      ]}
+    >
+      <View
+        style={[
+          S.chipBar,
+          { backgroundColor: baseColor },
+        ]}
+      />
+      <Text style={S.chipText} numberOfLines={1}>
+        {t.title}
+      </Text>
     </View>
-    <Text style={[S.checkText, c.done && S.checkTextDone]} numberOfLines={1}>
-      {c.title}
-    </Text>
-  </Pressable>
-))}
-            <View style={{ height: 8 }} />
-          </ScrollView>
+  )
+})}
+
+        {/* ✅ 체크박스 할 일 */}
+        {checks.map((c) => (
+          <Pressable key={c.id} style={S.checkRow} onPress={() => toggleCheck(c.id)}>
+            <View style={S.checkboxWrap}>
+              <View style={[S.checkbox, c.done && S.checkboxOn]}>
+                {c.done && <Text style={S.checkmark}>✓</Text>}
+              </View>
+            </View>
+            <Text style={[S.checkText, c.done && S.checkTextDone]} numberOfLines={1}>
+              {c.title}
+            </Text>
+          </Pressable>
+        ))}
+
+        <View style={{ height: 8 }} />
+      </ScrollView>
 
           {showScrollbar && (
             <View pointerEvents="none" style={S.scrollTrack}>
@@ -199,7 +262,7 @@ useFocusEffect(
         <ScrollView
         ref={gridScrollRef}
         style={S.gridScroll}
-        contentContainerStyle={S.gridContent}
+        contentContainerStyle={[S.gridContent, { position: 'relative' }]}
         showsVerticalScrollIndicator={false}>
   {HOURS.map((h, i) => {
   const isLast = i === HOURS.length - 1; // ✅ 마지막 행 여부 계산
@@ -234,11 +297,37 @@ useFocusEffect(
   <View style={[S.liveDot, { top: nowTop - 3 }]} />
   </>
 )}
-{/* ✅ 드래그 가능한 일정 박스 */}
-<DraggableFixedEvent />
-<DraggableTaskBox />
-<DraggableTaskBox />
-<DraggableFlexalbeEvent />
+{events.map((evt) => (
+  <DraggableFlexalbeEvent
+    key={evt.id}
+    title={evt.title}
+    place={`label ${evt.labels?.[0] ?? ''}`}
+    startHour={parseInt(evt.clippedStartTime.split(':')[0])}
+    endHour={parseInt(evt.clippedEndTime.split(':')[0])}
+    color={`#${evt.colorKey}`}
+  />
+))}
+
+{tasks.map((task) => {
+  // ✅ placementTime 기준으로 시작 시각 계산
+  const start =
+    task.placementTime && task.placementTime.includes(':')
+      ? (() => {
+          const [h, m] = task.placementTime.split(':').map(Number);
+          return h + m / 60;
+        })()
+      : 0;
+
+  return (
+    <DraggableTaskBox
+      key={task.id}
+      title={task.title}
+      startHour={start}
+      done={task.completed ?? false} // ✅ 체크박스 반영 가능
+    />
+  );
+})}
+
 </ScrollView>
     </View>
     </ScreenWithSidebar>
@@ -313,11 +402,18 @@ function DraggableFixedEvent() {
   );
 }
 
-function DraggableTaskBox() {
+type DraggableTaskBoxProps = {
+  title: string;
+  startHour: number;
+  color: string;
+  done?: boolean;
+};
+
+function DraggableTaskBox({ title, startHour, done: initialDone = false }: { title: string; startHour: number; done?: boolean }) {
   const ROW_H = 48;
-  const translateY = useSharedValue(0);
+  const translateY = useSharedValue(startHour * ROW_H);
   const translateX = useSharedValue(0);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(initialDone);
 
   const drag = Gesture.Pan()
     .onChange((e) => {
@@ -346,7 +442,7 @@ function DraggableTaskBox() {
             left: 50 + 18,
             right: 18,
             height: ROW_H - 4,
-            backgroundColor: '#FFFFFFB2',
+            backgroundColor: '#FFFFFF80', // ✅ 반투명 흰색
             borderWidth: 0.3,
             borderColor: '#B3B3B3',
             borderRadius: 10,
@@ -399,7 +495,7 @@ function DraggableTaskBox() {
               textDecorationLine: done ? 'line-through' : 'none',
             }}
           >
-            Title
+            {title}
           </Text>
         </View>
       </Animated.View>
@@ -407,22 +503,39 @@ function DraggableTaskBox() {
   );
 }
 
-function DraggableFlexalbeEvent() {
-  const ROW_H = 48;
-  const translateY = useSharedValue(11 * ROW_H);
+type DraggableFlexalbeEventProps = {
+  title: string
+  place: string
+  startHour: number
+  endHour: number
+  color: string
+}
+
+function DraggableFlexalbeEvent({
+  title,
+  place,
+  startHour,
+  endHour,
+  color,
+}: DraggableFlexalbeEventProps) {
+  const ROW_H = 48
+  const translateY = useSharedValue(startHour * ROW_H)
+  const height = (endHour - startHour) * ROW_H
 
   const drag = Gesture.Pan()
     .onChange((e) => {
-      translateY.value += e.changeY;
+      translateY.value += e.changeY
     })
     .onEnd(() => {
-      const snapped = Math.round(translateY.value / ROW_H) * ROW_H;
-      translateY.value = withSpring(snapped);
-    });
+      const snapped = Math.round(translateY.value / ROW_H) * ROW_H
+      translateY.value = withSpring(snapped)
+    })
 
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value + 1}],
-  }));
+    transform: [{ translateY: translateY.value }],
+  }))
+
+  const backgroundColor = color.startsWith('#') ? color : `#${color}`
 
   return (
     <GestureDetector gesture={drag}>
@@ -432,8 +545,8 @@ function DraggableFlexalbeEvent() {
             position: 'absolute',
             left: 50 + 16,
             right: 16,
-            height: ROW_H * 2 -2 ,
-            backgroundColor: '#668CFF',
+            height,
+            backgroundColor,
             paddingHorizontal: 4,
             paddingTop: 10,
             borderRadius: 3,
@@ -451,21 +564,23 @@ function DraggableFlexalbeEvent() {
             lineHeight: 10,
           }}
         >
-          name(fixed)
+          {title}
         </Text>
-        <Text
-          style={{
-            color: '#FFFFFF',
-            fontSize: 10,
-            marginTop: 10,
-            lineHeight: 10,
-          }}
-        >
-          place
-        </Text>
+        {place ? (
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 10,
+              marginTop: 10,
+              lineHeight: 10,
+            }}
+          >
+            {place}
+          </Text>
+        ) : null}
       </Animated.View>
     </GestureDetector>
-  );
+  )
 }
 
 /* Styles */
@@ -493,15 +608,13 @@ const S = StyleSheet.create({
     marginHorizontal: 12, 
     marginTop: 4, 
     height: 22,
-    backgroundColor: colors.task.chipback, 
     flexDirection: 'row', 
     alignItems: 'center',
   },
 
   chipBar: {
   width: 5,                      // ✅ 바 두께 5px
-  height: 22,                    // ✅ 고정 높이 22p   
-  backgroundColor: colors.task.chipbar, // ✅ 색상
+  height: 22,                    // ✅ 고정 높이 22p 
   marginRight: 8,                // 텍스트와 간격
   },
 
