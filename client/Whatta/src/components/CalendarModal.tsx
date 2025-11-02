@@ -15,6 +15,7 @@ import colors from '@/styles/colors'
 import DropDown from '@/assets/icons/drop_down.svg'
 import LeftArrow from '@/assets/icons/left.svg'
 import RightArrow from '@/assets/icons/right.svg'
+import { bus, EVENT } from '@/lib/eventBus'
 
 const { width } = Dimensions.get('window')
 const CALENDAR_WIDTH = width * 0.9 - 20
@@ -47,7 +48,6 @@ type Props = {
   onClose: () => void
   currentDate: string
   onSelectDate: (date: string) => void
-  onChangeMonth?: (ym: string) => void // 'YYYY-MM-01'
 }
 
 const getMonthName = (month: number) => {
@@ -61,14 +61,49 @@ export default function CalendarModal({
   onClose,
   currentDate,
   onSelectDate,
-  onChangeMonth,
 }: Props) {
   const [ymVisible, setYmVisible] = useState(false)
   // 월의 기준 날짜 (YYYY-MM-DD 형식)
   const [currentMonth, setCurrentMonth] = useState(currentDate)
+  const toYM = (iso: string) => iso.slice(0, 7) // 'YYYY-MM'
+  const toMonthStart = (ym: string) => `${ym}-01` // 'YYYY-MM-01'
 
   const [pickYear, setPickYear] = useState(Number(currentDate.slice(0, 4)))
   const [pickMonth, setPickMonth] = useState(Number(currentDate.slice(5, 7)))
+
+  // 모달 열릴 때 현재 상태 동기화
+  useEffect(() => {
+    if (!visible) return
+    bus.emit('calendar:request-sync', null)
+  }, [visible])
+
+  // 상태 방송 수신 시 모달 내부 표시만 맞춤
+  useEffect(() => {
+    const onState = (st: { date: string; mode: 'month' | 'week' | 'day' }) => {
+      if (!visible) return
+      const ym = toYM(st.date)
+      setPickYear(Number(ym.slice(0, 4)))
+      setPickMonth(Number(ym.slice(5, 7)))
+      setCurrentMonth(toMonthStart(ym))
+    }
+    bus.on('calendar:state', onState)
+    return () => bus.off('calendar:state', onState)
+  }, [visible])
+
+  // 월 이동/선택 확정 시 호출
+  const pushSetMonth = (nextMonthStart: string) => {
+    const ym = toYM(nextMonthStart)
+    const nextYear = Number(ym.slice(0, 4))
+    const nextMonth = Number(ym.slice(5, 7))
+
+    // 외부(월/주/일 뷰)로 상태 변경 요청
+    bus.emit('calendar:set-date', nextMonthStart)
+
+    // 내부 표시도 동기화(동일 값이면 스킵)
+    setCurrentMonth((prev) => (prev === nextMonthStart ? prev : nextMonthStart))
+    setPickYear((prev) => (prev === nextYear ? prev : nextYear))
+    setPickMonth((prev) => (prev === nextMonth ? prev : nextMonth))
+  }
 
   const years = useMemo(() => {
     const now = new Date().getFullYear()
@@ -77,58 +112,53 @@ export default function CalendarModal({
 
   // 이전/다음 달 이동
   const gotoPrevMonth = useCallback(() => {
-    const y = Number(currentMonth.slice(0, 4))
-    const m = Number(currentMonth.slice(5, 7))
-    const newYear = m === 1 ? y - 1 : y
-    const newMonth = m === 1 ? 12 : m - 1
-    const next = `${newYear}-${pad(newMonth)}-01`
-    setCurrentMonth(next)
-    setPickYear(newYear)
-    setPickMonth(newMonth)
-    onChangeMonth?.(next)
-  }, [currentMonth, onChangeMonth])
+    const d = new Date(currentMonth) // 'YYYY-MM-01'
+    const nd = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+    const ym = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`
+    setCurrentMonth(toMonthStart(ym))
+    setPickYear(nd.getFullYear())
+    setPickMonth(nd.getMonth() + 1)
+  }, [currentMonth])
 
   const gotoNextMonth = useCallback(() => {
-    const y = Number(currentMonth.slice(0, 4))
-    const m = Number(currentMonth.slice(5, 7))
-    const newYear = m === 12 ? y + 1 : y
-    const newMonth = m === 12 ? 1 : m + 1
-    const next = `${newYear}-${pad(newMonth)}-01`
-    setCurrentMonth(next)
-    setPickYear(newYear)
-    setPickMonth(newMonth)
-    onChangeMonth?.(next)
-  }, [currentMonth, onChangeMonth])
+    const d = new Date(currentMonth)
+    const nd = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    const ym = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`
+    setCurrentMonth(toMonthStart(ym))
+    setPickYear(nd.getFullYear())
+    setPickMonth(nd.getMonth() + 1)
+  }, [currentMonth])
 
   // 월/연도 선택 후 적용
   const confirmYM = useCallback(() => {
+    // 선택한 연, 월로 모달 내부 달력만 갱신
     const next = `${pickYear}-${pad(pickMonth)}-01`
     setCurrentMonth(next)
-    onChangeMonth?.(next)
     setYmVisible(false)
-  }, [pickYear, pickMonth, onChangeMonth])
+  }, [pickYear, pickMonth])
+
+  const cancelYM = useCallback(() => {
+    setYmVisible(false) // 그냥 닫기만
+  }, [])
 
   // 오늘로 이동
   const goToday = useCallback(() => {
     const now = new Date()
-    const y = now.getFullYear()
-    const m = now.getMonth() + 1
-    const next = `${y}-${pad(m)}-01`
-    setCurrentMonth(next)
-    setPickYear(y)
-    setPickMonth(m)
-    onChangeMonth?.(next)
-  }, [onChangeMonth])
+    const next = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+    pushSetMonth(next)
+  }, [])
 
   useEffect(() => {
-    if (!visible) {
-      return
+    const syncFromOutside = (ym: string) => {
+      const next = `${ym}-01`
+      setCurrentMonth(next)
+      setPickYear(Number(ym.slice(0, 4)))
+      setPickMonth(Number(ym.slice(5, 7)))
     }
-    // 모달이 열릴 때 상태 초기화 및 현재 날짜로 캘린더 기준 설정
-    setCurrentMonth(currentDate)
-    setPickYear(Number(currentDate.slice(0, 4)))
-    setPickMonth(Number(currentDate.slice(5, 7)))
-  }, [visible, currentDate])
+    bus.on(EVENT.MONTH_CHANGED, syncFromOutside)
+    if (visible) bus.emit(EVENT.REQUEST_SYNC)
+    return () => bus.off(EVENT.MONTH_CHANGED, syncFromOutside)
+  }, [visible])
 
   const handleDayPress = useCallback(
     (day: DateData) => {
@@ -208,7 +238,6 @@ export default function CalendarModal({
     const name = getMonthName(m)
 
     const titleColor = ymVisible ? colors.primary.main : '#000'
-
     return (
       <View style={HeaderStyles.headerContainer}>
         <TouchableOpacity

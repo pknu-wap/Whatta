@@ -1,682 +1,540 @@
-import React, { useState } from 'react'
+import React, { memo, useState, useRef } from 'react'
 import {
   View,
   Text,
-  Modal,
   StyleSheet,
+  Modal,
   Pressable,
   TextInput,
-  Switch,
-  Platform,
   ScrollView,
+  Dimensions,
+  KeyboardAvoidingView,
 } from 'react-native'
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from '@react-native-community/datetimepicker'
+import InlineCalendar from '@/components/lnlineCalendar'
+import InlineTime from '@/components/InlineTime'
+import axios from 'axios'
+import { token } from '@/lib/token'
+import { useNavigation } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { bus } from '@/lib/eventBus'
 
-// =================================================================
-// 1. 타입 정의 및 상수 설정
-// =================================================================
+/** Toggle Props 타입 */
+type ToggleProps = {
+  value: boolean
+  onChange: (v: boolean) => void
+}
 
-type DateType = Date
-type DateTimeFormatOptions = Intl.DateTimeFormatOptions
+type Panel = 'calendar' | 'start' | 'end' | null
 
-const PRIMARY_PURPLE = '#5831c1ff'
-const LIGHT_PURPLE = '#B69ACD'
-const COLORS = [
-  '#50108dff',
-  '#5831c1ff',
-  '#9d80cbff',
-  '#8696caff',
-  '#3b6cc9ff',
-  '#2432f1ff',
-  '#0c1db7ff',
-]
-const INITIAL_COLOR = LIGHT_PURPLE
+const areSameDate = (a: Date, b: Date) => a.getTime() === b.getTime()
+const MemoCalendar = memo(
+  InlineCalendar,
+  (p, n) => p.open === n.open && areSameDate(p.value, n.value),
+)
 
-type RepeatFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'NONE'
-const REPEAT_FREQUENCY_OPTIONS: {
-  label: string
-  value: RepeatFrequency
-  text: string
-}[] = [
-  { label: '반복 안 함', value: 'NONE', text: '반복 안 함' },
-  { label: '1일마다', value: 'DAILY', text: '1일마다' },
-  { label: '1주마다', value: 'WEEKLY', text: '1주마다' },
-  { label: '1개월마다', value: 'MONTHLY', text: '1개월마다' },
-  { label: '1년마다', value: 'YEARLY', text: '1년마다' },
-]
+const MemoTime = memo(
+  InlineTime,
+  (p, n) => p.open === n.open && areSameDate(p.value, n.value),
+)
 
-const REPEAT_END_OPTIONS = [
-  { label: '계속 반복', type: 0 },
-  { label: '종료 날짜', type: 2 },
-]
+export default function ScheduleDetailScreen() {
+  const navigation = useNavigation()
+  const [visible] = useState(true)
+  const [openCalendar, setOpenCalendar] = useState(false)
+  const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
+  const [openStartTime, setOpenStartTime] = useState(false)
+  const [openEndTime, setOpenEndTime] = useState(false)
+  const titleRef = useRef<TextInput>(null)
 
-// =================================================================
-// 2. ScheduleDetailScreen 메인 컴포넌트 정의
-// =================================================================
+  const insets = useSafeAreaInsets()
+  const MARGIN = 10
 
-const ScheduleDetailScreen = () => {
-  // ---------------------------------------------------------------
-  // 2.1. 상태(State) 정의
-  // ---------------------------------------------------------------
+  const scrollRef = useRef<ScrollView>(null)
+  const { width: W, height: H } = Dimensions.get('window')
+  const SHEET_W = Math.min(W - MARGIN, 380)
+  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const SHEET_H = Math.min(560, MAX_H)
+  const HEADER_H = 40
+  const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
 
-  const [modalVisible, setModalVisible] = useState(false)
+  // 로컬 날짜를 YYYY-MM-DD 문자열로
+  const ymdLocal = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  // 로컬 시간을 HH:mm:ss 로
+  const hms = (d: Date) => {
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    const ss = String(d.getSeconds()).padStart(2, '0')
+    return `${hh}:${mm}:${ss}`
+  }
+
+  // null/undefined 필드 제거
+  const stripNil = <T extends Record<string, any>>(obj: T): T =>
+    Object.fromEntries(
+      Object.entries(obj).filter(([, v]) => v !== null && v !== undefined),
+    ) as T
+
+  const closeAll = () => {
+    setOpenCalendar(false)
+    setOpenStartTime(false)
+    setOpenEndTime(false)
+  }
+
+  const switchPanel = (p: Panel) => {
+    if (p === null) return closeAll()
+    closeAll()
+    setTimeout(() => {
+      if (p === 'calendar') setOpenCalendar(true)
+      else if (p === 'start') setOpenStartTime(true)
+      else setOpenEndTime(true)
+    }, 140) // Inline*의 duration(=120~220ms)에 맞춰 120~160ms 정도
+  }
+
+  const [posCal, setPosCal] = useState(0)
+  const [posTime, setPosTime] = useState(0)
+
+  const close = () => navigation.goBack()
+
+  /** 색상 */
+  const COLORS = [
+    '#FF0000',
+    '#FF7A00',
+    '#FFD500',
+    '#00C700',
+    '#0085FF',
+    '#001AFF',
+    '#7A00FF',
+    '#C400FF',
+    '#FFFFFF',
+  ]
+  const [selectedColor, setSelectedColor] = useState('#7A00FF')
+  const [showPalette, setShowPalette] = useState(false)
+
+  /** 라벨 */
+  const LABELS = ['약속', '동아리', '수업', '과제']
+  const [selectedLabel, setSelectedLabel] = useState('약속')
+  const [labelOpen, setLabelOpen] = useState(false)
+
+  /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [memo, setMemo] = useState('')
-  const [selectedColor, setSelectedColor] = useState(INITIAL_COLOR)
-  const [isColorPickerVisible, setIsColorPickerVisible] = useState(false)
-  const [startDate, setStartDate] = useState(new Date())
-  const [endDate, setEndDate] = useState(new Date())
-  const [isRepeatOn, setIsRepeatOn] = useState(false)
-  const [isRemindOn, setIsRemindOn] = useState(true)
-  const [isTrafficOn, setIsTrafficOn] = useState(false)
-  const [isStartDatePickerVisible, setStartDatePickerVisible] = useState(false)
-  const [isStartTimePickerVisible, setStartTimePickerVisible] = useState(false)
-  const [isEndDatePickerVisible, setEndDatePickerVisible] = useState(false)
-  const [isEndTimePickerVisible, setEndTimePickerVisible] = useState(false)
-  const [isRepeatEndDatePickerVisible, setRepeatEndDatePickerVisible] = useState(false)
-  const [repeatEndDate, setRepeatEndDate] = useState(new Date())
 
-  const [isRepeatSettingsVisible, setIsRepeatSettingsVisible] = useState(false)
-  const [selectedFrequency, setSelectedFrequency] = useState<RepeatFrequency>('NONE')
-  const [repeatEndType, setRepeatEndType] = useState(0)
+  /** 날짜 & 시간 */
+  const [start, setStart] = useState(new Date())
+  const [end, setEnd] = useState(new Date())
 
-  // ---------------------------------------------------------------
-  // 2.2. 함수(Function) 정의
-  // ---------------------------------------------------------------
+  /** 토글 상태 */
+  const [timeOn, setTimeOn] = useState(false)
+  const [repeatOn, setRepeatOn] = useState(false)
+  const [remindOn, setRemindOn] = useState(false)
+  const [trafficOn, setTrafficOn] = useState(false)
 
-  const formatDateOnly = (date: DateType): string =>
-    date
+  /** Toggle 컴포넌트 */
+  const Toggle = ({ value, onChange }: ToggleProps) => (
+    <Pressable
+      onPress={() => onChange(!value)}
+      style={[styles.toggle, { backgroundColor: value ? '#9D7BFF' : '#ccc' }]}
+    >
+      <View style={[styles.thumb, { transform: [{ translateX: value ? 22 : 0 }] }]} />
+    </Pressable>
+  )
+
+  /** 저장 */
+  const handleSave = async () => {
+    try {
+      // 1) 서버 규격에 맞춰 로컬 값으로 페이로드 구성
+      const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+      const base = {
+        title: scheduleTitle,
+        content: memo ?? '',
+        startDate: ymdLocal(start), // 로컬 날짜
+        endDate: ymdLocal(end), // 로컬 날짜
+        startTime: timeOn ? hms(start) : undefined, // 시간 사용 시에만 포함
+        endTime: timeOn ? hms(end) : undefined,
+        colorKey: hex,
+      }
+
+      // 2) null/undefined 제거
+      const payload = stripNil(base)
+
+      // 3) 전송
+      const access = token.getAccess()
+      const res = await axios.post(
+        'https://whatta-server-741565423469.asia-northeast3.run.app/api/event',
+        payload,
+        { headers: { Authorization: `Bearer ${access}` } },
+      )
+
+      const saved = res?.data
+      //console.log('일정 저장 성공:', { saved, payload })
+
+      // 저장 성공 직후
+      if (saved) {
+        const enriched = {
+          ...(saved ?? {}),
+          colorKey: hex,
+          startDate: saved?.startDate ?? payload.startDate,
+          endDate: saved?.endDate ?? payload.endDate,
+        }
+
+        // 월간 화면 즉시 반영(색 포함된 객체 전달)
+        bus.emit('calendar:mutated', { op: 'create', item: enriched })
+
+        // 같은 달 캐시 무효화(백그라운드 재조회)
+        const anchor = enriched.startDate ?? enriched.date ?? payload.startDate
+        const ym = `${anchor?.slice(0, 7)}`
+        if (ym) bus.emit('calendar:invalidate', { ym })
+      }
+
+      navigation.goBack()
+    } catch (err) {
+      //console.log('일정 저장 실패:', err)
+      alert('저장 실패')
+    }
+  }
+
+  const formatDate = (d: Date) =>
+    d
       .toLocaleDateString('ko-KR', {
         month: '2-digit',
         day: '2-digit',
         weekday: 'short',
       })
-      .replace(/(\d{4}\.)\s*/, '')
+      .replace(/\d{4}\.\s*/, '')
 
-  const formatTimeOnly = (date: DateType): string =>
-    !date || isNaN(date.getTime())
-      ? '시간 선택'
-      : date.toLocaleString('ko-KR', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        })
-
-  const getRepeatSummary = () => {
-    const frequencyOption = REPEAT_FREQUENCY_OPTIONS.find(
-      (opt) => opt.value === selectedFrequency,
-    )
-
-    if (selectedFrequency === 'NONE') {
-      return '반복 안 함'
-    }
-
-    const frequencyText = frequencyOption?.text || '반복 설정'
-
-    let endText = ''
-    if (repeatEndType === 0) {
-      endText = '계속 반복'
-    } else if (repeatEndType === 2) {
-      endText = formatDateOnly(repeatEndDate) + '까지'
-    }
-
-    return `${frequencyText}, ${endText}`
-  }
-
-  const handleDateChange = (
-    setter: React.Dispatch<React.SetStateAction<DateType>>,
-    visibilitySetter: React.Dispatch<React.SetStateAction<boolean>>,
-    event: DateTimePickerEvent,
-    selectedDate?: DateType,
-  ) => {
-    visibilitySetter(false)
-    if (selectedDate) {
-      if (Platform.OS === 'ios' && event.type === 'set') setter(selectedDate)
-      else if (Platform.OS === 'android') setter(selectedDate)
-    }
-  }
-
-  // ---------------------------------------------------------------
-  // 2.3. RepeatSettingsModal 컴포넌트 정의
-  // ---------------------------------------------------------------
-
-  const RepeatSettingsModal = () => {
-    const isRepeatActive = selectedFrequency !== 'NONE'
-
-    return (
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isRepeatSettingsVisible}
-        onRequestClose={() => setIsRepeatSettingsVisible(false)}
-      >
-        <View style={styles.fullScreenCenteredView}>
-          <View style={styles.repeatModalView}>
-            {/* 헤더: 취소, 제목, 완료 버튼 */}
-            <View style={styles.repeatHeader}>
-              <Pressable onPress={() => setIsRepeatSettingsVisible(false)}>
-                <Text style={styles.cancelButton}>취소</Text>
-              </Pressable>
-              <Text style={styles.modalHeaderTitle}>반복</Text>
-              <Pressable
-                onPress={() => {
-                  setIsRepeatSettingsVisible(false)
-                  setIsRepeatOn(isRepeatActive)
-                }}
-              >
-                <Text style={styles.saveButton}>완료</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.repeatContentContainer}>
-              {/* 반복 주기 섹션 */}
-              <Text style={styles.repeatSectionTitle}>반복 주기</Text>
-              {REPEAT_FREQUENCY_OPTIONS.map((option, index) => (
-                <Pressable
-                  key={index}
-                  style={styles.repeatOptionRow}
-                  onPress={() => {
-                    setSelectedFrequency(option.value)
-                    if (option.value === 'NONE' || selectedFrequency === 'NONE') {
-                      setRepeatEndType(0)
-                    }
-                  }}
-                >
-                  <Text style={styles.repeatOptionText}>{option.label}</Text>
-                  <View
-                    style={[
-                      styles.radioButton,
-                      selectedFrequency === option.value && styles.radioButtonSelected,
-                    ]}
-                  />
-                </Pressable>
-              ))}
-
-              {/* 기간 섹션 (레이아웃 고정) */}
-              <View
-                style={{ opacity: isRepeatActive ? 1 : 0 }}
-                pointerEvents={isRepeatActive ? 'auto' : 'none'}
-              >
-                <View style={styles.separator} />
-
-                {/* 기간 설정 섹션 */}
-                <Text style={styles.repeatSectionTitle}>기간</Text>
-                {REPEAT_END_OPTIONS.map((option, index) => (
-                  <Pressable
-                    key={index}
-                    style={styles.repeatOptionRow}
-                    onPress={() => {
-                      setRepeatEndType(option.type)
-
-                      // '종료 날짜' 옵션을 선택했을 때 날짜 피커 상태만 true로 설정
-                      if (option.type === 2) {
-                        // DatePicker는 최상위 레벨에서 렌더링되므로, 이 모달을 닫지 않아도 앞에 뜰 수 있음.
-                        setRepeatEndDatePickerVisible(true)
-                      }
-                    }}
-                  >
-                    <Text style={styles.repeatOptionText}>{option.label}</Text>
-                    <View
-                      style={[
-                        styles.radioButton,
-                        repeatEndType === option.type && styles.radioButtonSelected,
-                      ]}
-                    />
-                  </Pressable>
-                ))}
-
-                {/* 종료 날짜 표시 및 재선택 버튼 */}
-                {repeatEndType === 2 && (
-                  <Pressable
-                    onPress={() => setRepeatEndDatePickerVisible(true)}
-                    style={styles.repeatDateOption}
-                  >
-                    <Text style={styles.repeatDateText}>
-                      {formatDateOnly(repeatEndDate)}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    )
-  }
-
-  // ---------------------------------------------------------------
-  // 2.4. 메인 렌더링 영역
-  // ---------------------------------------------------------------
+  const formatTime = (d: Date) =>
+    d.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
 
   return (
-    <View style={styles.container}>
-      {/* 테스트를 위한 모달 열기 버튼 */}
-      <Text>여기에 캘린더나 버튼이 들어갑니다.</Text>
-      <Pressable style={styles.openModalButton} onPress={() => setModalVisible(true)}>
-        <Text style={styles.openModalButtonText}>일정 상세 모달 열기</Text>
-      </Pressable>
-
-      {/* 일정 상세 정보 입력 모달 */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        {/*메인 모달 내용*/}
-        <View style={styles.centeredView}>
-          <View style={styles.modalView}>
-            <View style={styles.headerContainer}>
-              <Pressable onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelButton}>취소</Text>
-              </Pressable>
-              <Text style={styles.modalHeaderTitle}>일정 상세</Text>
-              <Pressable
-                onPress={() => {
-                  alert('저장: ' + scheduleTitle + ', 색상: ' + selectedColor)
-                  setModalVisible(false)
-                }}
-              >
-                <Text style={styles.saveButton}>저장</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.contentContainer}>
-              {/* 제목 */}
-              <View style={styles.itemRow}>
-                <Pressable onPress={() => setIsColorPickerVisible((prev) => !prev)}>
-                  <Text style={[styles.colorDot, { color: selectedColor }]}>●</Text>
+    <>
+      <Modal visible={visible} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={KEYBOARD_OFFSET}
+        >
+          <View
+            style={[
+              styles.overlay,
+              { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
+            ]}
+          >
+            <View style={[styles.box, { width: SHEET_W, height: SHEET_H }]}>
+              {/* HEADER */}
+              <View style={styles.header}>
+                <Pressable onPress={close}>
+                  <Text style={styles.cancel}>취소</Text>
                 </Pressable>
-                <TextInput
-                  style={styles.titleInput}
-                  onChangeText={setScheduleTitle}
-                  value={scheduleTitle}
-                  placeholder="제목"
-                />
+                <Text style={styles.hTitle}>일정 생성</Text>
+                <Pressable onPress={handleSave}>
+                  <Text style={styles.saveBtn}>저장</Text>
+                </Pressable>
               </View>
+              {/* 제목 + 색 */}
+              <View style={styles.body}>
+                <ScrollView
+                  ref={scrollRef}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+                  keyboardShouldPersistTaps="handled"
+                  bounces={false}
+                  showsVerticalScrollIndicator={false}
+                  automaticallyAdjustKeyboardInsets={true} // iOS 15+
+                >
+                  <View style={styles.row}>
+                    <Pressable onPress={() => setShowPalette(!showPalette)}>
+                      <Text style={[styles.colorDot, { color: selectedColor }]}>●</Text>
+                    </Pressable>
 
-              {/* 색상 선택 */}
-              {isColorPickerVisible && (
-                <View style={[styles.itemRow, styles.colorSelectionRow]}>
-                  <Text style={styles.itemLabel}>색상</Text>
-                  <View style={styles.colorPalette}>
-                    {COLORS.map((color) => (
-                      <Pressable
-                        key={color}
-                        onPress={() => setSelectedColor(color)}
-                        style={[
-                          styles.colorOption,
-                          { backgroundColor: color },
-                          selectedColor === color && styles.selectedColor,
-                        ]}
-                      />
-                    ))}
+                    <TextInput
+                      ref={titleRef}
+                      placeholder="제목"
+                      placeholderTextColor="#B7B7B7"
+                      style={styles.titleInput}
+                      value={scheduleTitle}
+                      onChangeText={setScheduleTitle}
+                    />
                   </View>
-                </View>
-              )}
+                  {/* 색상 선택 */}
+                  {showPalette && (
+                    <View style={styles.paletteRow}>
+                      {COLORS.map((c) => (
+                        <Pressable
+                          key={c}
+                          onPress={() => {
+                            setSelectedColor(c)
+                            setShowPalette(false)
+                          }}
+                          style={[
+                            styles.colorOption,
+                            { backgroundColor: c },
+                            selectedColor === c && styles.selected,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  )}
+                  <View style={styles.sep1} />
+                  {/* 날짜 */}
+                  <View style={styles.dateWrap}>
+                    <View style={styles.dateSide}>
+                      <Pressable
+                        onPress={() => {
+                          if (openCalendar && whichDate === 'start') switchPanel(null)
+                          else {
+                            setWhichDate('start')
+                            switchPanel('calendar')
+                          }
+                        }}
+                        hitSlop={8}
+                      >
+                        <Text style={styles.dateText}>{formatDate(start)}</Text>
+                      </Pressable>
+                      {timeOn && (
+                        <Pressable
+                          onPress={() => {
+                            if (openStartTime) switchPanel(null)
+                            else switchPanel('start')
+                          }}
+                          hitSlop={8}
+                        >
+                          <Text style={styles.timeText}>{formatTime(start)}</Text>
+                        </Pressable>
+                      )}
+                    </View>
 
-              <View style={styles.separator} />
+                    <Text style={styles.arrow}>→</Text>
 
-              {/* 날짜/시간 */}
-              <View style={styles.datePickerGroup}>
-                <Pressable onPress={() => setStartDatePickerVisible(true)}>
-                  <Text style={styles.dateText}>{formatDateOnly(startDate)}</Text>
-                </Pressable>
-                <Pressable onPress={() => setStartTimePickerVisible(true)}>
-                  <Text style={styles.timeText}>{formatTimeOnly(startDate)}</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.arrowText}>→</Text>
-              <View style={styles.datePickerGroup}>
-                <Pressable onPress={() => setEndDatePickerVisible(true)}>
-                  <Text style={styles.dateText}>{formatDateOnly(endDate)}</Text>
-                </Pressable>
-                <Pressable onPress={() => setEndTimePickerVisible(true)}>
-                  <Text style={styles.timeText}>{formatTimeOnly(endDate)}</Text>
-                </Pressable>
-              </View>
-              <View style={styles.separator} />
-
-              {/* 반복 설정 요약 */}
-              <Pressable
-                style={styles.itemRow}
-                onPress={() => setIsRepeatSettingsVisible(true)}
-              >
-                <Text style={styles.itemLabel}>반복</Text>
-                <View style={styles.subItemRow}>
-                  <Text
-                    style={[
-                      styles.subItemValue,
-                      { color: PRIMARY_PURPLE, marginRight: 5 },
-                    ]}
+                    <View style={styles.dateSide}>
+                      <Pressable
+                        onPress={() => {
+                          if (openCalendar && whichDate === 'end') switchPanel(null)
+                          else {
+                            setWhichDate('end')
+                            switchPanel('calendar')
+                          }
+                        }}
+                        hitSlop={8}
+                      >
+                        <Text style={styles.dateText}>{formatDate(end)}</Text>
+                      </Pressable>
+                      {timeOn && (
+                        <Pressable
+                          onPress={() => {
+                            if (openStartTime) switchPanel(null)
+                            else switchPanel('end')
+                          }}
+                          hitSlop={8}
+                        >
+                          <Text style={styles.timeText}>{formatTime(end)}</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                  <View onLayout={(e) => setPosCal(e.nativeEvent.layout.y)}>
+                    <MemoCalendar
+                      open={openCalendar}
+                      value={whichDate === 'start' ? start : end}
+                      onSelect={(d) => {
+                        if (whichDate === 'start') {
+                          setStart(d)
+                          if (d > end) setEnd(d)
+                        } else {
+                          setEnd(d)
+                          if (d < start) setStart(d)
+                        }
+                        switchPanel(null)
+                      }}
+                    />
+                  </View>
+                  {timeOn && (
+                    <View onLayout={(e) => setPosTime(e.nativeEvent.layout.y)}>
+                      <MemoTime
+                        open={timeOn && openStartTime}
+                        value={start}
+                        onChange={(d) => {
+                          if (d > end) setEnd(d) // 필요 시 범위 보정만
+                          setStart(d)
+                        }}
+                      />
+                      <MemoTime
+                        open={timeOn && openEndTime}
+                        value={end}
+                        onChange={(d) => {
+                          if (d < start) setStart(d)
+                          setEnd(d)
+                        }}
+                      />
+                    </View>
+                  )}
+                  <View style={styles.sep} />
+                  {/* 시간입력 */}
+                  <View style={styles.row}>
+                    <Text style={styles.label}>시간 입력</Text>
+                    <Toggle value={timeOn} onChange={setTimeOn} />
+                  </View>
+                  <View style={styles.sep} />
+                  {/* 라벨 */}
+                  <Pressable
+                    onPress={() => setLabelOpen(!labelOpen)}
+                    style={{ marginBottom: 7, marginTop: 8 }}
                   >
-                    {getRepeatSummary()}
-                  </Text>
-                  <Text style={styles.subItemArrow}>&gt;</Text>
-                </View>
-              </Pressable>
-
-              <View style={styles.separator} />
-
-              {/* 리마인드 */}
-              <View style={styles.itemRow}>
-                <Text style={styles.itemLabel}>리마인드 알림</Text>
-                <Switch
-                  onValueChange={setIsRemindOn}
-                  value={isRemindOn}
-                  trackColor={{ false: '#767577', true: LIGHT_PURPLE }}
-                  thumbColor={isRemindOn ? PRIMARY_PURPLE : '#f4f3f4'}
-                />
-              </View>
-              {isRemindOn && (
-                <View style={[styles.itemRow, styles.subItemRow]}>
-                  <Text style={styles.subItemLabel}>
-                    10분 전<Text style={styles.subItemValue}> </Text>
-                  </Text>
-                </View>
-              )}
-              <View style={styles.separator} />
-
-              {/* 교통 */}
-              <View style={styles.itemRow}>
-                <Text style={styles.itemLabel}>교통 알림</Text>
-                <Switch
-                  onValueChange={setIsTrafficOn}
-                  value={isTrafficOn}
-                  trackColor={{ false: '#767577', true: LIGHT_PURPLE }}
-                  thumbColor={isTrafficOn ? PRIMARY_PURPLE : '#f4f3f4'}
-                />
-              </View>
-              <View style={styles.separator} />
-
-              {/* 메모 */}
-              <View style={styles.memoContainer}>
-                <TextInput
-                  style={styles.memoInput}
-                  onChangeText={setMemo}
-                  value={memo}
-                  placeholder="메모를 입력하세요"
-                  multiline={true}
-                />
+                    <Text style={styles.label}>라벨: {selectedLabel}</Text>
+                  </Pressable>
+                  {labelOpen && (
+                    <View style={styles.labelList}>
+                      {LABELS.map((l) => (
+                        <Pressable
+                          key={l}
+                          onPress={() => {
+                            setSelectedLabel(l)
+                            setLabelOpen(false)
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.labelOption,
+                              selectedLabel === l && styles.selectedLabel,
+                            ]}
+                          >
+                            {l}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  <View style={styles.sep} />
+                  {/* 반복/알림 */}
+                  <View style={styles.row}>
+                    <Text style={styles.label}>반복</Text>
+                    <Toggle value={repeatOn} onChange={setRepeatOn} />
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={styles.label}>리마인드 알림</Text>
+                    <Toggle value={remindOn} onChange={setRemindOn} />
+                  </View>
+                  {remindOn && <Text style={styles.remindText}>10분 전</Text>}
+                  <View style={styles.row}>
+                    <Text style={styles.label}>교통 알림</Text>
+                    <Toggle value={trafficOn} onChange={setTrafficOn} />
+                  </View>
+                  <View style={styles.sep} />
+                  {/* 메모 */}
+                  <TextInput
+                    placeholder="메모 입력"
+                    value={memo}
+                    onChangeText={setMemo}
+                    multiline
+                    onFocus={() => {
+                      // 포커스 직후 레이아웃이 잡힌 다음 스크롤
+                      requestAnimationFrame(() =>
+                        scrollRef.current?.scrollToEnd({ animated: true }),
+                      )
+                    }}
+                    style={styles.memo}
+                  />
+                </ScrollView>
               </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-
-      {/* 반복 설정 상세 모달 렌더링 */}
-      <RepeatSettingsModal />
-
-      {/* -------------------------------------------------------------
-        DateTimePicker 컴포넌트들 (모든 모달 위에 뜰 수 있도록 최상위에 위치)
-        -> isRepeatEndDatePickerVisible 상태가 true일 때,
-           반복 설정 모달 위에 날짜 탭이 표시됨
-      -------------------------------------------------------------- */}
-
-      {/* 시작 날짜 피커 */}
-      {isStartDatePickerVisible && (
-        <DateTimePicker
-          value={startDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) =>
-            handleDateChange(setStartDate, setStartDatePickerVisible, event, selectedDate)
-          }
-          textColor="#000000"
-        />
-      )}
-      {/* 시작 시간 피커 */}
-      {isStartTimePickerVisible && (
-        <DateTimePicker
-          value={startDate}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) =>
-            handleDateChange(setStartDate, setStartTimePickerVisible, event, selectedDate)
-          }
-          textColor="#000000"
-        />
-      )}
-      {/* 종료 날짜 피커 */}
-      {isEndDatePickerVisible && (
-        <DateTimePicker
-          value={endDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) =>
-            handleDateChange(setEndDate, setEndDatePickerVisible, event, selectedDate)
-          }
-          textColor="#000000"
-        />
-      )}
-      {/* 종료 시간 피커 */}
-      {isEndTimePickerVisible && (
-        <DateTimePicker
-          value={endDate}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) =>
-            handleDateChange(setEndDate, setEndTimePickerVisible, event, selectedDate)
-          }
-          textColor="#000000"
-        />
-      )}
-      {/*반복 종료 날짜 피커 (최상위 레벨에 위치) */}
-      {isRepeatEndDatePickerVisible && (
-        <DateTimePicker
-          value={repeatEndDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(event, selectedDate) =>
-            handleDateChange(
-              setRepeatEndDate,
-              setRepeatEndDatePickerVisible,
-              event,
-              selectedDate,
-            )
-          }
-          textColor="#000000"
-        />
-      )}
-    </View>
+    </>
   )
 }
 
-// 스타일시트 정의
 const styles = StyleSheet.create({
-  container: {
+  body: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
   },
-  openModalButton: {
-    backgroundColor: PRIMARY_PURPLE,
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 25,
+  box: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    marginTop: 20,
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
   },
-  openModalButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 50,
+    paddingHorizontal: 16,
   },
-  centeredView: {
+  cancel: { color: '#555', fontSize: 16 },
+  hTitle: { fontSize: 18, fontWeight: 'bold' },
+  saveBtn: { color: '#7A4CFF', fontSize: 16, fontWeight: 'bold' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  colorDot: { fontSize: 22 },
+  titleInput: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderBottomColor: '#eee',
+    marginLeft: 6,
+    fontSize: 21,
   },
-  modalView: {
-    width: '90%',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  headerContainer: {
+  paletteRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  cancelButton: { color: '#555555', fontSize: 16, fontWeight: '500' },
-  saveButton: { color: PRIMARY_PURPLE, fontSize: 16, fontWeight: 'bold' },
-  modalHeaderTitle: { fontWeight: 'bold', fontSize: 18 },
-  contentContainer: { marginTop: 10 },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 10,
-    paddingHorizontal: 5,
-  },
-  subItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  colorDot: { marginRight: 10, fontSize: 18, lineHeight: 18 },
-  colorSelectionRow: {
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 5,
-    marginTop: 5,
-  },
-  colorPalette: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   colorOption: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginLeft: 10,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  selectedColor: {
-    borderColor: '#000',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-  },
-  titleInput: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    flex: 1,
-    marginLeft: 5,
-    paddingVertical: 5,
-    fontSize: 18,
-  },
-  datePickerGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    marginVertical: 5,
-    paddingHorizontal: 15,
-  },
-  dateText: { marginRight: 20, fontSize: 16, color: '#333', fontWeight: '500' },
-  timeText: { fontSize: 16, color: '#333', fontWeight: '500' },
-  arrowText: {
-    marginVertical: 5,
-    textAlign: 'center',
-    fontSize: 16,
-    color: '#aaa',
-  },
-  separator: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 10 },
-  itemLabel: { fontSize: 16, color: '#555' },
-  subItemLabel: { fontSize: 14, color: '#888' },
-  subItemValue: {},
-  subItemArrow: { marginLeft: 10, color: '#aaa' },
-  memoContainer: { marginTop: 10, paddingHorizontal: 5 },
-  memoInput: {
+    width: 22,
+    height: 22,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 5,
-    height: 80,
-    textAlignVertical: 'top',
+  },
+  selected: { borderColor: '#000', borderWidth: 2 },
+  sep: { height: 1, backgroundColor: '#eee', marginVertical: 12 },
+  sep1: { height: 1, backgroundColor: '#eee', marginBottom: 19 },
+  dateWrap: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  dateSide: { alignItems: 'center', marginHorizontal: 28 },
+  dateText: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  timeText: { fontSize: 19 },
+  arrow: { fontSize: 20, color: '#555' },
+  label: { fontSize: 16, fontWeight: '600', marginBottom: 5 },
+  remindText: { marginLeft: 10, marginBottom: 5, fontSize: 13, color: '#888' },
+  memo: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    height: 90,
     padding: 10,
     fontSize: 14,
   },
-  fullScreenCenteredView: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    backgroundColor: 'white',
+  toggle: { width: 50, height: 26, borderRadius: 20, padding: 2 },
+  thumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
+  labelList: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
+  labelOption: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    margin: 4,
+    borderRadius: 20,
+    backgroundColor: '#eee',
   },
-  repeatModalView: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'white',
-    padding: Platform.OS === 'ios' ? 0 : 20,
-  },
-  repeatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  repeatContentContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-  },
-  repeatSectionTitle: {
-    fontSize: 12,
-    color: '#aaa',
-    marginTop: 15,
-    marginBottom: 5,
-  },
-  repeatOptionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  repeatOptionText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  radioButton: {
-    height: 20,
-    width: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#aaa',
-  },
-  radioButtonSelected: {
-    borderColor: PRIMARY_PURPLE,
-    backgroundColor: PRIMARY_PURPLE,
-    padding: 3,
-    borderWidth: 6,
-  },
-  repeatDateOption: {
-    paddingVertical: 10,
-    marginLeft: 30,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  repeatDateText: {
-    fontSize: 16,
-    color: '#333',
-  },
+  selectedLabel: { backgroundColor: '#9D7BFF', color: '#fff' },
 })
-
-export default ScheduleDetailScreen
