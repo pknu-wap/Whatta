@@ -83,9 +83,9 @@ useEffect(() => {
   updateNowTop(true);
 
   // ✅ 1분마다 위치 업데이트 (스크롤은 하지 않음)
-  const timer = setInterval(() => updateNowTop(false), 60 * 1000);
+  //const timer = setInterval(() => updateNowTop(false), 60 * 1000);
 
-  return () => clearInterval(timer);
+  //return () => clearInterval(timer);
 }, []);
 
 
