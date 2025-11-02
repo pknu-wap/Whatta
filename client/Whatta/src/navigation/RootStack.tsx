@@ -21,7 +21,9 @@ export default function RootNavigator() {
       <Root.Screen
         name="AddSchedule"
         component={ScheduleDetailScreen}
-        options={{ presentation: 'modal' }}
+        options={{
+          presentation: 'transparentModal',
+        }}
       />
     </Root.Navigator>
   )
