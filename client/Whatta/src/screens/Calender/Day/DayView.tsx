@@ -59,7 +59,7 @@ const [hasScrolledOnce, setHasScrolledOnce] = useState(false); // ✅ 추가
 const ROW_H = 48;
 
 useEffect(() => {
-  const updateNowTop = (shouldScroll = false) => {
+  const updateNowTop = (scrollToCenter = false) => {
     const now = new Date();
     const hour = now.getHours();
     const min = now.getMinutes();
@@ -67,34 +67,40 @@ useEffect(() => {
     const topPos = elapsed * ROW_H;
     setNowTop(topPos);
 
-    // ✅ 처음 들어올 때만 중앙으로 스크롤
-    if (shouldScroll && !hasScrolledOnce) {
-      setTimeout(() => {
+    // ✅ 렌더 직후 바로 스크롤 (setTimeout 제거)
+    if (scrollToCenter) {
+      requestAnimationFrame(() => {
         gridScrollRef.current?.scrollTo({
-          y: topPos - Dimensions.get('window').height * 0.2 + ROW_H / 2,
+          y: Math.max(topPos - Dimensions.get('window').height * 0.4, 0),
           animated: false,
         });
-        setHasScrolledOnce(true); // 한 번만 실행되게
-      }, 500);
-    }
-  };
-
-  updateNowTop(true); // ✅ 처음 진입 시 (스크롤 포함)
-  const timer = setInterval(() => updateNowTop(false), 60 * 1000); // 이후엔 위치만 갱신
-  return () => clearInterval(timer);
-}, [hasScrolledOnce]);
-
-// ✅ DayView 화면이 다시 보일 때도 중앙으로 스크롤
-useFocusEffect(
-  React.useCallback(() => {
-    if (nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
-      gridScrollRef.current.scrollTo({
-        y: nowTop - Dimensions.get('window').height * 0.2 + ROW_H / 2,
-        animated: false,
       });
       setHasScrolledOnce(true);
     }
-  }, [nowTop, hasScrolledOnce])
+  };
+
+  // ✅ 첫 렌더 시 항상 실행
+  updateNowTop(true);
+
+  // ✅ 1분마다 위치 업데이트 (스크롤은 하지 않음)
+  const timer = setInterval(() => updateNowTop(false), 60 * 1000);
+
+  return () => clearInterval(timer);
+}, []);
+
+
+// ✅ 포커스 시 (다른 탭 갔다 돌아올 때도 중앙 보이게)
+useFocusEffect(
+  React.useCallback(() => {
+    if (nowTop != null) {
+      requestAnimationFrame(() => {
+        gridScrollRef.current?.scrollTo({
+          y: Math.max(nowTop - Dimensions.get('window').height * 0.2, 0),
+          animated: true,
+        });
+      });
+    }
+  }, [nowTop])
 );
 
 useEffect(() => {
