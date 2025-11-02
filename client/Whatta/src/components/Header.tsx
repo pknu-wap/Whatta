@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   View,
   Text,
@@ -39,14 +39,21 @@ const addMonths = (iso: string, dm: number) => {
   return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
 }
 
-const startOfWeek = (iso: string) => {
+const toDate = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(y, m - 1, d)
-  const wd = dt.getDay() // 일:0 ~ 토:6  (월요일 시작 쓰시면 보정)
-  const s = new Date(y, m - 1, d - wd) // 일요일 시작 기준
-  return `${s.getFullYear()}-${pad2(s.getMonth() + 1)}-${pad2(s.getDate())}`
+  return new Date(y, m - 1, d)
 }
-const endOfWeek = (iso: string) => addDays(startOfWeek(iso), 6)
+const toISO = (dt: Date) =>
+  `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`
+const startOfWeek = (iso: string) => {
+  const dt = toDate(iso)
+  const wd = dt.getDay() // 0:일 ~ 6:토
+  const s = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - wd)
+  return toISO(s)
+}
+const endOfWeek = (iso: string) =>
+  toISO(new Date(toDate(startOfWeek(iso)).getTime() + 6 * 86400000))
+const dot = (ymd: string) => ymd.split('-').join('.')
 
 const fmtDay = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number)
@@ -75,11 +82,21 @@ const CustomSwitch = ({ value, onToggle }: CustomSwitchProps) => (
   </TouchableOpacity>
 )
 
+const monthStart = (iso: string) => {
+  const [y, m] = iso.split('-').map(Number)
+  const t = new Date(y, m - 1, 1)
+  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-01`
+}
+const addMonthsToStart = (iso: string, dm: number) => {
+  const [y, m] = iso.split('-').map(Number)
+  const t = new Date(y, m - 1 + dm, 1)
+  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-01`
+}
+
 export default function Header() {
   const { progress, toggle } = useDrawer()
   const navigation = useNavigation<any>()
 
-  const [selectedDate, setSelectedDate] = useState(today())
   const [calVisible, setCalVisible] = useState(false)
   const [popup, setPopup] = useState(false)
   const [mode, setMode] = useState<ViewMode>('month') // 외부에서 바뀌면 구독으로 반영
@@ -87,6 +104,7 @@ export default function Header() {
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
 
+  // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
     const onState = (st: { date: string; mode: ViewMode }) => {
       setAnchorDate((prev) => (prev === st.date ? prev : st.date))
@@ -97,66 +115,17 @@ export default function Header() {
     return () => bus.off('calendar:state', onState)
   }, [])
 
-  // 일간뷰로 "진입"할 때만 오늘로 한 번 맞춰주기
-  const prevModeRef = useRef<ViewMode>('month')
-  useEffect(() => {
-    if (prevModeRef.current !== mode && mode === 'day') {
-      const t = today()
-      // 현재 기준일이 이미 오늘이면 생략
-      if (anchorDate !== t) bus.emit('calendar:set-date', t)
-    }
-    prevModeRef.current = mode
-  }, [mode, anchorDate])
-
-  const pad2 = (n: number) => String(n).padStart(2, '0')
-
   // 'YYYY-MM-DD' -> Date
   const toDate = (iso: string) => {
     const [y, m, d] = iso.split('-').map(Number)
     return new Date(y, m - 1, d)
   }
 
-  // Date -> 'YYYY-MM-DD'
-  const toISO = (dt: Date) =>
-    `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`
-
-  // 주 시작(일요일 기준) 반환
-  const startOfWeek = (iso: string): string => {
-    const dt = toDate(iso)
-    const wd = dt.getDay() // 0:일 ~ 6:토
-    const s = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - wd)
-    return toISO(s)
-  }
-
-  // 주 끝(토요일) 반환
-  const endOfWeek = (iso: string): string => {
-    const s = toDate(startOfWeek(iso))
-    const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
-    return toISO(e)
-  }
-
-  // 안전한 포맷 변환(폴리필 불필요)
-  const dot = (ymd: string) => ymd.split('-').join('.')
-
-  // 헤더 마운트/모달 오픈 시 동기화: 지금 달이 뭔지 요청
-  React.useEffect(() => {
-    const onState = (st: { date: string; mode: ViewMode }) => {
-      setAnchorDate(st.date)
-      setMode(st.mode)
-    }
-    bus.on('calendar:state', onState)
-
-    // 현재 상태 요청
-    bus.emit('calendar:request-sync', null)
-
-    return () => bus.off('calendar:state', onState)
-  }, [])
-
   // 좌/우 화살표: 한 달 이동 → MonthView에게 명령만
   const goPrev = () => {
     const iso =
       mode === 'month'
-        ? addMonths(anchorDate, -1)
+        ? addMonthsToStart(anchorDate, -1)
         : mode === 'week'
           ? addDays(anchorDate, -7)
           : addDays(anchorDate, -1)
@@ -165,7 +134,7 @@ export default function Header() {
   const goNext = () => {
     const iso =
       mode === 'month'
-        ? addMonths(anchorDate, +1)
+        ? addMonthsToStart(anchorDate, +1)
         : mode === 'week'
           ? addDays(anchorDate, +7)
           : addDays(anchorDate, +1)

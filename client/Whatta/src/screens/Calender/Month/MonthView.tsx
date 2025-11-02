@@ -17,6 +17,7 @@ import { adaptMonthlyToSchedules, ScheduleData } from '@/api/adapter'
 import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
 import { fetchTasksForMonth } from '@/api/event_api'
+import { useFocusEffect } from '@react-navigation/native'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -719,6 +720,12 @@ export default function MonthView() {
     bus.on('calendar:request-sync', reply)
     return () => bus.off('calendar:request-sync', reply)
   }, [ym])
+
+  useFocusEffect(
+    React.useCallback(() => {
+      bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+    }, [ym]),
+  )
 
   // 해당 월만 새로 조회
   const fetchFresh = useCallback(
