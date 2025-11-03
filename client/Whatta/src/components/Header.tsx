@@ -364,10 +364,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 9,
   },
-  allText: { fontSize: 12, marginLeft: 16 },
+  allText: { fontSize: 14, marginLeft: 16 },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
   colorDot: { width: 5, height: 12, marginRight: 4 },
-  labelText: { fontSize: 12 },
+  labelText: { fontSize: 14 },
   divider: { width: 126, height: 1, backgroundColor: '#e1e1e1', alignSelf: 'center' },
 
   switchTrack: {
