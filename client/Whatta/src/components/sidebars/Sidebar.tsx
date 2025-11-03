@@ -85,7 +85,7 @@ function getBottomSortNumber(list: Task[], excludeId?: string) {
   return max + TOP_GAP
 }
 
-const SECTION_HEIGHT = 270
+const SECTION_HEIGHT = 260
 
 export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -274,7 +274,7 @@ function SectionUpcoming({
         autoscrollThreshold={40}
         autoscrollSpeed={80}
         containerStyle={{ overflow: 'hidden' }}
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
       />
     </View>
   )
@@ -309,7 +309,7 @@ function SectionCompleted({
         activationDistance={99999}
         style={{ height: SECTION_HEIGHT }}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
       />
     </View>
   )
@@ -385,6 +385,7 @@ const S = StyleSheet.create({
     backgroundColor: colors.neutral.surface,
     paddingHorizontal: 12,
     marginTop: 4,
+    marginBottom: -5,
   },
   sectionTitle: {
     fontSize: 18,
