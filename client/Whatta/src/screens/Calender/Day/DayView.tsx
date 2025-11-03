@@ -60,9 +60,9 @@ function FullBleed({
   )
 }
 
-const INITIAL_CHECKS: any[] = [] // ✅ 기본값 빈 배열로 설정
+const INITIAL_CHECKS: any[] = []
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0시 ~ 24시
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 const ROW_H = 48
 const PIXELS_PER_HOUR = ROW_H
@@ -72,12 +72,12 @@ export default function DayView() {
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const [checks, setChecks] = useState(INITIAL_CHECKS)
   const [events, setEvents] = useState<any[]>([])
-  const [spanEvents, setSpanEvents] = useState<any[]>([]) // ✅ 추가
-  const [tasks, setTasks] = useState<any[]>([]) // ✅ 추가
+  const [spanEvents, setSpanEvents] = useState<any[]>([]) 
+  const [tasks, setTasks] = useState<any[]>([])
 
   // ✅ 라이브바 위치 계산
   const [nowTop, setNowTop] = useState<number | null>(null)
-  const [hasScrolledOnce, setHasScrolledOnce] = useState(false) // ✅ 추가
+  const [hasScrolledOnce, setHasScrolledOnce] = useState(false) 
   const ROW_H = 48
 
   useEffect(() => {
@@ -88,7 +88,6 @@ export default function DayView() {
       const topPos = (hour * 60 + min) * PIXELS_PER_MIN
       setNowTop(topPos)
 
-      // ✅ 렌더 직후 바로 스크롤 (setTimeout 제거)
       if (scrollToCenter) {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
@@ -100,12 +99,10 @@ export default function DayView() {
       }
     }
 
-    // ✅ 첫 렌더 시 항상 실행
     updateNowTop(true)
 
   }, [])
 
-  // ✅ 포커스 시 (다른 탭 갔다 돌아올 때도 중앙 보이게)
   useFocusEffect(
     React.useCallback(() => {
       bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
@@ -173,7 +170,6 @@ export default function DayView() {
         payload.item.startDate ?? payload.item.date ?? payload.item.endDate ?? today()
       const itemDateISO = date.slice(0, 10)
 
-      // 현재 anchorDate(일간뷰의 기준일)와 같으면 즉시 새로고침
       if (itemDateISO === anchorDate) {
         fetchDailyEvents(anchorDate)
       }
@@ -183,19 +179,16 @@ export default function DayView() {
     return () => bus.off('calendar:mutated', onMutated)
   }, [anchorDate, fetchDailyEvents])
 
-  // 2) 날짜가 바뀔 때마다 재조회: useEffect 한 개만
   useEffect(() => {
     fetchDailyEvents(anchorDate)
   }, [anchorDate, fetchDailyEvents])
 
-  // 헤더 동기화는 "포커스 상태에서만" 수행
   useFocusEffect(
     React.useCallback(() => {
       const onReq = () => bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
       const onSet = (iso: string) => setAnchorDate(iso)
       bus.on('calendar:request-sync', onReq)
       bus.on('calendar:set-date', onSet)
-      // 포커스 들어올 때 현재 상태 1회 방송
       bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
       return () => {
         bus.off('calendar:request-sync', onReq)
@@ -259,7 +252,7 @@ export default function DayView() {
                         style={[
                           S.chip,
                           i === 0 && { marginTop: 8 },
-                          { backgroundColor: bgWithOpacity }, // ✅ colorKey 기반 배경
+                          { backgroundColor: bgWithOpacity },
                         ]}
                       >
                         <View style={[S.chipBar, { backgroundColor: baseColor }]} />
@@ -270,7 +263,6 @@ export default function DayView() {
                     )
                   })}
 
-                  {/* ✅ 체크박스 할 일 */}
                   {checks.map((c) => (
                     <Pressable
                       key={c.id}
@@ -309,13 +301,12 @@ export default function DayView() {
                 )}
               </View>
 
-              {/* ⬇️ taskBox '바깥'에 경계선 + 아래로 페이드 */}
               <View pointerEvents="none" style={S.boxBottomLine} />
               <LinearGradient
                 pointerEvents="none"
                 colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.04)', 'rgba(0,0,0,0)']}
-                start={{ x: 0, y: 0 }} // 위(경계선)에서 시작
-                end={{ x: 0, y: 1 }} // 아래로 사라짐
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
                 style={S.fadeBelow}
               />
             </View>
@@ -330,7 +321,7 @@ export default function DayView() {
             showsVerticalScrollIndicator={false}
           >
             {HOURS.map((h, i) => {
-              const isLast = i === HOURS.length - 1 // ✅ 마지막 행 여부 계산
+              const isLast = i === HOURS.length - 1
 
               return (
                 <View key={h} style={S.row}>
@@ -350,11 +341,11 @@ export default function DayView() {
                     <View style={S.verticalLine} />
                   </View>
 
-                  {/* ✅ 마지막 행이 아닐 때만 가로줄 표시 */}
                   {!isLast && <View pointerEvents="none" style={S.guideLine} />}
                 </View>
               )
             })}
+
             {/* ✅ 현재시간 라이브바 */}
             {nowTop !== null && (
               <>
@@ -363,25 +354,24 @@ export default function DayView() {
               </>
             )}
             {events.map((evt) => {
-  const [sh, sm] = evt.clippedStartTime.split(':').map(Number)
-  const [eh, em] = evt.clippedEndTime.split(':').map(Number)
-  const startMin = sh * 60 + sm
-  const endMin = eh * 60 + em
-
-  return (
-    <DraggableFlexalbeEvent
-      key={evt.id}
-      title={evt.title}
-      place={`label ${evt.labels?.[0] ?? ''}`}
-      startMin={startMin}
-      endMin={endMin}
-      color={`#${evt.colorKey}`}
-    />
-  )
-})}
+              const [sh, sm] = evt.clippedStartTime.split(':').map(Number)
+              const [eh, em] = evt.clippedEndTime.split(':').map(Number)
+              const startMin = sh * 60 + sm
+              const endMin = eh * 60 + em
+              
+              return (
+              <DraggableFlexalbeEvent
+                key={evt.id}
+                title={evt.title}
+                place={`label ${evt.labels?.[0] ?? ''}`}
+                startMin={startMin}
+                endMin={endMin}
+                color={`#${evt.colorKey}`}
+              />
+              ) 
+            })}
 
             {tasks.map((task) => {
-              // ✅ placementTime 기준으로 시작 시각 계산
               const start =
                 task.placementTime && task.placementTime.includes(':')
                   ? (() => {
@@ -395,7 +385,7 @@ export default function DayView() {
                   key={task.id}
                   title={task.title}
                   startHour={start}
-                  done={task.completed ?? false} // ✅ 체크박스 반영 가능
+                  done={task.completed ?? false} 
                 />
               )
             })}
@@ -415,7 +405,7 @@ function thumbH(visibleH: number, contentH: number) {
 
 function DraggableFixedEvent() {
   const ROW_H = 48
-  const translateY = useSharedValue(7 * ROW_H) // 초기 9시 위치
+  const translateY = useSharedValue(7 * ROW_H) 
 
   const drag = Gesture.Pan()
     .onChange((e) => {
@@ -510,19 +500,20 @@ function DraggableTaskBox({
         style={[
           {
             position: 'absolute',
-            left: 50 + 18,
-            right: 18,
+            left: 50 + 19,
+            right: 19,
             height: ROW_H - 4,
-            backgroundColor: '#FFFFFF80', // ✅ 반투명 흰색
-            borderWidth: 0.3,
-            borderColor: '#B3B3B3',
+            backgroundColor: '#FFFFFF80',
+            borderWidth: 0.4,
+            borderColor: '#333333',
             borderRadius: 10,
             paddingHorizontal: 16,
             flexDirection: 'row',
             alignItems: 'center',
-            shadowColor: '#525252',
-            shadowOffset: { width: 0, height: 0 },
-            shadowRadius: 3,
+            //shadowColor: '#525252',
+            //shadowOffset: { width: 0, height: 0 },
+            //shadowOpacity: 0.25,
+            //shadowRadius: 5,
             zIndex: 20,
           },
           style,
@@ -539,7 +530,7 @@ function DraggableTaskBox({
             marginRight: 12,
             justifyContent: 'center',
             alignItems: 'center',
-            backgroundColor: done ? '#333333' : '#FFF',
+            backgroundColor: done ? '#333333' : '#FFFFFF00',
           }}
         >
           {done && (
@@ -589,21 +580,25 @@ function DraggableFlexalbeEvent({
   endMin,
   color,
 }: DraggableFlexalbeEventProps) {
-  const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
-  const height = (endMin - startMin) * PIXELS_PER_MIN
+  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const SHRINK_PX = 1 
+  const height = rawHeight - SHRINK_PX * 2
+  const offsetY = SHRINK_PX
+
+  const translateY = useSharedValue(0)
 
   const drag = Gesture.Pan()
     .onChange((e) => {
       translateY.value += e.changeY
     })
     .onEnd(() => {
-  const SNAP_UNIT = 5 * PIXELS_PER_MIN
-  const snapped = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
-  translateY.value = withSpring(snapped)
-})
+      const SNAP_UNIT = 5 * PIXELS_PER_MIN
+      const snapped = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      translateY.value = withSpring(snapped)
+    })
 
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
   }))
 
   const backgroundColor = color.startsWith('#') ? color : `#${color}`
@@ -614,8 +609,8 @@ function DraggableFlexalbeEvent({
         style={[
           {
             position: 'absolute',
-            left: 50 + 16,
-            right: 16,
+            left: 50 + 18,
+            right: 18,
             height,
             backgroundColor,
             paddingHorizontal: 6,
@@ -657,7 +652,7 @@ function DraggableFlexalbeEvent({
 /* Styles */
 const BORDER = 'rgba(0,0,0,0.08)'
 
-const VERTICAL_LINE_WIDTH = 0.5 // S.verticalLine에서 쓰는 값
+const VERTICAL_LINE_WIDTH = 0.5
 
 const S = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.neutral.surface },
@@ -689,21 +684,26 @@ const S = StyleSheet.create({
   },
 
   chipBar: {
-    width: 5, // ✅ 바 두께 5px
-    height: 22, // ✅ 고정 높이 22p
-    marginRight: 8, // 텍스트와 간격
+    width: 5,
+    height: 22,
+    marginRight: 8,
   },
 
-  chipText: { ...ts('daySchedule'), color: '#000000' },
+  chipText: { 
+    ...ts('daySchedule'), 
+    color: '#000000', 
+    fontSize: 12,
+    fontWeight: '600',
+ },
 
   checkRow: {
     height: 22,
-    marginHorizontal: 12,
+    marginHorizontal: 11.5,
     marginTop: 8,
     borderRadius: 3,
     backgroundColor: colors.neutral.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#B3B3B3',
+    borderColor: '#333333',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -715,11 +715,17 @@ const S = StyleSheet.create({
     borderRadius: 1,
     borderWidth: 1,
     borderColor: '#333333',
-    marginRight: 10,
+    marginRight: 8,
     backgroundColor: colors.neutral.surface,
   },
+
   checkboxOn: { backgroundColor: '#000000' },
-  checkText: { ...ts('daySchedule'), color: '#000000' },
+  checkText: { 
+    ...ts('daySchedule'), 
+    color: '#000000', 
+    fontSize: 12,
+    fontWeight: '600',
+ },
 
   checkboxWrap: {
     alignItems: 'center',
@@ -727,10 +733,10 @@ const S = StyleSheet.create({
   },
 
   checkmark: {
-    color: colors.neutral.surface, // 체크 표시 색 (배경이 검정이라 흰색 추천)
-    fontSize: 8, // 크기 조정 (checkbox 크기 맞춰서)
+    color: colors.neutral.surface,
+    fontSize: 8,
     fontWeight: '700',
-    lineHeight: 10, // 중앙 정렬 맞춤
+    lineHeight: 10,
     textAlign: 'center',
   },
 
@@ -738,6 +744,8 @@ const S = StyleSheet.create({
     color: '#888',
     textDecorationLine: 'line-through',
     textDecorationStyle: 'solid',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   scrollTrack: {
@@ -760,11 +768,11 @@ const S = StyleSheet.create({
   gridScroll: { flex: 1 },
 
   row: {
-    position: 'relative', // ✅ 가로줄 절대배치 기준
+    position: 'relative',
     flexDirection: 'row',
     height: 48,
     backgroundColor: colors.neutral.surface,
-    paddingHorizontal: 16, // ✅ 휴대폰 좌/우 끝 기준 여백
+    paddingHorizontal: 16,
     borderBottomWidth: 0,
     borderTopWidth: 0,
     borderColor: 'transparent',
@@ -772,7 +780,6 @@ const S = StyleSheet.create({
 
   timeCol: {
     width: 50,
-    //justifyContent: 'center',
     alignItems: 'flex-end',
     paddingRight: 10,
   },
@@ -783,23 +790,21 @@ const S = StyleSheet.create({
     position: 'relative',
   },
 
-  /* 세로 기준선: 시간 라벨 오른쪽 경계 */
   verticalLine: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    width: 0.5, // 원하면 1~2로 조정
+    width: 0.3,
     backgroundColor: colors.neutral.timeline,
   },
 
-  /* ✅ 가로줄: row 기준으로 좌우 16px 여백 */
   guideLine: {
     position: 'absolute',
-    left: 16, // 휴대폰 좌측 끝 기준
-    right: 16, // 휴대폰 우측 끝 기준
+    left: 16,
+    right: 16,
     bottom: 0,
-    height: 0.5, // 두께(원하면 1~2)
+    height: 0.3,
     backgroundColor: colors.neutral.timeline,
   },
   timeText: { ...ts('time'), color: colors.neutral.gray },
@@ -813,7 +818,7 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0, // taskBox 하단과 정확히 일치
+    bottom: 0,
     height: StyleSheet.hairlineWidth || 1,
     backgroundColor: 'rgba(0,0,0,0.08)',
     zIndex: 2,
@@ -823,17 +828,17 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: -12,
     right: -12,
-    top: '100%', // ✅ 래퍼(=taskBox) 높이 바로 아래에서 시작
-    height: 18, // 페이드 길이 (원하면 20~32 조절)
+    top: '100%',
+    height: 18,
     zIndex: 1,
   },
 
   fadeGap: {
-    height: 12, // 페이드와 시간대 그리드 사이 간격
+    height: 13, // taskBox와 그리드 사이 간격
   },
 
   gridContent: {
-    paddingBottom: 10, // ✅ 아래쪽 여백 (필요한 만큼 조절)
+    paddingBottom: 10,
   },
 
   liveBar: {
@@ -848,11 +853,11 @@ const S = StyleSheet.create({
 
   liveDot: {
     position: 'absolute',
-    left: 50 + 16 - 3, // ✅ 세로줄 기준 + 간격 - 반지름 (liveBar 시작점 기준)
+    left: 50 + 16 - 3, 
     width: 7,
     height: 7,
     borderRadius: 5,
     backgroundColor: colors.primary.main,
-    zIndex: 11, // liveBar보다 위로
+    zIndex: 11, 
   },
 })
