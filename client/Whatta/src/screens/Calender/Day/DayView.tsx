@@ -265,8 +265,24 @@ export default function DayView() {
   }
   const showScrollbar = contentH > wrapH
 
-  const toggleCheck = (id: string) =>
-    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c)))
+  const toggleCheck = async (id: string) => {
+  setChecks((prev) =>
+    prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c))
+  )
+
+  try {
+    const target = checks.find((c) => c.id === id)
+    if (!target) return
+
+    await http.put(`/task/${id}`, {
+      completed: !target.done,
+    })
+
+    bus.emit('calendar:mutated', { op: 'update', item: { id } })
+  } catch (err: any) {
+    console.error('❌ 테스크 상태 업데이트 실패:', err.message)
+  }
+}
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -431,6 +447,7 @@ export default function DayView() {
               return (
                 <DraggableTaskBox
                   key={task.id}
+                  id={task.id}
                   title={task.title}
                   startHour={start}
                   done={task.completed ?? false} 
@@ -512,12 +529,14 @@ function DraggableFixedEvent() {
 }
 
 type DraggableTaskBoxProps = {
+  id: string
   title: string
   startHour: number
   done?: boolean
 }
 
 function DraggableTaskBox({
+  id,
   title,
   startHour,
   done: initialDone = false,
@@ -526,17 +545,38 @@ function DraggableTaskBox({
   const translateX = useSharedValue(0)
   const [done, setDone] = useState(initialDone)
 
-  const drag = Gesture.Pan()
-    .onChange((e) => {
-      translateY.value += e.changeY
-      translateX.value += e.changeX
+  const handleDrop = async (newTime: string) => {
+  try {
+    await http.put(`/task/${id}`, {
+      placementTime: newTime,
     })
-    .onEnd(() => {
-  const SNAP_UNIT = 5 * PIXELS_PER_MIN
-  const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
-  translateY.value = withSpring(snappedY)
-  translateX.value = withSpring(0)
-})
+    bus.emit('calendar:mutated', { op: 'update', item: { id } })
+  } catch (err: any) {
+    console.error('❌ 테스크 시간 이동 실패:', err.message)
+  }
+}
+
+  const drag = Gesture.Pan()
+  .onChange((e) => {
+    translateY.value += e.changeY
+    translateX.value += e.changeX
+  })
+  .onEnd(() => {
+    const SNAP_UNIT = 5 * PIXELS_PER_MIN
+    const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+    translateY.value = withSpring(snappedY)
+    translateX.value = withSpring(0)
+
+    // ✅ 드롭 시 서버에 placementTime 업데이트
+    const newMinutes = snappedY / PIXELS_PER_MIN
+    const hour = Math.floor(newMinutes / 60)
+    const min = Math.round(newMinutes % 60)
+
+    const fmt = (n: number) => String(n).padStart(2, '0')
+    const newTime = `${fmt(hour)}:${fmt(min)}:00`
+
+    runOnJS(handleDrop)(newTime)
+  })
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
