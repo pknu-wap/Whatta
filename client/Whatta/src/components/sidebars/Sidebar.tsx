@@ -85,7 +85,7 @@ function getBottomSortNumber(list: Task[], excludeId?: string) {
   return max + TOP_GAP
 }
 
-const SECTION_HEIGHT = 260
+const SECTION_HEIGHT = 270
 
 export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>([])
