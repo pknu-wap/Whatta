@@ -4,8 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
-
-import { DrawerProvider } from '@/providers/DrawerProvider'
+import { TouchableOpacity } from 'react-native'
+import { DrawerProvider, useDrawer } from '@/providers/DrawerProvider'
 
 import MyPageStack from '@/navigation/MyPageStack'
 import MonthView from '@/screens/Calender/Month/MonthView'
@@ -37,6 +37,29 @@ export default function MainTabs() {
 
   const showFab = ['Month', 'Week', 'Day'].includes(activeTab)
 
+  function GuardedTabButton(props: any) {
+    const { isOpen, close } = useDrawer()
+    const { onPress, onLongPress, ...rest } = props
+    return (
+      <TouchableOpacity
+        {...rest}
+        onPress={(e) => {
+          if (isOpen) {
+            // ✅ 열려 있으면: 이동 막고 닫기만
+            close()
+            return
+          }
+          onPress?.(e) // 닫혀 있으면: 원래 동작
+        }}
+        onLongPress={onLongPress}
+        accessibilityRole={props.accessibilityRole}
+        accessibilityState={props.accessibilityState}
+        accessibilityLabel={props.accessibilityLabel}
+        testID={props.testID}
+      />
+    )
+  }
+
   return (
     <DrawerProvider>
       <View style={{ flex: 1 }}>
@@ -58,6 +81,7 @@ export default function MainTabs() {
             tabBarActiveTintColor: colors.primary.main,
             tabBarInactiveTintColor: colors.icon.default,
             tabBarLabelStyle: { fontSize: 12, textAlign: 'center' },
+            tabBarButton: (p) => <GuardedTabButton {...p} />,
           }}
         >
           {/* ✅ 마이페이지 */}

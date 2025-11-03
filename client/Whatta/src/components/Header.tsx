@@ -7,7 +7,12 @@ import {
   Animated,
   PanResponder,
 } from 'react-native'
-import AnimatedRe, { interpolateColor, useAnimatedProps } from 'react-native-reanimated'
+import AnimatedRe, {
+  interpolateColor,
+  useAnimatedProps,
+  useAnimatedStyle,
+  interpolate,
+} from 'react-native-reanimated'
 import { useDrawer } from '@/providers/DrawerProvider'
 import CalendarModal from '@/components/CalendarModal'
 import Menu from '@/assets/icons/menu.svg'
@@ -94,12 +99,18 @@ const addMonthsToStart = (iso: string, dm: number) => {
 }
 
 export default function Header() {
-  const { progress, toggle } = useDrawer()
+  const { progress, toggle, close } = useDrawer()
   const navigation = useNavigation<any>()
 
   const [calVisible, setCalVisible] = useState(false)
   const [popup, setPopup] = useState(false)
   const [mode, setMode] = useState<ViewMode>('month') // 외부에서 바뀌면 구독으로 반영
+
+  // 사이드바 열렸을 때만 헤더 전체를 탭 캐치
+  const headerCatcherStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
+    pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
+  }))
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
@@ -249,6 +260,11 @@ export default function Header() {
           />
         </TouchableOpacity>
       </View>
+      <AnimatedRe.View
+        style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}
+      >
+        <TouchableOpacity style={{ flex: 1 }} onPress={close} />
+      </AnimatedRe.View>
 
       {/* 필터 팝업 */}
       {popup && (
