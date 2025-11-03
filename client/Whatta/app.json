@@ -13,10 +13,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSUserTrackingUsageDescription": "맞춤형 광고/분석을 위해 추적 권한이 필요합니다."
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -31,7 +28,7 @@
     },
     "plugins": [
       "expo-font",
-      "expo-tracking-transparency"
+      "expo-secure-store"
     ]
   }
 }

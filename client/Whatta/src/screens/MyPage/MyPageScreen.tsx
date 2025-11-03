@@ -5,18 +5,13 @@ import type { MyPageStackList } from '@/navigation/MyPageStack'
 import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/contants'
 import colors from '@/styles/colors'
 
-type Props = NativeStackScreenProps<MyPageStackList, 'MyPage'>
+type Props = NativeStackScreenProps<MyPageStackList, 'MyPageList'>
 
 export default function MyPageScreen({ navigation }: Props) {
   return (
     <SectionList<MyItem, MySection>
       sections={MY_SECTIONS}
       keyExtractor={(item) => item.key}
-      renderSectionHeader={({ section }) => (
-        <View style={S.sectionHeader}>
-          <Text style={S.sectionTitle}>{section.title}</Text>
-        </View>
-      )}
       renderItem={({ item }) => (
         <Pressable style={S.item} onPress={() => navigation.navigate(item.route)}>
           <View style={{ flex: 1 }}>

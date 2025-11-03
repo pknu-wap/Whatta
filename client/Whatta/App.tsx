@@ -1,26 +1,82 @@
 import 'react-native-gesture-handler'
-import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, Text, View } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { StyleSheet, ActivityIndicator, View, Text } from 'react-native'
+import React, { createContext, useState, useCallback, useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import colors from '@/styles/colors'
 import RootStack from '@/navigation/RootStack'
-import { useATTOnActive } from '@/hooks/useATTOnActive'
+import { ensureAuthReady } from '@/app/bootstrap'
 
-export default function App() {
-
-  // 앱이 iOS에서 active 될 때 1회 ATT 요청
-  useATTOnActive({ requestOnFirstActive: true, debug: __DEV__ })
-
-  return (
-    <NavigationContainer>
-      <RootStack />
-    </NavigationContainer>
-  )
+// ✅ 라벨 타입
+export interface LabelItem {
+  id: string
+  name: string
+  color: string
+  enabled: boolean
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.neutral.background,
-  },
+interface FilterContextType {
+  labels: LabelItem[]
+  toggleLabel: (id: string) => void
+  toggleAll: () => void
+}
+
+// ✅ 전역 라벨 컨텍스트
+export const FilterContext = createContext<FilterContextType>({
+  labels: [],
+  toggleLabel: () => {},
+  toggleAll: () => {},
 })
+
+export default function App() {
+  const [ready, setReady] = useState(false)
+
+  // ✅ 앱 시작 시 게스트 로그인 / 인증 준비
+  useEffect(() => {
+    ;(async () => {
+      try {
+        await ensureAuthReady()
+      } finally {
+        setReady(true)
+      }
+    })()
+  }, [])
+
+  // ✅ 라벨 상태 (시간표 제거됨)
+  const [labels, setLabels] = useState<LabelItem[]>([
+    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
+    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
+    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
+    { id: '5', name: '수업', color: '#B04FFF', enabled: true },
+  ])
+
+  // ✅ 개별 토글
+  const toggleLabel = useCallback((id: string) => {
+    setLabels((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, enabled: !l.enabled } : l)),
+    )
+  }, [])
+
+  // ✅ 전체 on/off
+  const toggleAll = useCallback(() => {
+    const allOn = labels.every((l) => l.enabled)
+    setLabels((prev) => prev.map((l) => ({ ...l, enabled: !allOn })))
+  }, [labels])
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    )
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>
+        <NavigationContainer>
+          <RootStack />
+        </NavigationContainer>
+      </FilterContext.Provider>
+    </GestureHandlerRootView>
+  )
+}
