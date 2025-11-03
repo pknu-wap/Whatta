@@ -17,6 +17,7 @@ import { token } from '@/lib/token'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
+import { getMyLabels, Label } from '@/api/label_api'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -116,9 +117,28 @@ export default function ScheduleDetailScreen() {
   const [showPalette, setShowPalette] = useState(false)
 
   /** 라벨 */
-  const LABELS = ['약속', '동아리', '수업', '과제']
+  /*const LABELS = ['약속', '동아리', '수업', '과제']
   const [selectedLabel, setSelectedLabel] = useState('약속')
+  const [labelOpen, setLabelOpen] = useState(false)*/
+  const [labels, setLabels] = useState<Label[]>([])
+  const [selectedLabelId, setSelectedLabelId] = useState<number | null>(null)
   const [labelOpen, setLabelOpen] = useState(false)
+
+  // 라벨 목록 불러오기
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const list = await getMyLabels()
+        setLabels(list)
+        // 첫 번째 라벨을 기본 선택
+        if (list.length && selectedLabelId == null) {
+          setSelectedLabelId(list[0].id)
+        }
+      } catch (e) {
+        console.log('⚠️ 라벨 불러오기 실패:', e)
+      }
+    })()
+  }, [])
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
@@ -152,6 +172,7 @@ export default function ScheduleDetailScreen() {
       const base = {
         title: scheduleTitle,
         content: memo ?? '',
+        labels: selectedLabelId != null ? [selectedLabelId] : undefined, //라벨
         startDate: ymdLocal(start), // 로컬 날짜
         endDate: ymdLocal(end), // 로컬 날짜
         startTime: timeOn ? hms(start) : undefined, // 시간 사용 시에만 포함
@@ -384,33 +405,38 @@ export default function ScheduleDetailScreen() {
                   <View style={styles.sep} />
                   {/* 라벨 */}
                   <Pressable
-                    onPress={() => setLabelOpen(!labelOpen)}
-                    style={{ marginBottom: 7, marginTop: 8 }}
+                  onPress={() => setLabelOpen(!labelOpen)}
+                  style={{ marginBottom: 7, marginTop: 8 }}
                   >
-                    <Text style={styles.label}>라벨: {selectedLabel}</Text>
-                  </Pressable>
-                  {labelOpen && (
-                    <View style={styles.labelList}>
-                      {LABELS.map((l) => (
-                        <Pressable
-                          key={l}
-                          onPress={() => {
-                            setSelectedLabel(l)
-                            setLabelOpen(false)
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.labelOption,
-                              selectedLabel === l && styles.selectedLabel,
-                            ]}
-                          >
-                            {l}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
+                    <Text style={styles.label}>
+                      라벨:{' '}
+                      {selectedLabelId
+                      ? labels.find((l) => l.id === selectedLabelId)?.title ?? '선택 없음'
+                      : '선택 없음'}
+                      </Text>
+                      </Pressable>
+                      {labelOpen && (
+                        <View style={styles.labelList}>
+                          {labels.map((l) => (
+                            <Pressable
+                            key={l.id}
+                            onPress={() => {
+                              setSelectedLabelId(l.id)
+                              setLabelOpen(false)
+                            }}
+                            >
+                              <Text
+                              style={[
+                                styles.labelOption,
+                                selectedLabelId === l.id && styles.selectedLabel,
+                              ]}
+                              >
+                                {l.title}
+                                </Text>
+                                </Pressable>
+                              ))}
+                              </View>
+                            )}
                   <View style={styles.sep} />
                   {/* 반복/알림 */}
                   <View style={styles.row}>
