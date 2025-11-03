@@ -627,7 +627,7 @@ function DraggableFlexalbeEvent({
           style={{
             color: '#000000',
             fontWeight: '600',
-            fontSize: 11,
+            fontSize: 13,
             lineHeight: 13,
           }}
         >
