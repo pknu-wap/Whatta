@@ -531,7 +531,7 @@ function DraggableTaskBox({
             height: 17,
             borderWidth: 2,
             borderColor: done ? '#333333' : '#333',
-            borderRadius: 6,
+            borderRadius: 3,
             marginRight: 12,
             justifyContent: 'center',
             alignItems: 'center',
@@ -627,7 +627,7 @@ function DraggableFlexalbeEvent({
           style={{
             color: '#000000',
             fontWeight: '600',
-            fontSize: 11,
+            fontSize: 13,
             lineHeight: 13,
           }}
         >
