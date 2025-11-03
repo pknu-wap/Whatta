@@ -99,11 +99,7 @@ export default function DayView() {
 
     // ✅ 첫 렌더 시 항상 실행
     updateNowTop(true)
-
-    // ✅ 1분마다 위치 업데이트 (스크롤은 하지 않음)
-    //const timer = setInterval(() => updateNowTop(false), 60 * 1000);
-
-    //return () => clearInterval(timer);
+    
   }, [])
 
   // ✅ 포커스 시 (다른 탭 갔다 돌아올 때도 중앙 보이게)
