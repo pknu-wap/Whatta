@@ -162,12 +162,30 @@ export default function DayView() {
     }
   }, [])
 
+  // 새 일정이 추가되면 즉시 재조회
+  useEffect(() => {
+    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
+      if (!payload?.item) return
+      const date =
+        payload.item.startDate ?? payload.item.date ?? payload.item.endDate ?? today()
+      const itemDateISO = date.slice(0, 10)
+
+      // 현재 anchorDate(일간뷰의 기준일)와 같으면 즉시 새로고침
+      if (itemDateISO === anchorDate) {
+        fetchDailyEvents(anchorDate)
+      }
+    }
+
+    bus.on('calendar:mutated', onMutated)
+    return () => bus.off('calendar:mutated', onMutated)
+  }, [anchorDate, fetchDailyEvents])
+
   // 2) 날짜가 바뀔 때마다 재조회: useEffect 한 개만
   useEffect(() => {
     fetchDailyEvents(anchorDate)
   }, [anchorDate, fetchDailyEvents])
 
-  // 🔗 헤더 동기화는 "포커스 상태에서만" 수행
+  // 헤더 동기화는 "포커스 상태에서만" 수행
   useFocusEffect(
     React.useCallback(() => {
       const onReq = () => bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
