@@ -14,9 +14,12 @@ export type Task = {
   id: string
   title: string
   content?: string
-  labels?: any
   completed: boolean
   sortNumber: number // 작을수록 위
+  labels?: any
+  placementDate?: string
+  placementTime?: string | null
+  dueDateTime?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -28,6 +31,33 @@ type SidebarPutBody = {
   completed: boolean
 }
 
+// 서버에서 받아온 raw를 내부 Task로 변환할 때
+function mapTask(d: any): Task {
+  return {
+    id: d.id ?? d._id ?? '',
+    title: d.title ?? '',
+    content: d.content ?? '',
+    completed: !!d.completed,
+    sortNumber: Number(d.sortNumber ?? 0),
+    // 시간 관련
+    placementDate: d.placementDate ?? null,
+    placementTime: d.placementTime ?? null,
+    dueDateTime: d.dueDateTime ?? null,
+    // 라벨
+    labels: d.labels?.labels ?? [],
+    createdAt: d.createdAt ?? null,
+    updatedAt: d.updatedAt ?? null,
+  }
+}
+
+function isTimelessTask(t: Task) {
+  // placementTime(예: "18:00:00")이나 dueDateTime(ISO)이 하나라도 있으면 시간 있음
+  const hasPlacementTime =
+    typeof t.placementTime === 'string' && t.placementTime.trim() !== ''
+  const hasDueDateTime = typeof t.dueDateTime === 'string' && t.dueDateTime.trim() !== ''
+  return !(hasPlacementTime || hasDueDateTime)
+}
+
 async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
   console.log('[SORT] send to server =>', { id: taskId, sortNumber: payload.sortNumber })
   return http.put(`/api/task/sidebar/${taskId}`, payload)
@@ -37,16 +67,7 @@ async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
 async function fetchTasksFromServer(): Promise<Task[]> {
   const res = await http.get('/api/task')
   const list = res?.data?.data ?? []
-  return list.map((d: any) => ({
-    id: d.id ?? d._id ?? '',
-    title: d.title,
-    content: d.content,
-    labels: d.labels,
-    completed: !!d.completed,
-    sortNumber: Number(d.sortNumber ?? 0),
-    createdAt: d.createdAt,
-    updatedAt: d.updatedAt,
-  })) as Task[]
+  return list.map(mapTask) as Task[]
 }
 
 const TOP_GAP = 1024 // 최상단/최하단 배치 시 충분히 큰 간격 확보용
@@ -182,11 +203,18 @@ export default function Sidebar() {
 
   // 예정/완료 분리 (sortNumber 오름차순: 작은 값이 위)
   const upcoming = useMemo(
-    () => tasks.filter((t) => !t.completed).sort((a, b) => a.sortNumber - b.sortNumber),
+    () =>
+      tasks
+        .filter((t) => !t.completed && isTimelessTask(t))
+        .sort((a, b) => a.sortNumber - b.sortNumber),
     [tasks],
   )
+
   const completed = useMemo(
-    () => tasks.filter((t) => t.completed).sort((a, b) => a.sortNumber - b.sortNumber),
+    () =>
+      tasks
+        .filter((t) => t.completed && isTimelessTask(t))
+        .sort((a, b) => a.sortNumber - b.sortNumber),
     [tasks],
   )
 
