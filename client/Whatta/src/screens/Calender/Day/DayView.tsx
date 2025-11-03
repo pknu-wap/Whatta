@@ -64,6 +64,10 @@ const INITIAL_CHECKS: any[] = [] // ✅ 기본값 빈 배열로 설정
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0시 ~ 24시
 
+const ROW_H = 48
+const PIXELS_PER_HOUR = ROW_H
+const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
+
 export default function DayView() {
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const [checks, setChecks] = useState(INITIAL_CHECKS)
@@ -81,8 +85,7 @@ export default function DayView() {
       const now = new Date()
       const hour = now.getHours()
       const min = now.getMinutes()
-      const elapsed = hour + min / 60
-      const topPos = elapsed * ROW_H
+      const topPos = (hour * 60 + min) * PIXELS_PER_MIN
       setNowTop(topPos)
 
       // ✅ 렌더 직후 바로 스크롤 (setTimeout 제거)
@@ -100,10 +103,6 @@ export default function DayView() {
     // ✅ 첫 렌더 시 항상 실행
     updateNowTop(true)
 
-    // ✅ 1분마다 위치 업데이트 (스크롤은 하지 않음)
-    //const timer = setInterval(() => updateNowTop(false), 60 * 1000);
-
-    //return () => clearInterval(timer);
   }, [])
 
   // ✅ 포커스 시 (다른 탭 갔다 돌아올 때도 중앙 보이게)
@@ -359,16 +358,23 @@ export default function DayView() {
                 <View style={[S.liveDot, { top: nowTop - 3 }]} />
               </>
             )}
-            {events.map((evt) => (
-              <DraggableFlexalbeEvent
-                key={evt.id}
-                title={evt.title}
-                place={`label ${evt.labels?.[0] ?? ''}`}
-                startHour={parseInt(evt.clippedStartTime.split(':')[0])}
-                endHour={parseInt(evt.clippedEndTime.split(':')[0])}
-                color={`#${evt.colorKey}`}
-              />
-            ))}
+            {events.map((evt) => {
+  const [sh, sm] = evt.clippedStartTime.split(':').map(Number)
+  const [eh, em] = evt.clippedEndTime.split(':').map(Number)
+  const startMin = sh * 60 + sm
+  const endMin = eh * 60 + em
+
+  return (
+    <DraggableFlexalbeEvent
+      key={evt.id}
+      title={evt.title}
+      place={`label ${evt.labels?.[0] ?? ''}`}
+      startMin={startMin}
+      endMin={endMin}
+      color={`#${evt.colorKey}`}
+    />
+  )
+})}
 
             {tasks.map((task) => {
               // ✅ placementTime 기준으로 시작 시각 계산
@@ -466,7 +472,6 @@ function DraggableFixedEvent() {
 type DraggableTaskBoxProps = {
   title: string
   startHour: number
-  color: string
   done?: boolean
 }
 
@@ -474,13 +479,8 @@ function DraggableTaskBox({
   title,
   startHour,
   done: initialDone = false,
-}: {
-  title: string
-  startHour: number
-  done?: boolean
-}) {
-  const ROW_H = 48
-  const translateY = useSharedValue(startHour * ROW_H)
+}: DraggableTaskBoxProps) {
+  const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
   const [done, setDone] = useState(initialDone)
 
@@ -490,10 +490,11 @@ function DraggableTaskBox({
       translateX.value += e.changeX
     })
     .onEnd(() => {
-      const snappedY = Math.round(translateY.value / ROW_H) * ROW_H
-      translateY.value = withSpring(snappedY)
-      translateX.value = withSpring(0)
-    })
+  const SNAP_UNIT = 5 * PIXELS_PER_MIN
+  const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+  translateY.value = withSpring(snappedY)
+  translateX.value = withSpring(0)
+})
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
@@ -572,30 +573,30 @@ function DraggableTaskBox({
 type DraggableFlexalbeEventProps = {
   title: string
   place: string
-  startHour: number
-  endHour: number
+  startMin: number
+  endMin: number
   color: string
 }
 
 function DraggableFlexalbeEvent({
   title,
   place,
-  startHour,
-  endHour,
+  startMin,
+  endMin,
   color,
 }: DraggableFlexalbeEventProps) {
-  const ROW_H = 48
-  const translateY = useSharedValue(startHour * ROW_H)
-  const height = (endHour - startHour) * ROW_H
+  const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
+  const height = (endMin - startMin) * PIXELS_PER_MIN
 
   const drag = Gesture.Pan()
     .onChange((e) => {
       translateY.value += e.changeY
     })
     .onEnd(() => {
-      const snapped = Math.round(translateY.value / ROW_H) * ROW_H
-      translateY.value = withSpring(snapped)
-    })
+  const SNAP_UNIT = 5 * PIXELS_PER_MIN
+  const snapped = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+  translateY.value = withSpring(snapped)
+})
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -613,7 +614,7 @@ function DraggableFlexalbeEvent({
             right: 16,
             height,
             backgroundColor,
-            paddingHorizontal: 4,
+            paddingHorizontal: 6,
             paddingTop: 10,
             borderRadius: 3,
             justifyContent: 'flex-start',
@@ -627,7 +628,7 @@ function DraggableFlexalbeEvent({
             color: '#000000',
             fontWeight: '600',
             fontSize: 11,
-            lineHeight: 10,
+            lineHeight: 13,
           }}
         >
           {title}
