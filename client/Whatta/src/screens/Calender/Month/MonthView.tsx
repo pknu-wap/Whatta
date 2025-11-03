@@ -617,7 +617,10 @@ interface TaskSummaryBoxProps {
 const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }) => {
   const dimmedStyle = !isCurrentMonth ? S.dimmedItem : null
   return (
-    <View style={[S.taskBoxNoCheckbox, S.taskBoxBordered, dimmedStyle]}>
+    <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
+      <View style={S.checkboxTouchArea}>
+        <View style={[S.checkboxBase, S.checkboxOff]} />
+      </View>
       <Text style={S.taskText} numberOfLines={1}>
         {`${count}개`}
       </Text>
