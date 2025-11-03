@@ -69,8 +69,6 @@ http.interceptors.response.use(
   }
 )
 
-console.log('✅ axios instance keys:', Object.keys(http))
-
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const today = () => {
   const t = new Date()
@@ -111,6 +109,8 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const ROW_H = 48
 const PIXELS_PER_HOUR = ROW_H
 const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
+
+let draggingEventId: string | null = null
 
 export default function DayView() {
   const [anchorDate, setAnchorDate] = useState<string>(today())
@@ -214,9 +214,11 @@ export default function DayView() {
         payload.item.startDate ?? payload.item.date ?? payload.item.endDate ?? today()
       const itemDateISO = date.slice(0, 10)
 
-      if (itemDateISO === anchorDate) {
-        fetchDailyEvents(anchorDate)
-      }
+      if (itemDateISO === anchorDate && payload.item.id !== draggingEventId) {
+     fetchDailyEvents(anchorDate)
+   } else {
+     draggingEventId = null
+   }
     }
 
     bus.on('calendar:mutated', onMutated)
@@ -637,6 +639,7 @@ function DraggableFlexalbeEvent({
   const dragStartY = useSharedValue(0)
 
   const handleDrop = useCallback(async (movedY: number) => {
+    draggingEventId = id
     try {
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
@@ -659,8 +662,6 @@ function DraggableFlexalbeEvent({
         endTime: fmt(newEnd),
       })
       
-
-      console.log('✅ 일정 이동 서버 반영 완료:', id)
       bus.emit('calendar:mutated', { op: 'update', item: { id } })
     } catch (err: any) {
       console.error('❌ 요청 설정 오류:', err.message)
@@ -668,13 +669,13 @@ function DraggableFlexalbeEvent({
   }, [])
 
   const drag = Gesture.Pan()
-    .onChange((e) => {
-      translateY.value += e.changeY
-    })
-    .onEnd(() => {
-      const movedY = translateY.value
-      runOnJS(handleDrop)(movedY)
-    })
+  .onChange((e) => {
+    translateY.value += e.changeY
+  })
+  .onEnd(() => {
+    const movedY = translateY.value
+    runOnJS(handleDrop)(movedY)
+  })
 
   const style = useAnimatedStyle(() => ({
     top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
