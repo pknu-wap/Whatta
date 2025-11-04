@@ -1,7 +1,7 @@
 import { token } from '@/lib/token'
 import { guestLogin } from '@/api/auth'
 import { getInstallationId } from '@/lib/uuid'
-import { ensureDefaultLabels } from '@/bootstrap/ensureDefaultLabels'
+import { ensureDefaultLabels } from '@/app/ensureDefaultLabels'
 import { bus } from '@/lib/eventBus'
 
 
@@ -11,6 +11,7 @@ export async function ensureAuthReady() {
     const iid = await getInstallationId()
     await guestLogin(iid)
   }
+  await onSignedIn()
 }
 
 async function onSignedIn() {
