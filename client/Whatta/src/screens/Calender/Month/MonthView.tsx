@@ -1188,7 +1188,7 @@ const cellWidth = (screenWidth - horizontalPadding) / 7
 const MIN_CELL_HEIGHT = 115
 
 const S = StyleSheet.create({
-  contentContainerWrapper: { flex: 1, paddingBottom: 20, paddingTop: 0 },
+  contentContainerWrapper: { flex: 1, paddingBottom: 0, paddingTop: 0 },
   contentArea: { flex: 1, paddingHorizontal: 6, paddingTop: 5 },
   scrollContentContainer: { paddingBottom: 20 },
   dayHeader: {
