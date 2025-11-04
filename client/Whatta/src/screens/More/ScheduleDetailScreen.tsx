@@ -1,4 +1,4 @@
-import React, { memo, useState, useRef } from 'react'
+import React, { memo, useState, useRef, useEffect } from 'react'
 import {
   View,
   Text,
@@ -214,6 +214,29 @@ export default function ScheduleDetailScreen() {
       hour12: true,
     })
 
+  // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
+  useEffect(() => {
+    const applyAnchor = (iso: string) => {
+      const [y, m, d] = iso.split('-').map(Number)
+      const anchor = new Date(y, m - 1, d)
+      setStart(anchor)
+      setEnd(anchor)
+    }
+
+    const onState = (st: { date: string; mode: 'day' | 'week' | 'month' }) => {
+      // 일간뷰일 때만 사용 (요구사항에 맞춤)
+      if (st?.mode === 'day' && typeof st?.date === 'string') {
+        applyAnchor(st.date)
+      }
+    }
+
+    // 현재 헤더 상태 요청 → 응답으로 start/end 세팅
+    bus.on('calendar:state', onState)
+    bus.emit('calendar:request-sync', null)
+
+    return () => bus.off('calendar:state', onState)
+  }, [])
+
   return (
     <>
       <Modal visible={visible} transparent animationType="slide">
@@ -254,14 +277,20 @@ export default function ScheduleDetailScreen() {
                       <Text style={[styles.colorDot, { color: selectedColor }]}>●</Text>
                     </Pressable>
 
-                    <TextInput
-                      ref={titleRef}
-                      placeholder="제목"
-                      placeholderTextColor="#B7B7B7"
-                      style={styles.titleInput}
-                      value={scheduleTitle}
-                      onChangeText={setScheduleTitle}
-                    />
+                    <Pressable
+                      onPress={() => titleRef.current?.focus()}
+                      style={{ flex: 1, justifyContent: 'center', minHeight: 36 }}
+                      hitSlop={10} // 살짝 여유
+                    >
+                      <TextInput
+                        ref={titleRef}
+                        placeholder="제목"
+                        placeholderTextColor="#B7B7B7"
+                        style={[styles.titleInput, { paddingVertical: 8 }]}
+                        value={scheduleTitle}
+                        onChangeText={setScheduleTitle}
+                      />
+                    </Pressable>
                   </View>
                   {/* 색상 선택 */}
                   {showPalette && (
