@@ -94,7 +94,12 @@ export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
   })
 
   return inRange.map((t: any) => {
-    const labelId = (t?.labels?.labels?.[0]?.id ?? '').toString()
+    const labelId = (
+      t?.labelId ??
+      t?.labels?.labels?.[0]?.id ?? // { labels: { labels: [{id}] } }
+      t?.labels?.[0]?.id ?? // { labels: [{id}] }
+      t?.labels?.[0]
+    ).toString()
 
     return {
       id: String(t.id ?? t._id ?? ''),

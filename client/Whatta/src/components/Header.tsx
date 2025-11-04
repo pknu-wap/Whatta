@@ -7,7 +7,12 @@ import {
   Animated,
   PanResponder,
 } from 'react-native'
-import AnimatedRe, { interpolateColor, useAnimatedProps } from 'react-native-reanimated'
+import AnimatedRe, {
+  interpolateColor,
+  useAnimatedProps,
+  useAnimatedStyle,
+  interpolate,
+} from 'react-native-reanimated'
 import { useDrawer } from '@/providers/DrawerProvider'
 import CalendarModal from '@/components/CalendarModal'
 import Menu from '@/assets/icons/menu.svg'
@@ -94,12 +99,18 @@ const addMonthsToStart = (iso: string, dm: number) => {
 }
 
 export default function Header() {
-  const { progress, toggle } = useDrawer()
+  const { progress, toggle, close } = useDrawer()
   const navigation = useNavigation<any>()
 
   const [calVisible, setCalVisible] = useState(false)
   const [popup, setPopup] = useState(false)
   const [mode, setMode] = useState<ViewMode>('month') // 외부에서 바뀌면 구독으로 반영
+
+  // 사이드바 열렸을 때만 헤더 전체를 탭 캐치
+  const headerCatcherStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
+    pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
+  }))
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
@@ -160,9 +171,9 @@ export default function Header() {
   // ✅ 라벨 목록 (시간표 제거)
   const [labels, setLabels] = useState([
     { id: '1', name: '과제', color: '#B04FFF', enabled: true },
-    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
-    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
-    { id: '5', name: '수업', color: '#B04FFF', enabled: true },
+    { id: '2', name: '약속', color: '#B04FFF', enabled: true },
+    { id: '3', name: '동아리', color: '#B04FFF', enabled: true },
+    { id: '4', name: '수업', color: '#B04FFF', enabled: true },
   ])
 
   // ✅ toggle logic (즉시 적용)
@@ -249,6 +260,11 @@ export default function Header() {
           />
         </TouchableOpacity>
       </View>
+      <AnimatedRe.View
+        style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}
+      >
+        <TouchableOpacity style={{ flex: 1 }} onPress={close} />
+      </AnimatedRe.View>
 
       {/* 필터 팝업 */}
       {popup && (
@@ -318,8 +334,8 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     lineHeight: 23,
     letterSpacing: -0.4,
   },
@@ -364,10 +380,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 9,
   },
-  allText: { fontSize: 12, marginLeft: 16 },
+  allText: { fontSize: 14, marginLeft: 16 },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
   colorDot: { width: 5, height: 12, marginRight: 4 },
-  labelText: { fontSize: 12 },
+  labelText: { fontSize: 14 },
   divider: { width: 126, height: 1, backgroundColor: '#e1e1e1', alignSelf: 'center' },
 
   switchTrack: {

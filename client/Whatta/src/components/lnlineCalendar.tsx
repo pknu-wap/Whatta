@@ -8,7 +8,7 @@ type Props = {
   minDate?: string
   maxDate?: string
   onSelect: (d: Date) => void
-  height?: number
+  dayRowHeight?: number
 }
 
 export default function InlineCalendar({
@@ -17,22 +17,55 @@ export default function InlineCalendar({
   minDate,
   maxDate,
   onSelect,
-  height = 258,
+  dayRowHeight = 44, // 줄 높이 기본값
 }: Props) {
-  const animH = useRef(new Animated.Value(open ? height : 0)).current
-  const [containerWidth, setContainerWidth] = useState(0)
+  const toYMD = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+  const weeksInMonth = (y: number, m0: number) => {
+    // m0 0=1월
+    const first = new Date(y, m0, 1)
+    const dow = first.getDay() // 일=0, 월=1
+    const days = new Date(y, m0 + 1, 0).getDate()
+    return Math.max(4, Math.min(6, Math.ceil((dow + days) / 7))) // 4~6로 클램프
+  }
+
+  // 동적 높이 계산(헤더는 숨김, 요일행 + 날짜행*주수 + 여백)
+  const WEEKDAY_H = 24
+  const V_PAD = 8
+  const computePanelH = (d: Date) =>
+    WEEKDAY_H + weeksInMonth(d.getFullYear(), d.getMonth()) * dayRowHeight + V_PAD
+
+  const [containerWidth, setContainerWidth] = useState(0)
+  const [panelH, setPanelH] = useState<number>(computePanelH(value))
+
+  // 보이는 달이 바뀔 때마다 주 수 반영
+  const handleVisibleMonths = (arr: { dateString: string }[]) => {
+    // 첫 번째 보이는 달 기준
+    const ds = arr?.[0]?.dateString // 'YYYY-MM-DD'
+    if (!ds) return
+    const [Y, M] = ds.split('-').map(Number)
+    const d = new Date(Y, M - 1, 1)
+    const nextH = computePanelH(d)
+    if (nextH !== panelH) setPanelH(nextH)
+  }
+
+  // 애니메이션 높이
+  const animH = useRef(new Animated.Value(open ? panelH : 0)).current
   useEffect(() => {
     Animated.timing(animH, {
-      toValue: open ? height : 0,
+      toValue: open ? panelH : 0,
       duration: 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start()
-  }, [open, height])
+  }, [open, panelH])
 
-  const toYMD = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // 선택 날짜가 다른 달로 넘어가면 높이 재계산
+  useEffect(() => {
+    const next = computePanelH(value)
+    if (next !== panelH) setPanelH(next)
+  }, [value])
 
   const marked = useMemo(
     () => ({ [toYMD(value)]: { selected: true, selectedColor: '#7A4CFF' } }),
@@ -49,8 +82,8 @@ export default function InlineCalendar({
       style={[styles.wrap, { height: animH }]}
       pointerEvents={open ? 'auto' : 'none'}
     >
-      {/* 부모 실제 너비를 측정 */}
-      <View style={{ height, width: '100%' }} onLayout={onLayout}>
+      {/* 내부 캔버스는 현재 패널 높이를 그대로 사용 */}
+      <View style={{ height: panelH, width: '100%' }} onLayout={onLayout}>
         {containerWidth > 0 && (
           <CalendarList
             horizontal
@@ -66,8 +99,9 @@ export default function InlineCalendar({
             renderHeader={() => <View />} // 헤더 제거
             markedDates={marked}
             onDayPress={(d: DateData) => onSelect(new Date(d.year, d.month - 1, d.day))}
-            calendarWidth={containerWidth} // 페이지 폭을 모달 폭으로
-            calendarHeight={height}
+            onVisibleMonthsChange={handleVisibleMonths} // ★ 보이는 달 바뀔 때 높이 갱신
+            calendarWidth={containerWidth}
+            calendarHeight={panelH} // ★ 달마다 높이 반영
             style={[styles.calStyle, { width: containerWidth }]}
             theme={{
               todayTextColor: '#7A4CFF',
@@ -85,10 +119,7 @@ export default function InlineCalendar({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    overflow: 'hidden',
-    marginTop: 6,
-  },
+  wrap: { overflow: 'hidden', marginTop: 0 },
   calStyle: {
     borderWidth: 0,
     elevation: 0,

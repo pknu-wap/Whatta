@@ -1,23 +1,32 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useRef } from 'react'
 import { StyleSheet, View, Pressable, Dimensions } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import Animated, { interpolate, useAnimatedStyle, useAnimatedProps } from 'react-native-reanimated' 
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useAnimatedProps,
+} from 'react-native-reanimated'
 import { useDrawer } from '@/providers/DrawerProvider'
 import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
+import { bus } from '@/lib/eventBus'
+import { useNavigation } from '@react-navigation/native'
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 
 import colors from '@/styles/colors'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
 const BASE_HEADER_H = 58
+const Tab = createBottomTabNavigator()
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
   const { progress, width: sbWidth, close } = useDrawer()
   const insets = useSafeAreaInsets()
   const headerTotalH = useMemo(() => BASE_HEADER_H + insets.top, [insets.top])
-
   const screenWidth = useMemo(() => Dimensions.get('window').width, [])
+  const navigation = useNavigation<any>()
+  const drawerOpenRef = useRef(false)
 
   /** ✅ 콘텐츠 밀림 및 축소 애니메이션 */
   const contentStyle = useAnimatedStyle(() => {
@@ -59,10 +68,15 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   }))
 
   /** ✅ 오버레이 클릭 감지 (tap catcher) */
-  const tapCatcherStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
-    pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
-  }))
+  const tapCatcherStyle = useAnimatedStyle(() => {
+    const opened = progress.value > 0.01
+    return {
+      opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
+      pointerEvents: opened ? 'auto' : 'none',
+      // 사이드바가 열릴수록 오버레이의 왼쪽 경계를 '사이드바 너비'만큼 밀기
+      left: interpolate(progress.value, [0, 1], [0, sbWidth]),
+    }
+  })
 
   return (
     <View
@@ -74,11 +88,16 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
         {children}
       </Animated.View>
 
-      {/* ✅ 사이드바가 열렸을 때 화면 클릭 시 닫기 */}
       <Animated.View
-        style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 30 }]}
+        style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 30 }]} // ⬅️ 30 → 100
       >
-        <Pressable style={{ flex: 1 }} onPress={close} />
+        <Pressable
+          style={{ flex: 1 }}
+          onPress={() => {
+            close()
+            bus.emit('drawer:close') // ⬅️ 닫힘 방송
+          }}
+        />
       </Animated.View>
 
       {/* ✅ 사이드바 영역 */}

@@ -11,11 +11,13 @@ type Ctx = {
   selectedDate: string // 'YYYY-MM-DD'
   setSelectedDate: (iso: string) => void
   setMonth: (ym: string) => void // 'YYYY-MM-01' 같은 월 기준 변경
+  isOpen: boolean
 }
 
 const Ctx = createContext<Ctx | null>(null)
 
 export const DrawerProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [isOpen, setIsOpen] = useState(false)
   const width = Math.round(Dimensions.get('window').width * 0.55)
   const progress = useSharedValue(0)
 
@@ -26,13 +28,17 @@ export const DrawerProvider: React.FC<React.PropsWithChildren> = ({ children }) 
   const [selectedDate, setSelectedDate] = useState<string>(today())
 
   const open = () => {
+    setIsOpen(true)
     progress.value = withTiming(1, { duration: 220 })
   }
   const close = () => {
+    setIsOpen(false)
     progress.value = withTiming(0, { duration: 220 })
   }
   const toggle = () => {
-    progress.value = withTiming(progress.value ? 0 : 1, { duration: 220 })
+    const next = !isOpen
+    setIsOpen(next)
+    progress.value = withTiming(next ? 1 : 0, { duration: 220 })
   }
 
   const setMonth = (ym: string) => {
@@ -50,8 +56,9 @@ export const DrawerProvider: React.FC<React.PropsWithChildren> = ({ children }) 
       selectedDate,
       setSelectedDate,
       setMonth,
+      isOpen,
     }),
-    [width, selectedDate],
+    [width, selectedDate, isOpen],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
