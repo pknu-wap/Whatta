@@ -538,38 +538,50 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
   if (schedule.multiDayStart && schedule.multiDayEnd) {
     // 오늘 셀 기준 정보
     const dayISO = currentDateISO
+
+    // 오늘이 일정 구간 안에 포함되는지
     const isWithinRange =
-      currentDateISO >= schedule.multiDayStart && currentDateISO <= schedule.multiDayEnd
-    const showTitle = isWithinRange && currentDateISO === schedule.multiDayStart
+      dayISO >= schedule.multiDayStart && dayISO <= schedule.multiDayEnd
+    const showTitle = isWithinRange && dayISO === schedule.multiDayStart
 
     // 오늘과 전날이 이벤트 구간에 포함되는지
     const inToday = dayISO >= schedule.multiDayStart && dayISO <= schedule.multiDayEnd
-    const prevISO = new Date(dayISO)
-    prevISO.setDate(prevISO.getDate() - 1)
-    const prevStr = prevISO.toISOString().slice(0, 10)
-    const inPrev = prevStr >= schedule.multiDayStart && prevStr <= schedule.multiDayEnd
 
-    // "이번 주 행"에서의 세그먼트 시작(바로 전날은 구간 밖, 오늘은 구간 안)
-    const isRowStart = inToday && !inPrev
+    // 날짜 비교용 함수 (UTC 변환 없이 yyyy-mm-dd 반환)
+    const toLocalISO = (d: Date) => {
+      return (
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0')
+      )
+    }
+
+    const cur = new Date(dayISO + 'T00:00:00')
+    const prev = new Date(cur)
+    prev.setDate(prev.getDate() - 1)
+    const prevStr = toLocalISO(prev)
+    const inPrev = prevStr >= schedule.multiDayStart && prevStr <= schedule.multiDayEnd
+    const dow = cur.getDay() // 일요일 = 0
+    const isRowStart = inToday && (!inPrev || dow === 0)
+
     if (!isRowStart) {
-      // 행의 중간 칸들은 별도 렌더링하지 않습니다(중복 생성 방지)
+      // 행의 중간 칸들은 중복 렌더링 방지
       return <View style={S.laneSpacer} />
     }
 
     // 이 행(주) 안에서 덮을 칸 수 계산
-    // 오늘 요일 인덱스: 일(0)~토(6)
-    const d = new Date(dayISO)
-    const dow = d.getDay()
     const spanToWeekEnd = 7 - dow
-    // 이벤트 종료일까지 남은 칸 수
-    const end = new Date(schedule.multiDayEnd)
-    const daysDiff = Math.floor((end.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const end = new Date(schedule.multiDayEnd + 'T00:00:00')
+    const daysDiff =
+      Math.floor((end.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
     const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
-    // 이번 주에 남은 칸 수
     const reachWeekEnd = colSpan === spanToWeekEnd
 
     const { primary: baseColor, light: lightColor } = colorsFromKey(schedule.colorKey)
+
     const isRealStart = dayISO === schedule.multiDayStart
     const isRealEndInThisRow = colSpan === daysDiff // 이번 행에서 종료에 닿는지
 
@@ -578,11 +590,12 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
       colSpan * cellWidth -
       EVENT_HPAD * 2 +
       (isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0)
-
     const segPosStyle = reachWeekEnd
-      ? { left: -1, right: 0 } // 토요일 포함, 주의 끝까지 정확히 붙임
+      ? { left: -1, right: 0 } // 토요일까지 꽉 채움
       : { left: -EVENT_HPAD, width: width }
 
+    // 이 행(주) 안에서 덮을 칸 수 계산
+    // 오늘 요일 인덱스: 일(0)~토(6)
     return (
       <View style={[S.multiDayContainer, !isCurrentMonth ? S.dimmedItem : null]}>
         <View
