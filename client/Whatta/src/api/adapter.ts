@@ -42,6 +42,16 @@ export type ScheduleData = {
   sortTime?: string // 'HH:mm' (Task 정렬용)
 }
 
+//임시 추가 -> 추후 삭제 및 추가 예정
+const pickLabelId = (src: any): string => {
+  const anyId =
+    src?.labelId ??
+    src?.labels?.[0]?.id ??
+    src?.labels?.[0] ??
+    ''
+  return String(anyId ?? '')
+}
+
 // payload.days(단일) + payload.spanEvents(멀티데이) → ScheduleData[]
 export function adaptMonthlyToSchedules(payload: MonthlyPayload): ScheduleData[] {
   const singles: ScheduleData[] = (payload?.days ?? []).flatMap((d) =>
@@ -51,7 +61,7 @@ export function adaptMonthlyToSchedules(payload: MonthlyPayload): ScheduleData[]
       date: String(d.date),
       isRecurring: !!ev.isRepeat,
       isTask: false,
-      labelId: '',
+      labelId: pickLabelId(ev), //수정
       isCompleted: false,
     })),
   )
@@ -62,7 +72,7 @@ export function adaptMonthlyToSchedules(payload: MonthlyPayload): ScheduleData[]
     date: String(se.startDate),
     isRecurring: false,
     isTask: false,
-    labelId: '',
+    labelId: pickLabelId(se),
     isCompleted: false,
     multiDayStart: String(se.startDate),
     multiDayEnd: String(se.endDate),
