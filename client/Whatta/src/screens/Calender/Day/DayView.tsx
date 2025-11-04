@@ -588,8 +588,8 @@ function DraggableTaskBox({
         style={[
           {
             position: 'absolute',
-            left: 50 + 19,
-            right: 19,
+            left: 50 + 18,
+            right: 18,
             height: ROW_H - 4,
             backgroundColor: '#FFFFFF80',
             borderWidth: 0.4,
@@ -747,7 +747,7 @@ function DraggableFlexalbeEvent({
             color: '#000000',
             fontWeight: '600',
             fontSize: 13,
-            lineHeight: 13,
+            lineHeight: 15,
           }}
         >
           {title}
