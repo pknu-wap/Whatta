@@ -33,10 +33,10 @@ const SCHEDULE_COLOR = '#B04FFF'
 // 단일 일정 및 멀티데이(기간이 긴 일정) 바 배경색
 const SCHEDULE_LIGHT_COLOR = '#E5CCFF'
 
-const CHECKBOX_SIZE = 6
+const CHECKBOX_SIZE = 9
 
-const SCHEDULE_BOX_HEIGHT = 12
-const TASK_BOX_HEIGHT = 12
+const SCHEDULE_BOX_HEIGHT = 17
+const TASK_BOX_HEIGHT = 17
 const ITEM_MARGIN_VERTICAL = 2
 const EVENT_AREA_PADDING_TOP = 5
 const SINGLE_SCHEDULE_BORDER_WIDTH = 5
@@ -144,7 +144,7 @@ interface CalendarDateItem {
 // --------------------------------------------------------------------
 const ts = (styleName: string): any => {
   if (styleName === 'monthDate') {
-    return { fontSize: 12 }
+    return { fontSize: 15 }
   }
   return {}
 }
@@ -527,7 +527,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
         </View>
 
         {/* 타이틀 */}
-        <Text style={S.taskText} numberOfLines={1} ellipsizeMode="tail">
+        <Text style={S.taskText} numberOfLines={1} ellipsizeMode="clip">
           {schedule.name}
         </Text>
       </View>
@@ -536,49 +536,78 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
 
   // 2) Multi-day
   if (schedule.multiDayStart && schedule.multiDayEnd) {
-    const isSpan = true
-    const isStart = isSpan && currentDateISO === schedule.multiDayStart
-    const isEnd = isSpan && currentDateISO === schedule.multiDayEnd
+    // 오늘 셀 기준 정보
+    const dayISO = currentDateISO
+    const isWithinRange =
+      currentDateISO >= schedule.multiDayStart && currentDateISO <= schedule.multiDayEnd
+    const showTitle = isWithinRange && currentDateISO === schedule.multiDayStart
 
-    const baseLeft = -EVENT_HPAD
-    const baseRight = -EVENT_HPAD
+    // 오늘과 전날이 이벤트 구간에 포함되는지
+    const inToday = dayISO >= schedule.multiDayStart && dayISO <= schedule.multiDayEnd
+    const prevISO = new Date(dayISO)
+    prevISO.setDate(prevISO.getDate() - 1)
+    const prevStr = prevISO.toISOString().slice(0, 10)
+    const inPrev = prevStr >= schedule.multiDayStart && prevStr <= schedule.multiDayEnd
 
-    const ml = baseLeft + (isStart ? MULTI_LEFT_GAP : 0)
-    const mr = baseRight + (isEnd ? MULTI_RIGHT_GAP : 0)
+    // "이번 주 행"에서의 세그먼트 시작(바로 전날은 구간 밖, 오늘은 구간 안)
+    const isRowStart = inToday && !inPrev
+    if (!isRowStart) {
+      // 행의 중간 칸들은 별도 렌더링하지 않습니다(중복 생성 방지)
+      return <View style={S.laneSpacer} />
+    }
+
+    // 이 행(주) 안에서 덮을 칸 수 계산
+    // 오늘 요일 인덱스: 일(0)~토(6)
+    const d = new Date(dayISO)
+    const dow = d.getDay()
+    const spanToWeekEnd = 7 - dow
+    // 이벤트 종료일까지 남은 칸 수
+    const end = new Date(schedule.multiDayEnd)
+    const daysDiff = Math.floor((end.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
+    // 이번 주에 남은 칸 수
+    const reachWeekEnd = colSpan === spanToWeekEnd
+
+    const { primary: baseColor, light: lightColor } = colorsFromKey(schedule.colorKey)
+    const isRealStart = dayISO === schedule.multiDayStart
+    const isRealEndInThisRow = colSpan === daysDiff // 이번 행에서 종료에 닿는지
+
+    // 가로 폭 계산
+    const width =
+      colSpan * cellWidth -
+      EVENT_HPAD * 2 +
+      (isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0)
+
+    const segPosStyle = reachWeekEnd
+      ? { left: -1, right: 0 } // 토요일 포함, 주의 끝까지 정확히 붙임
+      : { left: -EVENT_HPAD, width: width }
 
     return (
-      <View style={[S.multiDayContainer, dimmedStyle]}>
+      <View style={[S.multiDayContainer, !isCurrentMonth ? S.dimmedItem : null]}>
         <View
           style={[
-            S.multiBarBase,
+            S.multiSegAbs,
+            segPosStyle,
             {
+              width,
               backgroundColor: lightColor,
-              marginLeft: ml,
-              marginRight: baseRight + (isEnd ? MULTI_RIGHT_GAP : 0),
-              paddingRight: isEnd ? CAP_W : 0,
-            },
-
-            // 시작일: 왼쪽 캡 + 텍스트 패딩
-            isStart && {
-              borderLeftWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
+              // 시작/종료 캡과 패딩
+              borderLeftWidth: isRealStart ? SINGLE_SCHEDULE_BORDER_WIDTH : 0,
+              borderRightWidth: isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0,
               borderColor: baseColor,
-              borderTopLeftRadius: 3,
-              borderBottomLeftRadius: 3,
-              paddingLeft: TEXT_HORIZONTAL_PADDING,
-            },
-
-            // 종료일: 오른쪽 캡 + 텍스트 패딩
-            isEnd && {
-              borderRightWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
-              borderColor: baseColor,
-              borderTopRightRadius: 3,
-              borderBottomRightRadius: 3,
-              paddingRight: TEXT_HORIZONTAL_PADDING,
+              borderTopLeftRadius: isRealStart ? 3 : 0,
+              borderBottomLeftRadius: isRealStart ? 3 : 0,
+              borderTopRightRadius: isRealEndInThisRow ? 3 : 0,
+              borderBottomRightRadius: isRealEndInThisRow ? 3 : 0,
+              paddingLeft: isRealStart ? TEXT_HORIZONTAL_PADDING : 4,
+              paddingRight: isRealEndInThisRow ? TEXT_HORIZONTAL_PADDING : 4,
             },
           ]}
         >
-          {isStart ? (
-            <Text numberOfLines={1} ellipsizeMode="tail" style={S.multiBarText}>
+          {/* 제목은 “진짜 시작일” 칸에서만 한 번 표시 */}
+          {isRealStart ? (
+            <Text numberOfLines={1} ellipsizeMode="clip" style={S.multiBarText}>
               {schedule.name}
             </Text>
           ) : null}
@@ -586,11 +615,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
       </View>
     )
   }
-
   // 3) 단일 / 반복
-  const isRecurring = schedule.isRecurring
-  const isTodaySingle = schedule.date === currentDateISO
-
   return (
     <View
       style={[
@@ -602,7 +627,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
       <Text
         style={[S.scheduleText, { color: labelColor }]}
         numberOfLines={1}
-        ellipsizeMode="tail"
+        ellipsizeMode="clip"
       >
         {schedule.name}
       </Text>
@@ -1053,13 +1078,6 @@ export default function MonthView() {
                       activeOpacity={isCurrentMonth ? 0.7 : 1}
                       disabled={!isCurrentMonth}
                     >
-                      <View
-                        style={[
-                          S.ringBase,
-                          isFocusedThis ? S.focusRing : null,
-                          !isFocusedThis && dateItem.isToday ? S.todayRing : null,
-                        ]}
-                      />
                       {/* 날짜 번호 및 스타일 */}
                       <View style={S.dateNumberWrapper}>
                         {dateItem.isToday ? <View style={S.todayRoundedSquare} /> : null}
@@ -1175,12 +1193,12 @@ const S = StyleSheet.create({
   scrollContentContainer: { paddingBottom: 20 },
   dayHeader: {
     flexDirection: 'row',
-    marginBottom: 0,
-    marginTop: 4,
+    marginBottom: 5,
+    marginTop: 2,
     paddingHorizontal: 6,
   },
   dayCellFixed: { width: cellWidth, alignItems: 'center' },
-  dayTextBase: { textAlign: 'center', color: '#333', fontWeight: '600', fontSize: 12 },
+  dayTextBase: { textAlign: 'center', color: '#333', fontWeight: '600', fontSize: 15 },
   sunText: { color: 'red' },
   satText: { color: 'blue' },
 
@@ -1246,10 +1264,10 @@ const S = StyleSheet.create({
   holidayDateText: { color: 'red' },
   todayRoundedSquare: {
     position: 'absolute',
-    width: 12,
-    height: 12,
+    width: 18,
+    height: 18,
     borderRadius: 4,
-    top: 3.2,
+    top: 1,
     left: 3,
     backgroundColor: 'rgba(176, 79, 255, 0.15)',
     zIndex: 1,
@@ -1271,6 +1289,7 @@ const S = StyleSheet.create({
     alignItems: 'flex-start',
     paddingHorizontal: 0,
     marginBottom: ITEM_MARGIN_VERTICAL,
+    overflow: 'hidden',
   },
   //  반복 일정: 진한 보라색 배경
   recurringSchedule: {
@@ -1297,8 +1316,8 @@ const S = StyleSheet.create({
     borderColor: SCHEDULE_COLOR,
   },
   scheduleText: {
-    fontSize: 8,
-    fontWeight: '500',
+    fontSize: 10.5,
+    fontWeight: '700',
     textAlign: 'left',
     lineHeight: SCHEDULE_BOX_HEIGHT,
   },
@@ -1367,7 +1386,7 @@ const S = StyleSheet.create({
   },
   // Task 텍스트 스타일
   taskText: {
-    fontSize: 8,
+    fontSize: 12,
     color: '#333',
     fontWeight: '500',
     flex: 1,
@@ -1387,6 +1406,7 @@ const S = StyleSheet.create({
     height: SCHEDULE_BOX_HEIGHT,
     justifyContent: 'center',
     overflow: 'visible',
+    position: 'relative',
   },
   multiBarBase: {
     height: SCHEDULE_BOX_HEIGHT,
@@ -1414,9 +1434,9 @@ const S = StyleSheet.create({
     paddingRight: TEXT_HORIZONTAL_PADDING,
   },
   multiBarText: {
-    fontSize: 9,
+    fontSize: 12,
     color: '#000',
-    fontWeight: '500',
+    fontWeight: '600',
     lineHeight: SCHEDULE_BOX_HEIGHT,
   },
   multiStartContainer: {},
@@ -1436,4 +1456,13 @@ const S = StyleSheet.create({
 
   laneRow: { marginBottom: ITEM_MARGIN_VERTICAL },
   laneRowLast: { marginBottom: 0 },
+
+  multiSegAbs: {
+    position: 'absolute',
+    left: -EVENT_HPAD, // 셀 좌측 여백 보정
+    top: 0, // 멀티데이 줄의 상단에 맞춤
+    height: SCHEDULE_BOX_HEIGHT,
+    justifyContent: 'center',
+    zIndex: 10,
+  },
 })

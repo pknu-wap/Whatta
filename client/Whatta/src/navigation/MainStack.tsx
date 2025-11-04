@@ -22,7 +22,7 @@ import DayIcon from '@/assets/icons/day.svg'
 import TaskIcon from '@/assets/icons/task.svg'
 import colors from '@/styles/colors'
 
-const TAB_BAR_H = 100
+const TAB_BAR_H = 83
 const Tab = createBottomTabNavigator()
 
 type RootStackParamList = {
@@ -45,7 +45,7 @@ export default function MainTabs() {
         {...rest}
         onPress={(e) => {
           if (isOpen) {
-            // ✅ 열려 있으면: 이동 막고 닫기만
+            // 열려 있으면: 이동 막고 닫기만
             close()
             return
           }
@@ -75,12 +75,12 @@ export default function MainTabs() {
             headerShown: false,
             tabBarStyle: {
               height: TAB_BAR_H,
-              paddingTop: 12,
+              paddingTop: 3,
             },
             tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
             tabBarActiveTintColor: colors.primary.main,
             tabBarInactiveTintColor: colors.icon.default,
-            tabBarLabelStyle: { fontSize: 12, textAlign: 'center' },
+            tabBarLabelStyle: { fontSize: 12, textAlign: 'center', marginTop: -2 },
             tabBarButton: (p) => <GuardedTabButton {...p} />,
           }}
         >
