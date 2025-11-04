@@ -160,9 +160,9 @@ export default function Header() {
   // ✅ 라벨 목록 (시간표 제거)
   const [labels, setLabels] = useState([
     { id: '1', name: '과제', color: '#B04FFF', enabled: true },
-    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
-    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
-    { id: '5', name: '수업', color: '#B04FFF', enabled: true },
+    { id: '2', name: '약속', color: '#B04FFF', enabled: true },
+    { id: '3', name: '동아리', color: '#B04FFF', enabled: true },
+    { id: '4', name: '수업', color: '#B04FFF', enabled: true },
   ])
 
   // ✅ toggle logic (즉시 적용)
