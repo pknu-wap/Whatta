@@ -14,7 +14,8 @@
     },
     "ios": {
       "bundleIdentifier": "com.whatta.whatta",
-      "buildNumber": "1",
+      "buildNumber": "4",
+      "updates": { "enabled": false },
       "supportsTablet": true,
       "infoPlist": {
         "NSCalendarsUsageDescription": "캘린더 일정을 표시하기 위해 사용합니다.",
@@ -33,14 +34,17 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-font",
-      "expo-secure-store"
-    ],
+    "plugins": ["expo-font", "expo-secure-store"],
     "extra": {
       "eas": {
         "projectId": "b9f60a36-178c-4e7d-a143-d6ee718eb26d"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b9f60a36-178c-4e7d-a143-d6ee718eb26d"
     }
   }
 }
