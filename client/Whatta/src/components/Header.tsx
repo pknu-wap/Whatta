@@ -126,6 +126,17 @@ export default function Header() {
     return () => bus.off('calendar:state', onState)
   }, [])
 
+  // ✅ 외부에서 "필터닫기" 요청 수신
+  useEffect(() => {
+    const closeFilter = () => setPopup(false) // 필터창 닫기
+    bus.on('header:close-filter', closeFilter)
+    return () => bus.off('header:close-filter', closeFilter)
+  }, [])
+   // ✅ 필터 열림/닫힘 상태 브로드캐스트 (하단바에서 참조)
+  useEffect(() => {
+    bus.emit('filter:state', popup)
+  }, [popup])
+
   // 'YYYY-MM-DD' -> Date
   const toDate = (iso: string) => {
     const [y, m, d] = iso.split('-').map(Number)
@@ -215,10 +226,19 @@ export default function Header() {
   }))
 
   return (
-    <View style={styles.root}>
-      {/* Header 영역 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={toggle}>
+  <TouchableOpacity
+    activeOpacity={1}
+    style={styles.root}
+    onPress={() => {
+      if (popup) setPopup(false) // ✅ 필터가 켜져 있으면 헤더 아무 곳이나 눌러도 닫기
+    }}
+  >
+    {/* Header 영역 */}
+    <View style={styles.header}>
+
+        <TouchableOpacity
+        onPress={popup ? () => setPopup(false) : toggle}  // ✅ 사이드바 열기
+        >
           <AnimatedMenu width={28} height={28} animatedProps={menuIconProps} />
         </TouchableOpacity>
 
@@ -228,13 +248,14 @@ export default function Header() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => setCalVisible(true)}
-            style={styles.titleContainer}
+          onPress={() => setCalVisible(true)}
+          disabled={popup}
+          style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={goNext}>
+          <TouchableOpacity onPress={goNext} disabled={popup}>
             <Right
               width={24}
               height={24}
@@ -310,7 +331,7 @@ export default function Header() {
         currentDate={anchorDate}
         onSelectDate={(iso) => bus.emit('calendar:set-date', iso)}
       />
-    </View>
+    </TouchableOpacity>
   )
 }
 
