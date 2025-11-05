@@ -1,11 +1,7 @@
-import React, { useMemo, useEffect, useRef } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { StyleSheet, View, Pressable, Dimensions } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import Animated, {
-  interpolate,
-  useAnimatedStyle,
-  useAnimatedProps,
-} from 'react-native-reanimated'
+import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated'
 import { useDrawer } from '@/providers/DrawerProvider'
 import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
@@ -21,12 +17,51 @@ const BASE_HEADER_H = 58
 const Tab = createBottomTabNavigator()
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
-  const { progress, width: sbWidth, close } = useDrawer()
+  const { progress, width: sbWidth, close, isOpen } = useDrawer()
+  const CLOSE_ANIM_MS = 220
   const insets = useSafeAreaInsets()
   const headerTotalH = useMemo(() => BASE_HEADER_H + insets.top, [insets.top])
   const screenWidth = useMemo(() => Dimensions.get('window').width, [])
-  const navigation = useNavigation<any>()
-  const drawerOpenRef = useRef(false)
+  const navigation = useNavigation()
+
+  // 닫고 -> 실행 훅
+  useEffect(() => {
+    const handler = (fn: () => void) => {
+      if (!isOpen) {
+        fn()
+        return
+      }
+      close()
+      setTimeout(() => {
+        try {
+          fn()
+        } catch (e) {
+          console.warn(e)
+        }
+      }, CLOSE_ANIM_MS)
+    }
+    bus.on('drawer:close-then', handler)
+    return () => bus.off('drawer:close-then', handler)
+  }, [isOpen, close])
+
+  // 탭 전환 가로채기
+  useEffect(() => {
+    const unsub = (navigation as any)?.addListener?.('tabPress', (e: any) => {
+      if (!isOpen) return
+      e.preventDefault?.()
+      close()
+      const state = (navigation as any).getState?.()
+      const target = state?.routes?.find((r: any) => r.key === e.target)
+      const name = target?.name
+      setTimeout(() => name && (navigation as any).navigate(name), CLOSE_ANIM_MS)
+    })
+    return unsub
+  }, [isOpen, close, navigation])
+
+  const tapCatcherStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
+    left: interpolate(progress.value, [0, 1], [0, sbWidth]),
+  }))
 
   /** ✅ 콘텐츠 밀림 및 축소 애니메이션 */
   const contentStyle = useAnimatedStyle(() => {
@@ -66,18 +101,6 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     transform: [{ translateX: interpolate(progress.value, [0, 1], [-sbWidth, 0]) }],
     width: sbWidth,
   }))
-
-  /** ✅ 오버레이 클릭 감지 (tap catcher) */
-  const tapCatcherStyle = useAnimatedStyle(() => {
-    const opened = progress.value > 0.01
-    return {
-      opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
-      pointerEvents: opened ? 'auto' : 'none',
-      // 사이드바가 열릴수록 오버레이의 왼쪽 경계를 '사이드바 너비'만큼 밀기
-      left: interpolate(progress.value, [0, 1], [0, sbWidth]),
-    }
-  })
-
   return (
     <View
       style={{ flex: 1, backgroundColor: colors.neutral.surface }}
@@ -89,7 +112,8 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       </Animated.View>
 
       <Animated.View
-        style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 30 }]} // ⬅️ 30 → 100
+        style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 100 }]}
+        pointerEvents={isOpen ? 'auto' : 'none'}
       >
         <Pressable
           style={{ flex: 1 }}
