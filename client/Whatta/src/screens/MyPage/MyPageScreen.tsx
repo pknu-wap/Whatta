@@ -217,8 +217,13 @@ const S = StyleSheet.create({
     backgroundColor: '#E9ECF1',
     marginRight: 12,
   },
-  profileName: { fontSize: 18, fontWeight: '700', color: colors.text.title },
-  profileMeta: { fontSize: 14, color: colors.text.body, marginTop: 2 },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text.title,
+    marginTop: 3,
+  },
+  profileMeta: { fontSize: 14, color: colors.text.body, marginTop: 7 },
   editLink: { color: '#333', fontWeight: '600' },
   chevron: { fontSize: 26, color: colors.text.caption, marginLeft: 6 },
 })
