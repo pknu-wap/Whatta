@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, memo, useCallback } from 'react'
-import { View, Text, StyleSheet, Pressable, DeviceEventEmitter } from 'react-native'
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native'
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist'
 import { useFocusEffect } from '@react-navigation/native'
 
@@ -17,11 +17,11 @@ export type Task = {
   completed: boolean
   sortNumber: number // 작을수록 위
   labels?: any
-  placementDate?: string
+  placementDate?: string | null
   placementTime?: string | null
   dueDateTime?: string | null
-  createdAt?: string
-  updatedAt?: string
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 // API 호출: PUT /api/task/sidebar/:id
@@ -59,7 +59,6 @@ function isTimelessTask(t: Task) {
 }
 
 async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
-  console.log('[SORT] send to server =>', { id: taskId, sortNumber: payload.sortNumber })
   return http.put(`/api/task/sidebar/${taskId}`, payload)
 }
 
@@ -68,6 +67,20 @@ async function fetchTasksFromServer(): Promise<Task[]> {
   const res = await http.get('/api/task')
   const list = res?.data?.data ?? []
   return list.map(mapTask) as Task[]
+}
+
+// ✅ 서버 스펙: POST /api/task (생성)
+async function createTaskAPI(title: string) {
+  const payload = {
+    title,
+    content: '', // 요구: content는 비움
+    labels: null,
+    placementDate: null,
+    placementTime: null,
+    dueDateTime: null,
+    repeat: null,
+  }
+  return http.post('/api/task', payload)
 }
 
 const TOP_GAP = 1024 // 최상단/최하단 배치 시 충분히 큰 간격 확보용
@@ -89,6 +102,8 @@ const SECTION_HEIGHT = 260
 
 export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [newTitle, setNewTitle] = useState('')
+
   const safeTitle = (v: any) =>
     typeof v === 'string' && v.trim().length > 0 ? v : '(제목 없음)'
 
@@ -117,13 +132,60 @@ export default function Sidebar() {
 
   useFocusEffect(
     useCallback(() => {
-      let alive = true
       refresh()
-      return () => {
-        alive = false
-      }
+      return () => {}
     }, [refresh]),
   )
+
+  // 입력창 제출 -> 생성 -> 자동 재조회
+  const handleCreate = useCallback(async () => {
+    const title = newTitle.trim()
+    if (!title) return
+
+    const snapshot = tasks
+    const baseUpcoming = snapshot.filter((t) => !t.completed && isTimelessTask(t))
+    const optimisticSort = getTopSortNumber(baseUpcoming)
+    const tempId = `temp-${Date.now()}`
+    const tempTask: Task = {
+      id: tempId,
+      title,
+      content: '',
+      completed: false,
+      sortNumber: optimisticSort,
+      labels: [],
+      placementDate: null,
+      placementTime: null,
+      dueDateTime: null,
+      createdAt: null,
+      updatedAt: null,
+    }
+    setTasks((prev) => [tempTask, ...prev])
+    setNewTitle('')
+
+    try {
+      // 서버 생성
+      const res = await createTaskAPI(title)
+      const created = mapTask(res?.data?.data ?? {})
+
+      // 생성 직후, ‘예정’ 최상단 sortNumber로 강제 세팅
+      const current = ((prev) => prev)(tasks)
+      const upcomingNow = current.filter((t) => !t.completed && isTimelessTask(t))
+      const topSort = getTopSortNumber(upcomingNow, created.id)
+
+      await putSidebarTask(created.id, {
+        title: created.title || '(제목 없음)',
+        completed: false,
+        sortNumber: topSort,
+      })
+
+      // 3. 최종 동기화
+      await refresh()
+    } catch (e) {
+      console.warn('Task create failed:', e)
+      setTasks(snapshot) // 롤백
+      setNewTitle(title) // 입력 복구
+    }
+  }, [newTitle, tasks, refresh])
 
   // 토글 - 리스트 이동 시 항상 목표 섹션의 최상단으로 배치
   const toggleDone = async (id: string) => {
@@ -227,6 +289,19 @@ export default function Sidebar() {
         onDragEnd={onUpcomingReorderEnd}
       />
 
+      {/* ✅ 입력창: 제출 시 즉시 생성 */}
+      <View style={{ marginTop: 12, marginBottom: 6 }}>
+        <TextInput
+          value={newTitle}
+          onChangeText={setNewTitle}
+          placeholder="할 일을 입력하세요"
+          placeholderTextColor="#B9A7EA"
+          onSubmitEditing={handleCreate}
+          returnKeyType="done"
+          style={S.newInput}
+        />
+      </View>
+
       <View style={S.divider} />
 
       <SectionCompleted title="완료" data={completed} onToggle={toggleDone} />
@@ -280,7 +355,7 @@ function SectionUpcoming({
   )
 }
 
-// 완료(드래그 불가)(드래그 불가)
+// 완료(드래그 불가)
 function SectionCompleted({
   title,
   data,
@@ -412,5 +487,15 @@ const S = StyleSheet.create({
     includeFontPadding: false,
     textAlign: 'center',
     opacity: 0.5,
+  },
+  // ✅ 입력창 스타일 (피그마 느낌의 보더/라운드)
+  newInput: {
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: '#B9A7EA', // 연보라
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: 'transparent',
+    color: colors.task.taskName,
   },
 })
