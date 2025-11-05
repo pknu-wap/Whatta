@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Animated,
   PanResponder,
+  TouchableWithoutFeedback,
 } from 'react-native'
 import AnimatedRe, {
   interpolateColor,
@@ -20,7 +21,7 @@ import Filter from '@/assets/icons/filter.svg'
 import Left from '@/assets/icons/left.svg'
 import Right from '@/assets/icons/right.svg'
 import colors from '@/styles/colors'
-import { useNavigation, useFocusEffect } from '@react-navigation/native'
+import { useNavigation, useFocusEffect, useNavigationState } from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
@@ -28,7 +29,7 @@ const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 type CustomSwitchProps = { value: boolean; onToggle: () => void }
 type ViewMode = 'month' | 'week' | 'day'
 
-/* --- 공용 유틸 --- */
+/* 날짜 관련 유틸 함수 */
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const addDays = (iso: string, d: number) => {
   const [y, m, dd] = iso.split('-').map(Number)
@@ -67,7 +68,7 @@ const today = () => {
   ).padStart(2, '0')}`
 }
 
-/* --- 스위치 --- */
+/* 스위치 UI */
 const CustomSwitch = ({ value, onToggle }: CustomSwitchProps) => (
   <TouchableOpacity
     onPress={onToggle}
@@ -83,7 +84,7 @@ const CustomSwitch = ({ value, onToggle }: CustomSwitchProps) => (
   </TouchableOpacity>
 )
 
-/* --- 전역 상태 (Provider 없이 유지) --- */
+/* 전역 필터 상태 */
 const globalPopupState = {
   popup: false,
   opacity: 1,
@@ -102,7 +103,20 @@ export default function Header() {
   const [mode, setMode] = useState<ViewMode>('month')
   const [anchorDate, setAnchorDate] = useState<string>(today())
 
-  // ✅ 화면 전환 후에도 필터창 유지
+  /* ✅ 현재 활성 탭 감지 */
+  const currentRouteName = useNavigationState((state) => {
+    const route = state.routes[state.index]
+    return route.name
+  })
+
+  /* ✅ 마이페이지/할일관리 이동 시 필터창 자동 닫기 */
+  useEffect(() => {
+    if (popup && (currentRouteName === 'MyPage' || currentRouteName === 'Task')) {
+      setPopup(false)
+      globalPopupState.popup = false
+    }
+  }, [currentRouteName])
+
   useFocusEffect(
     React.useCallback(() => {
       if (globalPopupState.popup) {
@@ -114,7 +128,6 @@ export default function Header() {
     }, [])
   )
 
-  // ✅ 사이드바 애니메이션
   const headerCatcherStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
     pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
@@ -182,7 +195,7 @@ export default function Header() {
     navigation.setParams({ labels: newArr })
   }
 
-  // ✅ 슬라이더 (왼쪽 30% 투명, 오른쪽 100% 불투명)
+  // ✅ 슬라이더: 드래그 & 터치 이동 가능
   const pan = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderMove: (_, g) => {
@@ -202,30 +215,27 @@ export default function Header() {
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        {/* ☰ 사이드바 */}
+        {/* ☰ 메뉴 */}
         <TouchableOpacity onPress={toggle}>
           <AnimatedMenu width={28} height={28} animatedProps={menuIconProps} />
         </TouchableOpacity>
 
-        {/* 날짜 영역 */}
+        {/* 날짜 그룹 */}
         <View style={styles.dateGroup}>
           <TouchableOpacity onPress={goPrev}>
             <Left width={24} height={24} color={colors.icon.default} />
           </TouchableOpacity>
 
-          {/* ✅ 빈공간 터치 시 닫히도록 dateGroup 사이에 flex 영역 추가 */}
           <TouchableOpacity
-            style={styles.titleContainer}
             onPress={() => {
               if (popup) {
-                // 필터창이 켜져 있을 때 → 닫기
                 setPopup(false)
                 globalPopupState.popup = false
               } else {
-                // 꺼져 있을 때 → 캘린더 열기
                 setCalVisible(true)
               }
             }}
+            style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
           </TouchableOpacity>
@@ -235,7 +245,7 @@ export default function Header() {
           </TouchableOpacity>
         </View>
 
-        {/* 필터 버튼 */}
+        {/* 필터 */}
         <TouchableOpacity
           onPress={() => {
             const next = !popup
@@ -258,6 +268,32 @@ export default function Header() {
         </TouchableOpacity>
       </View>
 
+      {/* ✅ 헤더의 빈공간 클릭 시 닫기 */}
+      {popup && (
+        <>
+          <View style={{ position: 'absolute', top: 0, left: 44, width: 40, height: 48, zIndex: 2 }}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={{ flex: 1 }}
+              onPress={() => {
+                setPopup(false)
+                globalPopupState.popup = false
+              }}
+            />
+          </View>
+          <View style={{ position: 'absolute', top: 0, right: 50, width: 40, height: 48, zIndex: 2 }}>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={{ flex: 1 }}
+              onPress={() => {
+                setPopup(false)
+                globalPopupState.popup = false
+              }}
+            />
+          </View>
+        </>
+      )}
+
       <AnimatedRe.View style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}>
         <TouchableOpacity style={{ flex: 1 }} onPress={close} />
       </AnimatedRe.View>
@@ -267,9 +303,26 @@ export default function Header() {
         <Animated.View style={[styles.popupContainer, { opacity: popupOpacity }]}>
           <Animated.View style={[styles.popupBox, { opacity: popupOpacity }]}>
             <Text style={styles.popupTitle}>필터</Text>
-            <View style={styles.sliderTrack}>
-              <Animated.View {...pan.panHandlers} style={[styles.sliderThumb, { transform: [{ translateX: sliderX }] }]} />
-            </View>
+
+            {/* ✅ 슬라이더: 드래그 + 터치 이동 */}
+            <TouchableWithoutFeedback
+              onPress={(e) => {
+                const { locationX } = e.nativeEvent
+                const clampedX = Math.min(Math.max(locationX, 0), maxSlide)
+                sliderX.setValue(clampedX)
+                const opacity = 0.7 + (clampedX / maxSlide) * 0.3
+                popupOpacity.setValue(opacity)
+                globalPopupState.opacity = opacity
+                globalPopupState.sliderX = clampedX
+              }}
+            >
+              <View style={styles.sliderTrack}>
+                <Animated.View
+                  {...pan.panHandlers}
+                  style={[styles.sliderThumb, { transform: [{ translateX: sliderX }] }]}
+                />
+              </View>
+            </TouchableWithoutFeedback>
 
             <View style={{ height: 16 }} />
             <View style={styles.row}>
@@ -293,6 +346,7 @@ export default function Header() {
         </Animated.View>
       )}
 
+      {/* 달력 모달 */}
       <CalendarModal
         visible={calVisible}
         onClose={() => setCalVisible(false)}
@@ -303,7 +357,7 @@ export default function Header() {
   )
 }
 
-/* --- 스타일 --- */
+/* 스타일 */
 const styles = StyleSheet.create({
   root: { borderBottomWidth: 0.3, borderBottomColor: '#B3B3B3', height: 48 },
   header: {
@@ -314,11 +368,7 @@ const styles = StyleSheet.create({
     marginLeft: 14,
   },
   dateGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  titleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 10,
-  },
+  titleContainer: { alignItems: 'center', justifyContent: 'center', marginHorizontal: 10 },
   title: { textAlign: 'center', fontSize: 20, fontWeight: '700', lineHeight: 23, letterSpacing: -0.4 },
   popupContainer: { position: 'absolute', right: 10, top: 48, zIndex: 999 },
   popupBox: {
@@ -334,15 +384,7 @@ const styles = StyleSheet.create({
     elevation: 24,
   },
   popupTitle: { fontSize: 14, fontWeight: 'bold', marginLeft: 16 },
-  sliderTrack: {
-    width: 38,
-    height: 2,
-    backgroundColor: 'rgba(0.2,0.2,0.2,1)',
-    borderRadius: 1,
-    position: 'absolute',
-    right: 25, 
-    top: 22,
-  },
+  sliderTrack: { width: 38, height: 2, backgroundColor: 'rgba(0.2,0.2,0.2,1)', borderRadius: 1, position: 'absolute', right: 25, top: 22 },
   sliderThumb: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#B4B4B4', position: 'absolute', top: -5 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 9 },
   allText: { fontSize: 14, marginLeft: 16 },
