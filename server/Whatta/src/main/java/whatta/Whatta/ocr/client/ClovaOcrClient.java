@@ -63,6 +63,7 @@ public class ClovaOcrClient {
                 response.append(line);
             }
             reader.close();
+            connection.disconnect();
             // ----------- 데이터 파싱 ---------------------
             try {
                 //JSON 응답 문자열을 record 기반 ClovaOcrResponse 객체로 변환
