@@ -42,6 +42,11 @@ public class ClovaOcrClient {
                     .enableTableDetection(false)
                     .build();
 
+            /*
+            System.out.println("[CLOVA][REQ] id=" + requestBody.requestId()
+                    + ", url=" + ocrUrl
+                    + ", imgName=" + request.image().name());*/
+
             connection.connect();
             DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream());
             outputStream.write(objectMapper.writeValueAsBytes(requestBody));
@@ -50,6 +55,10 @@ public class ClovaOcrClient {
 
             // ----------- 응답 수신 ---------------------
             int responseCode = connection.getResponseCode();
+
+            System.out.println("[CLOVA][RES] id=" + requestBody.requestId()
+                    + ", code=" + responseCode);
+
             BufferedReader reader;
             if(responseCode == HttpURLConnection.HTTP_OK) {
                 reader = new BufferedReader(new InputStreamReader(connection.getInputStream())); //서버가 준 바이트스트림(InputStream)을 문자스트림(Reader)으로 바꾸는 단계
@@ -62,6 +71,7 @@ public class ClovaOcrClient {
             while((line = reader.readLine()) != null) {
                 response.append(line);
             }
+            //System.out.println("[CLOVA][ERROR BODY] " + response); //실제 에러 메시지
             reader.close();
             connection.disconnect();
             // ----------- 데이터 파싱 ---------------------
