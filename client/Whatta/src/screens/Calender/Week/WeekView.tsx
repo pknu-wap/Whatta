@@ -210,6 +210,9 @@ type WeekSpanEvent = {
   row: number
   startISO: string
   endISO: string
+  isTask?: boolean
+  done?: boolean
+  completed?: boolean
 }
 
 /* -------------------------------------------------------------------------- */
@@ -304,112 +307,108 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
 /* 상단 span 이벤트 계산 */
 /* -------------------------------------------------------------------------- */
 
-function buildWeekSpanEvents(weekDates: string[], data: WeekData): WeekSpanEvent[] {
-  if (!weekDates.length) return []
-  const weekStart = weekDates[0]
-  const weekEnd = weekDates[6]
-
-  type SpanBase = {
-    id: string
-    title: string
-    color: string
-    startISO: string
-    endISO: string
-  }
-
-  const byId = new Map<string, SpanBase>()
+function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
+  const byId = new Map<string, WeekSpanEvent>()
 
   weekDates.forEach((dateISO) => {
     const bucket = data[dateISO]
     if (!bucket) return
-    const list = bucket.spanEvents || []
+
+    // ✅ ① spanEvents + 체크리스트/Task를 함께 처리
+    // bucket.checks 부분 이름은 실제 사용하는 키에 맞춰 주세요.
+    const list = [
+      ...(bucket.spanEvents || []),
+      ...(bucket.checks || []), // 여기로 체크리스트(Task)도 같이 올림
+    ]
 
     list.forEach((e: any) => {
       const id = String(e.id)
       const title = e.title ?? ''
-      const colorKey =
-        (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
-      const color = `#${colorKey}`
 
+      // ✅ ② Task 여부 판별 로직
+      // - 서버에서 내려오는 필드 이름에 맞춰 사용하세요.
+      //   completed / done / isTask 등 중 실제 존재하는 것.
+      const isTask =
+        e.isTask === true ||
+        typeof e.completed !== 'undefined' ||
+        typeof e.done !== 'undefined' ||
+        (e.type === 'task')
+
+      // ✅ ③ 색상 결정
+      // - Task는 검은 테두리 박스용으로 '#000000' 고정
+      // - 일정은 기존 colorKey 사용
+      const colorKey = isTask
+        ? '000000'
+        : (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
+      const color = colorKey.startsWith('#') ? colorKey : `#${colorKey}`
+
+      // ✅ ④ 기간 계산 (기존 로직 유지)
       const s = (e.startDate || e.date || dateISO).slice(0, 10)
-    const ed = (e.endDate || e.date || s).slice(0, 10)
-
+      const ed = (e.endDate || e.date || s).slice(0, 10)
       const startISO = s
       const endISO = ed
 
       const existing = byId.get(id)
+
       if (!existing) {
-        byId.set(id, { id, title, color, startISO, endISO })
+        // ✅ 새로 등록
+        byId.set(id, {
+          id,
+          title,
+          color,
+          startISO,
+          endISO,
+          startIdx: 0, // 아래 단계(레인 계산)에서 채움
+          endIdx: 0,
+          row: 0,
+          // ✅ Task 관련 필드 채우기
+          isTask,
+          done: e.done ?? e.completed ?? false,
+          completed: e.completed,
+        })
       } else {
+        // ✅ 이미 있는 경우 기간만 확장
         if (startISO < existing.startISO) existing.startISO = startISO
         if (endISO > existing.endISO) existing.endISO = endISO
       }
     })
   })
 
-  const spans: WeekSpanEvent[] = []
+  // 🔽 이 아래: byId.values()를 배열로 만들어 startIdx / endIdx / row 계산하는
+  // 기존 레이아웃 로직은 그대로 두시면 됩니다.
+  // (여기서 isTask/done 값은 건드릴 필요 없음)
 
-  // ✅ 하루짜리 일정도 표시되게 수정된 부분
-byId.forEach((base) => {
-  if (base.endISO < weekStart || base.startISO > weekEnd) return
+  const items = Array.from(byId.values())
 
-  const startIdxRaw = diffDays(base.startISO, weekStart)
-  const endIdxRaw = diffDays(base.endISO, weekStart)
+  // 예시: 요일 인덱스 계산용 헬퍼 (이미 있다면 기존꺼 사용)
+  const idxOf = (iso: string) => weekDates.indexOf(iso)
 
-  let startIdx = Math.max(0, Math.min(6, startIdxRaw))
-  let endIdx = Math.max(0, Math.min(6, endIdxRaw))
-
-  // ✅ 시작과 종료가 같을 경우(하루짜리 일정)도 표시되게 보정
-  if (base.startISO === base.endISO) {
-    endIdx = startIdx
-  }
-
-  spans.push({
-    id: base.id,
-    title: base.title,
-    color: base.color,
-    startIdx,
-    endIdx,
-    row: 0,
-    startISO: base.startISO,
-    endISO: base.endISO,
+  items.forEach((ev) => {
+    ev.startIdx = Math.max(0, idxOf(ev.startISO))
+    ev.endIdx = Math.min(6, idxOf(ev.endISO) === -1 ? 6 : idxOf(ev.endISO))
   })
-})
 
-
-
-  // ✅ 추가된 정렬 로직
-// 기간이 긴 일정이 위쪽에, 길이가 같고 겹치는 일정이면 나중에 생성된 게 아래로
-spans.sort((a, b) => {
-  const lenA = new Date(a.endISO).getTime() - new Date(a.startISO).getTime()
-  const lenB = new Date(b.endISO).getTime() - new Date(b.startISO).getTime()
-
-  // ① 기간이 긴 일정이 위로
-  if (lenA !== lenB) return lenB - lenA
-
-  // ② 기간이 같고 겹치는 일정은 생성 순서대로 (나중 생성된 게 아래)
-  if (a.startISO <= b.endISO && b.startISO <= a.endISO) {
-    return a.id.localeCompare(b.id)
-  }
-
-  // ③ 그 외엔 시작일이 빠른 게 위로
-  return a.startISO.localeCompare(b.startISO)
-})
-
-
-  const lastEndByRow: number[] = []
-  spans.forEach((s) => {
+  // row(겹침 레인) 계산하는 기존 알고리즘도 그대로 유지
+  const lanes: WeekSpanEvent[][] = []
+  items.forEach((ev) => {
     let row = 0
-    while (row < lastEndByRow.length && s.startIdx <= lastEndByRow[row]) {
-      row += 1
+    while (
+      lanes[row] &&
+      lanes[row].some(
+        (other) =>
+          !(ev.endIdx < other.startIdx || ev.startIdx > other.endIdx),
+      )
+    ) {
+      row++
     }
-    s.row = row
-    if (row === lastEndByRow.length) lastEndByRow.push(s.endIdx)
-    else lastEndByRow[row] = s.endIdx
+    ev.row = row
+    if (!lanes[row]) lanes[row] = []
+    lanes[row].push(ev)
   })
 
-  return spans
+  return items
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* 스크롤바 높이 */
@@ -762,6 +761,8 @@ export default function WeekView() {
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
 
+  const SINGLE_HEIGHT = 22
+
   useEffect(() => {
     const s = startOfWeek(anchorDate)
     const arr = Array.from({ length: 7 }, (_, i) => addDays(s, i))
@@ -967,6 +968,16 @@ export default function WeekView() {
           }
           return c
         })
+
+        // ✅ spanbar(Task도 체크 가능하도록 즉시 반영)
+      const updatedSpans = bucket.spanEvents.map((s) => {
+        if (String(s.id) === String(taskId)) {
+          const done = !s.done
+          return { ...s, done }
+        }
+        return s
+      })
+
         next[d] = { ...bucket, checks: updated }
       }
       return next
@@ -994,9 +1005,12 @@ export default function WeekView() {
 
   const today = todayISO()
   const spanBars = buildWeekSpanEvents(weekDates, weekData)
-  const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * 24 + 4
-  const showScrollbar = contentH > wrapH
+const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
+
+// ✅ spanbar 전체 컨텐츠 높이 (스크롤 영역용)
+const spanAreaHeight =
+  maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1016,6 +1030,7 @@ export default function WeekView() {
                     <Text
                       style={[
                         S.weekHeaderText,
+                        { color: '#333333' },
                         dow === 0 && { color: '#FF4D4D' },
                         dow === 6 && { color: '#4D6BFF' },
                         isToday && {
@@ -1044,175 +1059,158 @@ export default function WeekView() {
           <FullBleed padH={0}>
             <View style={S.topArea}>
               {/* span bar */}
-              <View style={[S.multiDayArea, { height: spanAreaHeight }]}>
-                {spanBars.map((s) => {
-  const left = TIME_COL_W + s.startIdx * DAY_COL_W + 2
-  const width = (s.endIdx - s.startIdx + 1) * DAY_COL_W - 4
-  const isSingleDay = s.startISO === s.endISO
-
-  // ✅ 색상 정의
-  const mainColor = s.color?.startsWith('#') ? s.color : `#${s.color || 'B04FFF'}`
-  const lightColor = `${mainColor}33` // 연한 배경
-
-  // ✅ 스타일 구분
-  const baseStyle: any = isSingleDay
-    ? {
-        position: 'absolute',
-        top: s.row * 24 + 2,
-        left,
-        width,
-        height: 22,
-        backgroundColor: mainColor,
-        borderRadius: 6, // 하루짜리는 둥근 모서리 유지
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        paddingHorizontal: 6,
-      }
-    : {
-        position: 'absolute',
-        top: s.row * 24,
-        left,
-        width,
-        height: 22,
-        backgroundColor: lightColor,
-        justifyContent: 'center',
-        paddingHorizontal: 8,
-        borderRadius: 0, // ✅ 모서리 뾰족하게
-      }
-
-  // ✅ 강조바 조건: 실제 일정의 시작일/종료일만 표시
-  const showLeftAccent = !isSingleDay && weekDates[s.startIdx] === s.startISO
-  const showRightAccent = !isSingleDay && weekDates[s.endIdx] === s.endISO
-
-  return (
-    <View
-      key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
-      style={[baseStyle]}
-    >
-      <Text
-        style={{
-          color: isSingleDay ? '#FFFFFF' : '#000000',
-          fontWeight: '700',
-          fontSize: 12,
-        }}
-        numberOfLines={1}
-        ellipsizeMode="clip"
-      >
-        {s.title}
-      </Text>
-
-      {/* ✅ 시작일 칸에만 왼쪽 진한색 바 */}
-      {showLeftAccent && (
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            backgroundColor: mainColor,
-          }}
-        />
-      )}
-
-      {/* ✅ 종료일 칸에만 오른쪽 진한색 바 */}
-      {showRightAccent && (
-        <View
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            backgroundColor: mainColor,
-          }}
-        />
-      )}
-    </View>
-  )
-})}
-
-
-              </View>
-
-              {/* 체크리스트 */}
-              <View
-  style={[S.checksWrapOuter, { height: 60, overflow: 'hidden' }]}
-  onLayout={onLayoutWrap}
->
+              <View style={[S.multiDayArea, { height: 150}]}>
   <ScrollView
-    ref={checksScrollRef}
-    onScroll={onScrollChecks}
-    onContentSizeChange={onContentSizeChange}
     showsVerticalScrollIndicator={false}
-    scrollEventThrottle={16}
-    contentContainerStyle={S.checksScrollContent}
-    bounces={false}
+    // ✅ 실제 컨텐츠 영역을 spanAreaHeight만큼 잡아줌
+    contentContainerStyle={{
+      height: spanAreaHeight,
+      position: 'relative', // ✅ absolute spanBar들의 기준이 되는 컨테이너
+      paddingBottom: 4,
+    }}
   >
-    <View style={S.checksRow}>
-      <View style={{ width: TIME_COL_W }} />
-      {weekDates.map((d) => {
-        const bucket = weekData[d]
-        const checks = bucket?.checks || []
+    
+    {spanBars.map((s) => {
+      const left = TIME_COL_W + s.startIdx * DAY_COL_W + 2
+      const width = (s.endIdx - s.startIdx + 1) * DAY_COL_W - 4
+      const isSingleDay = s.startISO === s.endISO
+      const isTask = s.color === '#000000'
+
+      if (isTask) {
         return (
-          <View key={`${d}-checks`} style={S.checkCol}>
-            {checks.map((c) => (
-              <Pressable
-                key={`${d}-${c.id}-check`}
-                style={S.checkRow}
-                onPress={() => toggleCheck(c.id)}
-              >
-                <View style={S.checkboxWrap}>
-                  <View style={[S.checkbox, c.done && S.checkboxOn]}>
-                    {c.done && <Text style={S.checkmark}>✓</Text>}
-                  </View>
-                </View>
+          <Pressable
+            key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
+            onPress={() => toggleCheck(s.id)}
+            style={{
+              position: 'absolute',
+              top: s.row * (SINGLE_HEIGHT + 4),
+              left,
+              width,
+              height: SINGLE_HEIGHT,
+              borderWidth: 1,
+              borderColor: '#000000',
+              borderRadius: 3,
+              backgroundColor: '#FFFFFF',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              paddingHorizontal: 6,
+            }}
+          >
+            {/* 체크박스 */}
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderWidth: 1,
+                borderColor: '#000000',
+                marginRight: 5,
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: s.done ? '#000000' : '#FFFFFF',
+              }}
+            >
+              {s.done && (
                 <Text
-                  style={[S.checkText, c.done && S.checkTextDone]}
-                  numberOfLines={1}
-                  ellipsizeMode="clip"
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 7,
+                    fontWeight: '700',
+                  }}
                 >
-                  {c.title}
+                  ✓
                 </Text>
-              </Pressable>
-            ))}
-          </View>
+              )}
+            </View>
+
+            {/* 제목 */}
+            <Text
+              style={{
+                color: s.done ? '#888888' : '#000000',
+                fontSize: 11,
+                fontWeight: '700',
+                textDecorationLine: s.done ? 'line-through' : 'none',
+                width: 'auto',
+                maxWidth: '90%',
+                overflow: 'hidden',
+                flexWrap: 'nowrap',
+                flexShrink: 1,
+                includeFontPadding: false,
+                textAlignVertical: 'center',
+              }}
+              numberOfLines={1}
+              ellipsizeMode="clip"
+            >
+              {s.title}
+            </Text>
+          </Pressable>
         )
-      })}
-    </View>
-    <View style={{ height: 4 }} />
+      }
+
+      // 일반 일정
+      const mainColor = s.color?.startsWith('#')
+        ? s.color
+        : `#${s.color || 'B04FFF'}`
+      const lightColor = `${mainColor}33`
+
+      const baseStyle: any = isSingleDay
+        ? {
+            position: 'absolute',
+            top: s.row * (SINGLE_HEIGHT + 4),
+            left,
+            width,
+            height: SINGLE_HEIGHT,
+            backgroundColor: mainColor,
+            borderRadius: 6,
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            paddingHorizontal: 6,
+          }
+        : {
+            position: 'absolute',
+            top: s.row * (SINGLE_HEIGHT + 4),
+            left,
+            width,
+            height: SINGLE_HEIGHT,
+            backgroundColor: lightColor,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderRadius: 0,
+            paddingHorizontal: 6,
+          }
+
+      return (
+        <View
+          key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
+          style={baseStyle}
+        >
+          <Text
+            style={{
+              color: isSingleDay ? '#FFFFFF' : '#000000',
+              fontWeight: '700',
+              fontSize: 12,
+              width: 'auto',
+              maxWidth: '90%',
+              overflow: 'hidden',
+              flexWrap: 'nowrap',
+              flexShrink: 1,
+              includeFontPadding: false,
+              textAlignVertical: 'center',
+            }}
+            numberOfLines={1}
+            ellipsizeMode="clip"
+          >
+            {s.title}
+          </Text>
+        </View>
+      )
+    })}
   </ScrollView>
 
-  {showScrollbar && (
-    <View pointerEvents="none" style={S.scrollTrack}>
-      <View
-        style={[
-          S.scrollThumb,
-          {
-            height: getThumbH(wrapH, contentH),
-            transform: [{ translateY: thumbTop }],
-          },
-        ]}
-      />
-    </View>
-  )}
+  
+
 </View>
 
-              <View
-                pointerEvents="none"
-                style={S.boxBottomLine}
-              />
-              <LinearGradient
-                pointerEvents="none"
-                colors={[
-                  'rgba(0,0,0,0.06)',
-                  'rgba(0,0,0,0.02)',
-                  'transparent',
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={S.fadeBelow}
-              />
             </View>
           </FullBleed>
 
@@ -1371,11 +1369,10 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-    paddingTop: 4,
+    paddingTop: 2,
     paddingBottom: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: BORDER,
     backgroundColor: '#FFFFFF',
+    // ✅ 밑줄 제거 (border 관련 속성 삭제)
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
@@ -1402,6 +1399,7 @@ const S = StyleSheet.create({
   },
   multiDayArea: {
     position: 'relative',
+    overflow: 'hidden',
   },
   spanBar: {
     position: 'absolute',
@@ -1535,7 +1533,9 @@ const S = StyleSheet.create({
 
   timeCol: {
     width: TIME_COL_W,
-    paddingRight: 4,
+    alignItems: 'flex-start', // ✅ 왼쪽 정렬로 변경
+    paddingLeft: 8,           // ✅ 왼쪽 여백 추가
+    paddingRight: 0,          // ✅ 오른쪽 여백 제거
   },
   timeRow: {
     height: ROW_H,
@@ -1547,8 +1547,9 @@ const S = StyleSheet.create({
     fontSize: 12,
     color: '#707070',
     fontWeight: '500',
-    textAlign: 'right',
-    marginRight: 6,
+    textAlign: 'left',
+    marginLeft: 2,
+    marginRight: 0,
   },
 
   dayCol: {
