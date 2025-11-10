@@ -114,13 +114,17 @@ export default function Header() {
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
+  const [days, setDays] = useState<number>(7) // ✅ week뷰의 일수(5 or 7)
+
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: { date: string; mode: ViewMode }) => {
+    const onState = (st: { date: string; mode: ViewMode; days?: number }) => {
       setAnchorDate((prev) => (prev === st.date ? prev : st.date))
       setMode((m) => (m === st.mode ? m : st.mode))
+      if (st.days) setDays(st.days)  // ✅ 5일/7일 정보 반영
     }
+
     bus.on('calendar:state', onState)
     bus.emit('calendar:request-sync', null)
     return () => bus.off('calendar:state', onState)
@@ -138,19 +142,21 @@ export default function Header() {
       mode === 'month'
         ? addMonthsToStart(anchorDate, -1)
         : mode === 'week'
-          ? addDays(anchorDate, -7)
+          ? addDays(anchorDate, -days)   // ✅ 5일뷰면 5일, 7일뷰면 7일
           : addDays(anchorDate, -1)
     bus.emit('calendar:set-date', iso)
   }
+
   const goNext = () => {
     const iso =
       mode === 'month'
         ? addMonthsToStart(anchorDate, +1)
         : mode === 'week'
-          ? addDays(anchorDate, +7)
+          ? addDays(anchorDate, +days)   // ✅ 5일뷰면 5일, 7일뷰면 7일
           : addDays(anchorDate, +1)
-    bus.emit('calendar:set-date', iso)
+    bus.emit('calendar:set-date', iso)  
   }
+
   // 타이틀(피커 열기)
   const openCalendar = () => setCalVisible(true)
 
