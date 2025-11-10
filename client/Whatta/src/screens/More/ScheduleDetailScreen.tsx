@@ -856,21 +856,27 @@ export default function ScheduleDetailScreen() {
                               }}
                               hitSlop={8}
                             >
-                              <Text style={styles.dropdownText}>
-                                {repeatMode === 'monthly'
-                                  ? monthlyOpt === 'byDate'
+                              {(() => {
+                                const monthlyText =
+                                  monthlyOpt === 'byDate'
                                     ? `매월 ${base.getDate()}일에 반복`
                                     : monthlyOpt === 'byNthWeekday'
                                       ? `매월 ${nth}번째 ${wd}에 반복`
-                                      : monthlyOpt === 'byLastWeekday'
-                                        ? `매월 마지막주 ${wd}에 반복`
-                                        : '매월'
-                                  : repeatMode === 'weekly'
-                                    ? '매주'
-                                    : repeatMode === 'daily'
-                                      ? '매일'
-                                      : '없음'}
-                              </Text>
+                                      : `매월 마지막주 ${wd}에 반복`
+
+                                const label =
+                                  repeatMode === 'monthly'
+                                    ? monthlyText
+                                    : repeatMode === 'weekly'
+                                      ? '매주'
+                                      : repeatMode === 'daily'
+                                        ? '매일'
+                                        : repeatMode === 'custom'
+                                          ? formatRepeatCustom(repeatEvery, repeatUnit) // 실시간 반영
+                                          : '없음'
+
+                                return <Text style={styles.dropdownText}>{label}</Text>
+                              })()}
                               <Down width={8} height={8} color={arrowColor} />
                             </Pressable>
                           )
