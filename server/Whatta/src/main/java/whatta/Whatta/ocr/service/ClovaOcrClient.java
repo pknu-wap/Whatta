@@ -1,4 +1,4 @@
-package whatta.Whatta.ocr.client;
+package whatta.Whatta.ocr.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

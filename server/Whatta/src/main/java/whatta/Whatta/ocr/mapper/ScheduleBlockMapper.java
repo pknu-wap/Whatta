@@ -5,7 +5,9 @@ import org.bytedeco.opencv.opencv_core.Size;
 import whatta.Whatta.ocr.payload.dto.BoundingPoly;
 import whatta.Whatta.ocr.payload.dto.DetectedBlock;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class ScheduleBlockMapper {
 
@@ -34,6 +36,35 @@ public class ScheduleBlockMapper {
                 .imageHeight(imageSize.height())
                 .blocks(blocks)
                 .build();
+    }
+
+    //-------------------매치된 결과 블럭을 response로 변환-----------------
+    private static final Pattern CONTENT = Pattern.compile("^[A-Z][0-9].*$");
+
+    //텍스트 토큰들을 순서대로 더하다가 "대문자 시작 + 숫자 포함" 토큰을 만나면 그 토큰부터 content로 보냄
+    public static String[] splitTitleAndContent(List<String> texts) {
+        if (texts == null || texts.isEmpty()) return new String[]{"", ""};
+        List<String> titleTokens = new ArrayList<>();
+        List<String> contentTokens = new ArrayList<>();
+        boolean toContent = false;
+
+        for (String raw : texts) {
+            String t = raw == null ? "" : raw.trim();
+            if (t.isEmpty()) continue;
+
+            if (!toContent && CONTENT.matcher(t).matches()) {
+                toContent = true; //이 시점부터 content
+            }
+
+            if (toContent) {
+                contentTokens.add(t);
+            }
+            else { titleTokens.add(t); }
+        }
+
+        String title   = String.join("", titleTokens).trim();
+        String content = String.join(", ", contentTokens).trim();
+        return new String[]{title, content};
     }
 
 }
