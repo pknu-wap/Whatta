@@ -56,27 +56,50 @@ public class ScheduleMatcher {
         if (s == null) return false;
         String t = s.trim();
         if (t.isEmpty()) return false;
-        if (WEEKDAY.matcher(t).matches()) return false; // 요일 라벨 제거
-        if (HOUR.matcher(t).matches()) return false;    // 시간 숫자 제거
+        if (WEEKDAY.matcher(t).matches()) return false; //요일 라벨 제거
+        if (HOUR.matcher(t).matches()) return false;    //시간 숫자 제거
         return true;
     }
 
-    private static final Pattern WEEKDAY = Pattern.compile("^[월화수목금토일].*$"); //월, 월요일, 월.*
+    private static final Pattern WEEKDAY = Pattern.compile("^(월|화|수|목|금|토|일)(?:요일)?$"); //월, 월요일, 월.*
     private static final Pattern HOUR = Pattern.compile("^([1-9]|1[0-2])$");
 
+    private static String koToEn(String ko1) {
+        return switch (ko1) {
+            case "월" -> "MON";
+            case "화" -> "TUE";
+            case "수" -> "WED";
+            case "목" -> "THU";
+            case "금" -> "FRI";
+            case "토" -> "SAT";
+            case "일" -> "SUN";
+            default -> null;
+        };
+    }
+
     private static Map<String, Integer> extractWeekdayAnchors(List<OcrText> texts) {
-        Map<String, List<Integer>> tmp = new HashMap<>();
+        record Cand(String day, int x, int y) {}
+
+        Map<String, Cand> candidate = new HashMap<>();
         for (OcrText text : texts) {
-            String t = text.text().trim();
-            if (WEEKDAY.matcher(t).matches()) {
-                tmp.computeIfAbsent(t, k->new ArrayList<>()).add(text.centerX());
+            String raw = text.text().trim();
+            if (!WEEKDAY.matcher(raw).matches()) continue;
+            String weekDay = raw.substring(0, 1);
+
+            int y = text.topY();
+            int x = text.centerX();
+
+            Cand c = candidate.get(weekDay);
+            if ( c == null || y < c.y) { //더  위에 있는 y를 가진 text
+                candidate.put(weekDay, new Cand(weekDay, x, y));
             }
         }
+
         Map<String, Integer> anchors = new HashMap<>();
-        for (var e : tmp.entrySet()) {
-            int avg = (int)Math.round(e.getValue().stream().mapToInt(i->i).average().orElse(Double.NaN));
-            anchors.put(e.getKey(), avg);
+        for (var e : candidate.entrySet()) {
+            anchors.put(e.getKey(), e.getValue().x());
         }
+        System.out.println("[weekdayAnchors] " + anchors);  // ex) {월=123, 화=240, 수=360, ...}
         return anchors;
     }
 
@@ -157,7 +180,7 @@ public class ScheduleMatcher {
                 best = e.getKey();
             }
         }
-        return best;
+        return koToEn(best);
     }
 
 }
