@@ -9,7 +9,7 @@ import java.util.List;
 
 public class ScheduleBlockMapper {
 
-    public static BoundingPoly.Vertex toVertex (Point p) {
+    private static BoundingPoly.Vertex toVertex (Point p) {
         if (p == null) return null;
         return BoundingPoly.Vertex.builder()
                 .x(p.x())

@@ -88,7 +88,6 @@ public class ScheduleBlockDetector {
         findContours(mask.clone(), contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
         int minArea = Math.max(600, ((originalSize.height() * originalSize.width()) / 12000)); //해상도 기반 최소 면적
-        List<DetectedBlock> results = new ArrayList<>();
         int idx = 0;
 
         List<DetectedBlock.Block> blocks = new ArrayList<>();

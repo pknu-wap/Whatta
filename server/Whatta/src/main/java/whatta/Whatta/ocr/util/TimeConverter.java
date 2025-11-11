@@ -42,7 +42,7 @@ public class TimeConverter {
         int wholeH = (int)Math.floor(totalH);
         double fracH = totalH - wholeH;
 
-        //분(0~59) 계산 후 'roundStepMin' 단위 반올림
+        //분(0~59) 계산 후 roundStepMin 단위 반올림
         double rawMin = fracH * 60.0;
         int rounded = (int)Math.round(rawMin / roundStepMin) * roundStepMin;
         if (rounded >= 60) { wholeH += 1; rounded -= 60; }
@@ -56,6 +56,4 @@ public class TimeConverter {
         int m = Math.abs(minutes % 60);
         return String.format("%02d:%02d", h, m);
     }
-}
-
 }

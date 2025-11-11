@@ -3,7 +3,7 @@ package whatta.Whatta.ocr.client;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import whatta.Whatta.ocr.payload.response.ClovaOcrResponse;
 import whatta.Whatta.ocr.payload.request.ClovaOcrRequest;
 import whatta.Whatta.ocr.payload.request.ImageUploadRequest;
@@ -17,7 +17,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.UUID;
 
-@Component
+@Service
 @RequiredArgsConstructor
 public class ClovaOcrClient {
 

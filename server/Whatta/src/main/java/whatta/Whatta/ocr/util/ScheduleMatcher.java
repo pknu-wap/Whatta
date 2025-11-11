@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 
 public class ScheduleMatcher {
 
-    public List<MatchedScheduleBlock> matchAll(DetectedBlock blocks, List<OcrText> ocrTexts) {
+    public static List<MatchedScheduleBlock> matchAll(DetectedBlock blocks, List<OcrText> ocrTexts) {
         //x, y축 앵커 수집
         Map<String, Integer> weekDayX = extractWeekdayAnchors(ocrTexts);
         NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts);
@@ -64,7 +64,7 @@ public class ScheduleMatcher {
     private static final Pattern WEEKDAY = Pattern.compile("^[월화수목금토일].*$"); //월, 월요일, 월.*
     private static final Pattern HOUR = Pattern.compile("^([1-9]|1[0-2])$");
 
-    private Map<String, Integer> extractWeekdayAnchors(List<OcrText> texts) {
+    private static Map<String, Integer> extractWeekdayAnchors(List<OcrText> texts) {
         Map<String, List<Integer>> tmp = new HashMap<>();
         for (OcrText text : texts) {
             String t = text.text().trim();
@@ -80,7 +80,7 @@ public class ScheduleMatcher {
         return anchors;
     }
 
-    private NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts) {
+    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts) {
 
         List<int[]> candidates = new ArrayList<>();
         for (OcrText text : texts) {
@@ -146,7 +146,7 @@ public class ScheduleMatcher {
         static Point toPoint(BoundingPoly.Vertex v){ return new Point(v.x(), v.y()); }
     }
 
-    private String inferWeekDay(int x, Map<String, Integer> anchors) {
+    private static String inferWeekDay(int x, Map<String, Integer> anchors) {
         if (anchors == null || anchors.isEmpty()) return null;
 
         String best = null; int bestD = Integer.MAX_VALUE;
