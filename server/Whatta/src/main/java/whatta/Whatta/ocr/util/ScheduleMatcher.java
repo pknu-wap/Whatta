@@ -87,7 +87,7 @@ public class ScheduleMatcher {
             String t = text.text().trim();
             if (HOUR.matcher(t).matches()) {
                 int hour = Integer.parseInt(t);
-                candidates.add(new int[]{hour, text.centerY()});
+                candidates.add(new int[]{hour, text.topY()});
             }
         }
         candidates.sort(Comparator.comparingInt(o->o[1]));
