@@ -12,7 +12,5 @@ import java.util.List;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BusApiItems {
-    @JacksonXmlProperty(localName = "item")
-    @JacksonXmlElementWrapper(useWrapping = false)
     private List<BusArrivalItem> item;
 }
