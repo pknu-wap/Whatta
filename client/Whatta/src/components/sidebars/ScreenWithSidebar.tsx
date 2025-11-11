@@ -1,14 +1,19 @@
-import React, { useMemo, useEffect } from 'react'
-import { StyleSheet, View, Pressable, Dimensions } from 'react-native'
+import React, { useMemo, useEffect, useState } from 'react'
+import { StyleSheet, View, Pressable, Dimensions, Text } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated'
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import { useDrawer } from '@/providers/DrawerProvider'
 import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
 import { bus } from '@/lib/eventBus'
 import { useNavigation } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-
+import { PanResponder } from 'react-native'
 import colors from '@/styles/colors'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
@@ -23,6 +28,112 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   const headerTotalH = useMemo(() => BASE_HEADER_H + insets.top, [insets.top])
   const screenWidth = useMemo(() => Dimensions.get('window').width, [])
   const navigation = useNavigation()
+  // 상태
+  const [dragActive, setDragActive] = useState(false) // JSX 렌더용
+  const [dragTitle, setDragTitle] = useState<string | null>(null)
+  const dragX = useSharedValue(0) // 워크릿용 좌표
+  const dragY = useSharedValue(0)
+  const dragVisible = useSharedValue(0)
+  const [ghostFold, setGhostFold] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  // 사이드바 외부 드래그 신호 수신
+  useEffect(() => {
+    const onStart = ({ task, x, y }: any) => {
+      setDragTitle(task?.title ?? '')
+      dragX.value = x
+      dragY.value = y
+      setDragActive(true)
+      dragVisible.value = 1
+
+      if (isOpen) {
+        setGhostFold(true)
+        bus.emit('xdrag:ready') // DayView에 “드롭 받을 준비” 신호 즉시 전달
+      }
+    }
+    bus.on('xdrag:start', onStart)
+    return () => bus.off('xdrag:start', onStart)
+  }, [])
+
+  useEffect(() => {
+    // 앱 시작 시 한 번, 현재 달을 강제 재조회
+    const today = new Date()
+    const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}` // 'YYYY-MM'
+    bus.emit('calendar:invalidate', { ym })
+  }, [])
+
+  // 사이드바 Pan이 방송하는 move/drop만 반영
+  useEffect(() => {
+    const onMove = ({ x, y }: any) => {
+      dragX.value = x
+      dragY.value = y
+      if (isOpen && !ghostFold && x > sbWidth + 12) {
+        setGhostFold(true)
+        bus.emit('xdrag:ready')
+      }
+    }
+    const onDrop = ({ x, y }: any) => {
+      dragX.value = x
+      dragY.value = y
+      setDragActive(false)
+      setDragTitle(null)
+      dragVisible.value = 0
+      if (ghostFold) {
+        setGhostFold(false)
+        bus.emit('drawer:close')
+        close()
+      } else {
+        bus.emit('xdrag:cancel')
+      }
+    }
+    bus.on('xdrag:move', onMove)
+    bus.on('xdrag:drop', onDrop)
+    return () => {
+      bus.off('xdrag:move', onMove)
+      bus.off('xdrag:drop', onDrop)
+    }
+  }, [isOpen, sbWidth, ghostFold, close])
+
+  const ghostStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: (dragX.value ?? 0) - 160 }, // 카드 중앙 맞추기용 오프셋
+      { translateY: (dragY.value ?? 0) - 22 },
+    ],
+    opacity: withTiming(dragVisible.value, { duration: 80 }),
+  }))
+
+  const ABS_FULL = {
+    position: 'absolute' as const,
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 200,
+  }
+
+  const ghostCardStyle = {
+    position: 'absolute' as const,
+    width: 320,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 0.4,
+    borderColor: '#333333',
+    backgroundColor: '#FFFFFFCC',
+    alignItems: 'center' as const,
+    flexDirection: 'row' as const,
+    paddingHorizontal: 16,
+  }
+
+  // close() 호출 전에 항상 drawer:close 이벤트 발생
+  useEffect(() => {
+    const origClose = close
+    const safeClose = () => {
+      bus.emit('drawer:close')
+      origClose()
+    }
+    bus.on('drawer:force-close', safeClose)
+    return () => bus.off('drawer:force-close', safeClose)
+  }, [close])
 
   // 닫고 -> 실행 훅
   useEffect(() => {
@@ -66,7 +177,10 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   /** ✅ 콘텐츠 밀림 및 축소 애니메이션 */
   const contentStyle = useAnimatedStyle(() => {
     const isPush = mode === 'push'
-
+    // 고스트 폴드 시, 콘텐츠를 원래 위치/크기로
+    if (ghostFold) {
+      return { paddingTop: headerTotalH, transform: [] }
+    }
     if (isPush) {
       const scaleValue = interpolate(
         progress.value,
@@ -99,6 +213,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   /** ✅ 사이드바 슬라이드 */
   const sidebarStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: interpolate(progress.value, [0, 1], [-sbWidth, 0]) }],
+    opacity: ghostFold ? 0 : 1,
     width: sbWidth,
   }))
   return (
@@ -110,10 +225,9 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       <Animated.View style={[S.content, contentStyle, { zIndex: 35 }]}>
         {children}
       </Animated.View>
-
       <Animated.View
         style={[S.tapCatcher, tapCatcherStyle, { top: headerTotalH, zIndex: 100 }]}
-        pointerEvents={isOpen ? 'auto' : 'none'}
+        pointerEvents={isOpen && !dragActive && !ghostFold ? 'auto' : 'none'}
       >
         <Pressable
           style={{ flex: 1 }}
@@ -124,6 +238,26 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
         />
       </Animated.View>
 
+      {dragActive && (
+        // 오버레이 자체가 PanResponder를 “직접” 받습니다.
+        <View style={ABS_FULL} pointerEvents="none">
+          <Animated.View style={[ghostCardStyle, ghostStyle]}>
+            <View
+              style={{
+                width: 17,
+                height: 17,
+                borderWidth: 2,
+                borderColor: '#333',
+                borderRadius: 3,
+                marginRight: 12,
+              }}
+            />
+            <Text style={{ fontWeight: 'bold', fontSize: 12 }} numberOfLines={1}>
+              {dragTitle ?? ''}
+            </Text>
+          </Animated.View>
+        </View>
+      )}
       {/* ✅ 사이드바 영역 */}
       <Animated.View
         style={[
@@ -131,11 +265,10 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
           sidebarStyle,
           { top: headerTotalH, bottom: 0, zIndex: 40 },
         ]}
-        pointerEvents="auto"
+        pointerEvents={ghostFold ? 'none' : 'auto'}
       >
         <Sidebar />
       </Animated.View>
-
       {/* ✅ 헤더 고정 */}
       <SafeAreaView
         edges={['top']}

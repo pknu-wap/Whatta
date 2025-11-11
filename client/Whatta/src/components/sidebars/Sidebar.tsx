@@ -1,7 +1,15 @@
-import React, { useEffect, useMemo, useState, memo, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, memo, useCallback, useRef } from 'react'
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native'
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist'
 import { useFocusEffect } from '@react-navigation/native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated'
+import { runOnJS } from 'react-native-worklets'
+import { bus } from '@/lib/eventBus'
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
@@ -48,6 +56,40 @@ function mapTask(d: any): Task {
     createdAt: d.createdAt ?? null,
     updatedAt: d.updatedAt ?? null,
   }
+}
+
+function TaskCardDraggable({ item }: { item: Task }) {
+  const translateY = useSharedValue(0)
+  const opacity = useSharedValue(1)
+
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      translateY.value += e.changeY
+      bus.emit('sidebar:dragging', { task: item, x: e.absoluteX, y: e.absoluteY })
+    })
+    .onEnd((e) => {
+      bus.emit('sidebar:drop', { task: item, x: e.absoluteX, y: e.absoluteY })
+      translateY.value = withTiming(0)
+      opacity.value = withTiming(1)
+    })
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }))
+
+  return (
+    <GestureDetector gesture={drag}>
+      <Animated.View style={[S.card, style]}>
+        <TaskCard
+          id={item.id}
+          title={item.title}
+          checked={item.completed}
+          onToggle={() => {}}
+        />
+      </Animated.View>
+    </GestureDetector>
+  )
 }
 
 function isTimelessTask(t: Task) {
@@ -136,6 +178,14 @@ export default function Sidebar() {
       return () => {}
     }, [refresh]),
   )
+
+  useEffect(() => {
+    const remove = ({ id }: { id: string }) => {
+      setTasks((prev) => prev.filter((t) => t.id !== id))
+    }
+    bus.on('sidebar:remove-task', remove)
+    return () => bus.off('sidebar:remove-task', remove)
+  }, [])
 
   // 입력창 제출 -> 생성 -> 자동 재조회
   const handleCreate = useCallback(async () => {
@@ -323,11 +373,11 @@ function SectionUpcoming({
 }) {
   const renderItem = ({ item, drag, isActive }: RenderItemParams<Task>) => (
     <TaskCard
+      id={item.id}
       title={item.title}
       checked={item.completed}
       onToggle={() => onToggle(item.id)}
-      // 내부 정렬 드래그
-      onLongPressHandle={drag}
+      onLongPressHandle={drag} // ← 점 세개(핸들) 길게 → 내부 정렬
       isActive={!!isActive}
     />
   )
@@ -373,6 +423,7 @@ function SectionCompleted({
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <TaskCard
+            id={item.id}
             title={item.title}
             checked={item.completed}
             onToggle={() => onToggle(item.id)}
@@ -391,21 +442,63 @@ function SectionCompleted({
 }
 
 const TaskCard = memo(function TaskCard({
+  id,
   title,
   checked,
   onToggle,
   onLongPressHandle,
   isActive,
+  registerSimultaneous,
 }: {
+  id: string
   title: string
   checked: boolean
   onToggle: () => void
   onLongPressHandle?: () => void // 우측 3점(핸들) 롱프레스 → 내부 정렬
   isActive?: boolean
+  registerSimultaneous?: (gh: any) => void
 }) {
+  const start = useCallback(
+    (x: number, y: number) => {
+      bus.emit('xdrag:start', { task: { id, title }, x, y })
+    },
+    [id, title],
+  )
+
+  const move = useCallback((x: number, y: number) => {
+    bus.emit('xdrag:move', { x, y })
+  }, [])
+
+  const drop = useCallback((x: number, y: number) => {
+    bus.emit('xdrag:drop', { x, y })
+  }, [])
+  const midPanRef = React.useRef<any>(null)
+  // Pan 제스처: 롱프레스 후 활성 + 바깥으로 나가도 유지
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .withRef(midPanRef)
+        .activateAfterLongPress(180)
+        .shouldCancelWhenOutside(false)
+        .onBegin((e) => {
+          runOnJS(start)(e.absoluteX, e.absoluteY)
+        })
+        .onChange((e) => {
+          runOnJS(move)(e.absoluteX, e.absoluteY)
+        })
+        .onFinalize((e) => {
+          runOnJS(drop)(e.absoluteX, e.absoluteY)
+        }),
+    [start, move, drop],
+  )
+
+  useEffect(() => {
+    registerSimultaneous?.(midPanRef.current)
+  }, [registerSimultaneous])
+
   return (
     <View style={[S.card, isActive && { opacity: 0.9 }]}>
-      {/* 체크 토글 */}
+      {/* 체크박스 */}
       <Pressable
         onPress={onToggle}
         hitSlop={10}
@@ -419,24 +512,27 @@ const TaskCard = memo(function TaskCard({
         )}
       </Pressable>
 
-      <Text
-        style={[
-          ts('taskName'),
-          { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
-          checked && { textDecorationLine: 'line-through' },
-        ]}
-        numberOfLines={1}
-      >
-        {title}
-      </Text>
+      {/* 제목 */}
+      <GestureDetector gesture={pan}>
+        <Text
+          style={[
+            ts('taskName'),
+            { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
+            checked && { textDecorationLine: 'line-through' },
+          ]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+      </GestureDetector>
 
-      {/* 내부 정렬 드래그 */}
+      {/* 점3개 핸들: 내부 순서 변경용 */}
       <Pressable
         onLongPress={onLongPressHandle}
         delayLongPress={180}
         hitSlop={12}
-        accessibilityLabel="drag handle"
         style={S.handle}
+        accessibilityLabel="drag handle"
       >
         <Text style={S.handleText}>···</Text>
       </Pressable>
