@@ -10,7 +10,7 @@ public record BoundingPoly(
 ) {
     @Builder
     public record Vertex(
-            double x,
-            double y
+            int x,
+            int y
     ) {}
 }

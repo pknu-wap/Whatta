@@ -8,13 +8,14 @@ import static org.bytedeco.opencv.global.opencv_core.*;
 import static org.bytedeco.opencv.global.opencv_imgproc.*;
 
 import org.opencv.imgproc.Imgproc;
+import org.springframework.stereotype.Component;
 import whatta.Whatta.ocr.mapper.ScheduleBlockMapper;
 import whatta.Whatta.ocr.payload.dto.DetectedBlock;
 
+@Component
 public class ScheduleBlockDetector {
 
-
-    public static DetectedBlock findTimeBox (String imageData) {
+    public DetectedBlock findTimeBox (String imageData) {
         //TODO: imageData 검증 필요
         Mat bgrImage = ImageIOUtil.fromBase64(imageData);
         try {
@@ -24,7 +25,7 @@ public class ScheduleBlockDetector {
         }
     }
 
-    private static DetectedBlock detectColoredBoxes (Mat bgrImage) {
+    private DetectedBlock detectColoredBoxes (Mat bgrImage) {
         //살짝 블러 (문자/격자 얇은 라인 완화)
         Mat smooth = new Mat();
         GaussianBlur(bgrImage, smooth, new Size(3, 3), 0);
@@ -72,7 +73,7 @@ public class ScheduleBlockDetector {
         return ScheduleBlockMapper.toDetectedBlock(bgrImage.size(), blocks);
     }
 
-    private static void morphologyRefine(Mat mask) {
+    private void morphologyRefine(Mat mask) {
         Mat kOpen  = getStructuringElement(MORPH_RECT, new Size(3, 3));
         Mat kClose = getStructuringElement(MORPH_RECT, new Size(3, 3));
 
@@ -82,7 +83,7 @@ public class ScheduleBlockDetector {
         kOpen.release(); kClose.release();
     }
 
-    private static List<DetectedBlock.Block> extractBoxesAsResults(Mat mask, Size originalSize) {
+    private List<DetectedBlock.Block> extractBoxesAsResults(Mat mask, Size originalSize) {
         MatVector contours = new MatVector();
         findContours(mask.clone(), contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
@@ -121,7 +122,7 @@ public class ScheduleBlockDetector {
     }
 
     //topLeft, tr, br, bl 순서로 정렬
-    private static Point[] orderTLTRBRBL(Point[] p) {
+    private Point[] orderTLTRBRBL(Point[] p) {
         Point tl = null, tr = null, br = null, bl = null;
         double minSum=1e18, maxSum=-1e18, minDiff=1e18, maxDiff=-1e18;
 
