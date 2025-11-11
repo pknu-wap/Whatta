@@ -17,7 +17,7 @@ public class ScheduleMatcher {
         Map<String, Integer> weekDayX = extractWeekdayAnchors(ocrTexts);
         NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts);
 
-        //y -> 시간(분) 변환
+        final int headerBandMaxY = computeHeaderBandMaxY(ocrTexts, 80);
 
         //블록 내부 text 묶기 + 요일/시간 채우기
         List<MatchedScheduleBlock> matches = new ArrayList<>();
@@ -26,7 +26,7 @@ public class ScheduleMatcher {
 
             List<OcrText> inside = ocrTexts.stream()
                     .filter(f -> r.contains(f.centerX(), f.centerY()))
-                    .toList(); //.collect(Collectors.toList());
+                    .toList();
 
             //블록 중심 x가 가장 가까운 요일 매핑
             String weekDay = inferWeekDay(r.centerX(), weekDayX);
@@ -37,8 +37,8 @@ public class ScheduleMatcher {
 
             //텍스트만 추출
             List<String> texts = inside.stream()
+                    .filter(t -> notAxisLabel(t, headerBandMaxY))
                     .map(OcrText::text)
-                    .filter(ScheduleMatcher::notAxisLabel)
                     .collect(Collectors.toList());
 
             matches.add(MatchedScheduleBlock.builder()
@@ -52,13 +52,45 @@ public class ScheduleMatcher {
         return matches;
     }
 
-    private static boolean notAxisLabel(String s) {
+   /* private static boolean notAxisLabel(String s) {
         if (s == null) return false;
         String t = s.trim();
         if (t.isEmpty()) return false;
         if (WEEKDAY.matcher(t).matches()) return false; //요일 라벨 제거
-        if (HOUR.matcher(t).matches()) return false;    //시간 숫자 제거
+        if (HOUR.matcher(t).matches()) return false; //시간 숫자 제거
         return true;
+    }*/
+
+    private static boolean notAxisLabel(OcrText t, int headerBandMaxY) {
+        if (t == null || t.text() == null) return false;
+        String raw = t.text().trim();
+        if (raw.isEmpty()) return false;
+
+        //헤더 밴드에 있는 것만 축 라벨로 보고 제거
+        if (WEEKDAY.matcher(raw).matches() && t.topY() <= headerBandMaxY) {
+            return false;
+        }
+
+        //시간 숫자(1~12)
+        if (HOUR.matcher(raw).matches()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static int computeHeaderBandMaxY(List<OcrText> texts, int margin) {
+        int minY = Integer.MAX_VALUE;
+        for (OcrText t : texts) {
+            String s = t.text();
+            if (s == null) continue;
+            String raw = s.trim();
+            if (WEEKDAY.matcher(raw).matches()) {
+                minY = Math.min(minY, t.topY());
+            }
+        }
+        if (minY == Integer.MAX_VALUE) return Integer.MIN_VALUE; //요일 없는 경ㅇ
+        return minY + Math.max(margin, 0);
     }
 
     private static final Pattern WEEKDAY = Pattern.compile("^(월|화|수|목|금|토|일)(?:요일)?$"); //월, 월요일, 월.*
