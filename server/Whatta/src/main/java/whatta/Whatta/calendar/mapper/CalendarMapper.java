@@ -87,4 +87,14 @@ public class CalendarMapper {
                 .isRepeat(result.isRepeat())
                 .build();
     }
+
+    public MonthTask MonthlyTaskResultToResponse(CalendarMonthlyTaskResult result) {
+        return MonthTask.builder()
+                .id(result.id())
+                .title(result.title())
+                .labels(result.labels())
+                .completed(result.completed())
+                .placementTime(result.placementTime())
+                .build();
+    }
 }
