@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class TrafficService {
 
     private final BusApiClient busApiClient;
-    private static final String FIXED_CITY_CODE = "26";//시티코드 구현 전까지 부산으로 가정하고 구현
+    private static final String FIXED_CITY_CODE = "21";//시티코드 구현 전까지 부산으로 가정하고 구현
 
     //좌표기반근접 정류장 검색
     public List<BusStationResponse> searchStationsByGps(Double latitude, Double longitude) {

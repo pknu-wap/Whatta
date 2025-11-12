@@ -23,17 +23,15 @@ public class BusApiClient {
     @Value("${public-data.bus-api.base-url}")
     private String arrivalBaseUrl;
 
-    // 국토교통부_(TAGO)_버스도착정보 서비스키
-    @Value("${public-data.bus-api.service-key}")
-    private String arrivalServiceKey;
-
     //국토교통부_(TAGO)_버스정류소정보
     @Value("${public-data.bus-station-api.base-url}")
     private String stationBaseUrl;
 
-    //국토교통부_(TAGO)_버스정류소정보 서비스키
-    @Value("${public-data.bus-station-api.service-key}")
-    private String stationServiceKey;
+    // 국토교통부_(TAGO) 서비스키
+    @Value("${public-data.bus-api.service-key}")
+    private String serviceKey;
+
+
 
 
 
@@ -43,7 +41,7 @@ public class BusApiClient {
 
         URI uri = UriComponentsBuilder
                 .fromUriString(stationBaseUrl + operationPath)
-                .queryParam("serviceKey", stationServiceKey)
+                .queryParam("serviceKey", serviceKey)
                 .queryParam("gpsLati", gpsLati)
                 .queryParam("gpsLong", gpsLong)
                 .queryParam("_type", "json")
@@ -59,7 +57,7 @@ public class BusApiClient {
 
         URI uri = UriComponentsBuilder
                 .fromUriString(stationBaseUrl + operationPath)
-                .queryParam("serviceKey", stationServiceKey)
+                .queryParam("serviceKey", serviceKey)
                 .queryParam("cityCode", cityCode)
                 .queryParam("nodeNm", keyword)
                 .queryParam("_type", "json")
@@ -70,11 +68,11 @@ public class BusApiClient {
     }
     //정류장별 경유노선 목록을 조회
     public BusApiResponse getRouteListByStation(String nodeId, String cityCode){
-        String operationPath = "/getSttnNoList";
+        String operationPath = "/getSttnThrghRouteList";
 
         URI uri = UriComponentsBuilder
                 .fromUriString(stationBaseUrl + operationPath)
-                .queryParam("serviceKey", stationServiceKey)
+                .queryParam("serviceKey", serviceKey)
                 .queryParam("cityCode", cityCode)
                 .queryParam("nodeId", nodeId)
                 .queryParam("_type", "json")
@@ -90,7 +88,7 @@ public class BusApiClient {
 
         URI uri = UriComponentsBuilder
                 .fromUriString(arrivalBaseUrl + operationPath)
-                .queryParam("serviceKey", arrivalServiceKey)
+                .queryParam("serviceKey", serviceKey)
                 .queryParam("cityCode", cityCode)
                 .queryParam("nodeId", nodeId)
                 .queryParam("_type", "json")
@@ -108,7 +106,7 @@ public class BusApiClient {
 
         URI uri = UriComponentsBuilder
                 .fromUriString(arrivalBaseUrl + operationPath)
-                .queryParam("serviceKey", arrivalServiceKey)
+                .queryParam("serviceKey", serviceKey)
                 .queryParam("cityCode", cityCode)
                 .queryParam("nodeId", nodeId)
                 .queryParam("routeId", routeId)
@@ -120,6 +118,7 @@ public class BusApiClient {
     }
 
     private BusApiResponse callApi(URI uri){
+        log.info(">>> 실제 요청 URI: {}", uri.toString());
         try {
             BusApiResponse response = restTemplate.getForObject(uri, BusApiResponse.class);
 
