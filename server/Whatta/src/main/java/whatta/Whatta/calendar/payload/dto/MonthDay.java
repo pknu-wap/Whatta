@@ -9,7 +9,6 @@ import java.util.List;
 public record MonthDay(
         LocalDate date,
         List<MonthEvent> events,
-        int taskCount,
-        List<MonthTask> tasks
+        int taskCount
 ) {
 }

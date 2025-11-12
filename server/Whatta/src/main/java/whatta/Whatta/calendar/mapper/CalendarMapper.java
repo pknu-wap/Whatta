@@ -3,7 +3,6 @@ package whatta.Whatta.calendar.mapper;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.calendar.payload.dto.*;
 import whatta.Whatta.calendar.repository.dto.*;
-import whatta.Whatta.global.util.LocalTimeUtil;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -48,8 +47,8 @@ public class CalendarMapper {
                 .title(item.title())
                 .colorKey(item.colorKey())
                 .labels(item.labels())
-                .clippedStartTime(LocalTimeUtil.localTimeToString(start))
-                .clippedEndTime(LocalTimeUtil.localTimeToString(end))
+                .clippedStartTime(start)
+                .clippedEndTime(end)
                 .isSpan(item.isSpan())
                 .startAt(LocalDateTime.of(item.startDate(), item.startTime()))
                 .endAt(LocalDateTime.of(item.endDate(), item.endTime()))
@@ -75,8 +74,6 @@ public class CalendarMapper {
                 .labels(result.labels())
                 .startDate(result.startDate())
                 .endDate(result.endDate())
-                .startTime(LocalTimeUtil.localTimeToString(result.startTime()))
-                .endTime(LocalTimeUtil.localTimeToString(result.endTime()))
                 .isRepeat(result.isRepeat())
                 .build();
     }
@@ -87,19 +84,7 @@ public class CalendarMapper {
                 .title(result.title())
                 .colorKey(result.colorKey())
                 .labels(result.labels())
-                .startTime(LocalTimeUtil.localTimeToString(result.endTime()))
-                .endTime(LocalTimeUtil.localTimeToString(result.startTime()))
                 .isRepeat(result.isRepeat())
-                .build();
-    }
-
-    public MonthTask MonthlyTaskResultToResponse(CalendarMonthlyTaskResult result) {
-        return MonthTask.builder()
-                .id(result.id())
-                .title(result.title())
-                .labels(result.labels())
-                .completed(result.completed())
-                .placementTime(result.placementTime())
                 .build();
     }
 }

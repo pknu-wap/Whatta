@@ -11,7 +11,6 @@ import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtils;
-import whatta.Whatta.global.util.LocalTimeUtil;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
@@ -41,10 +40,7 @@ public class EventService {
 
         //유저의 라벨 목록에 있는 라벨인지
         LabelUtils.validateLabelsInUserSettings(userSetting, request.labels());
-
-        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
-        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
-        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
+        validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
 
         Event.EventBuilder eventBuilder = Event.builder()
                 .userId(user.getId())
@@ -56,8 +52,8 @@ public class EventService {
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting,request.labels()));
         if(request.startTime() != null && request.endTime() != null) {
-            eventBuilder.startTime(startTime);
-            eventBuilder.endTime(endTime);
+            eventBuilder.startTime(request.startTime());
+            eventBuilder.endTime(request.endTime());
         }
 
        return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
@@ -89,10 +85,7 @@ public class EventService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
-        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
-        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
-        System.out.println("editing : " + endTime);
-        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
+        validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
 
         //수정
         Event.EventBuilder builder = originalEvent.toBuilder();
@@ -104,8 +97,8 @@ public class EventService {
         }
         if(request.startDate() != null) builder.startDate(request.startDate());
         if(request.endDate() != null) builder.endDate(request.endDate());
-        if(request.startTime() != null) builder.startTime(startTime);
-        if(request.endTime() != null) builder.endTime(endTime);
+        if(request.startTime() != null) builder.startTime(request.startTime());
+        if(request.endTime() != null) builder.endTime(request.endTime());
         if(request.repeat() != null) builder.repeat(request.repeat().toEntity());
         if(request.colorKey() != null) builder.colorKey(request.colorKey());
 

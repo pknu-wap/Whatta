@@ -12,8 +12,8 @@ public record TimedEvent(
         String title,
         String colorKey,
         List<Long> labels,
-        String clippedStartTime,
-        String clippedEndTime,
+        LocalTime clippedStartTime,
+        LocalTime clippedEndTime,
 
         boolean isSpan,
         LocalDateTime startAt,
