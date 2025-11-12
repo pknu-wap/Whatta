@@ -1,4 +1,4 @@
-package whatta.Whatta.global.repeat;
+package whatta.Whatta.global.util;
 
 public enum RepeatUnit {
     DAY,
