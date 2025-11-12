@@ -3,6 +3,7 @@ package whatta.Whatta.global.util;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
+import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.user.entity.UserSetting;
 
 import java.util.ArrayList;
@@ -40,6 +41,27 @@ public class LabelUtils {
             Label label = userLabels.get(id);
 
             result.add(Label.builder()
+                    .id(label.getId())
+                    .title(label.getTitle())
+                    .colorKey(label.getColorKey())
+                    .build());
+        }
+        return result;
+    }
+
+    public static List<LabelItem> getTitleAndColorKeyByIdsForResponse(UserSetting userSetting, List<Long> labelIds) {
+        if(labelIds == null || labelIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Label> userLabels = userSetting.getLabels().stream()
+                .collect(Collectors.toMap(Label::getId, Function.identity()));
+
+        List<LabelItem> result = new ArrayList<>();
+        for(Long id : labelIds) {
+            Label label = userLabels.get(id);
+
+            result.add(LabelItem.builder()
                     .id(label.getId())
                     .title(label.getTitle())
                     .colorKey(label.getColorKey())
