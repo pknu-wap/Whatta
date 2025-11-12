@@ -8,6 +8,7 @@ public class LocalTimeUtil {
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public static LocalTime stringToLocalTime(String timeString) {
+        if (timeString == null || timeString.isEmpty()) { return null; }
         if (timeString.equals("24:00:00")) {
             return LocalTime.MAX;
         }
@@ -15,6 +16,10 @@ public class LocalTimeUtil {
     }
 
     public static String localTimeToString(LocalTime localTime) {
+        if (localTime == null) { return null; }
+        if (localTime.equals(LocalTime.MAX)) {
+            return "24:00:00";
+        }
         return FORMATTER.format(localTime);
     }
 }
