@@ -11,6 +11,7 @@ import whatta.Whatta.global.util.LocalTimeUtil;
 public class EventMapper {
     public EventDetailsResponse toEventDetailsResponse(Event event) {
 
+        System.out.println(event.getEndTime());
         return EventDetailsResponse.builder()
                 .id(event.getId())
                 .title(event.getTitle())

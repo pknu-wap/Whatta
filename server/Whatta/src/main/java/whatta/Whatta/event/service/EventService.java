@@ -91,6 +91,7 @@ public class EventService {
 
         LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
         LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
+        System.out.println("editing : " + endTime);
         validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
 
         //수정
