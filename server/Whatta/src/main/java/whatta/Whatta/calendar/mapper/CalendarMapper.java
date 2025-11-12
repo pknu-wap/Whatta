@@ -74,6 +74,8 @@ public class CalendarMapper {
                 .labels(result.labels())
                 .startDate(result.startDate())
                 .endDate(result.endDate())
+                .startTime(result.startTime())
+                .endTime(result.endTime())
                 .isRepeat(result.isRepeat())
                 .build();
     }
@@ -84,7 +86,19 @@ public class CalendarMapper {
                 .title(result.title())
                 .colorKey(result.colorKey())
                 .labels(result.labels())
+                .startTime(result.startTime())
+                .endTime(result.endTime())
                 .isRepeat(result.isRepeat())
+                .build();
+    }
+
+    public MonthTask MonthlyTaskResultToResponse(CalendarMonthlyTaskResult result) {
+        return MonthTask.builder()
+                .id(result.id())
+                .title(result.title())
+                .labels(result.labels())
+                .completed(result.completed())
+                .placementTime(result.placementTime())
                 .build();
     }
 }
