@@ -16,8 +16,8 @@ public record MonthSpanEvent(
         LocalDate startDate,
         LocalDate endDate,
 
-        LocalTime startTime,
-        LocalTime endTime,
+        String startTime,
+        String endTime,
 
         Boolean isRepeat
 ) {

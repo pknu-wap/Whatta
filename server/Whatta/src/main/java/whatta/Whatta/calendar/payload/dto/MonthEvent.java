@@ -12,8 +12,8 @@ public record MonthEvent(
         String colorKey,
         List<Long> labels,
 
-        LocalTime startTime,
-        LocalTime endTime,
+        String startTime,
+        String endTime,
 
         Boolean isRepeat
 ) {
