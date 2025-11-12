@@ -41,7 +41,10 @@ public class EventService {
 
         //유저의 라벨 목록에 있는 라벨인지
         LabelUtils.validateLabelsInUserSettings(userSetting, request.labels());
-        validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
+
+        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
+        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
+        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
 
         Event.EventBuilder eventBuilder = Event.builder()
                 .userId(user.getId())
@@ -53,8 +56,8 @@ public class EventService {
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting,request.labels()));
         if(request.startTime() != null && request.endTime() != null) {
-            eventBuilder.startTime(request.startTime());
-            eventBuilder.endTime(request.endTime());
+            eventBuilder.startTime(startTime);
+            eventBuilder.endTime(endTime);
         }
 
        return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
