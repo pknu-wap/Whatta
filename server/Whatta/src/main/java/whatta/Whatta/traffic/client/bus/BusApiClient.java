@@ -68,7 +68,7 @@ public class BusApiClient {
 
         return callApi(uri);
     }
-    //정류소별 경유노선 목록을 조회
+    //정류장별 경유노선 목록을 조회
     public BusApiResponse getRouteListByStation(String nodeId, String cityCode){
         String operationPath = "/getSttnNoList";
 
@@ -102,7 +102,7 @@ public class BusApiClient {
 
 
 
-    //정류소 별로 특정노선의 실시간 도착예정정보 및 운행정보 목록을 조회
+    //특정노선의 실시간 도착예정정보 및 운행정보 목록을 조회
     public BusApiResponse getArrivalInfoByRoute(String nodeId, String cityCode, String routeId) {
         String operationPath = "/getSttnAcctoSpcifyRouteBusArvlPrearngeInfoList";
 
