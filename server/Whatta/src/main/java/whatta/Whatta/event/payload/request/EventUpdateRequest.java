@@ -22,9 +22,9 @@ public record EventUpdateRequest(
         LocalDate endDate,
 
         @Schema(type = "string", format = "time", example = "18:00:00")
-        String  startTime,
+        LocalTime  startTime,
         @Schema(type = "string", format = "time", example = "18:00:00")
-        String endTime,
+        LocalTime endTime,
 
         @Valid
         RepeatRequest repeat,

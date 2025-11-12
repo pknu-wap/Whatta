@@ -18,8 +18,8 @@ public record EventDetailsResponse(
         LabelsResponse labels,
         LocalDate startDate,
         LocalDate endDate,
-        String startTime,
-        String endTime,
+        LocalTime startTime,
+        LocalTime endTime,
         RepeatResponse repeat,
         String colorKey
 ) {
