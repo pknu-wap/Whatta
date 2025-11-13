@@ -34,7 +34,7 @@ public class UserSettingService {
         return LabelResponse.builder()
                 .id(newLabel.getId())
                 .title(newLabel.getTitle())
-                .colorKey(newLabel.getColorKey())
+                //.colorKey(newLabel.getColorKey())
                 .build();
     }
     private List<Label> buildLabels(List<Label> userLabels, LabelRequest request) {
@@ -48,7 +48,7 @@ public class UserSettingService {
             newLabels.add(Label.builder()
                             .id(generateId(newLabels))
                             .title(label)
-                            .colorKey(request.colorKey())
+                            //.colorKey(request.colorKey())
                     .build());
         }
 
@@ -87,7 +87,7 @@ public class UserSettingService {
             labels.add(LabelItem.builder()
                             .id(label.getId())
                             .title(label.getTitle())
-                            .colorKey(label.getColorKey())
+                            //.colorKey(label.getColorKey())
                     .build());
         }
 

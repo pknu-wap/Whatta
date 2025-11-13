@@ -15,7 +15,7 @@ public record EventDetailsResponse(
         String id,
         String title,
         String content,
-        LabelsResponse labels,
+        List<Long> labels,
         LocalDate startDate,
         LocalDate endDate,
         String startTime,

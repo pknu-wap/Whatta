@@ -79,7 +79,7 @@ public class EventService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         return eventMapper.toEventDetailsResponse(event);
-    } //TODO: 상세에 라벨 title까지 보낼 것인지
+    }
 
     public EventDetailsResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
 

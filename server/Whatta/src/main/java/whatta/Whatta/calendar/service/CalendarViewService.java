@@ -48,7 +48,7 @@ public class CalendarViewService {
         CalendarTasksResult tasksResult = tasksFuture.join();
 
         //라벨 리스트
-        List<LabelItem> labelPalette = buildLabelPalette(userId, eventsResult,tasksResult);
+        List<LabelItem> labelPalette = buildLabelPalette(userId, eventsResult, tasksResult);
 
         List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
         List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event

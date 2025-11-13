@@ -28,27 +28,6 @@ public class LabelUtil {
         }
     }
 
-    public static List<Label> getTitleAndColorKeyByIds(UserSetting userSetting, List<Long> labelIds) {
-        if(labelIds == null || labelIds.isEmpty()) {
-            return List.of();
-        }
-
-        Map<Long, Label> userLabels = userSetting.getLabels().stream()
-                .collect(Collectors.toMap(Label::getId, Function.identity()));
-
-        List<Label> result = new ArrayList<>();
-        for(Long id : labelIds) {
-            Label label = userLabels.get(id);
-
-            result.add(Label.builder()
-                    .id(label.getId())
-                    .title(label.getTitle())
-                    .colorKey(label.getColorKey())
-                    .build());
-        }
-        return result;
-    }
-
     public static List<LabelItem> getTitleAndColorKeyByIdsForResponse(UserSetting userSetting, List<Long> labelIds) {
         if(labelIds == null || labelIds.isEmpty()) {
             return List.of();
@@ -64,7 +43,7 @@ public class LabelUtil {
             result.add(LabelItem.builder()
                     .id(label.getId())
                     .title(label.getTitle())
-                    .colorKey(label.getColorKey())
+                    //.colorKey(label.getColorKey())
                     .build());
         }
         return result;

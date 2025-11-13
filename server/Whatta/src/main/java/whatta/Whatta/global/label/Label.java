@@ -19,6 +19,6 @@ public class Label {
         @NotBlank
         private String title;
 
-        @NotBlank
-        private String colorKey;
+        /*@NotBlank
+        private String colorKey;*/
 }
