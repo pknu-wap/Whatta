@@ -1,13 +1,16 @@
 package whatta.Whatta.user.service;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.global.label.payload.LabelRequest;
 import whatta.Whatta.global.label.payload.LabelsResponse;
+import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.payload.response.LabelResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
@@ -94,5 +97,16 @@ public class UserSettingService {
         return LabelsResponse.builder()
                 .labels(labels)
                 .build();
+    }
+
+    @Transactional
+    public void deleteLabels(String userId, List<Long> labelId) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        LabelUtil.validateLabelsInUserSettings(userSetting, labelId);
+
+        userSetting.deleteLabelsByIds(labelId);
+        userSettingRepository.save(userSetting);
     }
 }

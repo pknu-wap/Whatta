@@ -13,6 +13,8 @@ import whatta.Whatta.global.label.payload.LabelRequest;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.user.service.UserSettingService;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/user/setting")
 @AllArgsConstructor
@@ -34,5 +36,13 @@ public class UserSettingController {
     @Operation(summary = "Label 리스트 조회", description = "유저가 가진 Label의 리스트를 제공합니다.")
     public ResponseEntity<?> getLabels(@AuthenticationPrincipal String userId) {
         return Response.ok("success get labels", userSettingService.getLabels(userId));
+    }
+
+    @DeleteMapping("/label")
+    @Operation(summary = "Label 삭제", description = "유저가 가진 Label의 리스트를 제공합니다.")
+    public ResponseEntity<?> deleteLabels(@AuthenticationPrincipal String userId,
+                                         @RequestBody List<Long> labelIds) {
+        userSettingService.deleteLabels(userId, labelIds);
+        return Response.ok("success delete label");
     }
 }
