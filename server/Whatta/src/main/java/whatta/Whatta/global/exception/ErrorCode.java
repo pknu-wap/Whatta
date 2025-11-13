@@ -19,7 +19,8 @@ public enum ErrorCode {
     INVALID_TOKEN(HttpStatus.BAD_REQUEST, "802", "유효하지 않은 토큰입니다."),
 
     LABEL_NOT_FOUND(HttpStatus.BAD_REQUEST, "900", "요청 라벨이 사용자의 라벨 목록에 없습니다."),
-    TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "901", "라벨은 최대 3개까지 설정할 수 있습니다.");
+    TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "901", "라벨은 최대 3개까지 설정할 수 있습니다."),
+    ALREADY_EXIST_REMINDER(HttpStatus.BAD_REQUEST, "902", "이미 존재하는 리마인드 프리셋입니다.");
 
 
 

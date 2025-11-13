@@ -20,7 +20,7 @@ import java.util.List;
 @AllArgsConstructor
 @PreAuthorize("isAuthenticated()")
 @SecurityRequirement(name = "BearerAuth")
-@Tag(name = "User Setting", description = "유저 설정 API")
+@Tag(name = "Lable", description = "라벨 설정 API")
 public class LabelController {
 
     private final LabelService labelService;

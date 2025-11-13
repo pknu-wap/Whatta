@@ -5,15 +5,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
+
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
 public class ReminderPreset {
-    @Id
-    private String id;
+    @NotNull
+    @Builder.Default
+    private String id = UUID.randomUUID().toString();
 
     @NotNull
     private int day; //0: 당일, 1: 하루 전, 2: 이틀 전
