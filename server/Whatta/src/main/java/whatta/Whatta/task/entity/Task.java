@@ -40,7 +40,7 @@ public class Task {
 
     @NotNull
     @Builder.Default
-    private List<Label> labels = new ArrayList<>();
+    private List<Long> labels = new ArrayList<>();
 
     @Builder.Default
     private Boolean completed = false; //진행 전(false) / 완료(true)
@@ -55,9 +55,6 @@ public class Task {
     @NotNull
     @Builder.Default
     private Long sortNumber = 0L;
-
-    @NotNull
-    private String colorKey;
 
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

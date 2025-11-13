@@ -2,12 +2,16 @@ package whatta.Whatta.user.service;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.global.label.payload.LabelRequest;
 import whatta.Whatta.global.label.payload.LabelsResponse;
+import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.task.repository.TaskRepository;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.payload.response.LabelResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
@@ -20,6 +24,8 @@ import java.util.List;
 public class UserSettingService {
 
     private final UserSettingRepository userSettingRepository;
+    private final EventRepository eventRepository;
+    private final TaskRepository taskRepository;
 
     public LabelResponse createLabel(String userId, LabelRequest request) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
@@ -34,7 +40,7 @@ public class UserSettingService {
         return LabelResponse.builder()
                 .id(newLabel.getId())
                 .title(newLabel.getTitle())
-                .colorKey(newLabel.getColorKey())
+                //.colorKey(newLabel.getColorKey())
                 .build();
     }
     private List<Label> buildLabels(List<Label> userLabels, LabelRequest request) {
@@ -48,7 +54,7 @@ public class UserSettingService {
             newLabels.add(Label.builder()
                             .id(generateId(newLabels))
                             .title(label)
-                            .colorKey(request.colorKey())
+                            //.colorKey(request.colorKey())
                     .build());
         }
 
@@ -87,12 +93,56 @@ public class UserSettingService {
             labels.add(LabelItem.builder()
                             .id(label.getId())
                             .title(label.getTitle())
-                            .colorKey(label.getColorKey())
+                            //.colorKey(label.getColorKey())
                     .build());
         }
 
         return LabelsResponse.builder()
                 .labels(labels)
                 .build();
+    }
+
+    public void updateLabel(String userId, Long labelId, LabelRequest request) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        LabelUtil.validateLabelsInUserSettings(userSetting, List.of(labelId));
+
+        List<Label> newLabels = new ArrayList<>();
+        for(Label label : userSetting.getLabels()) {
+            if(label.getId().equals(labelId)) {
+                newLabels.add(label.toBuilder()
+                        .title(request.title().trim())
+                        .build());
+            } else newLabels.add(label);
+        }
+        userSettingRepository.save(userSetting.toBuilder()
+                .labels(newLabels)
+                .build());
+    }
+
+    @Transactional
+    public void deleteLabels(String userId, List<Long> labelIds) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        LabelUtil.validateLabelsInUserSettings(userSetting, labelIds);
+
+        List<Label> newLabels = new ArrayList<>();
+        for(Label label : userSetting.getLabels()) {
+            if(labelIds.contains(label.getId())) {
+                continue;
+            }
+            newLabels.add(label);
+        }
+
+        //event에 있는 해당 id 삭제
+        eventRepository.pullLabelsByUserId(userId, labelIds);
+        //task에 있는 해당 id 삭제
+        taskRepository.pullLabelsByUserId(userId, labelIds);
+
+        userSettingRepository.save(userSetting.toBuilder()
+                        .labels(newLabels)
+                        .build());
     }
 }

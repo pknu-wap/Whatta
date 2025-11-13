@@ -20,7 +20,7 @@ public record LabelsResponse(
             items.add(LabelItem.builder()
                     .id(label.getId())
                     .title(label.getTitle())
-                    .colorKey(label.getColorKey())
+                    //.colorKey(label.getColorKey())
                     .build());
         }
         return LabelsResponse.builder()

@@ -34,7 +34,7 @@ public class CalendarTasksRepositoryCustom {
         allDayOperations.add(Aggregation.project()
                 .and("_id").as("id")
                 .and("title").as("title")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .and("completed").as("completed")
                 .and("placementDate").as("placementDate"));
 
@@ -44,7 +44,7 @@ public class CalendarTasksRepositoryCustom {
         timedOperations.add(Aggregation.project()
                 .and("_id").as("id")
                 .and("title").as("title")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .and("completed").as("completed")
                 .and("placementDate").as("placementDate")
                 .and("placementTime").as("placementTime"));
@@ -84,7 +84,7 @@ public class CalendarTasksRepositoryCustom {
         allDayOperations.add(Aggregation.project()
                 .and("_id").as("id")
                 .and("title").as("title")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .and("completed").as("completed")
                 .and("placementDate").as("placementDate"));
         allDayOperations.add(Aggregation.sort(Sort.by(
@@ -97,7 +97,7 @@ public class CalendarTasksRepositoryCustom {
         timedOperations.add(Aggregation.project()
                 .and("_id").as("id")
                 .and("title").as("title")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .and("completed").as("completed")
                 .and("placementDate").as("placementDate")
                 .and("placementTime").as("placementTime"));
@@ -136,7 +136,7 @@ public class CalendarTasksRepositoryCustom {
         operations.add(Aggregation.project()
                 .and("_id").as("id")
                 .and("title").as("title")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .and("completed").as("completed")
                 .and("placementDate").as("placementDate")
                 .and("placementTime").as("placementTime"));

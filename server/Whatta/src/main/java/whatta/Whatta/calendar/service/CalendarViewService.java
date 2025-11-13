@@ -13,7 +13,7 @@ import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
-import whatta.Whatta.global.util.LabelUtils;
+import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
@@ -48,7 +48,7 @@ public class CalendarViewService {
         CalendarTasksResult tasksResult = tasksFuture.join();
 
         //라벨 리스트
-        List<LabelItem> labelPalette = buildLabelPalette(userId, eventsResult,tasksResult);
+        List<LabelItem> labelPalette = buildLabelPalette(userId, eventsResult, tasksResult);
 
         List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
         List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event
@@ -213,7 +213,7 @@ public class CalendarViewService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        return LabelUtils.getTitleAndColorKeyByIdsForResponse(userSetting, new ArrayList<>(labelIds));
+        return LabelUtil.getTitleAndColorKeyByIdsForResponse(userSetting, new ArrayList<>(labelIds));
     }
 
     public MonthlyResponse getMonthly(String userId, YearMonth month) {
@@ -291,7 +291,7 @@ public class CalendarViewService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        return LabelUtils.getTitleAndColorKeyByIdsForResponse(userSetting, new ArrayList<>(labelIds));
+        return LabelUtil.getTitleAndColorKeyByIdsForResponse(userSetting, new ArrayList<>(labelIds));
     }
 
     private List<LocalDate> buildDateRange(LocalDate start, LocalDate end) {
