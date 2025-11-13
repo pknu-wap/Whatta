@@ -56,9 +56,6 @@ public class Task {
     @Builder.Default
     private Long sortNumber = 0L;
 
-    @NotNull
-    private String colorKey;
-
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
     @Builder.Default
