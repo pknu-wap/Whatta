@@ -1,9 +1,9 @@
 package whatta.Whatta.user.service;
 
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
@@ -11,6 +11,7 @@ import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.global.label.payload.LabelRequest;
 import whatta.Whatta.global.label.payload.LabelsResponse;
 import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.task.repository.TaskRepository;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.payload.response.LabelResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
@@ -23,6 +24,8 @@ import java.util.List;
 public class UserSettingService {
 
     private final UserSettingRepository userSettingRepository;
+    private final EventRepository eventRepository;
+    private final TaskRepository taskRepository;
 
     public LabelResponse createLabel(String userId, LabelRequest request) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
@@ -105,34 +108,41 @@ public class UserSettingService {
 
         LabelUtil.validateLabelsInUserSettings(userSetting, List.of(labelId));
 
-        List<Label> newLabels = updateLabels(userSetting.getLabels(), labelId, request);
-        userSettingRepository.save(userSetting.toBuilder()
-                .labels(newLabels)
-                .build());
-    }
-    private List<Label> updateLabels(List<Label> userLabels, Long labelId, LabelRequest request) {
         List<Label> newLabels = new ArrayList<>();
-        for(Label label : userLabels) {
+        for(Label label : userSetting.getLabels()) {
             if(label.getId().equals(labelId)) {
                 newLabels.add(label.toBuilder()
                         .title(request.title().trim())
                         .build());
             } else newLabels.add(label);
         }
-        return newLabels;
+        userSettingRepository.save(userSetting.toBuilder()
+                .labels(newLabels)
+                .build());
     }
 
-
     @Transactional
-    public void deleteLabels(String userId, List<Long> labelId) {
+    public void deleteLabels(String userId, List<Long> labelIds) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        LabelUtil.validateLabelsInUserSettings(userSetting, labelId);
+        LabelUtil.validateLabelsInUserSettings(userSetting, labelIds);
 
-        userSetting.deleteLabelsByIds(labelId);
-        userSettingRepository.save(userSetting);
+        List<Label> newLabels = new ArrayList<>();
+        for(Label label : userSetting.getLabels()) {
+            if(labelIds.contains(label.getId())) {
+                continue;
+            }
+            newLabels.add(label);
+        }
 
-        //TODO: event/task에 해당 id 삭제
+        //event에 있는 해당 id 삭제
+        eventRepository.pullLabelsByUserId(userId, labelIds);
+        //task에 있는 해당 id 삭제
+        taskRepository.pullLabelsByUserId(userId, labelIds);
+
+        userSettingRepository.save(userSetting.toBuilder()
+                        .labels(newLabels)
+                        .build());
     }
 }

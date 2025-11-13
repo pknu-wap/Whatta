@@ -39,10 +39,4 @@ public class UserSetting {
     private List<Label> labels = new ArrayList<>();
 
     //TODO: 알림 default 값은 알림 구현할 때 함께 구현하기
-
-    public void deleteLabelsByIds(List<Long> labelIds) {
-        if (labelIds == null || labelIds.isEmpty()) { return; }
-        labels.removeIf(
-                label -> labelIds.contains(label.getId()));
-    }
 }
