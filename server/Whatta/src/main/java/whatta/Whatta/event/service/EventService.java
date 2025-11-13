@@ -10,7 +10,7 @@ import whatta.Whatta.event.payload.response.EventDetailsResponse;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.util.LabelUtils;
+import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.global.util.LocalTimeUtil;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
@@ -40,7 +40,7 @@ public class EventService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         //유저의 라벨 목록에 있는 라벨인지
-        LabelUtils.validateLabelsInUserSettings(userSetting, request.labels());
+        LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
 
         LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
         LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
@@ -54,7 +54,7 @@ public class EventService {
                 .colorKey(request.colorKey());
         if(request.title() != null && !request.title().isBlank()) eventBuilder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
-        if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting,request.labels()));
+        if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(request.labels());
         if(request.startTime() != null && request.endTime() != null) {
             eventBuilder.startTime(startTime);
             eventBuilder.endTime(endTime);
@@ -99,8 +99,8 @@ public class EventService {
         if(request.title() != null && !request.title().isBlank()) builder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) builder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) {
-            LabelUtils.validateLabelsInUserSettings(userSetting, request.labels());
-            builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.labels()));
+            LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
+            builder.labels(request.labels());
         }
         if(request.startDate() != null) builder.startDate(request.startDate());
         if(request.endDate() != null) builder.endDate(request.endDate());

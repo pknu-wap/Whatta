@@ -1,5 +1,6 @@
 package whatta.Whatta.task.payload.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.Getter;
 import whatta.Whatta.global.repeat.payload.RepeatRequest;
@@ -18,7 +19,9 @@ public class TaskUpdateRequest {
 
     private Boolean completed; //Boolean값은 null값을 가질 수 있음.
 
+
     private LocalDate placementDate;//배치일
+    @Schema(type = "string", format = "time", example = "18:00:00")
     private LocalTime placementTime;//배치시간
 
     private LocalDateTime dueDateTime; //마감일, 마감시간
@@ -27,7 +30,6 @@ public class TaskUpdateRequest {
     private RepeatRequest repeat;
 
     private Long sortNumber;//정렬
-    private String colorKey;
 
     private List<String> fieldsToClear; //null로 필드 초기화
 
