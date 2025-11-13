@@ -153,10 +153,14 @@ public class CalendarEventsRepositoryCustom {
                 .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
+                .and("startTime").as("startTime")
+                .and("endTime").as("endTime")
                 .andExpression("repeat != null").as("IsRepeat"));
         operations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startDate"),
-                Sort.Order.asc("endDate"))));
+                Sort.Order.asc("endDate"),
+                Sort.Order.asc("startTime"),
+                Sort.Order.asc("endTime"))));
 
         Aggregation aggregation = Aggregation.newAggregation(operations);
 

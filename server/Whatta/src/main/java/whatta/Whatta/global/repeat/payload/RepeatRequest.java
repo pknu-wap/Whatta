@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import whatta.Whatta.global.anotation.ValidRepeat;
 import whatta.Whatta.global.repeat.Repeat;
-import whatta.Whatta.global.repeat.RepeatUnit;
+import whatta.Whatta.global.util.RepeatUnit;
 
 import java.time.LocalDate;
 import java.util.List;
