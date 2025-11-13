@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
-import whatta.Whatta.global.util.LabelUtils;
+import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -50,7 +50,7 @@ public class TaskService {
             newSortNumber = 10000L;
         }
 
-        LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels());
+        LabelUtil.validateLabelsInUserSettings(userSetting, request.getLabels());
 
         String title = (request.getTitle() == null || request.getTitle().isBlank())
                 ? "새로운 작업"
@@ -62,7 +62,7 @@ public class TaskService {
 
         List<Label> labels = (request.getLabels() == null || request.getLabels().isEmpty())
                 ? new ArrayList<>()
-                : LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels());
+                : LabelUtil.getTitleAndColorKeyByIds(userSetting, request.getLabels());
 
 
         Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
@@ -91,8 +91,8 @@ public class TaskService {
         if(request.getTitle() != null && !request.getTitle().isBlank()) builder.title(request.getTitle());
         if(request.getContent() != null) builder.content(request.getContent());
         if(request.getLabels() != null && !request.getLabels().isEmpty()) {
-            LabelUtils.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
-            builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
+            LabelUtil.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
+            builder.labels(LabelUtil.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
         }
         if(request.getCompleted() != null) builder.completed(request.getCompleted());
         if(request.getPlacementDate() != null) builder.placementDate(request.getPlacementDate());

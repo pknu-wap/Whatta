@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class LabelUtils {
+public class LabelUtil {
 
     public static void validateLabelsInUserSettings(UserSetting userSetting, List<Long> labels) {
         List<Label> userLabels = new ArrayList<>(userSetting.getLabels());

@@ -3,7 +3,7 @@ package whatta.Whatta.task.mapper;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.global.label.payload.LabelsResponse;
 import whatta.Whatta.global.repeat.payload.RepeatResponse;
-import whatta.Whatta.global.util.LabelUtils;
+import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
@@ -18,7 +18,7 @@ public class TaskMapper {
                 .userId(userSetting.getUserId())
                 .title(request.getTitle())
                 .content(request.getContent())
-                .labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.getLabels()))
+                .labels(LabelUtil.getTitleAndColorKeyByIds(userSetting, request.getLabels()))
                 .completed(false)
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
