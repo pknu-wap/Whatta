@@ -12,6 +12,7 @@ import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -44,6 +45,18 @@ public class AlarmService {
                 .hour(request.hour())
                 .minute(request.minute())
                 .build();
+    }
+
+    public List<ReminderResponse> getReminders(String userId) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        if(userSetting.getReminderPresets() == null || userSetting.getReminderPresets().isEmpty())
+            return null;
+
+        return userSetting.getReminderPresets().stream()
+                .map(this::buildReminderResponse)
+                .collect(Collectors.toList());
     }
 
     private boolean alreadyExists(List<ReminderPreset> userPresets, ReminderRequest request) {
