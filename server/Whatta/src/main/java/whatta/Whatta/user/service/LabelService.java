@@ -21,7 +21,7 @@ import java.util.List;
 
 @Service
 @AllArgsConstructor
-public class UserSettingService {
+public class LabelService {
 
     private final UserSettingRepository userSettingRepository;
     private final EventRepository eventRepository;
