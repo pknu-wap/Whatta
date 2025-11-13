@@ -59,6 +59,30 @@ public class AlarmService {
                 .collect(Collectors.toList());
     }
 
+    public void updateReminder(String userId, String reminderId, ReminderRequest request) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        validatePresetInUserSetting(userSetting.getReminderPresets(), reminderId);
+        //중복 확인
+        if(alreadyExists(userSetting.getReminderPresets(), request))
+            throw new RestApiException(ErrorCode.ALREADY_EXIST_REMINDER);
+
+        List<ReminderPreset> newPresets = new ArrayList<>();
+        for(ReminderPreset preset : userSetting.getReminderPresets()) {
+            if(preset.getId().equals(reminderId)) {
+                newPresets.add(preset.toBuilder()
+                        .day(request.day())
+                        .hour(request.hour())
+                        .minute(request.minute())
+                        .build());
+            } else newPresets.add(preset);
+        }
+        userSettingRepository.save(userSetting.toBuilder()
+                .reminderPresets(newPresets)
+                .build());
+    }
+
     private boolean alreadyExists(List<ReminderPreset> userPresets, ReminderRequest request) {
         return userPresets.stream()
                 .anyMatch(preset ->
@@ -74,6 +98,11 @@ public class AlarmService {
                 .hour(preset.getHour())
                 .minute(preset.getMinute())
                 .build();
+    }
+
+    private void validatePresetInUserSetting(List<ReminderPreset> userPresets, String presetId) {
+        if(userPresets.stream().noneMatch(p -> p.getId().equals(presetId)))
+            throw new RestApiException(ErrorCode.REMINDER_NOT_FOUND);
     }
 
 

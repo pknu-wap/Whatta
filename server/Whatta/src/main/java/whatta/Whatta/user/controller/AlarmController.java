@@ -41,7 +41,7 @@ public class AlarmController {
     @PutMapping("/reminder/{reminderId}")
     @Operation(summary = "리마인드 알림 수정", description = "해당 리마인드 알림을 수정합니다.")
     public ResponseEntity<?> updateLabel(@AuthenticationPrincipal String userId,
-                                         @PathVariable Long reminderId,
+                                         @PathVariable String reminderId,
                                          @RequestBody ReminderRequest request) {
         alarmService.updateReminder(userId, reminderId, request);
         return Response.ok("success update reminder preset");
@@ -51,7 +51,7 @@ public class AlarmController {
     @DeleteMapping("/reminder")
     @Operation(summary = "리마인드 알림 삭제", description = "해당 리마인드 알림들을 삭제합니다.")
     public ResponseEntity<?> deleteLabels(@AuthenticationPrincipal String userId,
-                                          @RequestBody List<Long> reminderIds) {
+                                          @RequestBody List<String> reminderIds) {
         alarmService.deleteReminders(userId, reminderIds);
         return Response.ok("success delete reminder presets");
     }
