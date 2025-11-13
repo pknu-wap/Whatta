@@ -54,7 +54,7 @@ public class EventService {
                 .colorKey(request.colorKey());
         if(request.title() != null && !request.title().isBlank()) eventBuilder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
-        if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(LabelUtil.getTitleAndColorKeyByIds(userSetting,request.labels()));
+        if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(request.labels());
         if(request.startTime() != null && request.endTime() != null) {
             eventBuilder.startTime(startTime);
             eventBuilder.endTime(endTime);
@@ -79,7 +79,7 @@ public class EventService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         return eventMapper.toEventDetailsResponse(event);
-    }
+    } //TODO: 상세에 라벨 title까지 보낼 것인지
 
     public EventDetailsResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
 
@@ -100,7 +100,7 @@ public class EventService {
         if(request.content() != null && !request.content().isBlank()) builder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) {
             LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
-            builder.labels(LabelUtil.getTitleAndColorKeyByIds(userSetting, request.labels()));
+            builder.labels(request.labels());
         }
         if(request.startDate() != null) builder.startDate(request.startDate());
         if(request.endDate() != null) builder.endDate(request.endDate());

@@ -60,9 +60,9 @@ public class TaskService {
                 ? ""
                 :request.getContent();
 
-        List<Label> labels = (request.getLabels() == null || request.getLabels().isEmpty())
+        List<Long> labels = (request.getLabels() == null || request.getLabels().isEmpty())
                 ? new ArrayList<>()
-                : LabelUtil.getTitleAndColorKeyByIds(userSetting, request.getLabels());
+                : request.getLabels();
 
 
         Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
@@ -92,7 +92,7 @@ public class TaskService {
         if(request.getContent() != null) builder.content(request.getContent());
         if(request.getLabels() != null && !request.getLabels().isEmpty()) {
             LabelUtil.validateLabelsInUserSettings(userSetting, request.getLabels()); //라벨 유효성 검증
-            builder.labels(LabelUtil.getTitleAndColorKeyByIds(userSetting, request.getLabels()));
+            builder.labels(request.getLabels());
         }
         if(request.getCompleted() != null) builder.completed(request.getCompleted());
         if(request.getPlacementDate() != null) builder.placementDate(request.getPlacementDate());
