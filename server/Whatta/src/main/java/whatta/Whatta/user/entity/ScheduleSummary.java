@@ -5,22 +5,25 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import whatta.Whatta.user.enums.NotifyDay;
 
-import java.util.UUID;
+import java.time.LocalTime;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class ReminderPreset {
-    @NotNull
+public class ScheduleSummary {
+
     @Builder.Default
-    private String id = UUID.randomUUID().toString();
+    private boolean enabled = true;
 
     @NotNull
-    private int day; //0: 당일, 1: 하루 전, 2: 이틀 전
+    @Builder.Default
+    private NotifyDay notifyDay = NotifyDay.TODAY;
+
     @NotNull
-    private int hour; //0~23 -> 1: 1시간 전
-    @NotNull
-    private int minute; //0~59 -> 30: 30분 전
+    @Builder.Default
+    private LocalTime time = LocalTime.of(9, 0);
+
 }
