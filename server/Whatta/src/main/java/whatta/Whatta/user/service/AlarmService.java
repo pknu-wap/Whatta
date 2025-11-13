@@ -5,10 +5,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.global.util.LocalTimeUtil;
 import whatta.Whatta.user.entity.ReminderPreset;
+import whatta.Whatta.user.entity.ScheduleSummary;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.payload.request.ReminderRequest;
+import whatta.Whatta.user.payload.request.ScheduleSummaryAlarmRequest;
 import whatta.Whatta.user.payload.response.ReminderResponse;
+import whatta.Whatta.user.payload.response.ScheduleSummaryResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.util.ArrayList;
@@ -124,5 +128,36 @@ public class AlarmService {
             throw new RestApiException(ErrorCode.REMINDER_NOT_FOUND);
     }
 
+    //-------------일정 요약 알림----------------
+    public void updateSummaryAlarm(String userId, ScheduleSummaryAlarmRequest request) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
+        //TODO: 운영 서버에서는 지워도 됨(개발 서버에는 안들어가 있는 값들이 있어서)
+        if (userSetting.getScheduleSummary() == null) {
+            userSetting.toBuilder()
+                    .scheduleSummary(ScheduleSummary.builder().build())
+                    .build();
+        }
+
+        ScheduleSummary.ScheduleSummaryBuilder builder = userSetting.getScheduleSummary().toBuilder();
+        if(request.enabled() != null) builder.enabled(request.enabled());
+        if(request.notifyDay() != null) builder.notifyDay(request.notifyDay());
+        if(request.time() != null) builder.time(LocalTimeUtil.stringToLocalTime(request.time()));
+
+        userSettingRepository.save(userSetting.toBuilder()
+                .scheduleSummary(builder.build())
+                .build());
+    }
+
+    public ScheduleSummaryResponse getSummaryAlarm(String userId) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        return ScheduleSummaryResponse.builder()
+                .enabled(userSetting.getScheduleSummary().isEnabled())
+                .notifyDay(userSetting.getScheduleSummary().getNotifyDay())
+                .time(LocalTimeUtil.localTimeToString(userSetting.getScheduleSummary().getTime()))
+                .build();
+    }
 }

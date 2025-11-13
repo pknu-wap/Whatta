@@ -40,4 +40,7 @@ public class UserSetting {
 
     @Builder.Default
     private List<ReminderPreset> reminderPresets = new ArrayList<>();
+
+    @Builder.Default
+    private ScheduleSummary scheduleSummary = ScheduleSummary.builder().build();
 }
