@@ -18,6 +18,7 @@ import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -128,13 +129,9 @@ public class LabelService {
 
         LabelUtil.validateLabelsInUserSettings(userSetting, labelIds);
 
-        List<Label> newLabels = new ArrayList<>();
-        for(Label label : userSetting.getLabels()) {
-            if(labelIds.contains(label.getId())) {
-                continue;
-            }
-            newLabels.add(label);
-        }
+        List<Label> newLabels = userSetting.getLabels().stream()
+                .filter(label -> !labelIds.contains(label.getId()))
+                .collect(Collectors.toList());
 
         //event에 있는 해당 id 삭제
         eventRepository.pullLabelsByUserId(userId, labelIds);

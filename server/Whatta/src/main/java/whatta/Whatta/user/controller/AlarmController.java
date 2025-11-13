@@ -7,7 +7,6 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.user.payload.request.ReminderRequest;
@@ -49,7 +48,9 @@ public class AlarmController {
 
 
     @DeleteMapping("/reminder")
-    @Operation(summary = "리마인드 알림 삭제", description = "해당 리마인드 알림들을 삭제합니다.")
+    @Operation(summary = "리마인드 알림 삭제",
+            description = "해당 리마인드 알림들을 삭제합니다."
+                    + "<br><br>(삭제할 리마인드 알림의 아이디 리스트를 바디로 보냅니다.)")
     public ResponseEntity<?> deleteLabels(@AuthenticationPrincipal String userId,
                                           @RequestBody List<String> reminderIds) {
         alarmService.deleteReminders(userId, reminderIds);

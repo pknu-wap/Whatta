@@ -2,6 +2,7 @@ package whatta.Whatta.user.service;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.user.entity.ReminderPreset;
@@ -80,6 +81,24 @@ public class AlarmService {
         }
         userSettingRepository.save(userSetting.toBuilder()
                 .reminderPresets(newPresets)
+                .build());
+    }
+
+    @Transactional
+    public void deleteReminders(String userId, List<String> reminderIds) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        for(String presetId : reminderIds) {
+            validatePresetInUserSetting(userSetting.getReminderPresets(), presetId);
+        }
+
+        List<ReminderPreset> updatedPresets = userSetting.getReminderPresets().stream()
+                .filter(preset -> !reminderIds.contains(preset.getId()))
+                .collect(Collectors.toList());
+
+        userSettingRepository.save(userSetting.toBuilder()
+                .reminderPresets(updatedPresets)
                 .build());
     }
 

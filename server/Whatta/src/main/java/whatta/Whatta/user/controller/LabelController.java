@@ -49,7 +49,9 @@ public class LabelController {
 
 
     @DeleteMapping
-    @Operation(summary = "Label 삭제", description = "해당 Label을 삭제합니다.")
+    @Operation(summary = "Label 삭제",
+            description = "해당 Label을 삭제합니다."
+                    + "<br><br>(삭제할 라벨의 아이디 리스트를 바디로 보냅니다.)")
     public ResponseEntity<?> deleteLabels(@AuthenticationPrincipal String userId,
                                          @RequestBody List<Long> labelIds) {
         labelService.deleteLabels(userId, labelIds);
