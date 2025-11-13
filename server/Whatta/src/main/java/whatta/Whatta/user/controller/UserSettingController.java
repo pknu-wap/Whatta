@@ -38,8 +38,18 @@ public class UserSettingController {
         return Response.ok("success get labels", userSettingService.getLabels(userId));
     }
 
+    @PutMapping("/label/{labelId}")
+    @Operation(summary = "Label 수정", description = "해당 Label의 title을 수정합니다.")
+    public ResponseEntity<?> updateLabel(@AuthenticationPrincipal String userId,
+                                          @PathVariable Long labelId,
+                                          @RequestBody LabelRequest request) {
+        userSettingService.updateLabel(userId, labelId, request);
+        return Response.ok("success update label");
+    }
+
+
     @DeleteMapping("/label")
-    @Operation(summary = "Label 삭제", description = "유저가 가진 Label의 리스트를 제공합니다.")
+    @Operation(summary = "Label 삭제", description = "해당 Label을 삭제합니다.")
     public ResponseEntity<?> deleteLabels(@AuthenticationPrincipal String userId,
                                          @RequestBody List<Long> labelIds) {
         userSettingService.deleteLabels(userId, labelIds);

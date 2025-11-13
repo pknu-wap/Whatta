@@ -99,6 +99,30 @@ public class UserSettingService {
                 .build();
     }
 
+    public void updateLabel(String userId, Long labelId, LabelRequest request) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        LabelUtil.validateLabelsInUserSettings(userSetting, List.of(labelId));
+
+        List<Label> newLabels = updateLabels(userSetting.getLabels(), labelId, request);
+        userSettingRepository.save(userSetting.toBuilder()
+                .labels(newLabels)
+                .build());
+    }
+    private List<Label> updateLabels(List<Label> userLabels, Long labelId, LabelRequest request) {
+        List<Label> newLabels = new ArrayList<>();
+        for(Label label : userLabels) {
+            if(label.getId().equals(labelId)) {
+                newLabels.add(label.toBuilder()
+                        .title(request.title().trim())
+                        .build());
+            } else newLabels.add(label);
+        }
+        return newLabels;
+    }
+
+
     @Transactional
     public void deleteLabels(String userId, List<Long> labelId) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
@@ -108,5 +132,7 @@ public class UserSettingService {
 
         userSetting.deleteLabelsByIds(labelId);
         userSettingRepository.save(userSetting);
+
+        //TODO: event/task에 해당 id 삭제
     }
 }
