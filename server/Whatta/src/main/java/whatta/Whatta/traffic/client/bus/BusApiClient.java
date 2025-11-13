@@ -1,5 +1,7 @@
 package whatta.Whatta.traffic.client.bus;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +13,8 @@ import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.traffic.client.bus.dto.BusApiResponse;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Component
@@ -18,6 +22,7 @@ import java.net.URI;
 public class BusApiClient {
 
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
     // 국토교통부_(TAGO)_버스도착정보
     @Value("${public-data.bus-api.base-url}")
@@ -55,11 +60,13 @@ public class BusApiClient {
     public BusApiResponse getStationList(String keyword, String cityCode){
         String operationPath = "/getSttnNoList";
 
+        String encodedKeyword = URLEncoder.encode(keyword, StandardCharsets.UTF_8);
+
         URI uri = UriComponentsBuilder
                 .fromUriString(stationBaseUrl + operationPath)
                 .queryParam("serviceKey", serviceKey)
                 .queryParam("cityCode", cityCode)
-                .queryParam("nodeNm", keyword)
+                .queryParam("nodeNm", encodedKeyword)
                 .queryParam("_type", "json")
                 .build(true)
                 .toUri();
@@ -120,7 +127,13 @@ public class BusApiClient {
     private BusApiResponse callApi(URI uri){
         log.info(">>> 실제 요청 URI: {}", uri.toString());
         try {
-            BusApiResponse response = restTemplate.getForObject(uri, BusApiResponse.class);
+            String jsonString = restTemplate.getForObject(uri, String.class);
+
+            JsonNode rootNode = objectMapper.readTree(jsonString);
+
+            JsonNode responseNode = rootNode.path("response");
+
+            BusApiResponse response = objectMapper.treeToValue(responseNode, BusApiResponse.class);
 
             if(response == null || response.getHeader() == null || !"00".equals(response.getHeader().getResultCode())) {
                 log.warn("공공데이터 API 호출 실패: uri={}", uri);

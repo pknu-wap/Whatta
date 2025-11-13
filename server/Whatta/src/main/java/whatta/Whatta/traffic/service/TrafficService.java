@@ -111,8 +111,8 @@ public class TrafficService {
     //정류장별버스노선 조회 파싱 메서드
     private BusRouteResponse parseToRouteResponse(BusArrivalItem item) {
         return new BusRouteResponse(
-                item.getNodeid(),
-                item.getNodenm(),
+                item.getRouteid(),
+                item.getRouteno(),
                 item.getEndnodenm(),
                 item.getStartnodenm()
         );
