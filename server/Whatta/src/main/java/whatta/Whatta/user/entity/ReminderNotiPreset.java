@@ -12,7 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class ReminderPreset {
+public class ReminderNotiPreset {
     @NotNull
     @Builder.Default
     private String id = UUID.randomUUID().toString();

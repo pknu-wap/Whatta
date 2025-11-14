@@ -1,6 +1,6 @@
 package whatta.Whatta.user.payload.request;
 
-public record ReminderRequest(
+public record ReminderNotiRequest(
         int day,
         int hour,
         int minute

@@ -13,7 +13,7 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class ScheduleSummary {
+public class ScheduleSummaryNoti {
 
     @Builder.Default
     private boolean enabled = true;

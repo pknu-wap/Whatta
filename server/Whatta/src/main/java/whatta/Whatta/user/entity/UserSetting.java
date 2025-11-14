@@ -39,8 +39,8 @@ public class UserSetting {
     private List<Label> labels = new ArrayList<>();
 
     @Builder.Default
-    private List<ReminderPreset> reminderPresets = new ArrayList<>();
+    private List<ReminderNotiPreset> reminderNotiPresets = new ArrayList<>();
 
     @Builder.Default
-    private ScheduleSummary scheduleSummary = ScheduleSummary.builder().build();
+    private ScheduleSummaryNoti scheduleSummaryNoti = ScheduleSummaryNoti.builder().build();
 }
