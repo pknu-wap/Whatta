@@ -61,6 +61,9 @@ export default function EditableListScreen({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
   const openedRef = useRef<Swipeable | null>(null)
+  useEffect(() => {
+    setItems(initialItems)
+  }, [initialItems])
 
   const SwipeableRow = ({
     item,
@@ -467,7 +470,7 @@ const S = StyleSheet.create({
     alignItems: 'center',
   },
   centerPressable: { flex: 1, height: '100%', justifyContent: 'center' },
-  itemText: { fontSize: 16, color: colors.text.title },
+  itemText: { fontSize: 19, fontWeight: '600', color: colors.text.title },
   input: { flex: 1, fontSize: 16, paddingVertical: 6, color: colors.text.title },
 
   pencilWrap: { paddingHorizontal: 4, height: '100%', justifyContent: 'center' },

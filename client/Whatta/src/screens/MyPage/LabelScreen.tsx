@@ -1,4 +1,3 @@
-// screens/MyPage/LabelScreen.tsx
 import React, { useEffect, useState } from 'react'
 import EditableListScreen, { EditableItem } from '@/screens/MyPage/EditableListScreen'
 import { http } from '@/lib/http'
