@@ -18,6 +18,7 @@ import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
 import { fetchTasksForMonth } from '@/api/event_api'
 import { useFocusEffect } from '@react-navigation/native'
+import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -729,6 +730,9 @@ export default function MonthView() {
 
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
 
+  const [popupVisible, setPopupVisible] = useState(false)
+  const [selectedDayData, setSelectedDayData] = useState<any>(null)
+
   // 달 상태: 이 값만 바뀌면 전체가 그 달 기준으로 다시 그림
   const [ym, setYm] = useState<string>(() => {
     const t = new Date()
@@ -883,13 +887,69 @@ export default function MonthView() {
     return weeks
   }
 
+  type ExtendedScheduleData = ScheduleData & {
+  memo?: string
+  place?: string
+  time?: string
+}
+
+type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
+  colorKey?: string
+}
+
   const handleDatePress = (dateItem: CalendarDateItem) => {
-    if (!dateItem.isCurrentMonth) return
-    const d = dateItem.fullDate
-    setFocusedDateISO(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-    )
-  }
+  if (!dateItem.isCurrentMonth) return
+
+  const d = dateItem.fullDate
+  setFocusedDateISO(
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+  )
+
+  setSelectedDayData({
+    date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+    dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+    spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+      .filter((s) => s.multiDayStart && s.multiDayEnd)
+      .map((s) => {
+        const baseColor = s.colorKey
+          ? (s.colorKey.startsWith('#') ? s.colorKey : `#${s.colorKey}`)
+          : '#8B5CF6'
+        return {
+          title: s.name,
+          period: `${s.multiDayStart}~${s.multiDayEnd}`,
+          colorKey: s.colorKey,
+          color: baseColor,
+        }
+      }),
+
+    normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+      .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+      .map((s) => {
+        const baseColor = s.colorKey
+          ? (s.colorKey.startsWith('#') ? s.colorKey : `#${s.colorKey}`)
+          : '#F4EAFF'
+        return {
+          title: s.name,
+          memo: s.memo ?? '',
+          color: baseColor,
+        }
+      }),
+   timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+      const baseColor = t.colorKey
+        ? (t.colorKey.startsWith('#') ? t.colorKey : `#${t.colorKey}`)
+        : '#FFD966'
+      return {
+        title: t.name,
+        place: t.place ?? '',
+        time: t.time ?? '',
+        color: baseColor, // ← 원래 색 유지
+        borderColor: baseColor, // ← 보더도 같은 색 계열로
+      }
+    }),
+  })
+
+  setPopupVisible(true)
+}
 
   // task API
   const hhmm = (s?: string | null) => {
@@ -1188,6 +1248,11 @@ export default function MonthView() {
           </Animated.View>
         </ScrollView>
       </View>
+      <MonthDetailPopup
+  visible={popupVisible}
+  onClose={() => setPopupVisible(false)}
+  dayData={selectedDayData || {}}
+/>
     </ScreenWithSidebar>
   )
 }
