@@ -2,16 +2,22 @@ import React from 'react'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import MyPageScreen from '@/screens/MyPage/MyPageScreen'
 import { PlaceholderScreen } from '@/screens/MyPage/PlaceholderScreen'
-import RemainderScreen from '@/screens/MyPage/Remainder/RemainderScreen'
+import LabelsScreen from '@/screens/MyPage/LabelScreen'
+import RemainderScreen from '@/screens/MyPage/RemainderTimeScreen'
 
 export type MyPageStackList = {
   MyPageList: undefined
   Profile: undefined
   Preferences: undefined
-  UsageReminders: undefined
   NotifDefaults: undefined
-  OCRWizard: undefined
+  vibration: undefined
   TransitAlerts: undefined
+  Labels: undefined
+  Transitvibration: undefined
+  CalendarNotif: undefined
+  FirstPages: undefined
+  CalendarVibration: undefined
+  UsageReminders: undefined
 }
 
 const Stack = createNativeStackNavigator<MyPageStackList>()
@@ -34,17 +40,12 @@ export default function MyPageStack() {
         options={{ title: '환경설정' }}
       />
       <Stack.Screen
-        name="UsageReminders"
+        name="CalendarNotif"
         component={PlaceholderScreen}
-        options={{ title: '사용방법 리마인드' }}
+        options={{ title: '알림 시간 수정' }}
       />
       <Stack.Screen
-        name="NotifDefaults"
-        component={RemainderScreen}
-        options={{ title: '리마인드 기본값' }}
-      />
-      <Stack.Screen
-        name="OCRWizard"
+        name="vibration"
         component={PlaceholderScreen}
         options={{ title: 'OCR 시간표 등록' }}
       />
@@ -52,6 +53,36 @@ export default function MyPageStack() {
         name="TransitAlerts"
         component={PlaceholderScreen}
         options={{ title: '교통 알림' }}
+      />
+      <Stack.Screen
+        name="NotifDefaults"
+        component={RemainderScreen}
+        options={{ title: '리마인드 기본값' }}
+      />
+      <Stack.Screen
+        name="Transitvibration"
+        component={PlaceholderScreen}
+        options={{ title: '' }}
+      />
+      <Stack.Screen
+        name="Labels"
+        component={LabelsScreen}
+        options={{ title: '라벨 관리', headerShown: false }}
+      />
+      <Stack.Screen
+        name="FirstPages"
+        component={PlaceholderScreen}
+        options={{ title: '시작 페이지 설정' }}
+      />
+      <Stack.Screen
+        name="CalendarVibration"
+        component={PlaceholderScreen}
+        options={{ title: '소리 및 진동' }}
+      />
+      <Stack.Screen
+        name="UsageReminders"
+        component={PlaceholderScreen}
+        options={{ title: '사용방법 안내' }}
       />
     </Stack.Navigator>
   )

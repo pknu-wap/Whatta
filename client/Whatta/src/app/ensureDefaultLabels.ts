@@ -1,24 +1,23 @@
-import { http } from '@/lib/http'
-import { token } from '@/lib/token'
-import { createLabel } from '@/api/label_api'
+// import { http } from '@/lib/http'
 
-//이 파일은 중간발표에 라벨 필터링 모달 시연을 위해서 임시로 생성함
-//이후에 삭제!
-type Label = { id: number; title: string; colorKey?: string }
+// const LABEL_BASE = '/api/user/setting/label'
+// const DEFAULTS = ['일정', '테스크'] as const
 
-export async function ensureDefaultLabels() {
-  const defaults = [
-    { title: '약속', colorKey: 'FF3B30' },
-    { title: '동아리', colorKey: '34C759' },
-    { title: '수업', colorKey: '007AFF' },
-    { title: '과제', colorKey: 'AF52DE' },
-  ]
+// type LabelDTO = { id: string | number; title: string }
 
-  for (const d of defaults) {
-    try {
-      await createLabel(d.title, d.colorKey)
-    } catch {
-      // 서버가 중복(이미 존재) 라벨은 알아서 무시하므로 별도 처리 필요 없음
-    }
-  }
-}
+// export async function ensureDefaultLabels() {
+//   try {
+//     const res = await http.get(LABEL_BASE)
+//     const list: LabelDTO[] = Array.isArray(res.data) ? res.data : (res.data?.data ?? [])
+
+//     const has = new Set(list.map((d) => d.title.trim()))
+//     const missing = DEFAULTS.filter((t) => !has.has(t))
+
+//     for (const title of missing) {
+//       await http.post(LABEL_BASE, { title }) // idempotent 이미 있으면 서버가 409를 줄 수도 있음
+//     }
+//   } catch (e) {
+//     // 부트스트랩 실패해도 앱이 멈추면 안되므로 로그만
+//     console.warn('[ensureDefaultLabels] failed:', e)
+//   }
+// }

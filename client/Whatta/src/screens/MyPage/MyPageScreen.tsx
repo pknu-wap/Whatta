@@ -41,7 +41,6 @@ function SmallCard({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable style={S.smallCard} onPress={onPress}>
       <Text style={S.smallCardText}>{label}</Text>
-      <Text style={S.chevron}>›</Text>
     </Pressable>
   )
 }
@@ -123,7 +122,7 @@ export default function MyPageScreen({ navigation }: Props) {
       SectionSeparatorComponent={() => <View style={{ height: 2 }} />}
       stickySectionHeadersEnabled
       contentInsetAdjustmentBehavior="automatic"
-      contentInset={{ top: 0, bottom: 120, left: 0, right: 0 }}
+      contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
       scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
     />
   )
@@ -131,19 +130,20 @@ export default function MyPageScreen({ navigation }: Props) {
 
 const S = StyleSheet.create({
   smallCard: {
-    width: 360,
+    width: '90%',
     height: 48,
     alignSelf: 'center',
     marginTop: 8,
     backgroundColor: colors.neutral.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOpacity: 0.12,
-    shadowRadius: 3,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
   },
   smallCardText: {
     fontSize: 16,
@@ -151,20 +151,21 @@ const S = StyleSheet.create({
     color: colors.text.title,
   },
   card: {
-    width: 360,
+    width: '90%',
     height: 130,
     alignSelf: 'center',
-    backgroundColor: colors.neutral.surface,
+    backgroundColor: '#FFF',
     borderRadius: 10,
     marginTop: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
   },
   cardTitle: {
     position: 'absolute',
     top: 15,
-    left: 18,
+    left: 16,
     fontSize: 15,
     fontWeight: '700',
     color: colors.text.caption,
@@ -198,6 +199,8 @@ const S = StyleSheet.create({
 
   // 프로필 카드
   profileCard: {
+    width: '90%',
+    alignSelf: 'center',
     marginHorizontal: 16,
     marginTop: 8,
     backgroundColor: colors.neutral.surface,
@@ -207,8 +210,9 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 0 },
   },
   avatar: {
     width: 56,
