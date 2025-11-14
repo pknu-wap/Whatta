@@ -258,16 +258,15 @@ const bgWithOpacity = baseColor.length === 7 ? `${baseColor}26` : baseColor
       fontSize: 12,
       fontWeight: '600',
       color: '#333333',
-      marginLeft: '7%',
-      marginBottom: 4,
-      marginTop: -8,
-      letterSpacing: -0.2,
+      marginLeft: 24,
+      marginBottom: 12,
+      marginTop: -6,
     }}
   >
     시간별 일정
   </Text>
 
-  {/* ⏰ 변동가능 일정 (DnD) */}
+  {/* spanEvents) */}
   {dayData.timeEvents
     ?.filter(ev => ev.startAt && ev.endAt)
     .map((ev, i) => (
@@ -295,8 +294,9 @@ const bgWithOpacity = baseColor.length === 7 ? `${baseColor}26` : baseColor
       </View>
     ))}
 
- 
-            {/* 🧾 Task (시간 미정 일정) */}
+</View>
+
+{/* 🧾 Task (시간 미정 일정) */}
             {tasks.length > 0 && (
              <View style={{ gap: 8 }}>
                 {tasks.map((task, i) => (
@@ -327,9 +327,7 @@ const bgWithOpacity = baseColor.length === 7 ? `${baseColor}26` : baseColor
               </View>
             )}
 
-</View>
-
-{/* Normal Events */}
+{/* DnD Events */}
 {dayData.normalEvents && dayData.normalEvents.length > 0 && (
   <View style={S.section}>
     {dayData.normalEvents.map((ev: DayEvent, i: number) => (
@@ -338,7 +336,7 @@ const bgWithOpacity = baseColor.length === 7 ? `${baseColor}26` : baseColor
   style={[
     S.card,
     {
-      backgroundColor: ev.color ? `${ev.color}20` : '#FFF',
+      backgroundColor: colors.neutral.surface,
     },
   ]}
 >
@@ -346,12 +344,11 @@ const bgWithOpacity = baseColor.length === 7 ? `${baseColor}26` : baseColor
   <View
     style={{
       width: 10,
-      height: '100%',
+      height: 44,
       backgroundColor: ev.color || '#FFD966', // 노란색 기본
       marginRight: 10,
     }}
   />
-  
 
   {/* 내용 */}
   <View style={{ flex: 1 }}>
@@ -485,7 +482,9 @@ card: {
     alignItems: 'center',
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E4E4E4',
+    borderColor: '#B3B3B3',
+    borderRightWidth: 0, 
+    borderLeftWidth: 0,
     marginHorizontal: '4%',
 },
 
@@ -516,8 +515,8 @@ checkbox: {
   borderRadius: 1,
 },
 taskText: {
-  fontSize: 13,
-  color: '#000000',
+  fontSize: 12,
+  color: '#333333',
   fontWeight: '600',
 },
 checkboxOff: {
@@ -545,6 +544,6 @@ taskCardDone: {
 },
 taskTextDone: {
   textDecorationLine: 'line-through',
-  color: '#999',
+  fontSize: 12,
 },
 })
