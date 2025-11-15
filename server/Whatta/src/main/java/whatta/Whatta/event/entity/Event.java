@@ -58,6 +58,9 @@ public class Event {
     private String colorKey;
 
     @Builder.Default
+    private LocalTime reminderNotiAt = null;
+
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
     @Builder.Default
     private LocalDateTime editedAt = LocalDateTime.now();

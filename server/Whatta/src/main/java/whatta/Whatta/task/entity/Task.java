@@ -57,6 +57,9 @@ public class Task {
     private Long sortNumber = 0L;
 
     @Builder.Default
+    private LocalTime reminderNotiAt = null;
+
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
     @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
