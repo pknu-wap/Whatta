@@ -1,6 +1,8 @@
 package whatta.Whatta.task.repository;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
+import org.springframework.data.mongodb.repository.Update;
 import whatta.Whatta.task.entity.Task;
 
 import java.time.LocalDate;
@@ -31,4 +33,8 @@ public interface TaskRepository extends MongoRepository<Task, String> {
 
     // userId로 찾고, placementDate가 null인 것들만, orderByNumber 오름차순으로 정렬
     List<Task> findByUserIdAndPlacementDateIsNullOrderBySortNumberAsc(String userId);
+
+    @Query("{ 'userId': ?0 }")
+    @Update("{ '$pull': { 'labels': { '$in': ?1 } } }") //labels 배열에서 ?1에 있는 값들 전부 제거
+    void pullLabelsByUserId(String userId, List<Long> labelIds);
 }

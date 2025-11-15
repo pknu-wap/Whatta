@@ -36,7 +36,7 @@ public class CalendarEventsRepositoryCustom {
                 .and("_id").as("id")
                 .and("title").as("title")
                 .and("colorKey").as("colorKey")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
@@ -49,7 +49,7 @@ public class CalendarEventsRepositoryCustom {
                 .and("_id").as("id")
                 .and("title").as("title")
                 .and("colorKey").as("colorKey")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .and("startTime").as("startTime")
                 .and("endTime").as("endTime")
                 .andExpression("startDate != endDate").as("isSpan")
@@ -93,7 +93,7 @@ public class CalendarEventsRepositoryCustom {
                         .and("_id").as("id")
                         .and("title").as("title")
                         .and("colorKey").as("colorKey")
-                        .and("labels._id").as("labels")
+                        .and("labels").as("labels")
                         .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
@@ -108,7 +108,7 @@ public class CalendarEventsRepositoryCustom {
                         .and("_id").as("id")
                         .and("title").as("title")
                         .and("colorKey").as("colorKey")
-                        .and("labels._id").as("labels")
+                        .and("labels").as("labels")
                         .and("startTime").as("startTime")
                         .and("endTime").as("endTime")
                         .andExpression("startDate != endDate").as("isSpan")
@@ -149,14 +149,18 @@ public class CalendarEventsRepositoryCustom {
                 .and("_id").as("id")
                 .and("title").as("title")
                 .and("colorKey").as("colorKey")
-                .and("labels._id").as("labels")
+                .and("labels").as("labels")
                 .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
+                .and("startTime").as("startTime")
+                .and("endTime").as("endTime")
                 .andExpression("repeat != null").as("IsRepeat"));
         operations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startDate"),
-                Sort.Order.asc("endDate"))));
+                Sort.Order.asc("endDate"),
+                Sort.Order.asc("startTime"),
+                Sort.Order.asc("endTime"))));
 
         Aggregation aggregation = Aggregation.newAggregation(operations);
 

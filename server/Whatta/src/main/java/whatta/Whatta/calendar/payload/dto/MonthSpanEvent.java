@@ -3,6 +3,7 @@ package whatta.Whatta.calendar.payload.dto;
 import lombok.Builder;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Builder
@@ -14,6 +15,9 @@ public record MonthSpanEvent(
 
         LocalDate startDate,
         LocalDate endDate,
+
+        String startTime,
+        String endTime,
 
         Boolean isRepeat
 ) {

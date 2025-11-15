@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class LabelUtils {
+public class LabelUtil {
 
     public static void validateLabelsInUserSettings(UserSetting userSetting, List<Long> labels) {
         List<Label> userLabels = new ArrayList<>(userSetting.getLabels());
@@ -26,27 +26,6 @@ public class LabelUtils {
                 throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
             }
         }
-    }
-
-    public static List<Label> getTitleAndColorKeyByIds(UserSetting userSetting, List<Long> labelIds) {
-        if(labelIds == null || labelIds.isEmpty()) {
-            return List.of();
-        }
-
-        Map<Long, Label> userLabels = userSetting.getLabels().stream()
-                .collect(Collectors.toMap(Label::getId, Function.identity()));
-
-        List<Label> result = new ArrayList<>();
-        for(Long id : labelIds) {
-            Label label = userLabels.get(id);
-
-            result.add(Label.builder()
-                    .id(label.getId())
-                    .title(label.getTitle())
-                    .colorKey(label.getColorKey())
-                    .build());
-        }
-        return result;
     }
 
     public static List<LabelItem> getTitleAndColorKeyByIdsForResponse(UserSetting userSetting, List<Long> labelIds) {
@@ -64,7 +43,7 @@ public class LabelUtils {
             result.add(LabelItem.builder()
                     .id(label.getId())
                     .title(label.getTitle())
-                    .colorKey(label.getColorKey())
+                    //.colorKey(label.getColorKey())
                     .build());
         }
         return result;

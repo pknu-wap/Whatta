@@ -4,8 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 
 public record LabelRequest(
         @NotBlank
-        String title,
-        @NotBlank
-        String colorKey
+        String title
+        /*@NotBlank
+        String colorKey*/
 ) {
 }

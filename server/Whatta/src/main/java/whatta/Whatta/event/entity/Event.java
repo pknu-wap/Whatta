@@ -39,7 +39,7 @@ public class Event {
 
     @NotNull
     @Builder.Default
-    private List<Label> labels = new ArrayList<>(); //라벨 설정하지 않으면 빈 리스트
+    private List<Long> labels = new ArrayList<>(); //라벨 설정하지 않으면 빈 리스트
 
     @NotNull
     private LocalDate startDate;

@@ -10,7 +10,8 @@ import whatta.Whatta.event.payload.response.EventDetailsResponse;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.util.LabelUtils;
+import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.global.util.LocalTimeUtil;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
@@ -39,8 +40,11 @@ public class EventService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
         //유저의 라벨 목록에 있는 라벨인지
-        LabelUtils.validateLabelsInUserSettings(userSetting, request.labels());
-        validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
+        LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
+
+        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
+        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
+        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
 
         Event.EventBuilder eventBuilder = Event.builder()
                 .userId(user.getId())
@@ -50,10 +54,10 @@ public class EventService {
                 .colorKey(request.colorKey());
         if(request.title() != null && !request.title().isBlank()) eventBuilder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
-        if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting,request.labels()));
+        if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(request.labels());
         if(request.startTime() != null && request.endTime() != null) {
-            eventBuilder.startTime(request.startTime());
-            eventBuilder.endTime(request.endTime());
+            eventBuilder.startTime(startTime);
+            eventBuilder.endTime(endTime);
         }
 
        return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
@@ -85,20 +89,23 @@ public class EventService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
-        validateDateTimeOrder(request.startDate(), request.endDate(), request.startTime(), request.endTime());
+        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
+        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
+        System.out.println("editing : " + endTime);
+        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
 
         //수정
         Event.EventBuilder builder = originalEvent.toBuilder();
         if(request.title() != null && !request.title().isBlank()) builder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) builder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) {
-            LabelUtils.validateLabelsInUserSettings(userSetting, request.labels());
-            builder.labels(LabelUtils.getTitleAndColorKeyByIds(userSetting, request.labels()));
+            LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
+            builder.labels(request.labels());
         }
         if(request.startDate() != null) builder.startDate(request.startDate());
         if(request.endDate() != null) builder.endDate(request.endDate());
-        if(request.startTime() != null) builder.startTime(request.startTime());
-        if(request.endTime() != null) builder.endTime(request.endTime());
+        if(request.startTime() != null) builder.startTime(startTime);
+        if(request.endTime() != null) builder.endTime(endTime);
         if(request.repeat() != null) builder.repeat(request.repeat().toEntity());
         if(request.colorKey() != null) builder.colorKey(request.colorKey());
 
