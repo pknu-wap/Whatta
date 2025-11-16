@@ -17,6 +17,7 @@ public class TaskMapper {
                 .title(request.getTitle())
                 .content(request.getContent())
                 .completed(false)
+                .completedAt(null)
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
@@ -32,6 +33,7 @@ public class TaskMapper {
                 .content(task.getContent())
                 .labels(task.getLabels())
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
@@ -47,6 +49,7 @@ public class TaskMapper {
                 .id(task.getId())
                 .title(task.getTitle())
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .dueDateTime(task.getDueDateTime())
                 .sortNumber(task.getSortNumber())
                 .build();
