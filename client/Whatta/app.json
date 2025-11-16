@@ -13,6 +13,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.whatta.Whatta",
       "supportsTablet": true
     },
     "android": {
