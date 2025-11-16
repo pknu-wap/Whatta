@@ -888,76 +888,74 @@ export default function MonthView() {
   }
 
   type ExtendedScheduleData = ScheduleData & {
-  memo?: string
-  place?: string
-  time?: string
-}
-
-type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
-  colorKey?: string
-}
-
-  const handleDatePress = (dateItem: CalendarDateItem) => {
-  if (!dateItem.isCurrentMonth) return
-
-  const d = dateItem.fullDate
-  setFocusedDateISO(
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-  )
-
-  setSelectedDayData({
-    date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
-    dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
-    spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-      .filter((s) => s.multiDayStart && s.multiDayEnd)
-      .map((s) => {
-        const baseColor = s.colorKey
-          ? (s.colorKey.startsWith('#') ? s.colorKey : `#${s.colorKey}`)
-          : '#8B5CF6'
-        return {
-          title: s.name,
-          period: `${s.multiDayStart}~${s.multiDayEnd}`,
-          colorKey: s.colorKey,
-          color: baseColor,
-        }
-      }),
-
-    normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-      .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
-      .map((s) => {
-        const baseColor = s.colorKey
-          ? (s.colorKey.startsWith('#') ? s.colorKey : `#${s.colorKey}`)
-          : '#F4EAFF'
-        return {
-          title: s.name,
-          memo: s.memo ?? '',
-          color: baseColor,
-        }
-      }),
-   timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
-      const baseColor = t.colorKey
-        ? (t.colorKey.startsWith('#') ? t.colorKey : `#${t.colorKey}`)
-        : '#FFD966'
-      return {
-        title: t.name,
-        place: t.place ?? '',
-        time: t.time ?? '',
-        color: baseColor, // ← 원래 색 유지
-        borderColor: baseColor, // ← 보더도 같은 색 계열로
-      }
-    }),
-  })
-
-  setPopupVisible(true)
-}
-
-  // task API
-  const hhmm = (s?: string | null) => {
-    if (!s) return undefined
-    const m = /(\d{1,2}):(\d{2})/.exec(String(s))
-    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : undefined
+    memo?: string
+    place?: string
+    time?: string
   }
 
+  type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
+    colorKey?: string
+  }
+
+  const handleDatePress = (dateItem: CalendarDateItem) => {
+    if (!dateItem.isCurrentMonth) return
+
+    const d = dateItem.fullDate
+    setFocusedDateISO(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    )
+
+    setSelectedDayData({
+      date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+      spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter((s) => s.multiDayStart && s.multiDayEnd)
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#8B5CF6'
+          return {
+            title: s.name,
+            period: `${s.multiDayStart}~${s.multiDayEnd}`,
+            colorKey: s.colorKey,
+            color: baseColor,
+          }
+        }),
+
+      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#F4EAFF'
+          return {
+            title: s.name,
+            memo: s.memo ?? '',
+            color: baseColor,
+          }
+        }),
+      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+        const baseColor = t.colorKey
+          ? t.colorKey.startsWith('#')
+            ? t.colorKey
+            : `#${t.colorKey}`
+          : '#FFD966'
+        return {
+          title: t.name,
+          place: t.place ?? '',
+          time: t.time ?? '',
+          color: baseColor, // ← 원래 색 유지
+          borderColor: baseColor, // ← 보더도 같은 색 계열로
+        }
+      }),
+    })
+
+    setPopupVisible(true)
+  }
   // 서버에서 가져온 월간
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
 
@@ -988,57 +986,103 @@ type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
     }
   }
 
+  // 월간 응답을 MonthView에서 사용하는 UISchedule 배열로 평탄화
+  const flattenMonthly = (fresh: MonthlyPayload): UISchedule[] => {
+    const list: UISchedule[] = []
+
+    const pickLabelId = (raw: any): string => {
+      const arr = Array.isArray(raw?.labels) ? raw.labels : []
+      if (arr.length === 0) return ''
+      const first = arr[0]
+      // labels가 [1] 이런 숫자 배열일 수도 있고,
+      // [{ id: 1, ... }] 이런 객체 배열일 수도 있으니 둘 다 처리
+      if (typeof first === 'object' && first !== null) {
+        return String(first.id ?? first.labelId ?? '')
+      }
+      return String(first)
+    }
+
+    // 1) 하루짜리(단일/반복) 일정들
+    ;(fresh.days ?? []).forEach((day: any) => {
+      const dateISO = (day.date ?? day.targetDate ?? '').slice(0, 10)
+
+      ;(day.events ?? []).forEach((ev: any) => {
+        list.push({
+          id: String(ev.id),
+          name: ev.title ?? ev.name ?? '',
+          date: dateISO,
+          isRecurring: !!ev.isRepeat,
+          isTask: !!ev.isTask, // 월간 응답은 항상 false/undefined라서 그냥 두면 됩니다
+          isCompleted: !!ev.isCompleted,
+          labelId: pickLabelId(ev), // ✅ 여기 수정
+          colorKey:
+            typeof ev.colorKey === 'string'
+              ? ev.colorKey.replace(/^#/, '').toUpperCase()
+              : undefined,
+        })
+      })
+    })
+
+    // 2) 멀티데이(spanEvents) – 기간 일정
+    ;(fresh.spanEvents ?? []).forEach((ev: any) => {
+      const start = (ev.startDate ?? '').slice(0, 10)
+      const end = (ev.endDate ?? '').slice(0, 10)
+
+      list.push({
+        id: String(ev.id),
+        name: ev.title ?? ev.name ?? '',
+        date: start,
+        isRecurring: !!ev.isRepeat,
+        isTask: false,
+        isCompleted: false,
+        labelId: pickLabelId(ev), // ✅ 여기도 수정
+        colorKey:
+          typeof ev.colorKey === 'string'
+            ? ev.colorKey.replace(/^#/, '').toUpperCase()
+            : undefined,
+        multiDayStart: start,
+        multiDayEnd: end,
+      })
+    })
+
+    return list
+  }
+
   // 월간 조회
   useEffect(() => {
     let alive = true
     ;(async () => {
+      setLoading(true)
       try {
-        setLoading(true)
-
-        // 1. 월간 페이로드 가져오기
+        // 1) 월간 일정은 반드시 가져온다
         const fresh = await fetchMonthlyApi(ym)
+        const monthlySchedules = flattenMonthly(fresh)
 
-        // 2. 월간 → 화면 모델(ScheduleData[])
-        const schedulesFromMonth = adaptMonthlyToSchedules(fresh)
+        // 2) Task는 실패해도 월간 일정은 살린다
+        let tasksThisMonth: UISchedule[] = []
+        try {
+          tasksThisMonth = await fetchTasksForMonth(ym)
+        } catch (err) {
+          console.warn('[MonthView] fetchTasksForMonth 실패, 일정만 표시합니다.', err)
+        }
 
-        // 3. 같은 달 Task → 화면 모델(ScheduleData[])
-        const tasksThisMonth = await fetchTasksForMonth(ym)
+        const merged: UISchedule[] = [...monthlySchedules, ...tasksThisMonth]
 
-        // 4. 합치기
-        // 새로: spanEvents + days[*].events 모두 스캔해서 색상 맵 구성
-        const colorById = new Map<string, string | undefined>()
-        // 멀티데이(기간 이벤트)
-        fresh.spanEvents.forEach((e) => {
-          colorById.set(String(e.id), e.colorKey)
-        })
-        // 단일/반복 이벤트(일자별)
-        ;(fresh.days ?? []).forEach((d: any) => {
-          ;(d.events ?? []).forEach((ev: any) => {
-            colorById.set(String(ev.id), ev.colorKey)
-          })
-        })
-        // schedulesFromMonth(단일/반복 + 스팬 변환 결과) + tasks 를 병합
-        const merged: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map(
-          (it) => ({
-            ...it,
-            // 이미 들어있으면 유지, 없으면 우리가 만든 맵에서 보충
-            colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
-          }),
-        )
-        setServerSchedules(merged)
-
-        const spansOnly = merged.filter((s) => s.multiDayStart && s.multiDayEnd)
         laneMapRef.current = buildLaneMap(merged.filter(isSpan))
 
         if (!alive) return
-        setDays(fresh.days) // 배열만 세팅 (타입 에러 사라짐)
-        setServerSchedules(merged) // 화면 렌더 소스
-      } catch (e) {
-        if (alive) setServerSchedules([])
+        setDays(fresh.days)
+        setServerSchedules(merged)
+      } catch (err) {
+        if (!alive) return
+        console.warn('[MonthView] fetchMonthlyApi 실패', err)
+        setDays([])
+        setServerSchedules([])
       } finally {
         if (alive) setLoading(false)
       }
     })()
+
     return () => {
       alive = false
     }
@@ -1249,10 +1293,10 @@ type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
         </ScrollView>
       </View>
       <MonthDetailPopup
-  visible={popupVisible}
-  onClose={() => setPopupVisible(false)}
-  dayData={selectedDayData || {}}
-/>
+        visible={popupVisible}
+        onClose={() => setPopupVisible(false)}
+        dayData={selectedDayData || {}}
+      />
     </ScreenWithSidebar>
   )
 }
