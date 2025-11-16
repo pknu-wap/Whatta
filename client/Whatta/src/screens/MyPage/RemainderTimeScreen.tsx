@@ -195,17 +195,35 @@ export default function RemainderTimeScreen() {
   // 피커 변경 시: state 업데이트 + 서버 PUT
   const updateReminder = (id: string, patch: Partial<ReminderItem>) => {
     setReminders((prev) => {
+      // 1) 일단 변경을 적용한 next 상태 만들어 보기
       const next = prev.map((it) => (it.id === id ? { ...it, ...patch } : it))
       const updated = next.find((it) => it.id === id)
-      if (updated) {
-        ;(async () => {
-          try {
-            await http.put(`/api/user/setting/reminder/${id}`, toDto(updated))
-          } catch (e) {
-            console.warn('reminder update error', e)
-          }
-        })()
+      if (!updated) return prev
+
+      // 2) 중복 검사: 나(id) 말고 같은 (day, hour, minute)를 가진 게 있는지
+      const duplicated = next.some(
+        (it) =>
+          it.id !== id &&
+          it.day === updated.day &&
+          it.hour === updated.hour &&
+          it.minute === updated.minute,
+      )
+
+      if (duplicated) {
+        // 3) 있으면 Alert 띄우고, 서버 요청도 안 보내고 변경 취소
+        Alert.alert('중복 알림', '이미 동일한 시간의 리마인드 알림이 있습니다.')
+        return prev
       }
+
+      // 4) 중복 아니면 서버에 PUT
+      ;(async () => {
+        try {
+          await http.put(`/api/user/setting/reminder/${id}`, toDto(updated))
+        } catch (e) {
+          console.warn('reminder update error', e)
+        }
+      })()
+
       return next
     })
   }
