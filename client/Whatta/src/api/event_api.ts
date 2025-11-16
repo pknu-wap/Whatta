@@ -61,8 +61,11 @@ export const monthRange = (ym: string) => {
 }
 
 // 2. Task 조회
-export async function fetchTasksRaw(): Promise<any[]> {
-  const res = await http.get('/api/task')
+export async function fetchTasksRaw(ym: string): Promise<any[]> {
+  const res = await http.get('/api/task', {
+    params: { month: ym }, // 백엔드가 month 파라미터 안 쓰면 이 줄은 빼도 됩니다
+  })
+
   return Array.isArray(res.data?.data) ? res.data.data : []
 }
 
@@ -83,33 +86,27 @@ export type ScheduleData = {
   multiDayEnd?: string
 }
 
+// 3. Task → MonthView용 ScheduleData로 변환
 export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
-  const raws = await fetchTasksRaw()
-  const { start, end } = monthRange(ym)
+  const raw = await fetchTasksRaw(ym)
 
-  // 월범위 안의 task만 사용
-  const inRange = raws.filter((t: any) => {
-    const d = t?.placementDate
-    return typeof d === 'string' && d >= start && d <= end
-  })
-
-  return inRange.map((t: any) => {
-    const labelId = (
-      t?.labelId ??
-      t?.labels?.labels?.[0]?.id ?? // { labels: { labels: [{id}] } }
-      t?.labels?.[0]?.id ?? // { labels: [{id}] }
-      t?.labels?.[0]
-    ).toString()
+  const normalized: ScheduleData[] = raw.map((t) => {
+    // ✅ labels 가 비어있어도 안전하게 처리
+    const labelId =
+      Array.isArray(t.labels) && t.labels.length > 0 && t.labels[0] != null
+        ? String(t.labels[0])
+        : ''
 
     return {
-      id: String(t.id ?? t._id ?? ''),
-      name: String(t.title ?? ''),
-      date: String(t.placementDate),
+      id: String(t?.id ?? ''),
+      name: String(t?.title ?? ''),
+      date: String(t?.placementDate ?? '').slice(0, 10),
       isRecurring: false,
       isTask: true,
       labelId,
-      isCompleted: !!t.completed,
-      sortTime: typeof t.placementTime === 'string' ? t.placementTime : '00:00:00',
-    } as ScheduleData
+      isCompleted: !!t?.completed,
+    }
   })
+
+  return normalized
 }
