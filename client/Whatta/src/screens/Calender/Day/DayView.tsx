@@ -568,7 +568,8 @@ function DraggableTaskBox({
   const drag = Gesture.Pan()
     .onChange((e) => {
       if (!dragEnabled.value) return
-      translateY.value += e.changeY
+      const maxY = 23 * 60 * PIXELS_PER_MIN
+      translateY.value = Math.max(0, Math.min(maxY, translateY.value + e.changeY))
       translateX.value += e.changeX
     })
     .onEnd(() => {
@@ -730,14 +731,29 @@ function DraggableFlexalbeEvent({
   const drag = Gesture.Pan()
     .onChange((e) => {
       if (!dragEnabled.value) return
-      translateY.value += e.changeY
+const totalHeight = 24 * 60 * PIXELS_PER_MIN
+const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
+const minTop = 0
+const maxTop = totalHeight - rawHeight
+const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+translateY.value = clampedTop - startMin * PIXELS_PER_MIN
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
 
-      const movedY = translateY.value
-      runOnJS(handleDrop)(movedY)
+      const totalHeight = 24 * 60 * PIXELS_PER_MIN
+
+const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+const minTop = 0
+const maxTop = totalHeight - rawHeight
+
+const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+const boundedDelta = clampedTop - startMin * PIXELS_PER_MIN
+
+translateY.value = boundedDelta
+
+runOnJS(handleDrop)(boundedDelta)
     })
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
