@@ -44,6 +44,8 @@ public class Task {
 
     @Builder.Default
     private Boolean completed = false; //진행 전(false) / 완료(true)
+    @Builder.Default
+    private LocalDateTime completedAt = null; //생성 시 null, 완료되면 현재 시각으로 설정
 
     private LocalDate placementDate; //null 유무로 배치 유무를 판단
     private LocalTime placementTime;

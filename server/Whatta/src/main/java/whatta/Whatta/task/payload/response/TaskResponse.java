@@ -20,6 +20,7 @@ public class TaskResponse {
     private final String content;
     private final List<Long> labels;
     private final Boolean completed;
+    private final LocalDateTime completedAt;
     private final LocalDate placementDate;
     private final LocalTime placementTime;
     private final LocalDateTime dueDateTime;
