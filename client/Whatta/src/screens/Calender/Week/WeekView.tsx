@@ -113,12 +113,6 @@ const parseDate = (iso: string) => {
   return new Date(y, m - 1, d)
 }
 
-const diffDays = (a: string, b: string) => {
-  const da = parseDate(a).getTime()
-  const db = parseDate(b).getTime()
-  return Math.round((da - db) / (1000 * 60 * 60 * 24))
-}
-
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const ROW_H = 48
 const PIXELS_PER_HOUR = ROW_H
@@ -127,19 +121,13 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 50
 
-// ✅ 요일 개수에 따라 동적으로 day column width 계산
 const getDayColWidth = (count: number) =>
   (SCREEN_W - TIME_COL_W) / (count > 0 ? count : 7)
 
-const BORDER = 'rgba(0,0,0,0.08)'
-const VERTICAL_LINE_WIDTH = 0.5
-
-let draggingEventId: string | null = null
-let lastChangedEventId: string | null = null
 let prevLayoutMap: Record<string, LayoutedEvent> = {}
 
 /* -------------------------------------------------------------------------- */
-/* 레이아웃 헬퍼 */
+/* 공통 컴포넌트 */
 /* -------------------------------------------------------------------------- */
 
 function FullBleed({
@@ -220,7 +208,7 @@ type WeekSpanEvent = {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 겹치는 일정 레이아웃 */
+/* Day 일정 레이아웃 계산 */
 /* -------------------------------------------------------------------------- */
 
 function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
@@ -238,7 +226,7 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
     const ev = sorted[i]
     if (used.has(ev.id)) continue
 
-    // 완전히 동일한 시간대 → n등분
+    // 완전히 동일 시간대 → n등분
     const sameGroup = sorted.filter(
       (e) => e.startMin === ev.startMin && e.endMin === ev.endMin,
     )
@@ -318,7 +306,6 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
     const bucket = data[dateISO]
     if (!bucket) return
 
-    // ✅ ① spanEvents + 체크리스트/Task를 함께 처리
     const list = [
       ...(bucket.spanEvents || []),
       ...(bucket.checks || []),
@@ -328,20 +315,17 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
       const id = String(e.id)
       const title = e.title ?? ''
 
-      // ✅ ② Task 여부 판별 로직
       const isTask =
         e.isTask === true ||
         typeof e.completed !== 'undefined' ||
         typeof e.done !== 'undefined' ||
         e.type === 'task'
 
-      // ✅ ③ 색상 결정
       const colorKey = isTask
         ? '000000'
         : (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
       const color = colorKey.startsWith('#') ? colorKey : `#${colorKey}`
 
-      // ✅ ④ 기간 계산
       const s = (e.startDate || e.date || dateISO).slice(0, 10)
       const ed = (e.endDate || e.date || s).slice(0, 10)
       const startISO = s
@@ -403,55 +387,129 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 스크롤바 높이 */
+/* Task 시간 파싱 헬퍼 */
 /* -------------------------------------------------------------------------- */
 
-function getThumbH(visibleH: number, contentH: number) {
-  const minH = 18
-  const h = (visibleH * visibleH) / Math.max(contentH, 1)
-  return Math.max(minH, Math.min(h, visibleH))
+function getTaskTime(t: any): string {
+  if (t?.placementTime && typeof t.placementTime === 'string') {
+    return t.placementTime
+  }
+  if (t?.dueDateTime && typeof t.dueDateTime === 'string') {
+    const parts = t.dueDateTime.split('T')
+    if (parts.length > 1) {
+      return parts[1].slice(0, 8)
+    }
+  }
+  return '00:00:00'
 }
 
 /* -------------------------------------------------------------------------- */
-/* TaskGroupBox (타임라인 같은 시간대 Task 묶음) */
+/* TaskGroupBox (같은 시간대 Task 묶음) */
 /* -------------------------------------------------------------------------- */
 
 function TaskGroupBox({
   tasks,
   startHour,
   onLocalChange,
+  dayColWidth,
+  dateISO,
 }: {
   tasks: any[]
   startHour: number
+  dayColWidth: number
+  dateISO: string
   onLocalChange?: (payload: {
     id: string
     dateISO: string
     completed?: boolean
+    placementTime?: string | null
   }) => void
 }) {
   const [localTasks, setLocalTasks] = useState(tasks)
-  const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
+
+  const topBase = startHour * 60 * PIXELS_PER_MIN
+  const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
   const [expanded, setExpanded] = useState(false)
-
-  // ✅ 롱프레스 후에만 드래그 가능 여부
   const isActiveDrag = useSharedValue(false)
 
   useEffect(() => {
     setLocalTasks(tasks)
   }, [tasks])
 
-  const SNAP_UNIT = 5 * PIXELS_PER_MIN
-
-  // ✅ 진동 트리거 함수 (expo-haptics 대신 RN Vibration 사용)
   const triggerHaptic = () => {
     Vibration.vibrate(50)
   }
 
+  const handleDropGroup = useCallback(
+    async (movedY: number, dayOffset: number) => {
+      try {
+        const SNAP = 5 * PIXELS_PER_MIN
+        const snappedY = Math.round(movedY / SNAP) * SNAP
+        translateY.value = withSpring(snappedY)
+
+        const baseMin = startHour * 60
+        const deltaMin = snappedY / PIXELS_PER_MIN
+        let newStart = baseMin + deltaMin
+        if (newStart < 0) newStart = 0
+        if (newStart > 24 * 60 - 5) newStart = 24 * 60 - 5
+
+        const h = Math.floor(newStart / 60)
+        const m = Math.round(newStart % 60)
+        const fmt = (n: number) => String(n).padStart(2, '0')
+        const newTime = `${fmt(h)}:${fmt(m)}:00`
+
+        const newDateISO = addDays(dateISO, dayOffset)
+        const newDueDateTime = `${newDateISO}T${newTime}`
+
+        await Promise.all(
+          localTasks.map(async (t: any) => {
+            const taskId = String(t.id)
+            try {
+              await http.patch(`/task/${taskId}`, {
+  placementDate: newDateISO,
+  placementTime: newTime,
+  dueDateTime: newDueDateTime,
+})
+
+
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: {
+                  id: taskId,
+                  placementDate: newDateISO,
+                  placementTime: newTime,
+                  dueDateTime: newDueDateTime,
+                  date: newDateISO,
+                  startDate: newDateISO,
+                },
+              })
+
+              onLocalChange?.({
+                id: taskId,
+                dateISO: newDateISO,
+                placementTime: newTime,
+              })
+            } catch (err: any) {
+              console.error('❌ TaskGroup 이동 실패:', err.message)
+            }
+          }),
+        )
+
+        translateX.value = withTiming(dayColWidth * dayOffset, {
+          duration: 80,
+        })
+      } catch (err: any) {
+        console.error('❌ TaskGroup 이동 처리 중 오류:', err.message)
+      }
+    },
+    [dateISO, localTasks, onLocalChange, startHour, translateX, translateY, dayColWidth],
+  )
+
   const longPress = Gesture.LongPress()
     .minDuration(2000)
-    .maxDistance(1000) // ✅ 크게 설정해서 움직여도 취소되지 않게
-    .shouldCancelWhenOutside(false) // ✅ 영역 밖으로 살짝 나가도 유지
+    .maxDistance(1000)
+    .shouldCancelWhenOutside(false)
     .onStart(() => {
       isActiveDrag.value = true
       runOnJS(triggerHaptic)()
@@ -465,19 +523,17 @@ function TaskGroupBox({
     })
     .onEnd(() => {
       if (!isActiveDrag.value) return
-      const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
-      translateY.value = withSpring(snappedY)
-      translateX.value = withSpring(0)
+      const dayOffset = Math.round(translateX.value / dayColWidth)
+      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
       isActiveDrag.value = false
+      runOnJS(handleDropGroup)(translateY.value, dayOffset)
     })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
   const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: translateY.value + 2 },
-      { translateX: translateX.value },
-    ],
+    top: topBase + translateY.value + 2,
+    transform: [{ translateX: translateX.value }],
   }))
 
   const toggleExpand = () => setExpanded((v) => !v)
@@ -499,28 +555,38 @@ function TaskGroupBox({
     if (!target) return
 
     const completed = !!target.completed
-    const dateISO = String(
-      (target.placementDate || target.dueDateTime || '').slice(0, 10),
-    )
+    const base =
+      target.placementDate ??
+      target.dueDateTime ??
+      target.date ??
+      todayISO()
+    const taskDateISO = String(base).slice(0, 10)
 
     try {
-      await http.put(`/task/${taskId}`, { completed })
+      // 전체 Task 조회
+const full = await http.get(`/task/${taskId}`);
+const task = full.data.data;
 
-      // 상위 WeekView에 상태 전달
-      onLocalChange?.({ id: String(taskId), dateISO, completed })
+// 전체 JSON + completed 반영해서 PATCH
+await http.patch(`/task/${taskId}`, {
+  ...task,
+  completed,
+});
 
-      // DayView 등 다른 뷰에도 반영
+
+      onLocalChange?.({ id: String(taskId), dateISO: taskDateISO, completed })
+
       bus.emit('calendar:mutated', {
         op: 'update',
         item: {
           id: taskId,
           completed,
-          date: dateISO,
-          startDate: dateISO,
+          date: taskDateISO,
+          startDate: taskDateISO,
         },
       })
     } catch (err: any) {
-      console.error('❌ TaskGroupBox 체크 업데이트 실패:', err.message)
+      console.error('❌ TaskGroup 체크 업데이트 실패:', err.message)
     }
   }
 
@@ -533,7 +599,6 @@ function TaskGroupBox({
           !expanded && { justifyContent: 'center' },
         ]}
       >
-        {/* 상단 "할일" 버튼 줄 */}
         <Pressable onPress={toggleExpand} style={S.groupHeaderRow}>
           <View
             style={[
@@ -544,7 +609,6 @@ function TaskGroupBox({
           <Text style={S.groupHeaderText}>할일</Text>
         </Pressable>
 
-        {/* 드롭다운 영역 */}
         {expanded && (
           <View style={S.groupList}>
             {localTasks.map((t: any) => (
@@ -585,7 +649,7 @@ function TaskGroupBox({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Draggable TaskBox (단일 타임라인 Task) */
+/* DraggableTaskBox (단일 타임라인 Task) */
 /* -------------------------------------------------------------------------- */
 
 type DraggableTaskBoxProps = {
@@ -612,24 +676,30 @@ function DraggableTaskBox({
   dayColWidth,
   onLocalChange,
 }: DraggableTaskBoxProps) {
-  const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
+  const startMin = startHour * 60
+  const topBase = startMin * PIXELS_PER_MIN
+  const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
   const [done, setDone] = useState(initialDone)
-
-  // ✅ 롱프레스 후에만 드래그 가능 여부
   const isActiveDrag = useSharedValue(false)
 
-  // ✅ 체크 토글 (서버 + DayView + WeekView 동기화)
   const toggleDone = async () => {
     const next = !done
     setDone(next)
     try {
-      await http.put(`/task/${id}`, { completed: next })
+      // 전체 Task 조회
+const full = await http.get(`/task/${id}`);
+const task = full.data.data;
 
-      // 상위 WeekView 상태 즉시 반영
+// 전체 JSON + completed 반영해서 PATCH
+await http.patch(`/task/${id}`, {
+  ...task,
+  completed: next,
+});
+
+
       onLocalChange?.({ id, dateISO, completed: next })
 
-      // 다른 뷰(DayView 등)에 변경사항 전파
       bus.emit('calendar:mutated', {
         op: 'update',
         item: {
@@ -645,41 +715,55 @@ function DraggableTaskBox({
     }
   }
 
-  // ✅ 시간·요일 이동 드롭 처리
-const handleDrop = async (newDateISO: string, newTime: string) => {
-  try {
-    await http.put(`/task/${id}`, {
-      placementDate: newDateISO,
-      placementTime: newTime,
-    })
+  const handleDrop = async (movedY: number, dayOffset: number) => {
+    try {
+      const SNAP = 5 * PIXELS_PER_MIN
+      const snappedY = Math.round(movedY / SNAP) * SNAP
+      translateY.value = withSpring(snappedY)
 
-    // 상위 WeekView 상태 즉시 반영
-    onLocalChange?.({ id, dateISO: newDateISO, placementTime: newTime })
+      const baseMin = startHour * 60
+      const deltaMin = snappedY / PIXELS_PER_MIN
+      let newStart = baseMin + deltaMin
+      if (newStart < 0) newStart = 0
+      if (newStart > 24 * 60 - 5) newStart = 24 * 60 - 5
 
-    // 다른 뷰(DayView 등)에 변경사항 전파
-    bus.emit('calendar:mutated', {
-      op: 'update',
-      item: {
-        id,
-        placementDate: newDateISO,
-        placementTime: newTime,
-        date: newDateISO,
-        startDate: newDateISO,
-      },
-    })
-  } catch (err: any) {
-    console.error('❌ Task 이동 실패:', err.message)
+      const h = Math.floor(newStart / 60)
+      const m = Math.round(newStart % 60)
+      const fmt = (n: number) => String(n).padStart(2, '0')
+      const newTime = `${fmt(h)}:${fmt(m)}:00`
+
+      const newDateISO = addDays(dateISO, dayOffset)
+      const newDueDateTime = `${newDateISO}T${newTime}`
+
+      await http.patch(`/task/${id}`, {
+  placementDate: newDateISO,
+  placementTime: newTime,
+  dueDateTime: newDueDateTime,
+})
+
+
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: {
+          id,
+          placementDate: newDateISO,
+          placementTime: newTime,
+          dueDateTime: newDueDateTime,
+          date: newDateISO,
+          startDate: newDateISO,
+        },
+      })
+    } catch (err: any) {
+      console.error('❌ Task 이동 실패:', err.message)
+    }
   }
-}
 
-
-  // ✅ 진동 트리거 함수 (expo-haptics 대신 RN Vibration 사용)
   const triggerHaptic = () => {
     Vibration.vibrate(50)
   }
 
   const longPress = Gesture.LongPress()
-    .minDuration(2000) // ✅ 2초 롱프레스
+    .minDuration(2000)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -688,65 +772,52 @@ const handleDrop = async (newDateISO: string, newTime: string) => {
     })
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    if (!isActiveDrag.value) return
-    translateY.value += e.changeY
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    if (!isActiveDrag.value) return
-    const SNAP = 5 * PIXELS_PER_MIN
-    const snappedY = Math.round(translateY.value / SNAP) * SNAP
-    translateY.value = withSpring(snappedY)
-
-    // ✅ 가로 이동량을 기준으로 며칠 이동했는지 계산
-    const dayOffset = Math.round(translateX.value / dayColWidth)
-    const newDateISO = addDays(dateISO, dayOffset)
-
-    isActiveDrag.value = false
-
-    const newMinutes = snappedY / PIXELS_PER_MIN
-    const h = Math.floor(newMinutes / 60)
-    const m = Math.round(newMinutes % 60)
-    const fmt = (n: number) => String(n).padStart(2, '0')
-    const t = `${fmt(h)}:${fmt(m)}:00`
-
-    // ✅ 새 날짜 + 새 시간 함께 전달
-    runOnJS(handleDrop)(newDateISO, t)
-  })
-
+    .onChange((e) => {
+      if (!isActiveDrag.value) return
+      translateY.value += e.changeY
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!isActiveDrag.value) return
+      const dayOffset = Math.round(translateX.value / dayColWidth)
+      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+      isActiveDrag.value = false
+      runOnJS(handleDrop)(translateY.value, dayOffset)
+    })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
   const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: translateY.value + 2 },
-      { translateX: translateX.value },
-    ],
+    top: topBase + translateY.value + 2,
+    transform: [{ translateX: translateX.value }],
   }))
 
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View style={[S.taskBox, style]}>
-        <Pressable
-          onPress={toggleDone}
-          style={[S.taskCheckbox, done && S.taskCheckboxOn]}
-        >
-          {done && <Text style={S.taskCheckmark}>✓</Text>}
-        </Pressable>
-        <Text
-          style={[S.taskTitle, done && S.taskTitleDone]}
-          numberOfLines={0}
-        >
-          {title}
-        </Text>
+        <Pressable 
+  onPress={toggleDone}
+  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+>
+  <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
+    {done && <Text style={S.taskCheckmark}>✓</Text>}
+  </View>
+
+  <Text
+    style={[S.taskTitle, done && S.taskTitleDone]}
+    numberOfLines={0}
+  >
+    {title}
+  </Text>
+</Pressable>
+
       </Animated.View>
     </GestureDetector>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/* DraggableFlexalbeEvent (일정 박스 드래그) */
+/* 드래그 가능한 일정 박스 */
 /* -------------------------------------------------------------------------- */
 
 type DraggableFlexalbeEventProps = {
@@ -766,27 +837,32 @@ type DraggableFlexalbeEventProps = {
 }
 
 function DraggableFlexalbeEvent({
-  id, title, place, startMin, endMin, color,
-  dateISO, column, columnsTotal, isPartialOverlap, overlapDepth,
-  dayColWidth, weekDates,
+  id,
+  title,
+  place,
+  startMin,
+  endMin,
+  color,
+  dateISO,
+  column,
+  columnsTotal,
+  isPartialOverlap,
+  overlapDepth,
+  dayColWidth,
+  weekDates,
 }: DraggableFlexalbeEventProps) {
-
   const durationMin = endMin - startMin
   const height = (durationMin / 60) * ROW_H
   const topBase = (startMin / 60) * ROW_H
 
-  // ⬇ 세로·가로 이동값
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
-
-  // 롱프레스 후에만 드래그 가능
   const isActiveDrag = useSharedValue(false)
 
   const triggerHaptic = () => {
     Vibration.vibrate(50)
   }
 
-  // ✅ drop 시: movedY + dayOffset(며칠 이동했는지) 반영
   const handleDrop = useCallback(
     async (movedY: number, dayOffset: number) => {
       try {
@@ -812,10 +888,7 @@ function DraggableFlexalbeEvent({
         const nextStartTime = fmt(newStart)
         const nextEndTime = fmt(newEnd)
 
-        // ✅ 가로로 움직인 칸 수만큼 날짜 이동
         const newDateISO = addDays(dateISO, dayOffset)
-
-        lastChangedEventId = id
 
         await http.put(`/event/${id}`, {
           startDate: newDateISO,
@@ -849,33 +922,18 @@ function DraggableFlexalbeEvent({
     })
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    if (!isActiveDrag.value) return
-    translateY.value += e.changeY
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    if (!isActiveDrag.value) return
-
-    // 이동한 칸 수 (며칠 이동했는지)
-    const dayOffset = Math.round(translateX.value / dayColWidth)
-
-    // 현재 요일 index
-    const oldIndex = weekDates.indexOf(dateISO)
-    const newIndex = oldIndex + dayOffset
-
-    // ⭐ 요일 칸에 딱 들어맞는 위치로 translateX를 고정
-    //    (원래 요일로 돌아가는 현상 방지)
-    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-
-    // 서버로 이동 반영
-    runOnJS(handleDrop)(translateY.value, dayOffset)
-
-    // ⛔ translateX.value = 0 을 더 이상 하지 않음!
-
-    isActiveDrag.value = false
-  })
-
+    .onChange((e) => {
+      if (!isActiveDrag.value) return
+      translateY.value += e.changeY
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!isActiveDrag.value) return
+      const dayOffset = Math.round(translateX.value / dayColWidth)
+      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+      isActiveDrag.value = false
+      runOnJS(handleDrop)(translateY.value, dayOffset)
+    })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
@@ -894,7 +952,6 @@ function DraggableFlexalbeEvent({
     overlapStyle.borderColor = '#FFFFFF'
   }
 
-  // ✅ 세로 + 가로 이동 반영
   const style = useAnimatedStyle(() => ({
     top: topBase + translateY.value,
     transform: [{ translateX: translateX.value }],
@@ -924,7 +981,6 @@ function DraggableFlexalbeEvent({
   )
 }
 
-
 /* -------------------------------------------------------------------------- */
 /* WeekView 메인 */
 /* -------------------------------------------------------------------------- */
@@ -936,34 +992,24 @@ export default function WeekView() {
   const [weekData, setWeekData] = useState<WeekData>({})
   const [loading, setLoading] = useState(true)
 
-  const [lastMutatedId, setLastMutatedId] = useState<string | null>(null)
-
-  const [wrapH, setWrapH] = useState(80)
-  const [contentH, setContentH] = useState(80)
-  const [thumbTop, setThumbTop] = useState(0)
-  const checksScrollRef = useRef<ScrollView>(null)
-
-  const gridScrollRef = useRef<ScrollView>(null)
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
 
+  const gridScrollRef = useRef<ScrollView>(null)
+
   const SINGLE_HEIGHT = 22
 
-  // weekDates: 확대 모드/기본 모드에 따라 계산
   useEffect(() => {
     if (isZoomed) {
-      // ✅ 5일뷰: anchorDate를 중앙으로, -2일 ~ +2일
       const arr = Array.from({ length: 5 }, (_, i) => addDays(anchorDate, i - 2))
       setWeekDates(arr)
     } else {
-      // ✅ 7일뷰: anchorDate가 속한 주의 일~토
       const s = startOfWeek(anchorDate)
       const arr = Array.from({ length: 7 }, (_, i) => addDays(s, i))
       setWeekDates(arr)
     }
   }, [anchorDate, isZoomed])
 
-  // 현재 시간 라인 위치
   useEffect(() => {
     const updateNowTop = (scrollToCenter: boolean) => {
       const now = new Date()
@@ -973,17 +1019,16 @@ export default function WeekView() {
       setNowTop(topPos)
 
       if (scrollToCenter && !hasScrolledOnce) {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      gridScrollRef.current?.scrollTo({
-        y: Math.max(topPos - SCREEN_H * 0.35, 0),
-        animated: true,   // DayView처럼 자연스럽게
-      })
-      setHasScrolledOnce(true)
-    })
-  })
-}
-
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            gridScrollRef.current?.scrollTo({
+              y: Math.max(topPos - SCREEN_H * 0.35, 0),
+              animated: true,
+            })
+            setHasScrolledOnce(true)
+          })
+        })
+      }
     }
 
     updateNowTop(true)
@@ -991,23 +1036,20 @@ export default function WeekView() {
     return () => clearInterval(id)
   }, [hasScrolledOnce])
 
-  // WeekView에서도 DayView처럼 — 데이터까지 로딩된 후 라이브바로 자동 스크롤
-useEffect(() => {
-  if (nowTop !== null && gridScrollRef.current && !hasScrolledOnce) {
-    requestAnimationFrame(() => {
+  useEffect(() => {
+    if (nowTop !== null && gridScrollRef.current && !hasScrolledOnce) {
       requestAnimationFrame(() => {
-        gridScrollRef.current?.scrollTo({
-          y: Math.max(nowTop - SCREEN_H * 0.35, 0),
-          animated: true,
+        requestAnimationFrame(() => {
+          gridScrollRef.current?.scrollTo({
+            y: Math.max(nowTop - SCREEN_H * 0.35, 0),
+            animated: true,
+          })
+          setHasScrolledOnce(true)
         })
-        setHasScrolledOnce(true)
       })
-    })
-  }
-}, [nowTop, weekData])
+    }
+  }, [nowTop, weekData, hasScrolledOnce])
 
-
-  // 주간 데이터 fetch
   const fetchWeek = useCallback(async (dates: string[]) => {
     if (!dates.length) return
     try {
@@ -1058,7 +1100,6 @@ useEffect(() => {
           })
 
         const spanEvents = [
-          // 1️⃣ 여러 날짜에 걸친 일정
           ...timed.filter(
             (e: any) =>
               e.isSpan ||
@@ -1066,17 +1107,11 @@ useEffect(() => {
                 e.endDate &&
                 e.startDate.slice(0, 10) !== e.endDate.slice(0, 10)),
           ),
-
-          // 2️⃣ 시간 없는 하루짜리 / 종일 일정
           ...timed.filter(
             (e: any) =>
               e.clippedEndTime === '23:59:59.999999999',
           ),
-
-          // 3️⃣ 서버에서 따로 내려주는 종일/기간 이벤트
           ...allDaySpan,
-
-          // 4️⃣ allDayEvents: 하루짜리 일정
           ...allDayEvents,
         ]
 
@@ -1104,22 +1139,20 @@ useEffect(() => {
       setWeekData((prev: WeekData) => {
         const merged: WeekData = {}
 
-        for (const date of Object.keys(next)) {
-          const prevBucket = prev[date]
-          const nextBucket = next[date]
+        for (const [d, bucket] of Object.entries(next)) {
+          const prevBucket = prev[d]
+          const nextBucket = bucket as DayBucket
 
           if (!prevBucket) {
-            merged[date] = nextBucket
+            merged[d] = nextBucket
             continue
           }
 
-          // ✅ 체크리스트 상태 유지
           const mergedChecks = nextBucket.checks.map((c) => {
             const old = prevBucket.checks.find((p) => p.id === c.id)
             return old ? { ...c, done: old.done } : c
           })
 
-          // ✅ 상단 spanEvents 상태 유지
           const mergedSpans = nextBucket.spanEvents.map((s: any) => {
             const old = prevBucket.spanEvents.find(
               (p: any) => String(p.id) === String(s.id),
@@ -1127,7 +1160,6 @@ useEffect(() => {
             return old ? { ...s, done: old.done } : s
           })
 
-          // ✅ 타임라인 Task 상태 유지 (개별 + 그룹)
           const mergedTimedTasks = nextBucket.timedTasks.map((t: any) => {
             const old = prevBucket.timedTasks.find(
               (p: any) => String(p.id) === String(t.id),
@@ -1135,21 +1167,11 @@ useEffect(() => {
             return old ? { ...t, completed: old.completed } : t
           })
 
-          // ✅ (옵션) 할일박스에 사용하는 tasks 필드가 있다면 병합
-          const mergedTasks =
-            nextBucket.tasks?.map((t: any) => {
-              const old = prevBucket.tasks?.find(
-                (p: any) => String(p.id) === String(t.id),
-              )
-              return old ? { ...t, completed: old.completed } : t
-            }) ?? nextBucket.tasks
-
-          merged[date] = {
+          merged[d] = {
             ...nextBucket,
             checks: mergedChecks,
             spanEvents: mergedSpans,
             timedTasks: mergedTimedTasks,
-            ...(mergedTasks ? { tasks: mergedTasks } : {}),
           }
         }
 
@@ -1162,23 +1184,19 @@ useEffect(() => {
     }
   }, [])
 
-  // weekDates 변경 시 fetch
   useEffect(() => {
     if (weekDates.length) {
-      // ✅ 이미 불러온 날짜면 fetch 안함
-      const allCached = weekDates.every((d) => weekData[d])
-      if (!allCached) fetchWeek(weekDates)
+      fetchWeek(weekDates)
     }
-  }, [weekDates, weekData, fetchWeek])
+  }, [weekDates, fetchWeek])
 
-  // Header와 연동
   useFocusEffect(
     useCallback(() => {
       const emit = () =>
         bus.emit('calendar:state', {
           date: anchorDate,
           mode: 'week',
-          days: isZoomed ? 5 : 7, // ✅ 현재 뷰 일수 같이 전달
+          days: isZoomed ? 5 : 7,
         })
 
       const onReq = () => emit()
@@ -1195,7 +1213,6 @@ useEffect(() => {
     }, [anchorDate, isZoomed]),
   )
 
-  // 변경사항 반영
   useEffect(() => {
     const onMutated = (payload: {
       op: 'create' | 'update' | 'delete'
@@ -1212,15 +1229,7 @@ useEffect(() => {
         item.placementTimeDate ??
         todayISO()
       const itemDateISO = String(rawDate).slice(0, 10)
-      const changedId = String(item.id ?? item.taskId ?? '')
 
-      // ✅ 내가 방금 보낸 변경이면 무시 (자기 새로고침 방지)
-      if (changedId && changedId === lastMutatedId) {
-        setLastMutatedId(null)
-        return
-      }
-
-      // ✅ 현재 표시 중인 주(또는 5일) 안에 해당 날짜가 있으면 새로 fetch
       if (weekDates.includes(itemDateISO)) {
         fetchWeek(weekDates)
       }
@@ -1228,92 +1237,74 @@ useEffect(() => {
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [weekDates, fetchWeek, lastMutatedId])
-
-  const onLayoutWrap = (e: any) => setWrapH(e.nativeEvent.layout.height)
-  const onContentSizeChange = (_: number, h: number) => setContentH(h)
-  const onScrollChecks = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
-    const ratio =
-      contentSize.height <= layoutMeasurement.height
-        ? 0
-        : contentOffset.y /
-          (contentSize.height - layoutMeasurement.height)
-    const top =
-      ratio *
-      (layoutMeasurement.height -
-        getThumbH(layoutMeasurement.height, contentSize.height))
-    setThumbTop(top)
-  }
-
-  const toggleCheck = async (taskId: string) => {
-    let newDone = false
-    let changedDate: string | null = null
-
-    setWeekData((prev: WeekData) => {
-      const next: WeekData = {}
-      for (const [d, bucket] of Object.entries(prev)) {
-        let updated = false
-
-        const updatedChecks = bucket.checks.map((c) => {
-          if (c.id === taskId) {
-            const done = !c.done
-            newDone = done
-            changedDate = d
-            updated = true
-            return { ...c, done }
-          }
-          return c
-        })
-
-        const updatedSpans = bucket.spanEvents.map((s: any) => {
-          if (String(s.id) === String(taskId)) {
-            const done = !s.done
-            newDone = done
-            changedDate = d
-            updated = true
-            return { ...s, done }
-          }
-          return s
-        })
-
-        next[d] = { ...bucket, checks: updatedChecks, spanEvents: updatedSpans }
-      }
-      return next
-    })
-
-    if (!changedDate) return
-
-    try {
-      await http.put(`/task/${taskId}`, { completed: newDone })
-      setLastMutatedId(taskId)
-      // ✅ DayView도 즉시 반영되게 이벤트 broadcast
-      bus.emit('calendar:mutated', {
-        op: 'update',
-        item: {
-          id: taskId,
-          completed: newDone,
-          date: changedDate,
-          startDate: changedDate,
-        },
-      })
-    } catch (err: any) {
-      console.error('❌ 체크 업데이트 실패:', err.message)
-    }
-  }
+  }, [weekDates, fetchWeek])
 
   const today = todayISO()
   const spanBars = buildWeekSpanEvents(weekDates, weekData)
   const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
+  const spanAreaHeight =
+    maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
   const dayColWidth = getDayColWidth(weekDates.length)
+  const toggleSpanTaskCheck = async (
+    taskId: string,
+    prevDone: boolean,
+    dateISO: string,
+  ) => {
+    try {
+      // 1) 서버에서 Task 전체 데이터 조회
+      const full = await http.get(`/task/${taskId}`)
+      const task = full.data.data
 
-  // 요일 개수에 따라 DAY_COL_W 계산
-  const DAY_COL_W = getDayColWidth(weekDates.length)
+      const nextCompleted = !prevDone
 
-  // 핀치 제스처 & 애니메이션 (Hook 규칙 지키도록 if 이전에서 선언)
+      // 2) completed만 바꾼 전체 Task JSON으로 PATCH
+      await http.patch(`/task/${taskId}`, {
+        ...task,
+        completed: nextCompleted,
+      })
+
+      // 3) WeekView 로컬 상태 업데이트
+      setWeekData((prev) => {
+        const copy = { ...prev }
+        const bucket = copy[dateISO]
+        if (!bucket) return copy
+
+        // spanEvents 안에 들어간 done 값 갱신
+        bucket.spanEvents = bucket.spanEvents.map((e: any) => {
+          if (String(e.id) === String(taskId)) {
+            return { ...e, done: nextCompleted }
+          }
+          return e
+        })
+
+        // checks(하루/플로팅 task)도 같이 갱신
+        bucket.checks = bucket.checks.map((c) => {
+          if (String(c.id) === String(taskId)) {
+            return { ...c, done: nextCompleted }
+          }
+          return c
+        })
+
+        return copy
+      })
+
+      // 4) 다른 뷰들(Day/Month)에게도 변경 알림
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: {
+          id: taskId,
+          completed: nextCompleted,
+          date: dateISO,
+          startDate: dateISO,
+        },
+      })
+    } catch (err) {
+      console.error('❌ spanBar Task 체크 실패:', err)
+    }
+  }
+
   const scale = useSharedValue(1)
-
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
       scale.value = e.scale
@@ -1332,11 +1323,7 @@ useEffect(() => {
     transform: [{ scale: scale.value }],
   }))
 
-  // spanbar 전체 컨텐츠 높이
-  const spanAreaHeight =
-    maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
-
-  if (loading) {
+  if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ScreenWithSidebar mode="overlay">
@@ -1395,10 +1382,9 @@ useEffect(() => {
               </View>
             </FullBleed>
 
-            {/* 상단 span + 체크리스트 */}
+            {/* 상단 span bar */}
             <FullBleed padH={0}>
               <View style={S.topArea}>
-                {/* span bar */}
                 <View style={[S.multiDayArea, { height: 150 }]}>
                   <ScrollView
                     showsVerticalScrollIndicator={false}
@@ -1413,91 +1399,83 @@ useEffect(() => {
                         TIME_COL_W + s.startIdx * dayColWidth + 2
                       const width =
                         (s.endIdx - s.startIdx + 1) * dayColWidth - 4
-                      const isSingleDay =
-                        s.startISO === s.endISO
+                      const isSingleDay = s.startISO === s.endISO
                       const isTask = s.color === '#000000'
 
                       if (isTask) {
-                        return (
-                          <Pressable
-                            key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
-                            onPress={() => toggleCheck(s.id)}
-                            style={{
-                              position: 'absolute',
-                              top:
-                                s.row * (SINGLE_HEIGHT + 4),
-                              left,
-                              width,
-                              height: SINGLE_HEIGHT,
-                              borderWidth: 1,
-                              borderColor: '#000000',
-                              borderRadius: 3,
-                              backgroundColor: '#FFFFFF',
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              justifyContent: 'flex-start',
-                              paddingHorizontal: 6,
-                            }}
-                          >
-                            <View
-                              style={{
-                                width: 10,
-                                height: 10,
-                                borderWidth: 1,
-                                borderColor: '#000000',
-                                marginRight: 5,
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                backgroundColor: s.done
-                                  ? '#000000'
-                                  : '#FFFFFF',
-                              }}
-                            >
-                              {s.done && (
-                                <Text
-                                  style={{
-                                    color: '#FFFFFF',
-                                    fontSize: 7,
-                                    fontWeight: '700',
-                                  }}
-                                >
-                                  ✓
-                                </Text>
-                              )}
-                            </View>
-                            <Text
-                              style={{
-                                color: s.done
-                                  ? '#888888'
-                                  : '#000000',
-                                fontSize: 11,
-                                fontWeight: '700',
-                                textDecorationLine: s.done
-                                  ? 'line-through'
-                                  : 'none',
-                                width: 'auto',
-                                maxWidth: '90%',
-                                overflow: 'hidden',
-                                flexWrap: 'nowrap',
-                                flexShrink: 1,
-                                includeFontPadding: false,
-                                textAlignVertical: 'center',
-                              }}
-                              numberOfLines={1}
-                              ellipsizeMode="clip"
-                            >
-                              {s.title}
-                            </Text>
-                          </Pressable>
-                        )
-                      }
+  return (
+    <Pressable
+  key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
+  onPress={() =>
+    toggleSpanTaskCheck(
+      String(s.id),
+      !!s.done,
+      weekDates[s.startIdx], 
+    )
+  }
+  style={{
+    position: 'absolute',
+    top: s.row * (SINGLE_HEIGHT + 4),
+    left,
+    width,
+    height: SINGLE_HEIGHT,
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 6,
+  }}
+>
+      <View
+        style={{
+          width: 10,
+          height: 10,
+          borderWidth: 1,
+          borderColor: '#000000',
+          marginRight: 5,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: s.done ? '#000000' : '#FFFFFF',
+        }}
+      >
+        {s.done && (
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 7,
+              fontWeight: '700',
+            }}
+          >
+            ✓
+          </Text>
+        )}
+      </View>
+      <Text
+    style={{
+      color: s.done ? '#888888' : '#000000',
+      fontSize: 11,
+      fontWeight: '700',
+      maxWidth: '90%',
+      includeFontPadding: false,
+      textDecorationLine: s.done ? 'line-through' : 'none',
+    }}
+    numberOfLines={1}
+  >
+    {s.title}
+  </Text>
+</Pressable>
+  )
+}
+
 
                       const mainColor = s.color?.startsWith('#')
                         ? s.color
                         : `#${s.color || 'B04FFF'}`
                       const lightColor = `${mainColor}33`
 
-                      // ✅ 일정의 기본 스타일 계산
                       const baseStyle: any = {
                         position: 'absolute',
                         top: s.row * (SINGLE_HEIGHT + 4),
@@ -1508,7 +1486,6 @@ useEffect(() => {
                         alignItems: isSingleDay ? 'flex-start' : 'center',
                         paddingHorizontal: 6,
                         backgroundColor: isSingleDay ? mainColor : lightColor,
-                        // ✅ 하루짜리 일정은 둥글게, 기간 일정은 각지게
                         borderRadius: isSingleDay ? 6 : 0,
                       }
 
@@ -1517,39 +1494,38 @@ useEffect(() => {
                           key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
                           style={baseStyle}
                         >
-                          {/* ✅ 왼쪽 끝 강조 */}
-                          {weekDates.includes(s.startISO) && weekDates[s.startIdx] === s.startISO && (
-                            <View
-                              style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: 5,
-                                backgroundColor: mainColor,
-                                borderTopLeftRadius: isSingleDay ? 6 : 0,
-                                borderBottomLeftRadius: isSingleDay ? 6 : 0,
-                              }}
-                            />
-                          )}
+                          {weekDates.includes(s.startISO) &&
+                            weekDates[s.startIdx] === s.startISO && (
+                              <View
+                                style={{
+                                  position: 'absolute',
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: 5,
+                                  backgroundColor: mainColor,
+                                  borderTopLeftRadius: isSingleDay ? 6 : 0,
+                                  borderBottomLeftRadius: isSingleDay ? 6 : 0,
+                                }}
+                              />
+                            )}
 
-                          {/* ✅ 오른쪽 끝 강조 */}
-                          {weekDates.includes(s.endISO) && weekDates[s.endIdx] === s.endISO && (
-                            <View
-                              style={{
-                                position: 'absolute',
-                                right: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: 5,
-                                backgroundColor: mainColor,
-                                borderTopRightRadius: isSingleDay ? 6 : 0,
-                                borderBottomRightRadius: isSingleDay ? 6 : 0,
-                              }}
-                            />
-                          )}
+                          {weekDates.includes(s.endISO) &&
+                            weekDates[s.endIdx] === s.endISO && (
+                              <View
+                                style={{
+                                  position: 'absolute',
+                                  right: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: 5,
+                                  backgroundColor: mainColor,
+                                  borderTopRightRadius: isSingleDay ? 6 : 0,
+                                  borderBottomRightRadius: isSingleDay ? 6 : 0,
+                                }}
+                              />
+                            )}
 
-                          {/* 일정 제목 */}
                           <Text
                             style={{
                               color: isSingleDay ? '#FFFFFF' : '#000000',
@@ -1587,10 +1563,7 @@ useEffect(() => {
                 {/* 시간 컬럼 */}
                 <View style={S.timeCol}>
                   {HOURS.map((h) => (
-                    <View
-                      key={`hour-${h}`}
-                      style={S.timeRow}
-                    >
+                    <View key={`hour-${h}`} style={S.timeRow}>
                       <Text style={S.timeText}>
                         {h === 0
                           ? '오전 12시'
@@ -1616,12 +1589,22 @@ useEffect(() => {
                   )
                   const timedTasks = bucket.timedTasks || []
 
+                  const groupedTasks = timedTasks.reduce(
+                    (acc: Record<string, any[]>, t: any) => {
+                      const timeKey = getTaskTime(t)
+                      acc[timeKey] = acc[timeKey]
+                        ? [...acc[timeKey], t]
+                        : [t]
+                      return acc
+                    },
+                    {},
+                  )
+
                   return (
                     <View
                       key={`${d}-col`}
                       style={[S.dayCol, { width: dayColWidth }]}
                     >
-                      {/* 시간 격자 */}
                       {HOURS.map((_, i) => (
                         <View
                           key={`${d}-row-${i}`}
@@ -1629,7 +1612,6 @@ useEffect(() => {
                         />
                       ))}
 
-                      {/* 현재 시간 라인 */}
                       {isTodayCol && nowTop !== null && (
                         <>
                           <View
@@ -1647,7 +1629,6 @@ useEffect(() => {
                         </>
                       )}
 
-                      {/* 일정 박스 */}
                       {layoutEvents.map((ev, idx) => (
                         <DraggableFlexalbeEvent
                           key={`${d}-${ev.id}-event-${idx}`}
@@ -1667,96 +1648,86 @@ useEffect(() => {
                         />
                       ))}
 
-                      {/* 타임라인 Task 박스 (동일 시간대 묶음 처리) */}
-                      {Object.entries(
-                        timedTasks.reduce(
-                          (acc: Record<string, any[]>, t: any) => {
-                            const key = `${t.placementDate}-${t.placementTime}-${t.dueDateTime}`
-                            acc[key] = acc[key]
-                              ? [...acc[key], t]
-                              : [t]
-                            return acc
-                          },
-                          {},
-                        ),
-                      ).map(([key, group]) => {
-                        const list = group as any[]
-                        if (!list.length) return null
-                        const [h, m] = list[0].placementTime
-                          .split(':')
-                          .map(Number)
-                        const start = h + m / 60
+                      {Object.entries(groupedTasks).map(
+                        ([timeKey, group]) => {
+                          const list = group as any[]
+                          if (!list.length) return null
 
-                        return list.length > 1 ? (
-                          <TaskGroupBox
-                            key={key}
-                            tasks={list}
-                            startHour={start}
-                            onLocalChange={({ id, dateISO, completed }) => {
-                              if (typeof completed !== 'boolean') return
+                          const timeStr = getTaskTime(list[0])
+                          const [h, m] = timeStr
+                            .split(':')
+                            .map((n) => Number(n) || 0)
+                          const start = h + m / 60
 
-                              setWeekData((prev: WeekData) => {
-                                const copy = { ...prev }
-                                const bucket = copy[dateISO]
-                                if (!bucket) return copy
+                          return list.length > 1 ? (
+                            <TaskGroupBox
+                              key={`${d}-${timeKey}-${list.length}`}
+                              tasks={list}
+                              startHour={start}
+                              dayColWidth={dayColWidth}
+                              dateISO={d}
+                              onLocalChange={({
+                                id,
+                                dateISO,
+                                completed,
+                              }) => {
+                                if (typeof completed === 'boolean') {
+                                  setWeekData((prev: WeekData) => {
+                                    const copy = { ...prev }
+                                    const bucket = copy[dateISO]
+                                    if (!bucket) return copy
 
-                                // ✅ 그룹 내 타임라인 task 상태 반영
-                                if (bucket.timedTasks) {
-                                  bucket.timedTasks = bucket.timedTasks.map((t: any) =>
-                                    String(t.id) === String(id)
-                                      ? { ...t, completed }
-                                      : t,
-                                  )
+                                    if (bucket.timedTasks) {
+                                      bucket.timedTasks =
+                                        bucket.timedTasks.map((t: any) =>
+                                          String(t.id) === String(id)
+                                            ? { ...t, completed }
+                                            : t,
+                                        )
+                                    }
+
+                                    return copy
+                                  })
                                 }
-
-                                // ✅ (옵션) bucket.tasks를 쓰는 곳이 있다면 함께 반영
-                                if (bucket.tasks) {
-                                  bucket.tasks = bucket.tasks.map((t: any) =>
-                                    String(t.id) === String(id)
-                                      ? { ...t, completed }
-                                      : t,
-                                  )
+                              }}
+                            />
+                          ) : (
+                            <DraggableTaskBox
+                              key={`${d}-${timeKey}-single-${list[0].id}`}
+                              id={String(list[0].id)}
+                              title={list[0].title}
+                              startHour={start}
+                              done={list[0].completed ?? false}
+                              dateISO={d}
+                              dayColWidth={dayColWidth}
+                              onLocalChange={({
+                                id,
+                                dateISO,
+                                completed,
+                              }) => {
+                                if (typeof completed === 'boolean') {
+                                  setWeekData((prev: WeekData) => {
+                                    const copy = { ...prev }
+                                    const bucket = copy[dateISO]
+                                    if (!bucket) return copy
+                                    bucket.timedTasks =
+                                      bucket.timedTasks.map((t: any) => {
+                                        if (String(t.id) !== String(id)) {
+                                          return t
+                                        }
+                                        return {
+                                          ...t,
+                                          completed,
+                                        }
+                                      })
+                                    return copy
+                                  })
                                 }
-
-                                return copy
-                              })
-
-                              // ✅ 내가 변경한 항목 표시 → bus.on에서 자기 이벤트 무시용
-                              setLastMutatedId(id)
-                            }}
-                          />
-
-                        ) : (
-                          <DraggableTaskBox
-  key={key}
-  id={String(list[0].id)}
-  title={list[0].title}
-  startHour={start}
-  done={list[0].completed ?? false}
-  dateISO={d}
-  dayColWidth={dayColWidth}   // ✅ 추가
-  onLocalChange={({ id, dateISO, completed, placementTime }) => {
-    setWeekData((prev: WeekData) => {
-      const copy = { ...prev }
-      const bucket = copy[dateISO]
-      if (!bucket) return copy
-      bucket.timedTasks = bucket.timedTasks.map((t: any) => {
-        if (String(t.id) !== String(id)) return t
-        return {
-          ...t,
-          ...(typeof completed === 'boolean' ? { completed } : {}),
-          ...(placementTime ? { placementTime } : {}),
-        }
-      })
-      return copy
-    })
-    if (typeof completed === 'boolean' || placementTime) {
-      setLastMutatedId(id)
-    }
-  }}
-/>
-                        )
-                      })}
+                              }}
+                            />
+                          )
+                        },
+                      )}
                     </View>
                   )
                 })}
@@ -1815,127 +1786,6 @@ const S = StyleSheet.create({
   multiDayArea: {
     position: 'relative',
     overflow: 'hidden',
-  },
-  spanBar: {
-    position: 'absolute',
-    height: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E5CCFF',
-    borderRadius: 0,
-    marginHorizontal: 12,
-    marginVertical: 2,
-  },
-  spanBarAccentLeft: {
-    width: 5,
-    height: '100%',
-    backgroundColor: '#B04FFF',
-    marginRight: 8,
-  },
-  spanBarAccentRight: {
-    width: 5,
-    height: '100%',
-    backgroundColor: '#B04FFF',
-  },
-  spanBarText: {
-    color: '#000000',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  checksWrapOuter: {
-    marginTop: 4,
-    paddingBottom: 2,
-    height: 0,
-    overflow: 'hidden',
-  },
-  checksScrollContent: {
-    paddingBottom: 2,
-  },
-  checksRow: {
-    flexDirection: 'row',
-  },
-  checkCol: {
-    paddingHorizontal: 2,
-  },
-  checkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 22,
-    marginBottom: 4,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#FFFFFF',
-  },
-  checkboxWrap: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  checkbox: {
-    width: 10,
-    height: 10,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: '#999999',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxOn: {
-    backgroundColor: '#000000',
-    borderColor: '#000000',
-  },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 7,
-    fontWeight: '700',
-    lineHeight: 9,
-  },
-  checkText: {
-    fontSize: 10,
-    color: '#000000',
-    fontWeight: '700',
-  },
-  checkTextDone: {
-    color: '#AAAAAA',
-    textDecorationLine: 'line-through',
-  },
-
-  scrollTrack: {
-    position: 'absolute',
-    right: 4,
-    top: 4,
-    bottom: 4,
-    width: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  scrollThumb: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    borderRadius: 2,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-  },
-
-  boxBottomLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth || 1,
-    backgroundColor: BORDER,
-    zIndex: 2,
-  },
-  fadeBelow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -10,
-    height: 18,
-    zIndex: 1,
   },
 
   timelineScroll: {
