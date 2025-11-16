@@ -543,47 +543,58 @@ function DraggableTaskBox({
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
   const [done, setDone] = useState(initialDone)
 
   const handleDrop = async (newTime: string) => {
-  try {
-    await http.put(`/task/${id}`, {
-      placementTime: newTime,
-    })
-    bus.emit('calendar:mutated', { op: 'update', item: { id } })
-  } catch (err: any) {
-    console.error('❌ 테스크 시간 이동 실패:', err.message)
+    try {
+      await http.put(`/task/${id}`, { placementTime: newTime })
+      bus.emit("calendar:mutated", { op: "update", item: { id } })
+    } catch (err: any) {
+      console.error("❌ 테스크 이동 실패:", err.message)
+    }
   }
-}
+  const hold = Gesture.LongPress()
+    .minDuration(250)
+    .onStart(() => {
+      dragEnabled.value = true
+    })
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    translateY.value += e.changeY
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    const SNAP_UNIT = 5 * PIXELS_PER_MIN
-    const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
-    translateY.value = withSpring(snappedY)
-    translateX.value = withSpring(0)
+    .onChange((e) => {
+      if (!dragEnabled.value) return   // ⭐ 눌렀을 때만 움직임
+      translateY.value += e.changeY
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!dragEnabled.value) return
+      dragEnabled.value = false // 다시 잠금
 
-    // ✅ 드롭 시 서버에 placementTime 업데이트
-    const newMinutes = snappedY / PIXELS_PER_MIN
-    const hour = Math.floor(newMinutes / 60)
-    const min = Math.round(newMinutes % 60)
+      const SNAP_UNIT = 5 * PIXELS_PER_MIN
+      const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      translateY.value = withSpring(snappedY)
+      translateX.value = withSpring(0)
 
-    const fmt = (n: number) => String(n).padStart(2, '0')
-    const newTime = `${fmt(hour)}:${fmt(min)}:00`
+      const newMinutes = snappedY / PIXELS_PER_MIN
+      const hour = Math.floor(newMinutes / 60)
+      const min = Math.round(newMinutes % 60)
 
-    runOnJS(handleDrop)(newTime)
-  })
+      const fmt = (n: number) => String(n).padStart(2, "0")
+      const newTime = `${fmt(hour)}:${fmt(min)}:00`
 
+      runOnJS(handleDrop)(newTime)
+    })
+
+  const composedGesture = Gesture.Simultaneous(hold, drag)
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
+    transform: [
+      { translateY: translateY.value + 2 },
+      { translateX: translateX.value },
+    ],
   }))
 
   return (
-    <GestureDetector gesture={drag}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
@@ -598,10 +609,6 @@ function DraggableTaskBox({
             paddingHorizontal: 16,
             flexDirection: 'row',
             alignItems: 'center',
-            //shadowColor: '#525252',
-            //shadowOffset: { width: 0, height: 0 },
-            //shadowOpacity: 0.25,
-            //shadowRadius: 5,
             zIndex: 20,
           },
           style,
@@ -672,59 +679,68 @@ function DraggableFlexalbeEvent({
   color,
   anchorDate,
 }: DraggableFlexalbeEventProps) {
+  const translateY = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
   const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
   const height = rawHeight - 2
   const offsetY = 1
-  const translateY = useSharedValue(0)
-  const dragStartY = useSharedValue(0)
 
   const handleDrop = useCallback(async (movedY: number) => {
     draggingEventId = id
     try {
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
-      translateY.value = withSpring(snappedY) // 애니메이션은 UI thread
+      translateY.value = withSpring(snappedY)
 
       const deltaMin = snappedY / PIXELS_PER_MIN
       const newStart = startMin + deltaMin
       const newEnd = endMin + deltaMin
 
       const fmt = (min: number) =>
-        `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(
-          min % 60
-        ).padStart(2, '0')}:00`
-      const dateISO = anchorDate
+        `${String(Math.floor(min / 60)).padStart(2,"0")}:${String(min % 60).padStart(2,"0")}:00`
 
       await http.put(`/event/${id}`, {
-        startDate: dateISO,
-        endDate: dateISO,
+        startDate: anchorDate,
+        endDate: anchorDate,
         startTime: fmt(newStart),
         endTime: fmt(newEnd),
       })
-      
-      bus.emit('calendar:mutated', { op: 'update', item: { id } })
+
+      bus.emit("calendar:mutated", { op: "update", item: { id } })
     } catch (err: any) {
       console.error('❌ 요청 설정 오류:', err.message)
     }
   }, [])
 
+  const hold = Gesture.LongPress()
+    .minDuration(250)
+    .onStart(() => {
+      dragEnabled.value = true
+    })
+
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    translateY.value += e.changeY
-  })
-  .onEnd(() => {
-    const movedY = translateY.value
-    runOnJS(handleDrop)(movedY)
-  })
+    .onChange((e) => {
+      if (!dragEnabled.value) return
+      translateY.value += e.changeY
+    })
+    .onEnd(() => {
+      if (!dragEnabled.value) return
+      dragEnabled.value = false
+
+      const movedY = translateY.value
+      runOnJS(handleDrop)(movedY)
+    })
+
+  const composedGesture = Gesture.Simultaneous(hold, drag)
 
   const style = useAnimatedStyle(() => ({
     top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
   }))
 
-  const backgroundColor = color.startsWith('#') ? color : `#${color}`
+  const backgroundColor = color.startsWith("#") ? color : `#${color}`
 
   return (
-    <GestureDetector gesture={drag}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
