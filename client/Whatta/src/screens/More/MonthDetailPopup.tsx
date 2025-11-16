@@ -379,7 +379,7 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: '#000000B2',
   },
   container: {
     width: width * 0.877,
