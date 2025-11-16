@@ -275,7 +275,7 @@ export default function DayView() {
     const target = checks.find((c) => c.id === id)
     if (!target) return
 
-    await http.put(`/task/${id}`, {
+    await http.patch(`/task/${id}`, {
       completed: !target.done,
     })
 
@@ -552,7 +552,7 @@ function DraggableTaskBox({
 
   const handleDrop = async (newTime: string) => {
     try {
-      await http.put(`/task/${id}`, { placementTime: newTime })
+      await http.patch(`/task/${id}`, { placementTime: newTime })
       bus.emit("calendar:mutated", { op: "update", item: { id } })
     } catch (err: any) {
       console.error("❌ 테스크 이동 실패:", err.message)
