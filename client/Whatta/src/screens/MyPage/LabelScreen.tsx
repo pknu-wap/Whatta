@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import EditableListScreen, { EditableItem } from '@/screens/MyPage/EditableListScreen'
+import { Alert } from 'react-native'
+import EditableListScreen, { EditableItem } from '@/components/mypage/EditableListScreen'
 import { http } from '@/lib/http'
 
 type LabelDTO = { id: string; title: string }
@@ -12,20 +13,27 @@ export default function LabelsScreen() {
   useEffect(() => {
     ;(async () => {
       const res = await http.get('/api/user/setting/label')
-
-      // Swagger 응답 구조 기준
       const list: LabelDTO[] = res.data?.data?.labels ?? []
-
       setItems(list.map(mapDto))
     })()
   }, [])
 
   const onCreate = async (title: string): Promise<EditableItem> => {
+    const exists = items.some((x) => x.label === title.trim())
+    if (exists) {
+      Alert.alert('중복 라벨', '이미 같은 이름의 라벨이 있습니다.')
+      throw new Error('duplicate')
+    }
     const res = await http.post('/api/user/setting/label', { title })
     const d: LabelDTO = res.data?.data ?? res.data
     return mapDto(d)
   }
   const onUpdate = async (id: string, title: string) => {
+    const exists = items.some((x) => x.label === title.trim() && x.id !== id)
+    if (exists) {
+      Alert.alert('중복 라벨', '이미 같은 이름의 라벨이 있습니다.')
+      throw new Error('duplicate')
+    }
     await http.put(`/api/user/setting/label/${id}`, { title })
   }
   const onDelete = async (ids: string[]) => {
@@ -43,10 +51,9 @@ export default function LabelsScreen() {
     <EditableListScreen
       title="라벨관리"
       initialItems={items}
-      onChange={setItems}
-      inlineText // 인라인 편집 모드
+      inlineText
       addFooterText="라벨 추가"
-      maxCount={MAX}
+      maxCount={10}
       onCreate={onCreate}
       onUpdate={onUpdate}
       onDelete={onDelete}

@@ -57,7 +57,7 @@ export default function MyPageStack() {
       <Stack.Screen
         name="NotifDefaults"
         component={RemainderScreen}
-        options={{ title: '리마인드 기본값' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Transitvibration"
