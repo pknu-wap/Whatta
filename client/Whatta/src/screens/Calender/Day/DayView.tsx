@@ -547,7 +547,7 @@ function DraggableTaskBox({
   const dragEnabled = useSharedValue(false)
   const [done, setDone] = useState(initialDone)
   const triggerHaptic = () => {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
 }
 
   const handleDrop = async (newTime: string) => {
@@ -690,7 +690,7 @@ function DraggableFlexalbeEvent({
   const height = rawHeight - 2
   const offsetY = 1
   const triggerHaptic = () => {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
 }
 
   const handleDrop = useCallback(async (movedY: number) => {
