@@ -6,6 +6,7 @@ import lombok.Getter;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import whatta.Whatta.notification.enums.Platform;
 
 import java.time.LocalDateTime;
 
@@ -23,18 +24,15 @@ public class FcmToken {
     private String fcmToken;
 
     @Builder.Default
-    private Platform platform = Platform.IOS;
+    private Platform platform = Platform.IOS; //TODO: 나중에 안드로이드도 한다면 디폴트 삭제
 
     @Builder.Default
     private boolean active = true;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    //private LocalDateTime lastUsedAt;
-
-    private enum Platform {
-        IOS,
-        ANDROID,
-        WEB
-    }
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
+    @Builder.Default
+    private LocalDateTime updatedAt = LocalDateTime.now();
+    @Builder.Default
+    private LocalDateTime lastUsedAt = LocalDateTime.now();
 }
