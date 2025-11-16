@@ -170,12 +170,13 @@ export default function DayView() {
       const allDay = data.allDayTasks || []
       const floating = data.floatingTasks || []
       const allDaySpan = data.allDaySpanEvents || []
+      const allDayEvents = data.allDayEvents || []
 
       const timelineEvents = timed.filter(
         (e: any) =>
           !e.isSpan &&
           e.clippedEndTime !== '23:59:59.999999999' &&
-          e.clippedStartTime &&
+          e.clippedStartTime && 
           e.clippedEndTime,
       )     
       const span = [
@@ -183,6 +184,7 @@ export default function DayView() {
           (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
         ),
         ...allDaySpan,
+        ...allDayEvents,
       ]
 
       setEvents(timelineEvents)
