@@ -20,6 +20,7 @@ import Animated, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useFocusEffect } from '@react-navigation/native'
 import { runOnJS } from 'react-native-reanimated'
+import * as Haptics from 'expo-haptics'
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
@@ -545,6 +546,9 @@ function DraggableTaskBox({
   const translateX = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
   const [done, setDone] = useState(initialDone)
+  const triggerHaptic = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+}
 
   const handleDrop = async (newTime: string) => {
     try {
@@ -557,18 +561,19 @@ function DraggableTaskBox({
   const hold = Gesture.LongPress()
     .minDuration(250)
     .onStart(() => {
+      runOnJS(triggerHaptic)()
       dragEnabled.value = true
     })
 
   const drag = Gesture.Pan()
     .onChange((e) => {
-      if (!dragEnabled.value) return   // ⭐ 눌렀을 때만 움직임
+      if (!dragEnabled.value) return
       translateY.value += e.changeY
       translateX.value += e.changeX
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
-      dragEnabled.value = false // 다시 잠금
+      dragEnabled.value = false 
 
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
@@ -684,6 +689,9 @@ function DraggableFlexalbeEvent({
   const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
   const height = rawHeight - 2
   const offsetY = 1
+  const triggerHaptic = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+}
 
   const handleDrop = useCallback(async (movedY: number) => {
     draggingEventId = id
@@ -715,6 +723,7 @@ function DraggableFlexalbeEvent({
   const hold = Gesture.LongPress()
     .minDuration(250)
     .onStart(() => {
+      runOnJS(triggerHaptic)()
       dragEnabled.value = true
     })
 
