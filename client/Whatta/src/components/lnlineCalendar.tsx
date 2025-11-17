@@ -9,6 +9,7 @@ import {
   Text,
 } from 'react-native'
 import { CalendarList, DateData } from 'react-native-calendars'
+import Down from '@/assets/icons/down.svg'
 
 type Props = {
   open: boolean
@@ -266,9 +267,10 @@ export default function InlineCalendar({
               <View
                 style={{
                   flexDirection: 'row',
-                  paddingTop: 18,
+                  paddingTop: 10,
                   paddingBottom: 10,
                   alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Text
