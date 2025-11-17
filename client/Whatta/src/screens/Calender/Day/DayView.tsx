@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Pressable,
   Platform,
   Dimensions,
+  Alert,
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -29,6 +30,9 @@ import { bus, EVENT } from '@/lib/eventBus'
 import axios from 'axios'
 import { token } from '@/lib/token'
 import { refreshTokens } from '@/api/auth'
+import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
+import CheckOff from '@/assets/icons/check_off.svg'
+import CheckOn from '@/assets/icons/check_on.svg'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -44,7 +48,7 @@ http.interceptors.request.use(
     }
     return config
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 )
 
 // 응답 인터셉터
@@ -66,7 +70,7 @@ http.interceptors.response.use(
       }
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -116,13 +120,90 @@ export default function DayView() {
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const [checks, setChecks] = useState(INITIAL_CHECKS)
   const [events, setEvents] = useState<any[]>([])
-  const [spanEvents, setSpanEvents] = useState<any[]>([]) 
+  const [spanEvents, setSpanEvents] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
 
   // ✅ 라이브바 위치 계산
   const [nowTop, setNowTop] = useState<number | null>(null)
-  const [hasScrolledOnce, setHasScrolledOnce] = useState(false) 
+  const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
   const ROW_H = 48
+
+  // 라벨
+  const [labelList, setLabelList] = useState([])
+  const fetchLabels = async () => {
+    try {
+      const res = await http.get('/user/setting/label')
+      const labels = res.data?.data?.labels ?? []
+      setLabelList(labels)
+    } catch (err) {
+      console.error('❌ 라벨 조회 실패:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchLabels()
+  }, [])
+
+  // Task 팝업 상태
+  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
+  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [popupVisible, setPopupVisible] = useState(false)
+
+  // Task 상세 조회
+  async function fetchTaskDetail(taskId: string) {
+    const res = await http.get(`/task/${taskId}`)
+    return res.data.data
+  }
+
+  async function handleTaskPress(taskId: string) {
+    try {
+      const detail = await fetchTaskDetail(taskId)
+      setSelectedTask(detail)
+      setPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }
+
+  // taskId 로 서버에서 Task 상세 조회해서 팝업 열기
+  const openTaskPopupFromApi = async (taskId: string) => {
+    try {
+      const res = await http.get(`/task/${taskId}`)
+      const data = res.data?.data
+      if (!data) return
+
+      setTaskPopupId(data.id)
+      setTaskPopupTask({
+        id: data.id,
+        title: data.title ?? '',
+        content: data.content ?? '',
+        labels: data.labels ?? [],
+        completed: data.completed ?? false,
+        placementDate: data.placementDate,
+        placementTime: data.placementTime,
+        dueDateTime: data.dueDateTime ?? null,
+      })
+
+      setTaskPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }
+  const popupInitialDate = useMemo(() => {
+    return taskPopupTask?.placementDate
+      ? new Date(taskPopupTask.placementDate)
+      : undefined
+  }, [taskPopupTask?.placementDate])
+
+  const popupInitialTime = useMemo(() => {
+    return taskPopupTask?.placementTime
+      ? new Date(`2020-01-01T${taskPopupTask.placementTime}`)
+      : undefined
+  }, [taskPopupTask?.placementTime])
 
   useEffect(() => {
     const updateNowTop = (scrollToCenter = false) => {
@@ -144,7 +225,6 @@ export default function DayView() {
     }
 
     updateNowTop(true)
-
   }, [])
 
   useFocusEffect(
@@ -177,7 +257,7 @@ export default function DayView() {
           e.clippedEndTime !== '23:59:59.999999999' &&
           e.clippedStartTime &&
           e.clippedEndTime,
-      )     
+      )
       const span = [
         ...timed.filter(
           (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
@@ -215,10 +295,10 @@ export default function DayView() {
       const itemDateISO = date.slice(0, 10)
 
       if (itemDateISO === anchorDate && payload.item.id !== draggingEventId) {
-     fetchDailyEvents(anchorDate)
-   } else {
-     draggingEventId = null
-   }
+        fetchDailyEvents(anchorDate)
+      } else {
+        draggingEventId = null
+      }
     }
 
     bus.on('calendar:mutated', onMutated)
@@ -266,23 +346,22 @@ export default function DayView() {
   const showScrollbar = contentH > wrapH
 
   const toggleCheck = async (id: string) => {
-  setChecks((prev) =>
-    prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c))
-  )
+    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c)))
 
-  try {
-    const target = checks.find((c) => c.id === id)
-    if (!target) return
+    try {
+      const target = checks.find((c) => c.id === id)
+      if (!target) return
 
-    await http.put(`/task/${id}`, {
-      completed: !target.done,
-    })
+      await http.patch(`/task/${id}`, {
+        completed: !target.done,
+      })
 
-    bus.emit('calendar:mutated', { op: 'update', item: { id } })
-  } catch (err: any) {
-    console.error('❌ 테스크 상태 업데이트 실패:', err.message)
+      bus.emit('calendar:mutated', { op: 'update', item: { id } })
+    } catch (err: any) {
+      console.error('❌ 테스크 상태 업데이트 실패:', err.message)
+    }
   }
-}
+  const popupTaskMemo = useMemo(() => taskPopupTask, [taskPopupTask])
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -420,19 +499,19 @@ export default function DayView() {
               const [eh, em] = evt.clippedEndTime.split(':').map(Number)
               const startMin = sh * 60 + sm
               const endMin = eh * 60 + em
-              
+
               return (
-              <DraggableFlexalbeEvent
-                key={evt.id}
-                id={evt.id}
-                title={evt.title}
-                place={`label ${evt.labels?.[0] ?? ''}`}
-                startMin={startMin}
-                endMin={endMin}
-                color={`#${evt.colorKey}`}
-                anchorDate={anchorDate}
-              />
-              ) 
+                <DraggableFlexalbeEvent
+                  key={evt.id}
+                  id={evt.id}
+                  title={evt.title}
+                  place={`label ${evt.labels?.[0] ?? ''}`}
+                  startMin={startMin}
+                  endMin={endMin}
+                  color={`#${evt.colorKey}`}
+                  anchorDate={anchorDate}
+                />
+              )
             })}
 
             {tasks.map((task) => {
@@ -450,12 +529,80 @@ export default function DayView() {
                   id={task.id}
                   title={task.title}
                   startHour={start}
-                  done={task.completed ?? false} 
+                  placementDate={task.placementDate}
+                  done={task.completed ?? false}
+                  onPress={() => openTaskPopupFromApi(task.id)}
                 />
               )
             })}
           </ScrollView>
         </View>
+
+        <TaskDetailPopup
+          visible={taskPopupVisible}
+          mode="edit"
+          taskId={taskPopupId ?? undefined}
+          initialTask={popupTaskMemo}
+          onClose={() => {
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          }}
+          onSave={async (form) => {
+            if (!taskPopupId) return
+
+            try {
+              const pad = (n: number) => String(n).padStart(2, '0')
+
+              let placementDate: string | null = null
+              let placementTime: string | null = null
+              const fieldsToClear: string[] = []
+
+              // 날짜
+              if (form.hasDate && form.date) {
+                const d = form.date
+                placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+              } else {
+                fieldsToClear.push('placementDate')
+              }
+
+              // 시간
+              if (form.hasTime && form.time) {
+                const t = form.time
+                placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`
+              } else {
+                fieldsToClear.push('placementTime')
+              }
+
+              // PATCH 요청
+              await http.patch(`/task/${taskPopupId}`, {
+                title: form.title,
+                content: form.memo,
+                labelIds: form.labelIds,
+                placementDate,
+                placementTime,
+                fieldsToClear,
+              })
+
+              // 이벤트 전달 (월간/주간뷰까지 갱신)
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: { id: taskPopupId, date: anchorDate },
+              })
+
+              // 💥 DayView 화면 즉시 갱신
+              await fetchDailyEvents(anchorDate)
+
+              // 팝업 닫기
+              setTaskPopupVisible(false)
+              setTaskPopupId(null)
+              setTaskPopupTask(null)
+            } catch (err) {
+              console.error('❌ 테스크 수정 실패:', err)
+              Alert.alert('오류', '테스크를 저장하지 못했습니다.')
+            }
+          }}
+        />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
@@ -468,115 +615,64 @@ function thumbH(visibleH: number, contentH: number) {
   return Math.max(minH, Math.min(h, visibleH))
 }
 
-function DraggableFixedEvent() {
-  const ROW_H = 48
-  const translateY = useSharedValue(7 * ROW_H) 
-
-  const drag = Gesture.Pan()
-    .onChange((e) => {
-      translateY.value += e.changeY
-    })
-    .onEnd(() => {
-      const snapped = Math.round(translateY.value / ROW_H) * ROW_H
-      translateY.value = withSpring(snapped)
-    })
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }))
-
-  return (
-    <GestureDetector gesture={drag}>
-      <Animated.View
-        style={[
-          {
-            position: 'absolute',
-            left: 50 + 16,
-            right: 16,
-            height: ROW_H * 3,
-            backgroundColor: '#B04FFF26',
-            paddingHorizontal: 4,
-            paddingTop: 10,
-            justifyContent: 'flex-start',
-            zIndex: 10,
-          },
-          style,
-        ]}
-      >
-        <Text
-          style={{
-            color: '#000000',
-            fontWeight: '600',
-            fontSize: 11,
-            lineHeight: 10,
-          }}
-        >
-          name(fixed)
-        </Text>
-        <Text
-          style={{
-            color: '#6B6B6B',
-            fontSize: 10,
-            marginTop: 10,
-            lineHeight: 10,
-          }}
-        >
-          place
-        </Text>
-      </Animated.View>
-    </GestureDetector>
-  )
-}
-
 type DraggableTaskBoxProps = {
   id: string
   title: string
   startHour: number
+  placementDate?: string
   done?: boolean
+  onPress?: () => void
 }
 
 function DraggableTaskBox({
   id,
   title,
   startHour,
+  placementDate,
   done: initialDone = false,
+  onPress,
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
   const [done, setDone] = useState(initialDone)
 
+  useEffect(() => {
+    translateY.value = withSpring(startHour * 60 * PIXELS_PER_MIN)
+  }, [startHour])
+
   const handleDrop = async (newTime: string) => {
-  try {
-    await http.put(`/task/${id}`, {
-      placementTime: newTime,
-    })
-    bus.emit('calendar:mutated', { op: 'update', item: { id } })
-  } catch (err: any) {
-    console.error('❌ 테스크 시간 이동 실패:', err.message)
+    try {
+      await http.patch(`/task/${id}`, {
+        placementDate,
+        placementTime: newTime, // 수정할 필드만 보내도 됨
+      })
+      bus.emit('calendar:mutated', { op: 'update', item: { id } })
+    } catch (err: any) {
+      console.error('❌ 테스크 시간 이동 실패:', err.message)
+    }
   }
-}
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    translateY.value += e.changeY
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    const SNAP_UNIT = 5 * PIXELS_PER_MIN
-    const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
-    translateY.value = withSpring(snappedY)
-    translateX.value = withSpring(0)
+    .onChange((e) => {
+      translateY.value += e.changeY
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      const SNAP_UNIT = 5 * PIXELS_PER_MIN
+      const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      translateY.value = withSpring(snappedY)
+      translateX.value = withSpring(0)
 
-    // ✅ 드롭 시 서버에 placementTime 업데이트
-    const newMinutes = snappedY / PIXELS_PER_MIN
-    const hour = Math.floor(newMinutes / 60)
-    const min = Math.round(newMinutes % 60)
+      // ✅ 드롭 시 서버에 placementTime 업데이트
+      const newMinutes = snappedY / PIXELS_PER_MIN
+      const hour = Math.floor(newMinutes / 60)
+      const min = Math.round(newMinutes % 60)
 
-    const fmt = (n: number) => String(n).padStart(2, '0')
-    const newTime = `${fmt(hour)}:${fmt(min)}:00`
+      const fmt = (n: number) => String(n).padStart(2, '0')
+      const newTime = `${fmt(hour)}:${fmt(min)}:00`
 
-    runOnJS(handleDrop)(newTime)
-  })
+      runOnJS(handleDrop)(newTime)
+    })
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
@@ -607,47 +703,40 @@ function DraggableTaskBox({
           style,
         ]}
       >
+        {/* ✅ 체크박스 영역 */}
         <Pressable
           onPress={() => setDone((prev) => !prev)}
           style={{
-            width: 17,
-            height: 17,
-            borderWidth: 2,
-            borderColor: done ? '#333333' : '#333',
-            borderRadius: 3,
+            width: 18,
+            height: 18,
             marginRight: 12,
             justifyContent: 'center',
             alignItems: 'center',
-            backgroundColor: done ? '#333333' : '#FFFFFF00',
           }}
+          hitSlop={8}
         >
-          {done && (
-            <Text
-              style={{
-                color: '#FFFFFF',
-                fontWeight: 'bold',
-                fontSize: 13,
-                lineHeight: 16,
-              }}
-            >
-              ✓
-            </Text>
+          {done ? (
+            <CheckOn width={18} height={18} />
+          ) : (
+            <CheckOff width={18} height={18} />
           )}
         </Pressable>
-
-        <View>
+        {/* 제목 / 팝업 영역 */}
+        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={8}>
           <Text
+            numberOfLines={1}
             style={{
               color: done ? '#999' : '#000',
               fontWeight: 'bold',
               fontSize: 12,
-              marginBottom: 2,
               textDecorationLine: done ? 'line-through' : 'none',
             }}
           >
             {title}
           </Text>
-        </View>
+        </Pressable>
+
+        <View></View>
       </Animated.View>
     </GestureDetector>
   )
@@ -690,9 +779,10 @@ function DraggableFlexalbeEvent({
       const newEnd = endMin + deltaMin
 
       const fmt = (min: number) =>
-        `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(
-          min % 60
-        ).padStart(2, '0')}:00`
+        `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(
+          2,
+          '0',
+        )}:00`
       const dateISO = anchorDate
 
       await http.put(`/event/${id}`, {
@@ -701,7 +791,7 @@ function DraggableFlexalbeEvent({
         startTime: fmt(newStart),
         endTime: fmt(newEnd),
       })
-      
+
       bus.emit('calendar:mutated', { op: 'update', item: { id } })
     } catch (err: any) {
       console.error('❌ 요청 설정 오류:', err.message)
@@ -709,13 +799,13 @@ function DraggableFlexalbeEvent({
   }, [])
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    translateY.value += e.changeY
-  })
-  .onEnd(() => {
-    const movedY = translateY.value
-    runOnJS(handleDrop)(movedY)
-  })
+    .onChange((e) => {
+      translateY.value += e.changeY
+    })
+    .onEnd(() => {
+      const movedY = translateY.value
+      runOnJS(handleDrop)(movedY)
+    })
 
   const style = useAnimatedStyle(() => ({
     top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
@@ -757,8 +847,8 @@ function DraggableFlexalbeEvent({
             style={{
               color: '#FFFFFF',
               fontSize: 10,
-               marginTop: 10,
-               lineHeight: 10,
+              marginTop: 10,
+              lineHeight: 10,
             }}
           >
             {place}
@@ -809,12 +899,12 @@ const S = StyleSheet.create({
     marginRight: 8,
   },
 
-  chipText: { 
-    ...ts('daySchedule'), 
-    color: '#000000', 
+  chipText: {
+    ...ts('daySchedule'),
+    color: '#000000',
     fontSize: 12,
     fontWeight: '600',
- },
+  },
 
   checkRow: {
     height: 22,
@@ -840,12 +930,12 @@ const S = StyleSheet.create({
   },
 
   checkboxOn: { backgroundColor: '#000000' },
-  checkText: { 
-    ...ts('daySchedule'), 
-    color: '#000000', 
+  checkText: {
+    ...ts('daySchedule'),
+    color: '#000000',
     fontSize: 12,
     fontWeight: '600',
- },
+  },
 
   checkboxWrap: {
     alignItems: 'center',
@@ -973,11 +1063,11 @@ const S = StyleSheet.create({
 
   liveDot: {
     position: 'absolute',
-    left: 50 + 16 - 3, 
+    left: 50 + 16 - 3,
     width: 7,
     height: 7,
     borderRadius: 5,
     backgroundColor: colors.primary.main,
-    zIndex: 11, 
+    zIndex: 11,
   },
 })
