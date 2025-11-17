@@ -13,8 +13,13 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.whatta.Whatta",
-      "supportsTablet": true
+      "bundleIdentifier": "com.whatta.whatta",
+      "buildNumber": "5",
+      "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +27,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.whatta.whatta"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,7 +37,26 @@
       "expo-font",
       "expo-secure-store",
       "@react-native-firebase/app",
-      "@react-native-firebase/messaging"
-    ]
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "15.1",
+            "flipper": false,
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBMessaging"
+            ]
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b895d0bb-969a-4bde-bb79-27d84e2c27a7"
+      }
+    }
   }
 }

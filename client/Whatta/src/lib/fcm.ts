@@ -21,9 +21,8 @@ export async function registerFcmToken(installationId: string) { // 수정: inst
   // 3. 서버로 토큰 전송
   try {
     await http.post('/api/fcm/token', {
-      installationId, // 수정: installationId도 같이 보냄
       token,
-      deviceType: 'IOS', // 수정: 지금은 iOS만이니 하드코딩
+      platform: 'IOS', // 수정: 지금은 iOS만이니 하드코딩
     });
     console.log('서버로 FCM 토큰 등록 완료');
   } catch (e) {
@@ -35,9 +34,8 @@ export async function registerFcmToken(installationId: string) { // 수정: inst
     console.log('FCM token refreshed:', newToken);
     try {
       await http.post('/api/fcm/token', {
-        installationId,
         token: newToken,
-        deviceType: 'IOS',
+        platform: 'IOS',
       });
       console.log('서버로 새 FCM 토큰 등록 완료');
     } catch (e) {
