@@ -58,6 +58,7 @@ public class EventService {
         if(request.startTime() != null && request.endTime() != null) {
             eventBuilder.startTime(startTime);
             eventBuilder.endTime(endTime);
+            eventBuilder.reminderNotiAt(request.reminderNoti());
         }
 
        return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
@@ -108,6 +109,7 @@ public class EventService {
         if(request.endTime() != null) builder.endTime(endTime);
         if(request.repeat() != null) builder.repeat(request.repeat().toEntity());
         if(request.colorKey() != null) builder.colorKey(request.colorKey());
+        if(request.reminderNoti() != null) builder.reminderNotiAt(request.reminderNoti()); //TODO: 추후 검증 추가
 
         //명시된 field를 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
@@ -131,6 +133,9 @@ public class EventService {
                         break;
                     case "repeat":
                         builder.repeat(null);
+                        break;
+                    case "reminderNoti":
+                        builder.reminderNotiAt(null);
                         break;
                 }
             }
