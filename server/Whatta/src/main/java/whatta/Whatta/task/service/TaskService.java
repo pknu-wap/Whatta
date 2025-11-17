@@ -100,6 +100,7 @@ public class TaskService {
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
         if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
         if(request.getSortNumber() != null) builder.sortNumber(request.getSortNumber());
+        if(request.getReminderNoti() != null) builder.reminderNotiAt(request.getReminderNoti());
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
@@ -127,7 +128,9 @@ public class TaskService {
                     case "repeat":
                         builder.repeat(null);
                         break;
-
+                    case "reminderNoti":
+                        builder.reminderNotiAt(null);
+                        break;
                 }
             }
         }
@@ -137,8 +140,6 @@ public class TaskService {
         Task savedTask = taskRepository.save(updatedTask);
 
         return taskMapper.toResponse(savedTask);
-
-
     }
 
     //task 삭제
