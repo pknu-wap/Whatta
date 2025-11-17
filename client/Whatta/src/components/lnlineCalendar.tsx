@@ -9,7 +9,6 @@ import {
   Text,
 } from 'react-native'
 import { CalendarList, DateData } from 'react-native-calendars'
-import Down from '@/assets/icons/down.svg'
 
 type Props = {
   open: boolean
@@ -277,12 +276,10 @@ export default function InlineCalendar({
                     fontSize: 16,
                     fontWeight: '700',
                     color: '#222',
-                    paddingRight: 18,
                   }}
                 >
                   {ymLabel(headerISO)}
                 </Text>
-                <Down width={8} height={6} />
               </View>
             )}
             // 범위 하이라이트 반영

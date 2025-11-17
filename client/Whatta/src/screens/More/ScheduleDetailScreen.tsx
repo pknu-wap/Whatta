@@ -11,13 +11,12 @@ import {
   KeyboardAvoidingView,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
-import InlineTime from '@/components/InlineTime'
 import axios from 'axios'
 import { token } from '@/lib/token'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
-import { getMyLabels } from '@/api/label_api'
+import { getMyLabels, createLabel, type Label } from '@/api/label_api'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import Arrow from '@/assets/icons/arrow.svg'
@@ -25,7 +24,8 @@ import Down from '@/assets/icons/down.svg'
 import { useRoute } from '@react-navigation/native'
 import { Picker } from '@react-native-picker/picker'
 import LabelChip from '@/components/LabelChip'
-import LabelPickerModal, { UiLabel } from '@/components/LabelPicker'
+import LabelPickerModal from '@/components/LabelPicker'
+import colors from '@/styles/colors'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -161,6 +161,9 @@ export default function ScheduleDetailScreen() {
   const [endOpen, setEndOpen] = useState(false) // 두번째 드롭다운(마감일)
   const [repeatEndDate, setRepeatEndDate] = useState<Date | null>(null)
   const [endDateCustomOpen, setEndDateCustomOpen] = useState(false)
+
+  // 시간 타겟
+  const [timeTarget, setTimeTarget] = useState<'start' | 'end'>('start')
 
   // 반복 맞춤 설정(인라인 피커)
   const [repeatCustomOpen, setRepeatCustomOpen] = useState(false)
@@ -367,12 +370,7 @@ export default function ScheduleDetailScreen() {
   const arrowColor = labelModalOpen ? '#B04FFF' : btnBaseColor
   const btnText: string | undefined = hasLabels ? undefined : '없음'
 
-  const [labels, setLabels] = useState<UiLabel[]>([
-    { id: 1001, title: '일정' },
-    { id: 1002, title: '태스크' },
-  ])
-
-  // 상단 탭
+  const [labels, setLabels] = useState<Label[]>([])
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>('schedule')
 
   /** 일정 입력값 */
@@ -466,9 +464,10 @@ export default function ScheduleDetailScreen() {
       const [y, m, d] = iso.split('-').map(Number)
       const anchor = new Date(y, m - 1, d)
       setStart(anchor)
-      setEnd(anchor)
+      // setEnd((prev) => prev ?? anchor)
+
       setRangeStart(anchor) // ★ 추가
-      setRangeEnd(anchor) // ★ 추가
+      // setRangeEnd((prev) => prev ?? anchor)
       setRangePhase('start') // ★ 다음 탭은 '새 사이클 시작' 상태
     }
 
@@ -534,6 +533,30 @@ export default function ScheduleDetailScreen() {
       setMonthlyOpt('byDate')
     }
   }, [monthlyOpen, start, monthlyOpt])
+
+  useEffect(() => {
+    if (!visible) return
+    const fetchLabels = async () => {
+      try {
+        const list = await getMyLabels()
+        setLabels(list)
+      } catch (err) {
+        console.log('라벨 불러오기 실패', err)
+      }
+    }
+    fetchLabels()
+  }, [visible])
+
+  const handleCreateLabel = async (title: string) => {
+    try {
+      const newLabel = await createLabel(title)
+      setLabels((prev) => [...prev, newLabel])
+      return newLabel
+    } catch (err) {
+      console.log('라벨 생성 실패', err)
+      throw err
+    }
+  }
 
   return (
     <>
@@ -752,70 +775,139 @@ export default function ScheduleDetailScreen() {
                   {/* 시간(조건부 별도 줄) */}
                   {timeOn && (
                     <View style={styles.timeRow}>
-                      <Pressable onPress={() => setOpenTime((v) => !v)} hitSlop={8}>
-                        <Text style={styles.timeText}>{formatTime(start)}</Text>
+                      {/* 시작 시간 */}
+                      <Pressable
+                        onPress={() => {
+                          if (timeTarget === 'start' && openTime) {
+                            setOpenTime(false)
+                          } else {
+                            setTimeTarget('start')
+                            setOpenTime(true)
+                          }
+                        }}
+                        hitSlop={8}
+                      >
+                        <Text
+                          style={[
+                            styles.timeText,
+                            openTime && timeTarget === 'start' && { color: '#B04FFF' },
+                          ]}
+                        >
+                          {formatTime(start)}
+                        </Text>
                       </Pressable>
-                      <Arrow
-                        width={8}
-                        height={8}
-                        style={[styles.arrowGap, { paddingLeft: 70 }]}
-                      />
-                      <Pressable onPress={() => setOpenTime((v) => !v)} hitSlop={8}>
-                        <Text style={styles.timeText}>{formatTime(end)}</Text>
+
+                      <Arrow width={8} height={8} style={[styles.arrowGap]} />
+
+                      {/* 종료 시간 */}
+                      <Pressable
+                        onPress={() => {
+                          if (timeTarget === 'end' && openTime) {
+                            setOpenTime(false)
+                          } else {
+                            setTimeTarget('end')
+                            setOpenTime(true)
+                          }
+                        }}
+                        hitSlop={8}
+                      >
+                        <Text
+                          style={[
+                            styles.timeText,
+                            openTime && timeTarget === 'end' && { color: '#B04FFF' }, // 선택된 쪽 강조
+                          ]}
+                        >
+                          {formatTime(end)}
+                        </Text>
                       </Pressable>
                     </View>
                   )}
-                  {timeOn && (
-                    <View style={[styles.timePickers]}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 10,
-                        }}
-                      >
-                        {/** LEFT: 시작시간 */}
-                        <View style={styles.timeBoxWrap}>
-                          <InlineTime
-                            open={openTime}
-                            value={start}
-                            height={159}
-                            fontSize={15}
-                            columnOrder={['hour', 'minute', 'ampm']}
-                            amLabel="AM"
-                            pmLabel="PM"
-                            onChange={(d) => {
-                              setStart(d)
-                              if (d.getTime() > end.getTime())
-                                setEnd(new Date(d.getTime() + 3600000))
-                            }}
-                          />
-                          {/* 상단에 올라갈 '두 겹' 하이라이트(마스크 + 실제 강조바) */}
-                          <View pointerEvents="none" style={styles.timeMaskLayer}>
-                            <View style={styles.timeMask} />
-                            <View style={styles.timeHilite} />
-                          </View>
-                        </View>
+                  {timeOn && openTime && (
+                    <View style={[styles.timePickerBox]}>
+                      {(() => {
+                        const target = timeTarget === 'start' ? start : end
+                        const hour24 = target.getHours()
+                        const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+                        const minute = target.getMinutes()
+                        const ampm = hour24 < 12 ? 'AM' : 'PM'
 
-                        {/* RIGHT: 종료시간 */}
-                        <View style={styles.timeBoxWrap}>
-                          <InlineTime
-                            open={openTime}
-                            value={end}
-                            height={159}
-                            fontSize={15}
-                            columnOrder={['hour', 'minute', 'ampm']}
-                            amLabel="AM"
-                            pmLabel="PM"
-                            onChange={setEnd}
-                          />
-                          <View pointerEvents="none" style={styles.timeMaskLayer}>
-                            <View style={styles.timeMask} />
-                            <View style={styles.timeHilite} />
+                        const updateTarget = (next: Date) => {
+                          if (timeTarget === 'start') {
+                            setStart(next)
+                            // 시작 시간이 종료보다 뒤로 가면 종료 최소 1시간 보장
+                            if (timeOn && next.getTime() > end.getTime()) {
+                              setEnd(new Date(next.getTime() + 60 * 60 * 1000))
+                            }
+                          } else {
+                            setEnd(next)
+                          }
+                        }
+
+                        return (
+                          <View style={{ flexDirection: 'row', gap: 5 }}>
+                            {/* HOUR */}
+                            <Picker
+                              style={styles.timePicker}
+                              itemStyle={styles.timePickerItem}
+                              selectedValue={hour12}
+                              onValueChange={(v) => {
+                                const t = new Date(target)
+                                const isPM = t.getHours() >= 12
+                                if (isPM) {
+                                  t.setHours(v === 12 ? 12 : v + 12)
+                                } else {
+                                  t.setHours(v === 12 ? 0 : v)
+                                }
+                                updateTarget(t)
+                              }}
+                            >
+                              {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                <Picker.Item key={h} label={String(h)} value={h} />
+                              ))}
+                            </Picker>
+
+                            {/* MINUTE */}
+                            <Picker
+                              style={styles.timePicker}
+                              itemStyle={styles.timePickerItem}
+                              selectedValue={minute - (minute % 5)} // 5분 단위 맞추기
+                              onValueChange={(v) => {
+                                const t = new Date(target)
+                                t.setMinutes(v)
+                                updateTarget(t)
+                              }}
+                            >
+                              {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                                <Picker.Item
+                                  key={m}
+                                  label={String(m).padStart(2, '0')}
+                                  value={m}
+                                />
+                              ))}
+                            </Picker>
+
+                            {/* AM / PM */}
+                            <Picker
+                              style={styles.timePicker}
+                              itemStyle={styles.timePickerItem}
+                              selectedValue={ampm}
+                              onValueChange={(v) => {
+                                const t = new Date(target)
+                                const h = t.getHours()
+                                if (v === 'AM') {
+                                  if (h >= 12) t.setHours(h - 12)
+                                } else {
+                                  if (h < 12) t.setHours(h + 12)
+                                }
+                                updateTarget(t)
+                              }}
+                            >
+                              <Picker.Item label="AM" value="AM" />
+                              <Picker.Item label="PM" value="PM" />
+                            </Picker>
                           </View>
-                        </View>
-                      </View>
+                        )
+                      })()}
                     </View>
                   )}
 
@@ -827,11 +919,22 @@ export default function ScheduleDetailScreen() {
                       onChange={(v) => {
                         setTimeOn(v)
                         if (v) {
+                          const now = new Date()
+
+                          // 가장 가까운 5분으로 스냅
+                          const min = now.getMinutes()
+                          const snap = min % 5 === 0 ? min : min + (5 - (min % 5))
+
                           const s = new Date(start)
-                          const m = s.getMinutes()
-                          s.setMinutes(m % 5 === 0 ? m : m + (5 - (m % 5)), 0, 0)
+                          s.setHours(now.getHours())
+                          s.setMinutes(snap)
                           setStart(s)
-                          setEnd(new Date(s.getTime() + 60 * 60 * 1000))
+
+                          const e = new Date(s)
+                          e.setHours(s.getHours() + 1)
+                          setEnd(e)
+                        } else {
+                          setOpenTime(false)
                         }
                       }}
                     />
@@ -1373,8 +1476,8 @@ export default function ScheduleDetailScreen() {
                               key={id}
                               title={item.title}
                               onRemove={() =>
-                                setSelectedLabelIds(
-                                  selectedLabelIds.filter((x) => x !== id),
+                                setSelectedLabelIds((prev) =>
+                                  prev.filter((x) => x !== id),
                                 )
                               }
                             />
@@ -1382,7 +1485,7 @@ export default function ScheduleDetailScreen() {
                         })}
                       </View>
 
-                      {/* 열기 버튼 */}
+                      {/* 라벨 선택 버튼 */}
                       <Pressable
                         style={[styles.remindButton, { alignSelf: 'flex-end' }]}
                         ref={labelBtnRef}
@@ -1394,55 +1497,31 @@ export default function ScheduleDetailScreen() {
                         }}
                         hitSlop={8}
                       >
-                        <Text style={[styles.dropdownText, { color: btnBaseColor }]}>
-                          {btnText && (
-                            <Text style={[styles.dropdownText, { color: btnBaseColor }]}>
-                              {btnText}
-                            </Text>
-                          )}
-                        </Text>
-                        <Down width={10} height={10} color={arrowColor} />
+                        {!selectedLabelIds.length && (
+                          <Text style={[styles.dropdownText, { color: '#B3B3B3' }]}>
+                            없음
+                          </Text>
+                        )}
+                        <Down
+                          width={10}
+                          height={10}
+                          color={selectedLabelIds.length ? '#333' : '#B3B3B3'}
+                        />
                       </Pressable>
                     </View>
                   </View>
 
-                  {/* 모달 */}
+                  {/* 라벨 모달 */}
                   {labelModalOpen && (
                     <LabelPickerModal
                       visible
                       all={labels}
                       selected={selectedLabelIds}
-                      onChange={(ids) => setSelectedLabelIds(ids.slice(0, 3))} // 부모 측도 이중 방어
+                      onChange={(nextIds) => setSelectedLabelIds(nextIds)}
                       onRequestClose={() => setLabelModalOpen(false)}
                       anchor={labelAnchor}
+                      onCreateLabel={handleCreateLabel}
                     />
-                  )}
-
-                  {labelOpen && (
-                    <View style={styles.dropdownList}>
-                      {labels.map((l) => (
-                        <Pressable
-                          key={l.id}
-                          onPress={() => {
-                            setSelectedLabelIds((prev) =>
-                              prev.includes(l.id)
-                                ? prev.filter((x) => x !== l.id)
-                                : [...prev, l.id],
-                            )
-                            setLabelOpen(false)
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.dropdownItem,
-                              selectedLabelIds.includes(l.id) && styles.selectedDropdown,
-                            ]}
-                          >
-                            {l.title}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
                   )}
                   <View style={styles.sep} />
 
@@ -1632,7 +1711,7 @@ const styles = StyleSheet.create({
   dateWrap: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   dateSide: { alignItems: 'center', marginHorizontal: 28 },
   dateText: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
-  timeText: { fontSize: 18, fontWeight: '700' },
+  timeText: { fontSize: 18, fontWeight: '600' },
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1812,18 +1891,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  timePickers: {
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#EEE',
-    backgroundColor: '#FFF',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'visible', // ← 중요: 위로 올린 레이어가 잘리지 않게
-  },
-
   timeBoxWrap: {
     width: 143,
     height: 159,
@@ -1864,18 +1931,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(176,79,255,0.45)',
     borderRadius: 8,
-  },
-
-  timePickerSelection: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    top: '50%',
-    height: 24,
-    transform: [{ translateY: 13 }],
-    borderRadius: 8,
-    zIndex: 1,
-    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   vDivider: {
     width: 1,
@@ -2023,5 +2078,19 @@ const styles = StyleSheet.create({
   monthlyTextActive: {
     color: '#9D7BFF',
     fontWeight: '700',
+  },
+  timePickerBox: {
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  timePicker: {
+    width: 80, // 폭
+    height: 160, // 높이
+  },
+  timePickerItem: {
+    fontSize: 14, // ← 글자 크기
+    fontWeight: '500', // 굵기 조절하고 싶으면
   },
 })
