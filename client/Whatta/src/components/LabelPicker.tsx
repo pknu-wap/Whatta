@@ -10,6 +10,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native'
+import { createLabel } from '@/api/label_api'
 
 export type UiLabel = { id: number; title: string }
 type Anchor = { x: number; y: number; w: number; h: number }
@@ -21,6 +22,7 @@ type Props = {
   onChange: (ids: number[]) => void
   onRequestClose: () => void
   anchor: Anchor | null
+  onCreateLabel?: (title: string) => Promise<UiLabel>
 }
 
 export default function LabelPickerModal({
@@ -30,6 +32,7 @@ export default function LabelPickerModal({
   onChange,
   onRequestClose,
   anchor,
+  onCreateLabel,
 }: Props) {
   const [draft, setDraft] = useState('')
   const cardW = 145
@@ -49,14 +52,22 @@ export default function LabelPickerModal({
     onChange(next)
   }
 
-  const add = () => {
+  const add = async () => {
     const name = draft.trim()
     if (!name) return
-    const newId = Date.now()
-    // 서버 연동 전: 화면만 추가
-    all.push({ id: newId, title: name })
-    onChange([...selected, newId])
-    setDraft('')
+
+    try {
+      if (onCreateLabel) {
+        const newLabel = await onCreateLabel(name) // API 호출은 부모에게 맡김
+
+        // 선택 목록 업데이트
+        onChange([...selected, newLabel.id])
+      }
+
+      setDraft('')
+    } catch (err) {
+      console.log('라벨 생성 실패', err)
+    }
   }
 
   return (
@@ -129,7 +140,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: 145,
-    maxHeight: 320,
+    maxHeight: 230,
     backgroundColor: '#fff',
     borderRadius: 10,
     shadowColor: '#525252',
@@ -144,10 +155,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#B04FFF',
   },
-  item: { paddingVertical: 17, paddingHorizontal: 19 },
-  itemText: { fontSize: 18, color: '#111', fontWeight: '500' },
+  item: { paddingVertical: 16, paddingHorizontal: 19, alignItems: 'center' },
+  itemText: { fontSize: 16, color: '#111', fontWeight: '600' },
   itemTextActive: { color: '#B04FFF' },
   sep: { height: 1, backgroundColor: '#E9E9E9' },
   inputRow: { paddingHorizontal: 22, paddingVertical: 14 },
-  input: { fontSize: 18, color: '#9B9B9B' },
+  input: { fontSize: 16, color: '#9B9B9B' },
 })
