@@ -9,6 +9,8 @@ import {
   ScrollView,
   Dimensions,
   KeyboardAvoidingView,
+  Alert,
+  TouchableOpacity,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import axios from 'axios'
@@ -600,6 +602,32 @@ export default function EventDetailPopup({
     fetchEventDetail()
   }, [mode, eventId])
 
+  const handleDelete = async () => {
+    try {
+      const access = token.getAccess()
+      await axios.delete(
+        `https://whatta-server-741565423469.asia-northeast3.run.app/api/event/${eventId}`,
+        { headers: { Authorization: `Bearer ${access}` } },
+      )
+
+      bus.emit('calendar:mutated', { op: 'delete', id: eventId })
+      onClose()
+    } catch (e) {
+      alert('삭제 실패')
+    }
+  }
+
+  const confirmDelete = () => {
+    Alert.alert('삭제', '이 일정을 삭제하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: handleDelete,
+      },
+    ])
+  }
+
   return (
     <>
       <Modal visible={visible} transparent animationType="slide">
@@ -625,12 +653,12 @@ export default function EventDetailPopup({
             >
               {/* HEADER */}
               <View style={styles.header}>
-                <Pressable onPress={close}>
-                  <Xbutton width={12} height={12} hitSlop={20} color={'#808080'} />
-                </Pressable>
-                <Pressable onPress={handleSave}>
-                  <Check width={12} height={12} hitSlop={20} color={'#808080'} />
-                </Pressable>
+                <TouchableOpacity onPress={close} hitSlop={20}>
+                  <Xbutton width={12} height={12} color={'#808080'} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSave} hitSlop={20}>
+                  <Check width={12} height={12} color={'#808080'} />
+                </TouchableOpacity>
               </View>
               {/* 제목 + 색 */}
               <View style={styles.body}>
@@ -1592,20 +1620,7 @@ export default function EventDetailPopup({
                     <>
                       <View style={styles.sep} />
                       <Pressable
-                        onPress={async () => {
-                          try {
-                            const access = token.getAccess()
-                            await axios.delete(
-                              `https://whatta-server-741565423469.asia-northeast3.run.app/api/event/${eventId}`,
-                              { headers: { Authorization: `Bearer ${access}` } },
-                            )
-                            // 리스트에서 제거
-                            bus.emit('calendar:mutated', { op: 'delete', id: eventId })
-                            onClose()
-                          } catch (e) {
-                            alert('삭제 실패')
-                          }
-                        }}
+                        onPress={confirmDelete}
                         style={styles.deleteBtn}
                         hitSlop={8}
                       >
