@@ -479,8 +479,9 @@ const TaskCard = memo(function TaskCard({
       Gesture.Pan()
         .withRef(midPanRef)
         .activateAfterLongPress(180)
+        .minDistance(10)
         .shouldCancelWhenOutside(false)
-        .onBegin((e) => {
+        .onStart((e) => {
           runOnJS(start)(e.absoluteX, e.absoluteY)
         })
         .onChange((e) => {

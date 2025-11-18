@@ -491,9 +491,9 @@ export default function DayView() {
       const target = checks.find((c) => c.id === id)
       if (!target) return
 
-    await http.patch(`/task/${id}`, {
-      completed: !target.done,
-    })
+      await http.patch(`/task/${id}`, {
+        completed: !target.done,
+      })
 
       bus.emit('calendar:mutated', { op: 'update', item: { id } })
     } catch (err: any) {
@@ -1014,15 +1014,14 @@ function DraggableTaskBox({
   const dragEnabled = useSharedValue(false)
   const [done, setDone] = useState(initialDone)
   const triggerHaptic = () => {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
-}
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+  }
 
   useEffect(() => {
     translateY.value = withSpring(startHour * 60 * PIXELS_PER_MIN)
   }, [startHour])
 
-  
- const handleDrop = async (newTime: string) => {
+  const handleDrop = async (newTime: string) => {
     try {
       // PUT → PATCH 로 변경 + date 제거 (edit 로직과 동일하게)
       await http.patch(`/task/${id}`, {
@@ -1078,13 +1077,9 @@ function DraggableTaskBox({
       runOnJS(handleDrop)(newTime)
     })
 
-
   const composedGesture = Gesture.Simultaneous(hold, drag)
   const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: translateY.value + 2 },
-      { translateX: translateX.value },
-    ],
+    transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
   }))
 
   return (
@@ -1174,8 +1169,8 @@ function DraggableFlexalbeEvent({
   const height = rawHeight - 2
   const offsetY = 1
   const triggerHaptic = () => {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
-}
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+  }
 
   const handleDrop = useCallback(async (movedY: number) => {
     draggingEventId = id
@@ -1195,7 +1190,7 @@ function DraggableFlexalbeEvent({
         )}:00`
       const dateISO = anchorDate
 
-      await http.put(`/event/${id}`, {
+      await http.patch(`/event/${id}`, {
         startDate: anchorDate,
         endDate: anchorDate,
         startTime: fmt(newStart),
@@ -1228,12 +1223,12 @@ function DraggableFlexalbeEvent({
   const drag = Gesture.Pan()
     .onChange((e) => {
       if (!dragEnabled.value) return
-const totalHeight = 24 * 60 * PIXELS_PER_MIN
-const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
-const minTop = 0
-const maxTop = totalHeight - rawHeight
-const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
-translateY.value = clampedTop - startMin * PIXELS_PER_MIN
+      const totalHeight = 24 * 60 * PIXELS_PER_MIN
+      const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
+      const minTop = 0
+      const maxTop = totalHeight - rawHeight
+      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+      translateY.value = clampedTop - startMin * PIXELS_PER_MIN
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
@@ -1241,16 +1236,16 @@ translateY.value = clampedTop - startMin * PIXELS_PER_MIN
 
       const totalHeight = 24 * 60 * PIXELS_PER_MIN
 
-const topOffset = startMin * PIXELS_PER_MIN + translateY.value
-const minTop = 0
-const maxTop = totalHeight - rawHeight
+      const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+      const minTop = 0
+      const maxTop = totalHeight - rawHeight
 
-const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
-const boundedDelta = clampedTop - startMin * PIXELS_PER_MIN
+      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+      const boundedDelta = clampedTop - startMin * PIXELS_PER_MIN
 
-translateY.value = boundedDelta
+      translateY.value = boundedDelta
 
-runOnJS(handleDrop)(boundedDelta)
+      runOnJS(handleDrop)(boundedDelta)
     })
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
@@ -1259,7 +1254,7 @@ runOnJS(handleDrop)(boundedDelta)
     top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
   }))
 
-  const backgroundColor = color.startsWith("#") ? color : `#${color}`
+  const backgroundColor = color.startsWith('#') ? color : `#${color}`
 
   return (
     <GestureDetector gesture={composedGesture}>

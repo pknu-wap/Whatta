@@ -9,6 +9,7 @@ import {
   ScrollView,
   Dimensions,
   KeyboardAvoidingView,
+  TouchableOpacity,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import InlineCalendar from '@/components/lnlineCalendar'
@@ -199,12 +200,12 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
           <View style={[styles.box, { width: SHEET_W, height: SHEET_H }]}>
             {/* 헤더: X / 체크 */}
             <View style={styles.header}>
-              <Pressable onPress={onClose}>
-                <Xbutton width={12} height={12} hitSlop={20} color={'#808080'} />
-              </Pressable>
-              <Pressable onPress={handleSave}>
-                <Check width={12} height={12} hitSlop={20} color={'#808080'} />
-              </Pressable>
+              <TouchableOpacity onPress={onClose} hitSlop={20}>
+                <Xbutton width={12} height={12} color={'#808080'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSave}>
+                <Check width={12} height={12} hitSlop={25} color={'#808080'} />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.body}>
@@ -461,7 +462,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 {mode === 'edit' && onDelete && (
                   <>
                     <View style={styles.sep} />
-                    <Pressable onPress={onDelete} style={styles.deleteBtn} hitSlop={8}>
+                    <Pressable onPress={onDelete} style={styles.deleteBtn} hitSlop={13}>
                       <Text style={styles.deleteTxt}>삭제</Text>
                     </Pressable>
                   </>
