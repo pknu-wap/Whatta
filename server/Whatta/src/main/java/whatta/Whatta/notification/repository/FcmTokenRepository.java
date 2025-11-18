@@ -9,4 +9,6 @@ public interface FcmTokenRepository extends MongoRepository<FcmToken, String> {
 
     FcmToken findByFcmToken(String token);
 
+    FcmToken findByUserId(String userId);
+
 }

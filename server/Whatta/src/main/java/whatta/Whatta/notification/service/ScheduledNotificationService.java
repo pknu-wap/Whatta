@@ -132,7 +132,4 @@ public class ScheduledNotificationService {
                 throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
         }
     }
-
-
-    //-------------summary----------------
 }
