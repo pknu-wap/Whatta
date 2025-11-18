@@ -91,8 +91,20 @@ const globalPopupState = {
   sliderX: 38,
 }
 
+// 열려 있으면 닫고-실행, 아니면 바로 실행
+const useRunOrQueue = () => {
+  const { progress } = useDrawer()
+  return (fn: () => void) => {
+    if ((progress as any).value > 0.01) {
+      bus.emit('drawer:close-then', fn)
+    } else {
+      fn()
+    }
+  }
+}
+
 export default function Header() {
-  const { progress, toggle, close } = useDrawer()
+  const { progress, toggle, close, isOpen } = useDrawer()
   const navigation = useNavigation<any>()
 
   const [calVisible, setCalVisible] = useState(false)
@@ -130,9 +142,24 @@ export default function Header() {
 
   const headerCatcherStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
-    pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
   }))
 
+  const runOrQueue = React.useCallback(
+    (fn: () => void) => {
+      if (isOpen) {
+        close()
+        setTimeout(fn, CLOSE_ANIM_MS) // 닫힘 애니 끝난 뒤 실행
+      } else {
+        fn()
+      }
+    },
+    [isOpen, close],
+  )
+
+  // 앵커/모드는 방송으로 동기화
+  const [anchorDate, setAnchorDate] = useState<string>(today())
+
+  // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
     const onState = (st: { date: string; mode: ViewMode }) => {
       setAnchorDate(st.date)
@@ -221,8 +248,9 @@ export default function Header() {
         </TouchableOpacity>
 
         {/* 날짜 그룹 */}
+        {/* 달 이동/타이틀/우측 버튼 - 모두 runOrQueue로 감싸기 */}
         <View style={styles.dateGroup}>
-          <TouchableOpacity onPress={goPrev}>
+          <TouchableOpacity onPress={() => runOrQueue(goPrev)}>
             <Left width={24} height={24} color={colors.icon.default} />
           </TouchableOpacity>
 
@@ -235,6 +263,7 @@ export default function Header() {
                 setCalVisible(true)
               }
             }}
+<!--             onPress={() => runOrQueue(() => setCalVisible(true))} -->
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
@@ -242,6 +271,13 @@ export default function Header() {
 
           <TouchableOpacity onPress={goNext}>
             <Right width={24} height={24} color={colors.icon.default} style={{ marginTop: 2 }} />
+<!--           <TouchableOpacity onPress={() => runOrQueue(goNext)}>
+            <Right
+              width={24}
+              height={24}
+              color={colors.icon.default}
+              style={{ marginTop: 2 }}
+            /> -->
           </TouchableOpacity>
         </View>
 
@@ -258,6 +294,13 @@ export default function Header() {
               globalPopupState.opacity = 1
             }
           }}
+<!--           onPress={() =>
+            runOrQueue(() => {
+              sliderX.setValue(0)
+              popupOpacity.setValue(1)
+              setPopup((p) => !p)
+            })
+          } -->
         >
           <Filter
             width={22}
@@ -294,7 +337,9 @@ export default function Header() {
         </>
       )}
 
-      <AnimatedRe.View style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}>
+      <AnimatedRe.View style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}
+        pointerEvents="none"
+        >
         <TouchableOpacity style={{ flex: 1 }} onPress={close} />
       </AnimatedRe.View>
 
