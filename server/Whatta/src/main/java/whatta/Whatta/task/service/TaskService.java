@@ -7,6 +7,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.notification.service.ScheduledNotificationService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -30,6 +31,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
+    private final ScheduledNotificationService scheduledNotiService;
 
     //task 생성
     public TaskResponse createTask(String userId, TaskCreateRequest request) {
@@ -73,6 +75,8 @@ public class TaskService {
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
+        //알림 추가
+        scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -138,6 +142,8 @@ public class TaskService {
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
+        //알림 수정
+        scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }

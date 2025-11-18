@@ -12,6 +12,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.notification.service.ScheduledNotificationService;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
@@ -30,6 +31,7 @@ public class EventService {
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
     private final EventMapper eventMapper;
+    private final ScheduledNotificationService scheduledNotiService;
 
     public EventDetailsResponse createEvent(String userId, EventCreateRequest request) {
 
@@ -60,8 +62,11 @@ public class EventService {
             eventBuilder.endTime(endTime);
             eventBuilder.reminderNotiAt(request.reminderNoti());
         }
+        Event newEvent = eventRepository.save(eventBuilder.build());
+        //알림 추가
+        scheduledNotiService.createScheduledNotification(newEvent);
 
-       return eventMapper.toEventDetailsResponse(eventRepository.save(eventBuilder.build()));
+       return eventMapper.toEventDetailsResponse(newEvent);
     }
     private void validateDateTimeOrder(LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
         if(startDate.isAfter(endDate)) {
@@ -142,7 +147,11 @@ public class EventService {
         }
         builder.editedAt(LocalDateTime.now());
 
-        return eventMapper.toEventDetailsResponse(eventRepository.save(builder.build()));
+        Event updatedEvent = eventRepository.save(builder.build());
+        //알림 수정
+        scheduledNotiService.createScheduledNotification(updatedEvent);
+
+        return eventMapper.toEventDetailsResponse(updatedEvent);
     }
 
     public void deleteEvent(String userId, String eventId) {

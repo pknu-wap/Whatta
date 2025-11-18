@@ -75,7 +75,6 @@ public class TaskController {
     @GetMapping(params = "view=sidebar")
     @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 task 목록을 조회합니다.")
     public ResponseEntity<?> getSidebarTasks(@AuthenticationPrincipal String userId) {
-        String tempUserId = "test123"; //TODO 나중에 jwt구현 후 변경
         List<SidebarTaskResponse> response = taskService.findSidebarTasks(userId);
         return Response.ok("사이드바의 Task 목록입니다.", response);
     }
