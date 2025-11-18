@@ -1,7 +1,15 @@
-import React, { useEffect, useMemo, useState, memo, useCallback } from 'react'
-import { View, Text, StyleSheet, Pressable, DeviceEventEmitter } from 'react-native'
+import React, { useEffect, useMemo, useState, memo, useCallback, useRef } from 'react'
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native'
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist'
 import { useFocusEffect } from '@react-navigation/native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated'
+import { runOnJS } from 'react-native-worklets'
+import { bus } from '@/lib/eventBus'
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
@@ -17,11 +25,11 @@ export type Task = {
   completed: boolean
   sortNumber: number // 작을수록 위
   labels?: any
-  placementDate?: string
+  placementDate?: string | null
   placementTime?: string | null
   dueDateTime?: string | null
-  createdAt?: string
-  updatedAt?: string
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 // API 호출: PUT /api/task/sidebar/:id
@@ -50,6 +58,40 @@ function mapTask(d: any): Task {
   }
 }
 
+function TaskCardDraggable({ item }: { item: Task }) {
+  const translateY = useSharedValue(0)
+  const opacity = useSharedValue(1)
+
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      translateY.value += e.changeY
+      bus.emit('sidebar:dragging', { task: item, x: e.absoluteX, y: e.absoluteY })
+    })
+    .onEnd((e) => {
+      bus.emit('sidebar:drop', { task: item, x: e.absoluteX, y: e.absoluteY })
+      translateY.value = withTiming(0)
+      opacity.value = withTiming(1)
+    })
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }))
+
+  return (
+    <GestureDetector gesture={drag}>
+      <Animated.View style={[S.card, style]}>
+        <TaskCard
+          id={item.id}
+          title={item.title}
+          checked={item.completed}
+          onToggle={() => {}}
+        />
+      </Animated.View>
+    </GestureDetector>
+  )
+}
+
 function isTimelessTask(t: Task) {
   // placementTime(예: "18:00:00")이나 dueDateTime(ISO)이 하나라도 있으면 시간 있음
   const hasPlacementTime =
@@ -59,15 +101,28 @@ function isTimelessTask(t: Task) {
 }
 
 async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
-  console.log('[SORT] send to server =>', { id: taskId, sortNumber: payload.sortNumber })
-  return http.put(`/api/task/sidebar/${taskId}`, payload)
+  return http.patch(`/task/${taskId}`, payload)
 }
 
-// 서버 스펙: GET /api/task
+// 서버 스펙: GET /task/sidebar
 async function fetchTasksFromServer(): Promise<Task[]> {
-  const res = await http.get('/api/task')
+  const res = await http.get('/task/sidebar')
   const list = res?.data?.data ?? []
   return list.map(mapTask) as Task[]
+}
+
+// ✅ 서버 스펙: POS /task (생성)
+async function createTaskAPI(title: string) {
+  const payload = {
+    title,
+    content: '', // 요구: content는 비움
+    labels: null,
+    placementDate: null,
+    placementTime: null,
+    dueDateTime: null,
+    repeat: null,
+  }
+  return http.post('/task', payload)
 }
 
 const TOP_GAP = 1024 // 최상단/최하단 배치 시 충분히 큰 간격 확보용
@@ -89,6 +144,8 @@ const SECTION_HEIGHT = 260
 
 export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [newTitle, setNewTitle] = useState('')
+
   const safeTitle = (v: any) =>
     typeof v === 'string' && v.trim().length > 0 ? v : '(제목 없음)'
 
@@ -117,13 +174,68 @@ export default function Sidebar() {
 
   useFocusEffect(
     useCallback(() => {
-      let alive = true
       refresh()
-      return () => {
-        alive = false
-      }
+      return () => {}
     }, [refresh]),
   )
+
+  useEffect(() => {
+    const remove = ({ id }: { id: string }) => {
+      setTasks((prev) => prev.filter((t) => t.id !== id))
+    }
+    bus.on('sidebar:remove-task', remove)
+    return () => bus.off('sidebar:remove-task', remove)
+  }, [])
+
+  // 입력창 제출 -> 생성 -> 자동 재조회
+  const handleCreate = useCallback(async () => {
+    const title = newTitle.trim()
+    if (!title) return
+
+    const snapshot = tasks
+    const baseUpcoming = snapshot.filter((t) => !t.completed && isTimelessTask(t))
+    const optimisticSort = getTopSortNumber(baseUpcoming)
+    const tempId = `temp-${Date.now()}`
+    const tempTask: Task = {
+      id: tempId,
+      title,
+      content: '',
+      completed: false,
+      sortNumber: optimisticSort,
+      labels: [],
+      placementDate: null,
+      placementTime: null,
+      dueDateTime: null,
+      createdAt: null,
+      updatedAt: null,
+    }
+    setTasks((prev) => [tempTask, ...prev])
+    setNewTitle('')
+
+    try {
+      // 서버 생성
+      const res = await createTaskAPI(title)
+      const created = mapTask(res?.data?.data ?? {})
+
+      // 생성 직후, ‘예정’ 최상단 sortNumber로 강제 세팅
+      const current = ((prev) => prev)(tasks)
+      const upcomingNow = current.filter((t) => !t.completed && isTimelessTask(t))
+      const topSort = getTopSortNumber(upcomingNow, created.id)
+
+      await putSidebarTask(created.id, {
+        title: created.title || '(제목 없음)',
+        completed: false,
+        sortNumber: topSort,
+      })
+
+      // 3. 최종 동기화
+      await refresh()
+    } catch (e) {
+      console.warn('Task create failed:', e)
+      setTasks(snapshot) // 롤백
+      setNewTitle(title) // 입력 복구
+    }
+  }, [newTitle, tasks, refresh])
 
   // 토글 - 리스트 이동 시 항상 목표 섹션의 최상단으로 배치
   const toggleDone = async (id: string) => {
@@ -227,6 +339,19 @@ export default function Sidebar() {
         onDragEnd={onUpcomingReorderEnd}
       />
 
+      {/* ✅ 입력창: 제출 시 즉시 생성 */}
+      <View style={{ marginTop: 12, marginBottom: 6 }}>
+        <TextInput
+          value={newTitle}
+          onChangeText={setNewTitle}
+          placeholder="할 일을 입력하세요"
+          placeholderTextColor="#B9A7EA"
+          onSubmitEditing={handleCreate}
+          returnKeyType="done"
+          style={S.newInput}
+        />
+      </View>
+
       <View style={S.divider} />
 
       <SectionCompleted title="완료" data={completed} onToggle={toggleDone} />
@@ -248,11 +373,11 @@ function SectionUpcoming({
 }) {
   const renderItem = ({ item, drag, isActive }: RenderItemParams<Task>) => (
     <TaskCard
+      id={item.id}
       title={item.title}
       checked={item.completed}
       onToggle={() => onToggle(item.id)}
-      // 내부 정렬 드래그
-      onLongPressHandle={drag}
+      onLongPressHandle={drag} // ← 점 세개(핸들) 길게 → 내부 정렬
       isActive={!!isActive}
     />
   )
@@ -280,7 +405,7 @@ function SectionUpcoming({
   )
 }
 
-// 완료(드래그 불가)(드래그 불가)
+// 완료(드래그 불가)
 function SectionCompleted({
   title,
   data,
@@ -298,6 +423,7 @@ function SectionCompleted({
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <TaskCard
+            id={item.id}
             title={item.title}
             checked={item.completed}
             onToggle={() => onToggle(item.id)}
@@ -316,21 +442,64 @@ function SectionCompleted({
 }
 
 const TaskCard = memo(function TaskCard({
+  id,
   title,
   checked,
   onToggle,
   onLongPressHandle,
   isActive,
+  registerSimultaneous,
 }: {
+  id: string
   title: string
   checked: boolean
   onToggle: () => void
   onLongPressHandle?: () => void // 우측 3점(핸들) 롱프레스 → 내부 정렬
   isActive?: boolean
+  registerSimultaneous?: (gh: any) => void
 }) {
+  const start = useCallback(
+    (x: number, y: number) => {
+      bus.emit('xdrag:start', { task: { id, title }, x, y })
+    },
+    [id, title],
+  )
+
+  const move = useCallback((x: number, y: number) => {
+    bus.emit('xdrag:move', { x, y })
+  }, [])
+
+  const drop = useCallback((x: number, y: number) => {
+    bus.emit('xdrag:drop', { x, y })
+  }, [])
+  const midPanRef = React.useRef<any>(null)
+  // Pan 제스처: 롱프레스 후 활성 + 바깥으로 나가도 유지
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .withRef(midPanRef)
+        .activateAfterLongPress(180)
+        .minDistance(10)
+        .shouldCancelWhenOutside(false)
+        .onStart((e) => {
+          runOnJS(start)(e.absoluteX, e.absoluteY)
+        })
+        .onChange((e) => {
+          runOnJS(move)(e.absoluteX, e.absoluteY)
+        })
+        .onFinalize((e) => {
+          runOnJS(drop)(e.absoluteX, e.absoluteY)
+        }),
+    [start, move, drop],
+  )
+
+  useEffect(() => {
+    registerSimultaneous?.(midPanRef.current)
+  }, [registerSimultaneous])
+
   return (
     <View style={[S.card, isActive && { opacity: 0.9 }]}>
-      {/* 체크 토글 */}
+      {/* 체크박스 */}
       <Pressable
         onPress={onToggle}
         hitSlop={10}
@@ -344,24 +513,41 @@ const TaskCard = memo(function TaskCard({
         )}
       </Pressable>
 
-      <Text
-        style={[
-          ts('taskName'),
-          { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
-          checked && { textDecorationLine: 'line-through' },
-        ]}
-        numberOfLines={1}
-      >
-        {title}
-      </Text>
+      {/* 제목 영역 */}
+      {checked ? (
+        // 완료된 테스크: 드래그 비활성화
+        <Text
+          style={[
+            ts('taskName'),
+            { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
+            { textDecorationLine: 'line-through' },
+          ]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+      ) : (
+        // 예정 테스크만 드래그 가능
+        <GestureDetector gesture={pan}>
+          <Text
+            style={[
+              ts('taskName'),
+              { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
+            ]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        </GestureDetector>
+      )}
 
-      {/* 내부 정렬 드래그 */}
+      {/* 점3개 핸들: 내부 순서 변경용 */}
       <Pressable
         onLongPress={onLongPressHandle}
         delayLongPress={180}
         hitSlop={12}
-        accessibilityLabel="drag handle"
         style={S.handle}
+        accessibilityLabel="drag handle"
       >
         <Text style={S.handleText}>···</Text>
       </Pressable>
@@ -412,5 +598,15 @@ const S = StyleSheet.create({
     includeFontPadding: false,
     textAlign: 'center',
     opacity: 0.5,
+  },
+  // ✅ 입력창 스타일 (피그마 느낌의 보더/라운드)
+  newInput: {
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: '#B9A7EA', // 연보라
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: 'transparent',
+    color: colors.task.taskName,
   },
 })

@@ -16,7 +16,7 @@ export type MonthlyDay = {
 
 export async function fetchMonthly(ym: string) {
   const access = token.getAccess()
-  const res = await http.get('/api/calendar/monthly', { params: { month: ym } })
+  const res = await http.get('/calendar/monthly', { params: { month: ym } })
 
   // 디버그 로그(서버 응답 확인용)
   //   console.log(
