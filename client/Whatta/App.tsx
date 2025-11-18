@@ -6,6 +6,14 @@ import { NavigationContainer } from '@react-navigation/native'
 import RootStack from '@/navigation/RootStack'
 import { ensureAuthReady } from '@/app/bootstrap'
 import { DrawerProvider } from '@/providers/DrawerProvider'
+import messaging from '@react-native-firebase/messaging'
+import { Alert } from "react-native";
+
+// 포그라운드 메시지 핸들러
+messaging().onMessage(async remoteMessage => {
+  console.log('Foreground Message received:', remoteMessage);
+  Alert.alert('[FCM] Foreground Message received:', JSON.stringify(remoteMessage));
+});
 
 // ✅ 라벨 타입
 export interface LabelItem {
@@ -62,6 +70,7 @@ export default function App() {
     const allOn = labels.every((l) => l.enabled)
     setLabels((prev) => prev.map((l) => ({ ...l, enabled: !allOn })))
   }, [labels])
+
 
   if (!ready) {
     return (
