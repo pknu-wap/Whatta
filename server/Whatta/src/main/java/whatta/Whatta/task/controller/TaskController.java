@@ -37,8 +37,13 @@ public class TaskController {
         return Response.ok("Task 생성 성공했습니다.", response);
     }
 
-    @PutMapping("/{taskId}")
-    @Operation(summary = "Task 수정", description = "해당 Task를 수정합니다.")
+    @PatchMapping("/{taskId}")
+    @Operation(summary = "Task 수정", description =
+            "해당 Task를 수정합니다.<br>"
+                    + "<br>수정할 필드만 보낼 수 있습니다. 또는 나머지 null도 가능!"
+                    + "<br>- null이나 빈문자열로 필드를 초기화하는 경우, fieldsToClear 에 해당 필드명을 입력해야 합니다."
+                    + "<br>  ( 입력하지 않을 시, 초기화되지 않습니다. )}"
+                    + "<br>- completed, orderByNumber은 null로 초기화될 수 없는 필드입니다.")
     public ResponseEntity<?> updateTask(
             @AuthenticationPrincipal String userId,
             @PathVariable String taskId,
@@ -72,10 +77,13 @@ public class TaskController {
         return Response.ok("관리페이지 Task 목록입니다.", response);
     }
 
-    @GetMapping(params = "view=sidebar")
-    @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 task 목록을 조회합니다.")
+    @GetMapping("/sidebar")
+    @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 Task 목록을 조회합니다.")
     public ResponseEntity<?> getSidebarTasks(@AuthenticationPrincipal String userId) {
         List<SidebarTaskResponse> response = taskService.findSidebarTasks(userId);
         return Response.ok("사이드바의 Task 목록입니다.", response);
     }
+
+
 }
+

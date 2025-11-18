@@ -14,6 +14,7 @@ public class SidebarTaskResponse {
     private final String id;
     private final String title;
     private final Boolean completed;
+    private final LocalDateTime completedAt;
     private final LocalDateTime dueDateTime;
     private final Long sortNumber;
 

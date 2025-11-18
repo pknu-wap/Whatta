@@ -20,7 +20,6 @@ public class TaskUpdateRequest {
 
     private Boolean completed; //Boolean값은 null값을 가질 수 있음.
 
-
     private LocalDate placementDate;//배치일
     @Schema(type = "string", format = "time", example = "18:00:00")
     private LocalTime placementTime;//배치시간
