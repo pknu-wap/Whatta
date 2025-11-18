@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.Getter;
 import whatta.Whatta.global.repeat.payload.RepeatRequest;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,7 +20,6 @@ public class TaskUpdateRequest {
 
     private Boolean completed; //Boolean값은 null값을 가질 수 있음.
 
-
     private LocalDate placementDate;//배치일
     @Schema(type = "string", format = "time", example = "18:00:00")
     private LocalTime placementTime;//배치시간
@@ -33,5 +33,5 @@ public class TaskUpdateRequest {
 
     private List<String> fieldsToClear; //null로 필드 초기화
 
-
+    private ReminderNoti reminderNoti;
 }

@@ -3,146 +3,161 @@ package whatta.Whatta.user.service;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.label.Label;
-import whatta.Whatta.global.label.payload.LabelItem;
-import whatta.Whatta.global.label.payload.LabelRequest;
-import whatta.Whatta.global.label.payload.LabelsResponse;
-import whatta.Whatta.global.util.LabelUtil;
-import whatta.Whatta.task.repository.TaskRepository;
+import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.user.entity.ReminderNotiPreset;
+import whatta.Whatta.user.entity.ScheduleSummaryNoti;
 import whatta.Whatta.user.entity.UserSetting;
-import whatta.Whatta.user.payload.response.LabelResponse;
+import whatta.Whatta.user.payload.request.ReminderNotiRequest;
+import whatta.Whatta.user.payload.request.ScheduleSummaryNotiRequest;
+import whatta.Whatta.user.payload.response.ReminderNotiResponse;
+import whatta.Whatta.user.payload.response.ScheduleSummaryNotiResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
 public class UserSettingService {
 
     private final UserSettingRepository userSettingRepository;
-    private final EventRepository eventRepository;
-    private final TaskRepository taskRepository;
 
-    public LabelResponse createLabel(String userId, LabelRequest request) {
+    public ReminderNotiResponse createReminder(String userId, ReminderNotiRequest request) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        List<Label> newLabels = buildLabels(userSetting.getLabels(), request);
+        //중복 확인
+        if(alreadyExists(userSetting.getReminderNotiPresets(), request))
+            throw new RestApiException(ErrorCode.ALREADY_EXIST_REMINDER);
+
+        List<ReminderNotiPreset> newPresets = new ArrayList<>(userSetting.getReminderNotiPresets());
+
+        ReminderNotiPreset newPreset = buildReminderPreset(request);
+        newPresets.add(newPreset);
+
         userSettingRepository.save(userSetting.toBuilder()
-                .labels(newLabels)
+                .reminderNotiPresets(newPresets)
                 .build());
 
-        Label newLabel = findLabelByTitle(newLabels, request.title().trim());
-        return LabelResponse.builder()
-                .id(newLabel.getId())
-                .title(newLabel.getTitle())
-                //.colorKey(newLabel.getColorKey())
+        return buildReminderResponse(newPreset);
+    }
+    private ReminderNotiPreset buildReminderPreset(ReminderNotiRequest request) {
+        return ReminderNotiPreset.builder()
+                .day(request.day())
+                .hour(request.hour())
+                .minute(request.minute())
                 .build();
     }
-    private List<Label> buildLabels(List<Label> userLabels, LabelRequest request) {
-        List<Label> newLabels = new ArrayList<>(userLabels);
 
-        if(request == null) return newLabels;
-
-        //중복 제거
-        String label = request.title().trim();
-        if(newLabels.stream().noneMatch(l -> l.getTitle().equalsIgnoreCase(label))) {
-            newLabels.add(Label.builder()
-                            .id(generateId(newLabels))
-                            .title(label)
-                            //.colorKey(request.colorKey())
-                    .build());
-        }
-
-        //라벨의 개수 제한
-        if(newLabels.size() > 10)
-            throw new RestApiException(ErrorCode.TOO_MANY_LABELS);
-
-        return newLabels;
-    }
-    private Long generateId(List<Label> labels) {
-        return labels.stream()
-                .mapToLong(Label::getId)
-                .max()
-                .orElse(0L) + 1L;
-    }
-    private Label findLabelByTitle(List<Label> labels, String title) {
-        if(labels == null || labels.isEmpty())
-            throw new RestApiException(ErrorCode.LABEL_NOT_FOUND);
-
-        return labels.stream()
-                .filter(l -> l.getTitle().equalsIgnoreCase(title.trim()))
-                .findFirst()
-                .orElseThrow(()-> new RestApiException(ErrorCode.LABEL_NOT_FOUND));
-    }
-
-    public LabelsResponse getLabels(String userId) {
+    public List<ReminderNotiResponse> getReminders(String userId) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        if(userSetting.getLabels() == null || userSetting.getLabels().isEmpty()) {
+        if(userSetting.getReminderNotiPresets() == null || userSetting.getReminderNotiPresets().isEmpty())
             return null;
-        }
 
-        List<LabelItem> labels = new ArrayList<>();
-        for(Label label : userSetting.getLabels()) {
-            labels.add(LabelItem.builder()
-                            .id(label.getId())
-                            .title(label.getTitle())
-                            //.colorKey(label.getColorKey())
-                    .build());
-        }
-
-        return LabelsResponse.builder()
-                .labels(labels)
-                .build();
+        return userSetting.getReminderNotiPresets().stream()
+                .map(this::buildReminderResponse)
+                .collect(Collectors.toList());
     }
 
-    public void updateLabel(String userId, Long labelId, LabelRequest request) {
+    public void updateReminder(String userId, String reminderId, ReminderNotiRequest request) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        LabelUtil.validateLabelsInUserSettings(userSetting, List.of(labelId));
+        validatePresetInUserSetting(userSetting.getReminderNotiPresets(), reminderId);
+        //중복 확인
+        if(alreadyExists(userSetting.getReminderNotiPresets(), request))
+            throw new RestApiException(ErrorCode.ALREADY_EXIST_REMINDER);
 
-        List<Label> newLabels = new ArrayList<>();
-        for(Label label : userSetting.getLabels()) {
-            if(label.getId().equals(labelId)) {
-                newLabels.add(label.toBuilder()
-                        .title(request.title().trim())
+        List<ReminderNotiPreset> newPresets = new ArrayList<>();
+        for(ReminderNotiPreset preset : userSetting.getReminderNotiPresets()) {
+            if(preset.getId().equals(reminderId)) {
+                newPresets.add(preset.toBuilder()
+                        .day(request.day())
+                        .hour(request.hour())
+                        .minute(request.minute())
                         .build());
-            } else newLabels.add(label);
+            } else newPresets.add(preset);
         }
         userSettingRepository.save(userSetting.toBuilder()
-                .labels(newLabels)
+                .reminderNotiPresets(newPresets)
                 .build());
     }
 
     @Transactional
-    public void deleteLabels(String userId, List<Long> labelIds) {
+    public void deleteReminders(String userId, List<String> reminderIds) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        LabelUtil.validateLabelsInUserSettings(userSetting, labelIds);
-
-        List<Label> newLabels = new ArrayList<>();
-        for(Label label : userSetting.getLabels()) {
-            if(labelIds.contains(label.getId())) {
-                continue;
-            }
-            newLabels.add(label);
+        for(String presetId : reminderIds) {
+            validatePresetInUserSetting(userSetting.getReminderNotiPresets(), presetId);
         }
 
-        //event에 있는 해당 id 삭제
-        eventRepository.pullLabelsByUserId(userId, labelIds);
-        //task에 있는 해당 id 삭제
-        taskRepository.pullLabelsByUserId(userId, labelIds);
+        List<ReminderNotiPreset> updatedPresets = userSetting.getReminderNotiPresets().stream()
+                .filter(preset -> !reminderIds.contains(preset.getId()))
+                .collect(Collectors.toList());
 
         userSettingRepository.save(userSetting.toBuilder()
-                        .labels(newLabels)
-                        .build());
+                .reminderNotiPresets(updatedPresets)
+                .build());
+    }
+
+    private boolean alreadyExists(List<ReminderNotiPreset> userPresets, ReminderNotiRequest request) {
+        return userPresets.stream()
+                .anyMatch(preset ->
+                        preset.getDay() == request.day()
+                                && preset.getHour() == request.hour()
+                                && preset.getMinute() == request.minute());
+    }
+
+    private ReminderNotiResponse buildReminderResponse(ReminderNotiPreset preset) {
+        return ReminderNotiResponse.builder()
+                .id(preset.getId())
+                .day(preset.getDay())
+                .hour(preset.getHour())
+                .minute(preset.getMinute())
+                .build();
+    }
+
+    private void validatePresetInUserSetting(List<ReminderNotiPreset> userPresets, String presetId) {
+        if(userPresets.stream().noneMatch(p -> p.getId().equals(presetId)))
+            throw new RestApiException(ErrorCode.REMINDER_NOT_FOUND);
+    }
+
+    //-------------일정 요약 알림----------------
+    public void updateSummaryNoti(String userId, ScheduleSummaryNotiRequest request) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        //TODO: 운영 서버에서는 지워도 됨(개발 서버에는 안들어가 있는 값들이 있어서)
+        if (userSetting.getScheduleSummaryNoti() == null) {
+            userSetting.toBuilder()
+                    .scheduleSummaryNoti(ScheduleSummaryNoti.builder().build())
+                    .build();
+        }
+
+        ScheduleSummaryNoti.ScheduleSummaryNotiBuilder builder = userSetting.getScheduleSummaryNoti().toBuilder();
+        if(request.enabled() != null) builder.enabled(request.enabled());
+        if(request.notifyDay() != null) builder.notifyDay(request.notifyDay());
+        if(request.time() != null) builder.time(LocalTimeUtil.stringToLocalTime(request.time()));
+
+        userSettingRepository.save(userSetting.toBuilder()
+                .scheduleSummaryNoti(builder.build())
+                .build());
+    }
+
+    public ScheduleSummaryNotiResponse getSummaryNoti(String userId) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        return ScheduleSummaryNotiResponse.builder()
+                .enabled(userSetting.getScheduleSummaryNoti().isEnabled())
+                .notifyDay(userSetting.getScheduleSummaryNoti().getNotifyDay())
+                .time(LocalTimeUtil.localTimeToString(userSetting.getScheduleSummaryNoti().getTime()))
+                .build();
     }
 }

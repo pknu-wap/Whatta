@@ -38,5 +38,9 @@ public class UserSetting {
     @Builder.Default
     private List<Label> labels = new ArrayList<>();
 
-    //TODO: 알림 default 값은 알림 구현할 때 함께 구현하기
+    @Builder.Default
+    private List<ReminderNotiPreset> reminderNotiPresets = new ArrayList<>();
+
+    @Builder.Default
+    private ScheduleSummaryNoti scheduleSummaryNoti = ScheduleSummaryNoti.builder().build();
 }

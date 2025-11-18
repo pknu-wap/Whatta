@@ -17,10 +17,12 @@ public class TaskMapper {
                 .title(request.getTitle())
                 .content(request.getContent())
                 .completed(false)
+                .completedAt(null)
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
                 .repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
+                .reminderNotiAt((request.getPlacementTime() != null)? request.getReminderNoti() : null)
                 .build();
     }
 
@@ -32,6 +34,7 @@ public class TaskMapper {
                 .content(task.getContent())
                 .labels(task.getLabels())
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
@@ -39,6 +42,7 @@ public class TaskMapper {
                 .sortNumber(task.getSortNumber())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
+                .reminderNoti(task.getReminderNotiAt())
                 .build();
     }
 
@@ -47,6 +51,7 @@ public class TaskMapper {
                 .id(task.getId())
                 .title(task.getTitle())
                 .completed(task.getCompleted())
+                .completedAt(task.getCompletedAt())
                 .dueDateTime(task.getDueDateTime())
                 .sortNumber(task.getSortNumber())
                 .build();

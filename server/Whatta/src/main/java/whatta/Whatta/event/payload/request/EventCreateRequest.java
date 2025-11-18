@@ -7,9 +7,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import whatta.Whatta.global.repeat.payload.RepeatRequest;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 
 public record EventCreateRequest (
@@ -35,6 +35,8 @@ public record EventCreateRequest (
 
         @NotBlank(message = "일정 타임 박스의 컬러 값은 필수입니다.")
         @Schema(example = "FFFFFF")
-        String colorKey
+        String colorKey,
+
+        ReminderNoti reminderNoti
 ){
 }

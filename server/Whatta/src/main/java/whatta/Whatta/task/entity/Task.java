@@ -8,8 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +44,8 @@ public class Task {
 
     @Builder.Default
     private Boolean completed = false; //진행 전(false) / 완료(true)
+    @Builder.Default
+    private LocalDateTime completedAt = null; //생성 시 null, 완료되면 현재 시각으로 설정
 
     private LocalDate placementDate; //null 유무로 배치 유무를 판단
     private LocalTime placementTime;
@@ -55,6 +57,9 @@ public class Task {
     @NotNull
     @Builder.Default
     private Long sortNumber = 0L;
+
+    @Builder.Default
+    private ReminderNoti reminderNotiAt = null;
 
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

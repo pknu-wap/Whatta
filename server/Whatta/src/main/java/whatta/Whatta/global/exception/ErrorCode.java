@@ -20,8 +20,10 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "803", "해당 노선은 존재하지 않습니다."),
     FORBIDDEN_ACCESS(HttpStatus.BAD_REQUEST, "804", "일치하지 않은 계정입니다."),
 
-    LABEL_NOT_FOUND(HttpStatus.BAD_REQUEST, "900", "요청 라벨이 사용자의 라벨 목록에 없습니다."),
-    TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "901", "라벨은 최대 3개까지 설정할 수 있습니다.");
+    LABEL_NOT_FOUND(HttpStatus.NOT_FOUND, "900", "요청 라벨이 사용자의 라벨 목록에 없습니다."),
+    TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "901", "라벨은 최대 3개까지 설정할 수 있습니다."),
+    ALREADY_EXIST_REMINDER(HttpStatus.BAD_REQUEST, "902", "이미 존재하는 리마인드 프리셋입니다."),
+    REMINDER_NOT_FOUND(HttpStatus.NOT_FOUND, "903", "요청 리마인드 프리셋이 사용자의 프리셋 목록에 없습니다.");
 
 
 

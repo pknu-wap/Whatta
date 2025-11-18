@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import whatta.Whatta.global.repeat.payload.RepeatRequest;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,4 +32,6 @@ public class TaskCreateRequest {
 
     @Valid
     private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
+
+    private ReminderNoti reminderNoti;
 }
