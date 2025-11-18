@@ -65,7 +65,7 @@ export default function MainTabs() {
 
   return (
     <DrawerProvider>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingHorizontal: 10 }}>
         <Tab.Navigator
           initialRouteName="Month"
           screenListeners={{
@@ -87,30 +87,14 @@ export default function MainTabs() {
             tabBarButton: (p) => <GuardedTabButton {...p} />,
           }}
         >
-          {/* ✅ 마이페이지 */}
+          {/* ✅ 일간 */}
           <Tab.Screen
-            name="MyPage"
-            component={MyPageStack}
+            name="Day"
+            component={DayView}
             options={{
-              tabBarLabel: '마이페이지',
+              tabBarLabel: '일간',
               tabBarIcon: ({ focused }) => (
-                <MyPageIcon
-                  width={24}
-                  height={24}
-                  color={focused ? colors.primary.main : colors.icon.default}
-                />
-              ),
-            }}
-          />
-
-          {/* ✅ 월간 */}
-          <Tab.Screen
-            name="Month"
-            component={MonthView}
-            options={{
-              tabBarLabel: '월간',
-              tabBarIcon: ({ focused }) => (
-                <MonthIcon
+                <DayIcon
                   width={24}
                   height={24}
                   color={focused ? colors.primary.main : colors.icon.default}
@@ -135,14 +119,14 @@ export default function MainTabs() {
             }}
           />
 
-          {/* ✅ 일간 */}
+          {/* ✅ 월간 */}
           <Tab.Screen
-            name="Day"
-            component={DayView}
+            name="Month"
+            component={MonthView}
             options={{
-              tabBarLabel: '일간',
+              tabBarLabel: '월간',
               tabBarIcon: ({ focused }) => (
-                <DayIcon
+                <MonthIcon
                   width={24}
                   height={24}
                   color={focused ? colors.primary.main : colors.icon.default}
@@ -151,7 +135,7 @@ export default function MainTabs() {
             }}
           />
 
-          {/* ✅ 할 일 관리 */}
+          {/* ✅ 할 일 관리
           <Tab.Screen
             name="Task"
             component={TaskScreen}
@@ -159,6 +143,22 @@ export default function MainTabs() {
               tabBarLabel: '할 일 관리',
               tabBarIcon: ({ focused }) => (
                 <TaskIcon
+                  width={24}
+                  height={24}
+                  color={focused ? colors.primary.main : colors.icon.default}
+                />
+              ),
+            }}
+          /> */}
+
+          {/* ✅ 마이페이지 */}
+          <Tab.Screen
+            name="MyPage"
+            component={MyPageStack}
+            options={{
+              tabBarLabel: '마이페이지',
+              tabBarIcon: ({ focused }) => (
+                <MyPageIcon
                   width={24}
                   height={24}
                   color={focused ? colors.primary.main : colors.icon.default}
