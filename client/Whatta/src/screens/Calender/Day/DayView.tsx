@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Pressable,
   Platform,
   Dimensions,
+  Alert,
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -29,6 +30,9 @@ import { bus, EVENT } from '@/lib/eventBus'
 import axios from 'axios'
 import { token } from '@/lib/token'
 import { refreshTokens } from '@/api/auth'
+import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
+import CheckOff from '@/assets/icons/check_off.svg'
+import CheckOn from '@/assets/icons/check_on.svg'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -191,6 +195,83 @@ export default function DayView() {
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
   const ROW_H = 48
+
+  // 라벨
+  const [labelList, setLabelList] = useState([])
+  const fetchLabels = async () => {
+    try {
+      const res = await http.get('/user/setting/label')
+      const labels = res.data?.data?.labels ?? []
+      setLabelList(labels)
+    } catch (err) {
+      console.error('❌ 라벨 조회 실패:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchLabels()
+  }, [])
+
+  // Task 팝업 상태
+  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
+  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [popupVisible, setPopupVisible] = useState(false)
+
+  // Task 상세 조회
+  async function fetchTaskDetail(taskId: string) {
+    const res = await http.get(`/task/${taskId}`)
+    return res.data.data
+  }
+
+  async function handleTaskPress(taskId: string) {
+    try {
+      const detail = await fetchTaskDetail(taskId)
+      setSelectedTask(detail)
+      setPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }
+
+  // taskId 로 서버에서 Task 상세 조회해서 팝업 열기
+  const openTaskPopupFromApi = async (taskId: string) => {
+    try {
+      const res = await http.get(`/task/${taskId}`)
+      const data = res.data?.data
+      if (!data) return
+
+      setTaskPopupId(data.id)
+      setTaskPopupTask({
+        id: data.id,
+        title: data.title ?? '',
+        content: data.content ?? '',
+        labels: data.labels ?? [],
+        completed: data.completed ?? false,
+        placementDate: data.placementDate,
+        placementTime: data.placementTime,
+        dueDateTime: data.dueDateTime ?? null,
+      })
+
+      setTaskPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }
+  const popupInitialDate = useMemo(() => {
+    return taskPopupTask?.placementDate
+      ? new Date(taskPopupTask.placementDate)
+      : undefined
+  }, [taskPopupTask?.placementDate])
+
+  const popupInitialTime = useMemo(() => {
+    return taskPopupTask?.placementTime
+      ? new Date(`2020-01-01T${taskPopupTask.placementTime}`)
+      : undefined
+  }, [taskPopupTask?.placementTime])
 
   useEffect(() => {
     const updateNowTop = (scrollToCenter = false) => {
@@ -360,7 +441,7 @@ export default function DayView() {
       const target = checks.find((c) => c.id === id)
       if (!target) return
 
-      await http.put(`/task/${id}`, {
+      await http.patch(`/task/${id}`, {
         completed: !target.done,
       })
 
@@ -462,6 +543,7 @@ export default function DayView() {
     bus.on('xdrag:drop', onDrop)
     return () => bus.off('xdrag:drop', onDrop)
   }, [anchorDate, fetchDailyEvents, gridScrollY, taskBoxRect, gridRect])
+  const popupTaskMemo = useMemo(() => taskPopupTask, [taskPopupTask])
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -642,13 +724,81 @@ export default function DayView() {
                   id={task.id}
                   title={task.title}
                   startHour={start}
-                  done={task.completed ?? false}
                   anchorDate={anchorDate}
+                  placementDate={task.placementDate}
+                  done={task.completed ?? false}
+                  onPress={() => openTaskPopupFromApi(task.id)}
                 />
               )
             })}
           </ScrollView>
         </View>
+
+        <TaskDetailPopup
+          visible={taskPopupVisible}
+          mode="edit"
+          taskId={taskPopupId ?? undefined}
+          initialTask={popupTaskMemo}
+          onClose={() => {
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          }}
+          onSave={async (form) => {
+            if (!taskPopupId) return
+
+            try {
+              const pad = (n: number) => String(n).padStart(2, '0')
+
+              let placementDate: string | null = null
+              let placementTime: string | null = null
+              const fieldsToClear: string[] = []
+
+              // 날짜
+              if (form.hasDate && form.date) {
+                const d = form.date
+                placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+              } else {
+                fieldsToClear.push('placementDate')
+              }
+
+              // 시간
+              if (form.hasTime && form.time) {
+                const t = form.time
+                placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`
+              } else {
+                fieldsToClear.push('placementTime')
+              }
+
+              // PATCH 요청
+              await http.patch(`/task/${taskPopupId}`, {
+                title: form.title,
+                content: form.memo,
+                labelIds: form.labelIds,
+                placementDate,
+                placementTime,
+                fieldsToClear,
+              })
+
+              // 이벤트 전달 (월간/주간뷰까지 갱신)
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: { id: taskPopupId, date: anchorDate },
+              })
+
+              // 💥 DayView 화면 즉시 갱신
+              await fetchDailyEvents(anchorDate)
+
+              // 팝업 닫기
+              setTaskPopupVisible(false)
+              setTaskPopupId(null)
+              setTaskPopupTask(null)
+            } catch (err) {
+              console.error('❌ 테스크 수정 실패:', err)
+              Alert.alert('오류', '테스크를 저장하지 못했습니다.')
+            }
+          }}
+        />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
@@ -725,20 +875,28 @@ type DraggableTaskBoxProps = {
   id: string
   title: string
   startHour: number
+  placementDate?: string
   done?: boolean
   anchorDate: string
+  onPress?: () => void
 }
 
 function DraggableTaskBox({
   id,
   title,
   startHour,
+  placementDate,
   done: initialDone = false,
   anchorDate,
+  onPress,
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
   const [done, setDone] = useState(initialDone)
+
+  useEffect(() => {
+    translateY.value = withSpring(startHour * 60 * PIXELS_PER_MIN)
+  }, [startHour])
 
   const handleDrop = async (newTime: string) => {
     try {
@@ -808,47 +966,40 @@ function DraggableTaskBox({
           style,
         ]}
       >
+        {/* ✅ 체크박스 영역 */}
         <Pressable
           onPress={() => setDone((prev) => !prev)}
           style={{
-            width: 17,
-            height: 17,
-            borderWidth: 2,
-            borderColor: done ? '#333333' : '#333',
-            borderRadius: 3,
+            width: 18,
+            height: 18,
             marginRight: 12,
             justifyContent: 'center',
             alignItems: 'center',
-            backgroundColor: done ? '#333333' : '#FFFFFF00',
           }}
+          hitSlop={8}
         >
-          {done && (
-            <Text
-              style={{
-                color: '#FFFFFF',
-                fontWeight: 'bold',
-                fontSize: 13,
-                lineHeight: 16,
-              }}
-            >
-              ✓
-            </Text>
+          {done ? (
+            <CheckOn width={18} height={18} />
+          ) : (
+            <CheckOff width={18} height={18} />
           )}
         </Pressable>
-
-        <View>
+        {/* 제목 / 팝업 영역 */}
+        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={8}>
           <Text
+            numberOfLines={1}
             style={{
               color: done ? '#999' : '#000',
               fontWeight: 'bold',
               fontSize: 12,
-              marginBottom: 2,
               textDecorationLine: done ? 'line-through' : 'none',
             }}
           >
             {title}
           </Text>
-        </View>
+        </Pressable>
+
+        <View></View>
       </Animated.View>
     </GestureDetector>
   )
