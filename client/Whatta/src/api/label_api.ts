@@ -15,12 +15,12 @@ type CreateLabelRes = {
 }
 
 export async function getMyLabels(): Promise<Label[]> {
-  const { data } = await http.get<GetLabelsRes>('/api/user/setting/label')
+  const { data } = await http.get<GetLabelsRes>('/user/setting/label')
   return data?.data?.labels ?? []
 }
 
 export async function createLabel(title: string): Promise<Label> {
-  const { data } = await http.post<CreateLabelRes>('/api/user/setting/label', {
+  const { data } = await http.post<CreateLabelRes>('/user/setting/label', {
     title,
   })
   return data.data

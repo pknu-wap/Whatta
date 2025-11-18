@@ -978,7 +978,7 @@ export default function MonthView() {
   }
 
   const fetchMonthlyApi = async (ymStr: string): Promise<MonthlyPayload> => {
-    const res = await http.get('/api/calendar/monthly', { params: { month: ymStr } })
+    const res = await http.get('/calendar/monthly', { params: { month: ymStr } })
     const data = res.data?.data ?? {}
     return {
       days: (data.days ?? []) as MonthlyDay[],

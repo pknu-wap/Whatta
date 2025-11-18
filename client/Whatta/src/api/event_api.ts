@@ -28,7 +28,7 @@ type CreateEventResponse<Data = any> = {
 }
 
 export async function createEvent(payload: CreateEventPayload) {
-  const res = await http.post<CreateEventResponse>('/api/event', payload)
+  const res = await http.post<CreateEventResponse>('/event', payload)
   const raw = res.data
   const eventId =
     (raw as any)?.data?.id ??
@@ -45,7 +45,7 @@ export async function createEvent(payload: CreateEventPayload) {
 }
 
 export async function getEvent(eventId: string) {
-  const res = await http.get(`/api/event/${eventId}`)
+  const res = await http.get(`/event/${eventId}`)
   //console.log('📥 getEvent detail:', JSON.stringify(res.data, null, 2))
   return res.data
 }
@@ -62,7 +62,7 @@ export const monthRange = (ym: string) => {
 
 // 2. Task 조회
 export async function fetchTasksRaw(ym: string): Promise<any[]> {
-  const res = await http.get('/api/task', {
+  const res = await http.get('/task', {
     params: { month: ym }, // 백엔드가 month 파라미터 안 쓰면 이 줄은 빼도 됩니다
   })
 
