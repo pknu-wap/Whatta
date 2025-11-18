@@ -989,16 +989,17 @@ function DraggableTaskBox({
 
   const handleDrop = async (newTime: string) => {
     try {
-      await http.put(`/task/${id}`, {
-        placementDate: anchorDate, // 이 달/날짜 집계 기준
+      // PUT → PATCH 로 변경 + date 제거 (edit 로직과 동일하게)
+      await http.patch(`/task/${id}`, {
+        placementDate: anchorDate,
         placementTime: newTime,
-        date: anchorDate, // 서버가 date를 쓰면 대비용(무해)
       })
+
       bus.emit('calendar:mutated', {
         op: 'update',
         item: { id, isTask: true, date: anchorDate },
       })
-      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) }) // anchorDate가 scope에 없으면 prop/인자로 전달
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
     } catch (err: any) {
       console.error('❌ 테스크 시간 이동 실패:', err.message)
     }
