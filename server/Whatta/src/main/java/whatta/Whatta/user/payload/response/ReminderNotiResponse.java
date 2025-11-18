@@ -3,7 +3,7 @@ package whatta.Whatta.user.payload.response;
 import lombok.Builder;
 
 @Builder
-public record ReminderResponse(
+public record ReminderNotiResponse(
         String id,
 
         int day,

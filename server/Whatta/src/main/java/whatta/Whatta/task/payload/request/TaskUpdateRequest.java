@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import lombok.Getter;
 import whatta.Whatta.global.repeat.payload.RepeatRequest;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,5 +33,5 @@ public class TaskUpdateRequest {
 
     private List<String> fieldsToClear; //null로 필드 초기화
 
-
+    private ReminderNoti reminderNoti;
 }

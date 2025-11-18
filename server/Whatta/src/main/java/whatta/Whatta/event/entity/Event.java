@@ -8,8 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -56,6 +56,9 @@ public class Event {
 
     @NotNull
     private String colorKey;
+
+    @Builder.Default
+    private ReminderNoti reminderNotiAt = null;
 
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

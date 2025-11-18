@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.notification.service.ScheduledNotificationService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -29,6 +30,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
+    private final ScheduledNotificationService scheduledNotiService;
 
     //task 생성
     public TaskResponse createTask(String userId, TaskCreateRequest request) {
@@ -72,6 +74,8 @@ public class TaskService {
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
+        //알림 추가
+        scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -110,6 +114,7 @@ public class TaskService {
         if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
         if(request.getSortNumber() != null) builder.sortNumber(
                 (Boolean.TRUE.equals(request.getCompleted())? 0L : request.getSortNumber()));
+        if(request.getReminderNoti() != null) builder.reminderNotiAt(request.getReminderNoti());
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
@@ -137,6 +142,9 @@ public class TaskService {
                     case "repeat":
                         builder.repeat(null);
                         break;
+                    case "reminderNoti":
+                        builder.reminderNotiAt(null);
+                        break;
                 }
             }
         }
@@ -144,10 +152,10 @@ public class TaskService {
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
+        //알림 수정
+        scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
-
-
     }
 
     //task 삭제

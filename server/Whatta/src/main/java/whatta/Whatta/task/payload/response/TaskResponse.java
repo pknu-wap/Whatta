@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 import whatta.Whatta.global.label.payload.LabelsResponse;
 import whatta.Whatta.global.repeat.payload.RepeatResponse;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +29,5 @@ public class TaskResponse {
     private final Long sortNumber;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
-
-
+    private final ReminderNoti reminderNoti;
 }
