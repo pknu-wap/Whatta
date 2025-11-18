@@ -103,7 +103,7 @@ const addDays = (iso: string, d: number) => {
 const startOfWeek = (iso: string) => {
   const [y, m, dd] = iso.split('-').map(Number)
   const base = new Date(y, m - 1, dd)
-  const wd = base.getDay() // 0:일
+  const wd = base.getDay()
   const s = new Date(base.getFullYear(), base.getMonth(), base.getDate() - wd)
   return `${s.getFullYear()}-${pad2(s.getMonth() + 1)}-${pad2(s.getDate())}`
 }
@@ -118,11 +118,16 @@ const ROW_H = 48
 const PIXELS_PER_HOUR = ROW_H
 const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 
+// 1일(24시간)의 전체 높이(px)
+const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 50
 
+const SIDE_PADDING = 16 * 2  // ← 좌우 여백 합 = 32
 const getDayColWidth = (count: number) =>
-  (SCREEN_W - TIME_COL_W) / (count > 0 ? count : 7)
+  (SCREEN_W - TIME_COL_W - SIDE_PADDING) / (count > 0 ? count : 7)
+
 
 let prevLayoutMap: Record<string, LayoutedEvent> = {}
 
@@ -226,7 +231,6 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
     const ev = sorted[i]
     if (used.has(ev.id)) continue
 
-    // 완전히 동일 시간대 → n등분
     const sameGroup = sorted.filter(
       (e) => e.startMin === ev.startMin && e.endMin === ev.endMin,
     )
@@ -246,7 +250,6 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
       continue
     }
 
-    // 부분 겹침
     const overlappingGroup = sorted.filter(
       (other) =>
         other.id !== ev.id &&
@@ -390,6 +393,7 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
 /* Task 시간 파싱 헬퍼 */
 /* -------------------------------------------------------------------------- */
 
+
 function getTaskTime(t: any): string {
   if (t?.placementTime && typeof t.placementTime === 'string') {
     return t.placementTime
@@ -403,8 +407,41 @@ function getTaskTime(t: any): string {
   return '00:00:00'
 }
 
+/**
+ * 서버 TaskUpdateRequest 스펙에 맞는 payload 생성 헬퍼
+ */
+function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) {
+  if (!task) return overrides
+
+  const labels =
+    Array.isArray(task.labels)
+      ? task.labels.map((l: any) =>
+          typeof l === 'number' ? l : l.id ?? l.labelId ?? l,
+        )
+      : undefined
+
+  const base: any = {
+    title: task.title,
+    content: task.content,
+    completed: task.completed,
+    placementDate: task.placementDate,
+    placementTime: task.placementTime,
+    dueDateTime: task.dueDateTime,
+    sortNumber: task.sortNumber,
+  }
+
+  if (labels) base.labels = labels
+  if (task.repeat) base.repeat = task.repeat
+  if (task.endDate) base.endDate = task.endDate
+
+  return {
+    ...base,
+    ...overrides,
+  }
+}
+
 /* -------------------------------------------------------------------------- */
-/* TaskGroupBox (같은 시간대 Task 묶음) */
+/* TaskGroupBox */
 /* -------------------------------------------------------------------------- */
 
 function TaskGroupBox({
@@ -430,6 +467,8 @@ function TaskGroupBox({
   const topBase = startHour * 60 * PIXELS_PER_MIN
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
+  const height = ROW_H
+  const maxBottom = 24 * ROW_H - height
   const [expanded, setExpanded] = useState(false)
   const isActiveDrag = useSharedValue(false)
 
@@ -448,9 +487,8 @@ function TaskGroupBox({
         const snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
-        const baseMin = startHour * 60
-        const deltaMin = snappedY / PIXELS_PER_MIN
-        let newStart = baseMin + deltaMin
+        const actualTopPx = topBase + snappedY
+        let newStart = actualTopPx / PIXELS_PER_MIN
         if (newStart < 0) newStart = 0
         if (newStart > 24 * 60 - 5) newStart = 24 * 60 - 5
 
@@ -460,18 +498,17 @@ function TaskGroupBox({
         const newTime = `${fmt(h)}:${fmt(m)}:00`
 
         const newDateISO = addDays(dateISO, dayOffset)
-        const newDueDateTime = `${newDateISO}T${newTime}`
 
         await Promise.all(
           localTasks.map(async (t: any) => {
             const taskId = String(t.id)
             try {
-              await http.patch(`/task/${taskId}`, {
-  placementDate: newDateISO,
-  placementTime: newTime,
-  dueDateTime: newDueDateTime,
-})
+              const payload = buildTaskUpdatePayload(t, {
+                placementDate: newDateISO,
+                placementTime: newTime,
+              })
 
+              await http.patch(`/task/${taskId}`, payload)
 
               bus.emit('calendar:mutated', {
                 op: 'update',
@@ -479,7 +516,6 @@ function TaskGroupBox({
                   id: taskId,
                   placementDate: newDateISO,
                   placementTime: newTime,
-                  dueDateTime: newDueDateTime,
                   date: newDateISO,
                   startDate: newDateISO,
                 },
@@ -507,7 +543,7 @@ function TaskGroupBox({
   )
 
   const longPress = Gesture.LongPress()
-    .minDuration(2000)
+    .minDuration(250)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -516,18 +552,43 @@ function TaskGroupBox({
     })
 
   const drag = Gesture.Pan()
-    .onChange((e) => {
-      if (!isActiveDrag.value) return
-      translateY.value += e.changeY
-      translateX.value += e.changeX
-    })
-    .onEnd(() => {
-      if (!isActiveDrag.value) return
-      const dayOffset = Math.round(translateX.value / dayColWidth)
-      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-      isActiveDrag.value = false
-      runOnJS(handleDropGroup)(translateY.value, dayOffset)
-    })
+  .onChange((e) => {
+    if (!isActiveDrag.value) return
+
+    let nextY = translateY.value + e.changeY
+
+    // 드래그 Y 제한 (0~24시 범위 보장)
+    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+
+    const minY = -topBase
+    const maxY = DAY_PX - topBase - height
+
+    if (nextY < minY) nextY = minY
+    if (nextY > maxY) nextY = maxY
+    translateY.value = nextY
+
+    translateX.value += e.changeX
+  })
+  .onEnd(() => {
+    if (!isActiveDrag.value) return
+
+    const SNAP = 5 * PIXELS_PER_MIN
+    let snappedY = Math.round(translateY.value / SNAP) * SNAP
+
+    // 드롭 시에도 0~24시 범위로 한 번 더 clamp
+    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+    const minY = -topBase
+    const maxY = DAY_PX - topBase - height
+    if (snappedY < minY) snappedY = minY
+    if (snappedY > maxY) snappedY = maxY
+
+    translateY.value = withSpring(snappedY)
+
+    const dayOffset = Math.round(translateX.value / dayColWidth)
+    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+    isActiveDrag.value = false
+    runOnJS(handleDropGroup)(snappedY, dayOffset)
+  })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
@@ -563,16 +624,13 @@ function TaskGroupBox({
     const taskDateISO = String(base).slice(0, 10)
 
     try {
-      // 전체 Task 조회
-const full = await http.get(`/task/${taskId}`);
-const task = full.data.data;
+      const full = await http.get(`/task/${taskId}`)
+      const task = full.data.data
 
-// 전체 JSON + completed 반영해서 PATCH
-await http.patch(`/task/${taskId}`, {
-  ...task,
-  completed,
-});
-
+      await http.patch(`/task/${taskId}`, {
+        ...task,
+        completed,
+      })
 
       onLocalChange?.({ id: String(taskId), dateISO: taskDateISO, completed })
 
@@ -599,57 +657,59 @@ await http.patch(`/task/${taskId}`, {
           !expanded && { justifyContent: 'center' },
         ]}
       >
-        <Pressable onPress={toggleExpand} style={S.groupHeaderRow}>
-          <View
-            style={[
-              S.groupHeaderArrow,
-              expanded && { transform: [{ rotate: '180deg' }] },
-            ]}
-          />
-          <Text style={S.groupHeaderText}>할일</Text>
-        </Pressable>
+        <View style={S.taskGroupInner}>
+          <Pressable onPress={toggleExpand} style={S.groupHeaderRow}>
+            <View
+              style={[
+                S.groupHeaderArrow,
+                expanded && { transform: [{ rotate: '180deg' }] },
+              ]}
+            />
+            <Text style={S.groupHeaderText}>할일</Text>
+          </Pressable>
 
-        {expanded && (
-          <View style={S.groupList}>
-            {localTasks.map((t: any) => (
-              <Pressable
-                key={String(t.id)}
-                style={S.groupTaskRow}
-                onPress={() => toggleTaskDone(t.id)}
-              >
-                <View
-                  style={[
-                    S.groupTaskCheckbox,
-                    t.completed && S.groupTaskCheckboxOn,
-                  ]}
+          {expanded && (
+            <View style={S.groupList}>
+              {localTasks.map((t: any) => (
+                <Pressable
+                  key={String(t.id)}
+                  style={S.groupTaskRow}
+                  onPress={() => toggleTaskDone(t.id)}
                 >
-                  {t.completed && (
-                    <Text style={S.groupTaskCheckmark}>✓</Text>
-                  )}
-                </View>
-                <Text
-                  style={[
-                    S.groupTaskTitle,
-                    t.completed && {
-                      color: '#999999',
-                      textDecorationLine: 'line-through',
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {t.title}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+                  <View
+                    style={[
+                      S.groupTaskCheckbox,
+                      t.completed && S.groupTaskCheckboxOn,
+                    ]}
+                  >
+                    {t.completed && (
+                      <Text style={S.groupTaskCheckmark}>✓</Text>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      S.groupTaskTitle,
+                      t.completed && {
+                        color: '#999999',
+                        textDecorationLine: 'line-through',
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {t.title}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
       </Animated.View>
     </GestureDetector>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/* DraggableTaskBox (단일 타임라인 Task) */
+/* DraggableTaskBox */
 /* -------------------------------------------------------------------------- */
 
 type DraggableTaskBoxProps = {
@@ -680,6 +740,8 @@ function DraggableTaskBox({
   const topBase = startMin * PIXELS_PER_MIN
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
+  const height = ROW_H - 6
+  const maxBottom = 24 * ROW_H - height
   const [done, setDone] = useState(initialDone)
   const isActiveDrag = useSharedValue(false)
 
@@ -687,16 +749,11 @@ function DraggableTaskBox({
     const next = !done
     setDone(next)
     try {
-      // 전체 Task 조회
-const full = await http.get(`/task/${id}`);
-const task = full.data.data;
+      const full = await http.get(`/task/${id}`)
+      const task = full.data.data
+      const payload = buildTaskUpdatePayload(task, { completed: next })
 
-// 전체 JSON + completed 반영해서 PATCH
-await http.patch(`/task/${id}`, {
-  ...task,
-  completed: next,
-});
-
+      await http.patch(`/task/${id}`, payload)
 
       onLocalChange?.({ id, dateISO, completed: next })
 
@@ -718,29 +775,32 @@ await http.patch(`/task/${id}`, {
   const handleDrop = async (movedY: number, dayOffset: number) => {
     try {
       const SNAP = 5 * PIXELS_PER_MIN
-      const snappedY = Math.round(movedY / SNAP) * SNAP
-      translateY.value = withSpring(snappedY)
+const snappedY = Math.round(movedY / SNAP) * SNAP
+translateY.value = withSpring(snappedY)
 
-      const baseMin = startHour * 60
-      const deltaMin = snappedY / PIXELS_PER_MIN
-      let newStart = baseMin + deltaMin
-      if (newStart < 0) newStart = 0
-      if (newStart > 24 * 60 - 5) newStart = 24 * 60 - 5
+const actualTopPx = topBase + snappedY
+let newStart = actualTopPx / PIXELS_PER_MIN
 
-      const h = Math.floor(newStart / 60)
-      const m = Math.round(newStart % 60)
-      const fmt = (n: number) => String(n).padStart(2, '0')
-      const newTime = `${fmt(h)}:${fmt(m)}:00`
+// 24시간 범위 안에서만 이동
+if (newStart < 0) newStart = 0
+if (newStart > 24 * 60 - 1) newStart = 24 * 60 - 1
 
-      const newDateISO = addDays(dateISO, dayOffset)
-      const newDueDateTime = `${newDateISO}T${newTime}`
+const h = Math.floor(newStart / 60)
+const m = Math.floor(newStart % 60)
+const fmt = (n: number) => String(n).padStart(2, '0')
 
-      await http.patch(`/task/${id}`, {
+const newTime = `${fmt(h)}:${fmt(m)}:00`
+
+const newDateISO = addDays(dateISO, dayOffset)
+
+const full = await http.get(`/task/${id}`)
+const task = full.data.data
+const payload = buildTaskUpdatePayload(task, {
   placementDate: newDateISO,
   placementTime: newTime,
-  dueDateTime: newDueDateTime,
 })
 
+await http.patch(`/task/${id}`, payload)
 
       bus.emit('calendar:mutated', {
         op: 'update',
@@ -748,13 +808,12 @@ await http.patch(`/task/${id}`, {
           id,
           placementDate: newDateISO,
           placementTime: newTime,
-          dueDateTime: newDueDateTime,
           date: newDateISO,
           startDate: newDateISO,
         },
       })
     } catch (err: any) {
-      console.error('❌ Task 이동 실패:', err.message)
+      console.log("❌ Task 이동 실패 디버그:", err.response?.data || err.message)
     }
   }
 
@@ -763,7 +822,7 @@ await http.patch(`/task/${id}`, {
   }
 
   const longPress = Gesture.LongPress()
-    .minDuration(2000)
+    .minDuration(250)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -772,18 +831,43 @@ await http.patch(`/task/${id}`, {
     })
 
   const drag = Gesture.Pan()
-    .onChange((e) => {
-      if (!isActiveDrag.value) return
-      translateY.value += e.changeY
-      translateX.value += e.changeX
-    })
-    .onEnd(() => {
-      if (!isActiveDrag.value) return
-      const dayOffset = Math.round(translateX.value / dayColWidth)
-      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-      isActiveDrag.value = false
-      runOnJS(handleDrop)(translateY.value, dayOffset)
-    })
+  .onChange((e) => {
+    if (!isActiveDrag.value) return
+
+    let nextY = translateY.value + e.changeY
+
+    // 드래그 Y 제한 (0~24시 범위 보장)
+    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+
+    const minY = -topBase
+    const maxY = DAY_PX - topBase - height
+
+    if (nextY < minY) nextY = minY
+    if (nextY > maxY) nextY = maxY
+    translateY.value = nextY
+
+    translateX.value += e.changeX
+  })
+  .onEnd(() => {
+    if (!isActiveDrag.value) return
+
+    const SNAP = 5 * PIXELS_PER_MIN
+    let snappedY = Math.round(translateY.value / SNAP) * SNAP
+
+    // 드롭 시에도 0~24시 범위로 한 번 더 clamp
+    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+    const minY = -topBase
+    const maxY = DAY_PX - topBase - height
+    if (snappedY < minY) snappedY = minY
+    if (snappedY > maxY) snappedY = maxY
+
+    translateY.value = withSpring(snappedY)
+
+    const dayOffset = Math.round(translateX.value / dayColWidth)
+    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+    isActiveDrag.value = false
+    runOnJS(handleDrop)(snappedY, dayOffset)
+  })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
@@ -795,22 +879,23 @@ await http.patch(`/task/${id}`, {
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View style={[S.taskBox, style]}>
-        <Pressable 
-  onPress={toggleDone}
-  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
->
-  <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
-    {done && <Text style={S.taskCheckmark}>✓</Text>}
-  </View>
+        <View style={S.taskInnerBox}>
+          <Pressable
+            onPress={toggleDone}
+            style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+          >
+            <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
+              {done && <Text style={S.taskCheckmark}>✓</Text>}
+            </View>
 
-  <Text
-    style={[S.taskTitle, done && S.taskTitleDone]}
-    numberOfLines={0}
-  >
-    {title}
-  </Text>
-</Pressable>
-
+            <Text
+              style={[S.taskTitle, done && S.taskTitleDone]}
+              numberOfLines={0}
+            >
+              {title}
+            </Text>
+          </Pressable>
+        </View>
       </Animated.View>
     </GestureDetector>
   )
@@ -854,7 +939,7 @@ function DraggableFlexalbeEvent({
   const durationMin = endMin - startMin
   const height = (durationMin / 60) * ROW_H
   const topBase = (startMin / 60) * ROW_H
-
+  const baseTop = startMin * PIXELS_PER_MIN
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
   const isActiveDrag = useSharedValue(false)
@@ -870,23 +955,37 @@ function DraggableFlexalbeEvent({
         const snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
-        const deltaMin = snappedY / PIXELS_PER_MIN
         const duration = endMin - startMin
 
-        let newStart = startMin + deltaMin
+        // 1) 드래그 후 실제 Y 좌표 기반 정확한 start 계산 (분 단위, 소수점 반올림)
+        const topBasePx = (startMin / 60) * ROW_H
+        const actualTopPx = topBasePx + snappedY
+        let newStart = Math.round(actualTopPx / PIXELS_PER_MIN)
+
+        // 2) 0분 ~ 1440분(24시) 범위 안으로 clamp
+        const DAY_MIN = 24 * 60
         if (newStart < 0) newStart = 0
-        if (newStart + duration > 24 * 60) {
-          newStart = 24 * 60 - duration
+        if (newStart + duration > DAY_MIN) {
+          newStart = DAY_MIN - duration
         }
-        const newEnd = newStart + duration
 
-        const fmt = (min: number) =>
-          `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(
-            min % 60,
-          ).padStart(2, '0')}:00`
+        // 3) 새로운 종료시간 계산 (정확히 24:00이면 23:59:59로 보정)
+        let newEnd = newStart + duration
+        if (newEnd > DAY_MIN) newEnd = DAY_MIN
 
-        const nextStartTime = fmt(newStart)
-        const nextEndTime = fmt(newEnd)
+        const fmtTime = (min: number, isEnd: boolean) => {
+          // 24:00 이상값은 모두 23:59:59로 보정
+          if (min >= DAY_MIN && isEnd) {
+            return '23:59:59'
+          }
+          if (min < 0) min = 0
+          const h = Math.floor(min / 60)
+          const m = Math.floor(min % 60)
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`
+        }
+
+        const nextStartTime = fmtTime(newStart, false)
+        const nextEndTime = fmtTime(newEnd, true)
 
         const newDateISO = addDays(dateISO, dayOffset)
 
@@ -913,7 +1012,7 @@ function DraggableFlexalbeEvent({
   )
 
   const longPress = Gesture.LongPress()
-    .minDuration(2000)
+    .minDuration(250)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -921,24 +1020,53 @@ function DraggableFlexalbeEvent({
       runOnJS(triggerHaptic)()
     })
 
+    const eventHeight = (endMin - startMin) * PIXELS_PER_MIN
+    const maxBottom =
+      24 * 60 * PIXELS_PER_MIN - eventHeight
+
   const drag = Gesture.Pan()
-    .onChange((e) => {
-      if (!isActiveDrag.value) return
-      translateY.value += e.changeY
-      translateX.value += e.changeX
-    })
-    .onEnd(() => {
-      if (!isActiveDrag.value) return
-      const dayOffset = Math.round(translateX.value / dayColWidth)
-      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-      isActiveDrag.value = false
-      runOnJS(handleDrop)(translateY.value, dayOffset)
-    })
+  .onChange((e) => {
+    if (!isActiveDrag.value) return
+
+    let nextY = translateY.value + e.changeY
+
+    // 드래그 Y 제한 (0~24시 범위 보장)
+    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+
+    const minY = -topBase
+    const maxY = DAY_PX - topBase - height
+
+    if (nextY < minY) nextY = minY
+    if (nextY > maxY) nextY = maxY
+    translateY.value = nextY
+
+    translateX.value += e.changeX
+  })
+  .onEnd(() => {
+    if (!isActiveDrag.value) return
+
+    const SNAP = 5 * PIXELS_PER_MIN
+    let snappedY = Math.round(translateY.value / SNAP) * SNAP
+
+    // 드롭 시에도 0~24시 범위로 한 번 더 clamp
+    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+    const minY = -topBase
+    const maxY = DAY_PX - topBase - height
+    if (snappedY < minY) snappedY = minY
+    if (snappedY > maxY) snappedY = maxY
+
+    translateY.value = withSpring(snappedY)
+
+    const dayOffset = Math.round(translateX.value / dayColWidth)
+    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+    isActiveDrag.value = false
+    runOnJS(handleDrop)(snappedY, dayOffset)
+  })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
-  const colGap = 3
+  const colGap = 1
   const innerWidth = dayColWidth - colGap * 2
   let width = innerWidth / Math.max(columnsTotal, 1)
   let left = colGap + width * column
@@ -996,6 +1124,7 @@ export default function WeekView() {
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
 
   const gridScrollRef = useRef<ScrollView>(null)
+  const scrollOffsetRef = useRef(0)
 
   const SINGLE_HEIGHT = 22
 
@@ -1074,43 +1203,32 @@ export default function WeekView() {
         const allDayEvents = payload.allDayEvents || []
 
         const timelineEvents: DayTimelineEvent[] = timed
-          .filter(
-            (e: any) =>
-              !e.isSpan &&
-              e.clippedEndTime !== '23:59:59.999999999' &&
-              e.clippedStartTime &&
-              e.clippedEndTime,
-          )
+          .filter((e: any) => !e.isSpan)
           .map((e: any) => {
-            const [sh, sm] = e.clippedStartTime.split(':').map(Number)
-            const [eh, em] = e.clippedEndTime.split(':').map(Number)
-            const startMin = sh * 60 + sm
-            const endMin = eh * 60 + em
-            const colorKey =
-              (e.colorKey && String(e.colorKey).replace('#', '')) ||
-              'B04FFF'
+            const sTime = e.clippedStartTime || e.startTime
+            const eTime = e.clippedEndTime || e.endTime
+            if (!sTime || !eTime) return null
+
+            const [sh, sm] = sTime.split(':').map(Number)
+            const [eh, em] = eTime.split(':').map(Number)
+
             return {
               id: String(e.id),
               title: e.title,
               place: e.place ?? '',
-              startMin,
-              endMin,
-              color: `#${colorKey}`,
+              startMin: sh * 60 + sm,
+              endMin: eh * 60 + em,
+              color: `#${(e.colorKey ?? 'B04FFF').replace('#', '')}`,
             }
           })
+          .filter(Boolean) as DayTimelineEvent[]
 
         const spanEvents = [
-          ...timed.filter(
-            (e: any) =>
-              e.isSpan ||
-              (e.startDate &&
-                e.endDate &&
-                e.startDate.slice(0, 10) !== e.endDate.slice(0, 10)),
-          ),
-          ...timed.filter(
-            (e: any) =>
-              e.clippedEndTime === '23:59:59.999999999',
-          ),
+          ...timed.filter((e: any) => {
+            const s = e.startDate?.slice(0, 10)
+            const ed = e.endDate?.slice(0, 10)
+            return e.isSpan || (s && ed && s !== ed)
+          }),
           ...allDaySpan,
           ...allDayEvents,
         ]
@@ -1246,31 +1364,30 @@ export default function WeekView() {
     maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
   const dayColWidth = getDayColWidth(weekDates.length)
+
+
+  
   const toggleSpanTaskCheck = async (
     taskId: string,
     prevDone: boolean,
     dateISO: string,
   ) => {
     try {
-      // 1) 서버에서 Task 전체 데이터 조회
-      const full = await http.get(`/task/${taskId}`)
-      const task = full.data.data
-
       const nextCompleted = !prevDone
 
-      // 2) completed만 바꾼 전체 Task JSON으로 PATCH
-      await http.patch(`/task/${taskId}`, {
-        ...task,
+      const full = await http.get(`/task/${taskId}`)
+      const task = full.data.data
+      const payload = buildTaskUpdatePayload(task, {
         completed: nextCompleted,
       })
 
-      // 3) WeekView 로컬 상태 업데이트
+      await http.patch(`/task/${taskId}`, payload)
+
       setWeekData((prev) => {
         const copy = { ...prev }
         const bucket = copy[dateISO]
         if (!bucket) return copy
 
-        // spanEvents 안에 들어간 done 값 갱신
         bucket.spanEvents = bucket.spanEvents.map((e: any) => {
           if (String(e.id) === String(taskId)) {
             return { ...e, done: nextCompleted }
@@ -1278,7 +1395,6 @@ export default function WeekView() {
           return e
         })
 
-        // checks(하루/플로팅 task)도 같이 갱신
         bucket.checks = bucket.checks.map((c) => {
           if (String(c.id) === String(taskId)) {
             return { ...c, done: nextCompleted }
@@ -1289,7 +1405,6 @@ export default function WeekView() {
         return copy
       })
 
-      // 4) 다른 뷰들(Day/Month)에게도 변경 알림
       bus.emit('calendar:mutated', {
         op: 'update',
         item: {
@@ -1340,7 +1455,6 @@ export default function WeekView() {
       <ScreenWithSidebar mode="overlay">
         <GestureDetector gesture={pinchGesture}>
           <Animated.View style={[S.screen, animatedStyle]}>
-            {/* 요일 헤더 */}
             <FullBleed padH={0}>
               <View style={S.weekHeaderRow}>
                 <View style={S.weekHeaderTimeCol} />
@@ -1382,7 +1496,6 @@ export default function WeekView() {
               </View>
             </FullBleed>
 
-            {/* 상단 span bar */}
             <FullBleed padH={0}>
               <View style={S.topArea}>
                 <View style={[S.multiDayArea, { height: 150 }]}>
@@ -1403,73 +1516,74 @@ export default function WeekView() {
                       const isTask = s.color === '#000000'
 
                       if (isTask) {
-  return (
-    <Pressable
-  key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
-  onPress={() =>
-    toggleSpanTaskCheck(
-      String(s.id),
-      !!s.done,
-      weekDates[s.startIdx], 
-    )
-  }
-  style={{
-    position: 'absolute',
-    top: s.row * (SINGLE_HEIGHT + 4),
-    left,
-    width,
-    height: SINGLE_HEIGHT,
-    borderWidth: 1,
-    borderColor: '#000000',
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 6,
-  }}
->
-      <View
-        style={{
-          width: 10,
-          height: 10,
-          borderWidth: 1,
-          borderColor: '#000000',
-          marginRight: 5,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: s.done ? '#000000' : '#FFFFFF',
-        }}
-      >
-        {s.done && (
-          <Text
-            style={{
-              color: '#FFFFFF',
-              fontSize: 7,
-              fontWeight: '700',
-            }}
-          >
-            ✓
-          </Text>
-        )}
-      </View>
-      <Text
-    style={{
-      color: s.done ? '#888888' : '#000000',
-      fontSize: 11,
-      fontWeight: '700',
-      maxWidth: '90%',
-      includeFontPadding: false,
-      textDecorationLine: s.done ? 'line-through' : 'none',
-    }}
-    numberOfLines={1}
-  >
-    {s.title}
-  </Text>
-</Pressable>
-  )
-}
-
+                        return (
+                          <Pressable
+                            key={`${s.id}-${s.row}-${s.startIdx}-${s.endIdx}`}
+                            onPress={() =>
+                              toggleSpanTaskCheck(
+                                String(s.id),
+                                !!s.done,
+                                weekDates[s.startIdx],
+                              )
+                            }
+                            style={{
+                              position: 'absolute',
+                              top: s.row * (SINGLE_HEIGHT + 4),
+                              left,
+                              width,
+                              height: SINGLE_HEIGHT,
+                              borderWidth: 1,
+                              borderColor: '#000000',
+                              borderRadius: 3,
+                              backgroundColor: '#FFFFFF',
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'flex-start',
+                              paddingHorizontal: 6,
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderWidth: 1,
+                                borderColor: '#000000',
+                                marginRight: 5,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                backgroundColor: s.done ? '#000000' : '#FFFFFF',
+                              }}
+                            >
+                              {s.done && (
+                                <Text
+                                  style={{
+                                    color: '#FFFFFF',
+                                    fontSize: 7,
+                                    fontWeight: '700',
+                                  }}
+                                >
+                                  ✓
+                                </Text>
+                              )}
+                            </View>
+                            <Text
+                              style={{
+                                color: s.done ? '#888888' : '#000000',
+                                fontSize: 11,
+                                fontWeight: '700',
+                                maxWidth: '90%',
+                                includeFontPadding: false,
+                                textDecorationLine: s.done
+                                  ? 'line-through'
+                                  : 'none',
+                              }}
+                              numberOfLines={1}
+                            >
+                              {s.title}
+                            </Text>
+                          </Pressable>
+                        )
+                      }
 
                       const mainColor = s.color?.startsWith('#')
                         ? s.color
@@ -1552,15 +1666,17 @@ export default function WeekView() {
               </View>
             </FullBleed>
 
-            {/* 타임라인 */}
             <ScrollView
               ref={gridScrollRef}
+              onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                scrollOffsetRef.current = e.nativeEvent.contentOffset.y
+              }}
+              scrollEventThrottle={16}
               style={S.timelineScroll}
               contentContainerStyle={S.timelineContent}
               showsVerticalScrollIndicator={false}
             >
               <View style={{ flexDirection: 'row' }}>
-                {/* 시간 컬럼 */}
                 <View style={S.timeCol}>
                   {HOURS.map((h) => (
                     <View key={`hour-${h}`} style={S.timeRow}>
@@ -1577,11 +1693,11 @@ export default function WeekView() {
                   ))}
                 </View>
 
-                {/* 요일별 타임라인 */}
                 {weekDates.map((d) => {
                   const bucket = weekData[d] || {
                     timelineEvents: [],
-                    timedTasks: [],
+                    timedTasks:
+                      [],
                   }
                   const isTodayCol = d === today
                   const layoutEvents = layoutDayEvents(
@@ -1690,7 +1806,7 @@ export default function WeekView() {
                                   })
                                 }
                               }}
-                            />
+                                />
                           ) : (
                             <DraggableTaskBox
                               key={`${d}-${timeKey}-single-${list[0].id}`}
@@ -1724,7 +1840,7 @@ export default function WeekView() {
                                   })
                                 }
                               }}
-                            />
+                                />
                           )
                         },
                       )}
@@ -1834,11 +1950,11 @@ const S = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 2,
     justifyContent: 'flex-start',
-    shadowColor: '#000000',
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   },
   eventTitle: {
     color: '#FFFFFF',
@@ -1854,35 +1970,40 @@ const S = StyleSheet.create({
 
   taskBox: {
     position: 'absolute',
-    left: 4,
-    right: 4,
-    height: ROW_H - 6,
+    left: 1,
+    right: 1,
+    height: ROW_H,
+    borderRadius: 10,
+  },
+  taskInnerBox: {
+    flex: 1,
     backgroundColor: '#FFFFFF80',
     borderWidth: 0.4,
     borderColor: '#333333',
     borderRadius: 10,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    zIndex: 20,
   },
   taskGroupBox: {
     position: 'absolute',
-    left: 4,
-    right: 4,
-    minHeight: ROW_H - 6,
+    left: 1,
+    right: 1,
+    minHeight: ROW_H,
+    borderRadius: 10,
+
+    zIndex: 21,
+    overflow: 'visible',
+  },
+  taskGroupInner: {
+    flex: 1,
+    minHeight: ROW_H,
     backgroundColor: '#FFFFFF80',
     borderWidth: 0.4,
     borderColor: '#333333',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    zIndex: 21,
-    flexWrap: 'nowrap',
-    width: 'auto',
-    overflow: 'visible',
   },
 
   taskCheckbox: {
