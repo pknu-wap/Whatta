@@ -2,6 +2,7 @@ package whatta.Whatta.notification.service;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.global.repeat.Repeat;
 import whatta.Whatta.global.repeat.RepeatUnit;
@@ -16,6 +17,7 @@ import whatta.Whatta.user.payload.dto.ReminderNoti;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 @Service
 @AllArgsConstructor
@@ -131,5 +133,21 @@ public class ScheduledNotificationService {
             default:
                 throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
         }
+    }
+
+    //지금 시각 기준으로 울려야 하는 리마인드 알림들 조회
+    public List<ScheduledNotification> findDueReminders(LocalDateTime now) {
+        return scheduledNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
+    }
+
+    //알림 보낸 후 상태 업데이트
+    @Transactional
+    public void afterReminderSent(ScheduledNotification noti) {
+        //완료 표시
+        ScheduledNotification updated = noti.toBuilder()
+                .status(NotiStatus.COMPLETED)
+                .build();
+
+        scheduledNotiRepository.save(updated);
     }
 }

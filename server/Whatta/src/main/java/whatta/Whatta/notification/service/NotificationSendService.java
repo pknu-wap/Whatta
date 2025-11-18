@@ -28,6 +28,16 @@ public class NotificationSendService {
         );
     }
 
+    public void sendReminder(String userId, String title, String body, String targetId) {
+        FcmToken token = fcmTokenRepository.findByUserId(userId);
+
+        send(token.getFcmToken(), title, body, Map.of(
+                "type", "REMINDER",
+                "userId", userId,
+                "targetId", targetId
+        ));
+    }
+
     private void send(String token, String title, String body, Map<String, String> data) {
         Notification notification = Notification.builder()
                 .setTitle(title)
