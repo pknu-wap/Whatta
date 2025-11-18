@@ -21,6 +21,7 @@ import Animated, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useFocusEffect } from '@react-navigation/native'
 import { runOnJS } from 'react-native-reanimated'
+import * as Haptics from 'expo-haptics'
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
@@ -441,9 +442,9 @@ export default function DayView() {
       const target = checks.find((c) => c.id === id)
       if (!target) return
 
-      await http.patch(`/task/${id}`, {
-        completed: !target.done,
-      })
+    await http.patch(`/task/${id}`, {
+      completed: !target.done,
+    })
 
       bus.emit('calendar:mutated', { op: 'update', item: { id } })
     } catch (err: any) {
@@ -892,41 +893,63 @@ function DraggableTaskBox({
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
   const [done, setDone] = useState(initialDone)
+  const triggerHaptic = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+}
 
   useEffect(() => {
     translateY.value = withSpring(startHour * 60 * PIXELS_PER_MIN)
   }, [startHour])
 
-  const handleDrop = async (newTime: string) => {
+  
+ const handleDrop = async (newTime: string) => {
     try {
+      // placementDate/placementTime 모두 갱신 + 월간 invalidate
       await http.put(`/task/${id}`, {
-        placementDate: anchorDate, // 이 달/날짜 집계 기준
+        placementDate: anchorDate,
         placementTime: newTime,
-        date: anchorDate, // 서버가 date를 쓰면 대비용(무해)
+        date: anchorDate,
       })
+
       bus.emit('calendar:mutated', {
         op: 'update',
         item: { id, isTask: true, date: anchorDate },
       })
-      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) }) // anchorDate가 scope에 없으면 prop/인자로 전달
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
     } catch (err: any) {
       console.error('❌ 테스크 시간 이동 실패:', err.message)
     }
   }
 
+  // 롱프레스 후에만 드래그 허용
+  const hold = Gesture.LongPress()
+    .minDuration(250)
+    .onStart(() => {
+      runOnJS(triggerHaptic)()
+      dragEnabled.value = true
+    })
+
   const drag = Gesture.Pan()
     .onChange((e) => {
-      translateY.value += e.changeY
+      if (!dragEnabled.value) return
+
+      const maxY = 23 * 60 * PIXELS_PER_MIN // 24시 직전까지만
+      const nextY = translateY.value + e.changeY
+      translateY.value = Math.max(0, Math.min(maxY, nextY))
       translateX.value += e.changeX
     })
     .onEnd(() => {
+      if (!dragEnabled.value) return
+      dragEnabled.value = false
+
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+
       translateY.value = withSpring(snappedY)
       translateX.value = withSpring(0)
 
-      // ✅ 드롭 시 서버에 placementTime 업데이트
       const newMinutes = snappedY / PIXELS_PER_MIN
       const hour = Math.floor(newMinutes / 60)
       const min = Math.round(newMinutes % 60)
@@ -937,12 +960,17 @@ function DraggableTaskBox({
       runOnJS(handleDrop)(newTime)
     })
 
+
+  const composedGesture = Gesture.Simultaneous(hold, drag)
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
+    transform: [
+      { translateY: translateY.value + 2 },
+      { translateX: translateX.value },
+    ],
   }))
 
   return (
-    <GestureDetector gesture={drag}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
@@ -957,10 +985,6 @@ function DraggableTaskBox({
             paddingHorizontal: 16,
             flexDirection: 'row',
             alignItems: 'center',
-            //shadowColor: '#525252',
-            //shadowOffset: { width: 0, height: 0 },
-            //shadowOpacity: 0.25,
-            //shadowRadius: 5,
             zIndex: 20,
           },
           style,
@@ -1024,18 +1048,21 @@ function DraggableFlexalbeEvent({
   color,
   anchorDate,
 }: DraggableFlexalbeEventProps) {
+  const translateY = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
   const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
   const height = rawHeight - 2
   const offsetY = 1
-  const translateY = useSharedValue(0)
-  const dragStartY = useSharedValue(0)
+  const triggerHaptic = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+}
 
   const handleDrop = useCallback(async (movedY: number) => {
     draggingEventId = id
     try {
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
-      translateY.value = withSpring(snappedY) // 애니메이션은 UI thread
+      translateY.value = withSpring(snappedY)
 
       const deltaMin = snappedY / PIXELS_PER_MIN
       const newStart = startMin + deltaMin
@@ -1049,8 +1076,8 @@ function DraggableFlexalbeEvent({
       const dateISO = anchorDate
 
       await http.put(`/event/${id}`, {
-        startDate: dateISO,
-        endDate: dateISO,
+        startDate: anchorDate,
+        endDate: anchorDate,
         startTime: fmt(newStart),
         endTime: fmt(newEnd),
       })
@@ -1071,23 +1098,51 @@ function DraggableFlexalbeEvent({
     }
   }, [])
 
+  const hold = Gesture.LongPress()
+    .minDuration(250)
+    .onStart(() => {
+      runOnJS(triggerHaptic)()
+      dragEnabled.value = true
+    })
+
   const drag = Gesture.Pan()
     .onChange((e) => {
-      translateY.value += e.changeY
+      if (!dragEnabled.value) return
+const totalHeight = 24 * 60 * PIXELS_PER_MIN
+const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
+const minTop = 0
+const maxTop = totalHeight - rawHeight
+const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+translateY.value = clampedTop - startMin * PIXELS_PER_MIN
     })
     .onEnd(() => {
-      const movedY = translateY.value
-      runOnJS(handleDrop)(movedY)
+      if (!dragEnabled.value) return
+      dragEnabled.value = false
+
+      const totalHeight = 24 * 60 * PIXELS_PER_MIN
+
+const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+const minTop = 0
+const maxTop = totalHeight - rawHeight
+
+const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+const boundedDelta = clampedTop - startMin * PIXELS_PER_MIN
+
+translateY.value = boundedDelta
+
+runOnJS(handleDrop)(boundedDelta)
     })
+
+  const composedGesture = Gesture.Simultaneous(hold, drag)
 
   const style = useAnimatedStyle(() => ({
     top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
   }))
 
-  const backgroundColor = color.startsWith('#') ? color : `#${color}`
+  const backgroundColor = color.startsWith("#") ? color : `#${color}`
 
   return (
-    <GestureDetector gesture={drag}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
