@@ -391,86 +391,72 @@ export default function DayView() {
         return
       }
 
-      // 공통: 실행 함수 (닫힌 뒤에 실행)
-      // 순수 드롭 적용 함수: 영역 판정 + 서버 반영
-      const applyDropTo = async (absX: number, absY: number) => {
-        // 최신 레이아웃 재측정 후 다음 프레임에서 안전하게 판정
-        measureLayouts()
-        requestAnimationFrame(async () => {
-          const dateISO = anchorDateRef.current
-          const taskBox = taskBoxRectRef.current
-          const gridBox = gridRectRef.current
-          const scrollY = gridScrollYRef.current
+      // ✅ 드롭 순간 좌표 기준으로 바로 처리
+      measureLayouts()
+      requestAnimationFrame(async () => {
+        const dateISO = anchorDateRef.current
+        const taskBox = taskBoxRectRef.current
+        const gridBox = gridRectRef.current
+        const scrollY = gridScrollYRef.current
 
-          const within = (r: any, px: number, py: number) =>
-            px >= r.left && px <= r.right && py >= r.top && py <= r.bottom
+        const within = (r: any, px: number, py: number) =>
+          px >= r.left && px <= r.right && py >= r.top && py <= r.bottom
 
-          // ① 상단 박스 드롭: 날짜만 배치
-          if (within(taskBox, absX, absY)) {
-            await http.put(`/task/${id}`, {
-              placementDate: dateISO,
-              placementTime: null,
-              date: dateISO,
-            })
-            bus.emit('sidebar:remove-task', { id })
-            bus.emit('calendar:mutated', {
-              op: 'update',
-              item: { id, isTask: true, date: anchorDate },
-            })
-            bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-            fetchDailyEvents(dateISO)
-            draggingTaskIdRef.current = null
-            return
-          }
+        // ① 상단 박스 드롭: 날짜만 배치
+        if (within(taskBox, x, y)) {
+          await http.put(`/task/${id}`, {
+            placementDate: dateISO,
+            placementTime: null,
+            date: dateISO,
+          })
+          bus.emit('sidebar:remove-task', { id })
+          bus.emit('calendar:mutated', {
+            op: 'update',
+            item: { id, isTask: true, date: anchorDateRef.current },
+          })
+          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+          fetchDailyEvents(dateISO)
+          draggingTaskIdRef.current = null
+          return
+        }
 
-          // ② 시간 그리드 드롭: 5분 스냅
-          if (within(gridBox, absX, absY)) {
-            const innerY = Math.max(0, absY - gridBox.top + scrollY)
-            const minRaw = innerY / PIXELS_PER_MIN
-            const minSnap = Math.round(minRaw / 5) * 5
-            const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
-            const mm = String(minSnap % 60).padStart(2, '0')
+        // ② 시간 그리드 드롭: 5분 스냅
+        if (within(gridBox, x, y)) {
+          // ✅ 여기서는 scrollY 더해도 되고 / 안 더해도 되는 건 레이아웃 기준에 따라 선택,
+          // 아까 말한 대로 현재 구조면 scrollY 빼고 하는 게 정확함
+          const innerY = Math.max(0, y - gridBox.top) // ← scrollY 더하지 말기
 
-            await http.put(`/task/${id}`, {
+          const minRaw = innerY / PIXELS_PER_MIN
+          const minSnap = Math.round(minRaw / 5) * 5
+          const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
+          const mm = String(minSnap % 60).padStart(2, '0')
+
+          await http.put(`/task/${id}`, {
+            placementDate: dateISO,
+            placementTime: `${hh}:${mm}:00`,
+            date: dateISO,
+          })
+
+          bus.emit('sidebar:remove-task', { id })
+          bus.emit('calendar:mutated', {
+            op: 'update',
+            item: {
+              id,
+              isTask: true,
               placementDate: dateISO,
               placementTime: `${hh}:${mm}:00`,
               date: dateISO,
-            })
-            bus.emit('sidebar:remove-task', { id })
-            bus.emit('calendar:mutated', {
-              op: 'update',
-              item: {
-                id,
-                isTask: true,
-                placementDate: dateISO,
-                placementTime: `${hh}:${mm}:00`,
-                date: dateISO,
-              },
-            })
-            bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-            fetchDailyEvents(dateISO)
-            draggingTaskIdRef.current = null
-            return
-          }
-
-          // ③ 영역 밖: 취소
+            },
+          })
+          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+          fetchDailyEvents(dateISO)
           draggingTaskIdRef.current = null
-        })
-      }
-      // 사이드바 닫힘을 기다렸다가 적용 (둘 중 먼저 오는 것으로 실행)
-      let done = false
-      const finish = (absX: number, absY: number) => {
-        if (done) return
-        done = true
-        applyDropTo(absX, absY)
-      }
+          return
+        }
 
-      const onClosed = () => {
-        bus.off('drawer:close', onClosed)
-        finish(x, y)
-      }
-      bus.on('drawer:close', onClosed)
-      setTimeout(() => finish(x, y), 260) // CLOSE_ANIM_MS와 동기(약 220~260ms)
+        // ③ 영역 밖: 취소
+        draggingTaskIdRef.current = null
+      })
     }
 
     bus.on('xdrag:drop', onDrop)

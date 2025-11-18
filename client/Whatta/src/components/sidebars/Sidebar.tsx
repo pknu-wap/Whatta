@@ -101,17 +101,17 @@ function isTimelessTask(t: Task) {
 }
 
 async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
-  return http.put(`/api/task/sidebar/${taskId}`, payload)
+  return http.patch(`/task/${taskId}`, payload)
 }
 
-// 서버 스펙: GET /api/task
+// 서버 스펙: GET /task/sidebar
 async function fetchTasksFromServer(): Promise<Task[]> {
-  const res = await http.get('/api/task')
+  const res = await http.get('/task/sidebar')
   const list = res?.data?.data ?? []
   return list.map(mapTask) as Task[]
 }
 
-// ✅ 서버 스펙: POST /api/task (생성)
+// ✅ 서버 스펙: POS /task (생성)
 async function createTaskAPI(title: string) {
   const payload = {
     title,
@@ -122,7 +122,7 @@ async function createTaskAPI(title: string) {
     dueDateTime: null,
     repeat: null,
   }
-  return http.post('/api/task', payload)
+  return http.post('/task', payload)
 }
 
 const TOP_GAP = 1024 // 최상단/최하단 배치 시 충분히 큰 간격 확보용
