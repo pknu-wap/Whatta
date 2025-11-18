@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 
-export default function TaskDetail() {
+export default function TaskScreen() {
   const navigation = useNavigation()
   return (
     <View style={styles.container}>

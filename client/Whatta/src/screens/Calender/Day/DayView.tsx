@@ -134,6 +134,7 @@ export default function DayView() {
   const [events, setEvents] = useState<any[]>([])
   const [spanEvents, setSpanEvents] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
+  const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
 
   const taskBoxRef = useRef<View>(null)
   const gridWrapRef = useRef<View>(null)
@@ -242,6 +243,7 @@ export default function DayView() {
       const res = await http.get(`/task/${taskId}`)
       const data = res.data?.data
       if (!data) return
+      setTaskPopupMode('edit')
 
       setTaskPopupId(data.id)
       setTaskPopupTask({
@@ -261,17 +263,46 @@ export default function DayView() {
       Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
     }
   }
-  const popupInitialDate = useMemo(() => {
-    return taskPopupTask?.placementDate
-      ? new Date(taskPopupTask.placementDate)
-      : undefined
-  }, [taskPopupTask?.placementDate])
 
-  const popupInitialTime = useMemo(() => {
-    return taskPopupTask?.placementTime
-      ? new Date(`2020-01-01T${taskPopupTask.placementTime}`)
-      : undefined
-  }, [taskPopupTask?.placementTime])
+  // 🔥 FAB에서 사용하는 '할 일 생성' 팝업 열기
+  const openCreateTaskPopup = React.useCallback((source?: string) => {
+    setTaskPopupMode('create')
+    setTaskPopupId(null)
+
+    // 기본값: 날짜/시간 없음
+    let placementDate: string | null = null
+    let placementTime: string | null = null
+
+    // 🔥 Day 탭에서 눌렀을 때만 헤더 기준 날짜를 미리 넣어주기
+    if (source === 'Day') {
+      placementDate = anchorDateRef.current // 헤더에서 마지막으로 선택한 날짜
+      placementTime = null // 시간은 선택 안 된 상태로 두고 싶으면 null 유지
+    }
+
+    setTaskPopupTask({
+      id: null,
+      title: '',
+      content: '',
+      labels: [],
+      completed: false,
+      placementDate,
+      placementTime,
+      dueDateTime: null,
+    })
+
+    setTaskPopupVisible(true)
+  }, [])
+  useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      // payload?.source 에 'Month' | 'Week' | 'Day' 들어옴
+      openCreateTaskPopup(payload?.source)
+    }
+
+    bus.on('task:create', handler)
+    return () => {
+      bus.off('task:create', handler)
+    }
+  }, [openCreateTaskPopup])
 
   useEffect(() => {
     const updateNowTop = (scrollToCenter = false) => {
@@ -545,6 +576,44 @@ export default function DayView() {
   }, [anchorDate, fetchDailyEvents, gridScrollY, taskBoxRect, gridRect])
   const popupTaskMemo = useMemo(() => taskPopupTask, [taskPopupTask])
 
+  const handleDeleteTask = async () => {
+    if (!taskPopupId) return
+
+    Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // ✅ DELETE /api/task/{taskId}
+            await http.delete(`/task/${taskPopupId}`)
+
+            // 캘린더 쪽에 변경 알리기
+            bus.emit('calendar:mutated', {
+              op: 'delete',
+              item: { id: taskPopupId, date: anchorDate },
+            })
+            bus.emit('calendar:invalidate', {
+              ym: anchorDate.slice(0, 7),
+            })
+
+            // 일간뷰 즉시 새로고침
+            await fetchDailyEvents(anchorDate)
+
+            // 팝업 닫기 + 상태 정리
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          } catch (err) {
+            console.error('❌ 테스크 삭제 실패:', err)
+            Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+          }
+        },
+      },
+    ])
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScreenWithSidebar mode="overlay">
@@ -733,10 +802,9 @@ export default function DayView() {
             })}
           </ScrollView>
         </View>
-
         <TaskDetailPopup
           visible={taskPopupVisible}
-          mode="edit"
+          mode={taskPopupMode}
           taskId={taskPopupId ?? undefined}
           initialTask={popupTaskMemo}
           onClose={() => {
@@ -745,46 +813,66 @@ export default function DayView() {
             setTaskPopupTask(null)
           }}
           onSave={async (form) => {
-            if (!taskPopupId) return
+            const pad = (n: number) => String(n).padStart(2, '0')
+
+            let placementDate: string | null = null
+            let placementTime: string | null = null
+            const fieldsToClear: string[] = []
+
+            // 날짜
+            if (form.hasDate && form.date) {
+              const d = form.date
+              placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+            } else {
+              fieldsToClear.push('placementDate')
+            }
+
+            // 시간
+            if (form.hasTime && form.time) {
+              const t = form.time
+              placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
+                t.getSeconds(),
+              )}`
+            } else {
+              fieldsToClear.push('placementTime')
+            }
 
             try {
-              const pad = (n: number) => String(n).padStart(2, '0')
+              if (taskPopupMode === 'edit') {
+                // ✅ 기존 수정 로직
+                if (!taskPopupId) return
 
-              let placementDate: string | null = null
-              let placementTime: string | null = null
-              const fieldsToClear: string[] = []
+                await http.patch(`/task/${taskPopupId}`, {
+                  title: form.title,
+                  content: form.memo,
+                  labelIds: form.labelIds,
+                  placementDate,
+                  placementTime,
+                  fieldsToClear,
+                })
 
-              // 날짜
-              if (form.hasDate && form.date) {
-                const d = form.date
-                placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+                bus.emit('calendar:mutated', {
+                  op: 'update',
+                  item: { id: taskPopupId, date: anchorDate },
+                })
               } else {
-                fieldsToClear.push('placementDate')
+                // ✅ 새 테스크 생성 로직
+                const res = await http.post('/task', {
+                  title: form.title,
+                  content: form.memo,
+                  labelIds: form.labelIds,
+                  placementDate,
+                  placementTime,
+                  date: placementDate ?? anchorDate,
+                })
+
+                const newId = res.data?.data?.id
+
+                bus.emit('calendar:mutated', {
+                  op: 'create',
+                  item: { id: newId, date: anchorDate },
+                })
               }
-
-              // 시간
-              if (form.hasTime && form.time) {
-                const t = form.time
-                placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`
-              } else {
-                fieldsToClear.push('placementTime')
-              }
-
-              // PATCH 요청
-              await http.patch(`/task/${taskPopupId}`, {
-                title: form.title,
-                content: form.memo,
-                labelIds: form.labelIds,
-                placementDate,
-                placementTime,
-                fieldsToClear,
-              })
-
-              // 이벤트 전달 (월간/주간뷰까지 갱신)
-              bus.emit('calendar:mutated', {
-                op: 'update',
-                item: { id: taskPopupId, date: anchorDate },
-              })
 
               // 💥 DayView 화면 즉시 갱신
               await fetchDailyEvents(anchorDate)
@@ -794,10 +882,11 @@ export default function DayView() {
               setTaskPopupId(null)
               setTaskPopupTask(null)
             } catch (err) {
-              console.error('❌ 테스크 수정 실패:', err)
+              console.error('❌ 테스크 저장 실패:', err)
               Alert.alert('오류', '테스크를 저장하지 못했습니다.')
             }
           }}
+          onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
         />
       </ScreenWithSidebar>
     </GestureHandlerRootView>

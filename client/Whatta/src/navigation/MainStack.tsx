@@ -6,12 +6,13 @@ import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { TouchableOpacity } from 'react-native'
 import { DrawerProvider, useDrawer } from '@/providers/DrawerProvider'
+import { bus } from '@/lib/eventBus'
 
 import MyPageStack from '@/navigation/MyPageStack'
 import MonthView from '@/screens/Calender/Month/MonthView'
 import WeekView from '@/screens/Calender/Week/WeekView'
 import DayView from '@/screens/Calender/Day/DayView'
-import TaskScreen from '@/screens/More/TaskDetailPopup'
+import TaskScreen from '@/screens/More/TaskDetailScreen'
 
 import FabHybrid from '@/components/FloatingButton'
 
@@ -172,7 +173,9 @@ export default function MainTabs() {
           <FabHybrid
             bottomOffset={TAB_BAR_H + insets.bottom - 36}
             rightOffset={20}
-            onPressTop1={() => {}}
+            onPressTop1={() => {
+              bus.emit('task:create', { source: activeTab })
+            }}
             onPressTop2={() => {}}
             onPressPrimaryWhenOpen={() => {
               navigation.navigate('AddSchedule')
