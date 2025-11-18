@@ -516,7 +516,7 @@ export default function DayView() {
 
         // ① 상단 박스 드롭: 날짜만 배치
         if (within(taskBox, x, y)) {
-          await http.put(`/task/${id}`, {
+          await http.patch(`/task/${id}`, {
             placementDate: dateISO,
             placementTime: null,
             date: dateISO,
@@ -543,7 +543,7 @@ export default function DayView() {
           const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
           const mm = String(minSnap % 60).padStart(2, '0')
 
-          await http.put(`/task/${id}`, {
+          await http.patch(`/task/${id}`, {
             placementDate: dateISO,
             placementTime: `${hh}:${mm}:00`,
             date: dateISO,
