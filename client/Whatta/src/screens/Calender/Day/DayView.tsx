@@ -367,12 +367,13 @@ export default function DayView() {
       const allDay = data.allDayTasks || []
       const floating = data.floatingTasks || []
       const allDaySpan = data.allDaySpanEvents || []
+      const allDayEvents = data.allDayEvents || []
 
       const timelineEvents = timed.filter(
         (e: any) =>
           !e.isSpan &&
           e.clippedEndTime !== '23:59:59.999999999' &&
-          e.clippedStartTime &&
+          e.clippedStartTime && 
           e.clippedEndTime,
       )
       const span = [
@@ -380,6 +381,7 @@ export default function DayView() {
           (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
         ),
         ...allDaySpan,
+        ...allDayEvents,
       ]
 
       setEvents(timelineEvents)
@@ -657,28 +659,66 @@ export default function DayView() {
                   bounces={false}
                 >
                   {spanEvents.map((t, i) => {
-                    const baseColor =
-                      t.colorKey && t.colorKey.toUpperCase() !== 'FFFFFF'
-                        ? `#${t.colorKey}`
-                        : '#8B5CF6' // ✅ 컬러키가 흰색인 경우 기본 보라색 대체
-                    const bgWithOpacity = `${baseColor}26`
+  const current = anchorDate
 
-                    return (
-                      <View
-                        key={t.id ?? i}
-                        style={[
-                          S.chip,
-                          i === 0 && { marginTop: 8 },
-                          { backgroundColor: bgWithOpacity },
-                        ]}
-                      >
-                        <View style={[S.chipBar, { backgroundColor: baseColor }]} />
-                        <Text style={S.chipText} numberOfLines={1}>
-                          {t.title}
-                        </Text>
-                      </View>
-                    )
-                  })}
+  let start = ""
+  let end = ""
+
+  // 하루짜리 allDayEvents
+  if (!t.startDate && !t.endDate && !t.startAt && !t.endAt) {
+    start = current
+    end = current
+  }
+  // allDaySpan (기간 있음)
+  else if (t.startDate && t.endDate) {
+    start = t.startDate
+    end = t.endDate
+  }
+  // timed span
+  else if (t.startAt && t.endAt) {
+    start = t.startAt.slice(0, 10)
+    end = t.endAt.slice(0, 10)
+  }
+
+  const isStart = current === start
+  const isEnd = current === end
+
+  const raw = t.colorKey || t.color
+  const base = raw ? (raw.startsWith("#") ? raw : `#${raw}`) : "#8B5CF6"
+  const bg = `${base}26`
+
+  return (
+    <View
+      key={t.id ?? i}
+      style={[
+        S.chip,
+        {
+          backgroundColor: bg,
+          borderTopLeftRadius: isStart ? 6 : 0,
+          borderBottomLeftRadius: isStart ? 6 : 0,
+          borderTopRightRadius: isEnd ? 6 : 0,
+          borderBottomRightRadius: isEnd ? 6 : 0,
+        },
+      ]}
+    >
+      {/* 왼쪽 컬러바 */}
+      {isStart && (
+        <View style={[S.chipBar, { left: 0, backgroundColor: base }]} />
+      )}
+
+      {/* 오른쪽 컬러바 */}
+      {isEnd && (
+        <View style={[S.chipBar, { right: 0, backgroundColor: base }]} />
+      )}
+
+      <View style={{ flex: 1, paddingHorizontal: 12 }}>
+        <Text style={S.chipText} numberOfLines={1}>
+          {t.title}
+        </Text>
+      </View>
+    </View>
+  )
+})}
 
                   {checks.map((c) => (
                     <Pressable
@@ -1339,10 +1379,11 @@ const S = StyleSheet.create({
   },
 
   chipBar: {
-    width: 5,
-    height: 22,
-    marginRight: 8,
-  },
+  position: 'absolute',
+  top: 0,
+  bottom: 0,
+  width: 5,
+},
 
   chipText: {
     ...ts('daySchedule'),
