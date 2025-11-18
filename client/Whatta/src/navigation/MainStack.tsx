@@ -40,6 +40,7 @@ export default function MainTabs() {
   function GuardedTabButton(props: any) {
     const { isOpen, close } = useDrawer()
     const { onPress, onLongPress, ...rest } = props
+    const CLOSE_ANIM_MS = 220
     return (
       <TouchableOpacity
         {...rest}
@@ -47,6 +48,7 @@ export default function MainTabs() {
           if (isOpen) {
             // 열려 있으면: 이동 막고 닫기만
             close()
+            setTimeout(() => onPress?.(e), CLOSE_ANIM_MS)
             return
           }
           onPress?.(e) // 닫혀 있으면: 원래 동작
