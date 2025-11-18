@@ -65,7 +65,7 @@ export default function MainTabs() {
 
   return (
     <DrawerProvider>
-      <View style={{ flex: 1, paddingHorizontal: 10 }}>
+      <View style={{ flex: 1 }}>
         <Tab.Navigator
           initialRouteName="Month"
           screenListeners={{
@@ -79,6 +79,7 @@ export default function MainTabs() {
             tabBarStyle: {
               height: TAB_BAR_H,
               paddingTop: 3,
+              paddingHorizontal: 10,
             },
             tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
             tabBarActiveTintColor: colors.primary.main,
