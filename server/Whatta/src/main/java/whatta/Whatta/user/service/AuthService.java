@@ -37,7 +37,7 @@ public class AuthService {
         User user = userRepository.findUserById(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        if(!user.getRefreshToken().equals(refreshToken)) {
+        if(!refreshToken.equals(user.getRefreshToken())) {
             throw new RestApiException(ErrorCode.INVALID_TOKEN);
         }
 
