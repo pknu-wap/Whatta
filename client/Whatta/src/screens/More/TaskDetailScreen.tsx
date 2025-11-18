@@ -5,7 +5,7 @@ export default function TaskScreen() {
   const navigation = useNavigation()
   return (
     <View style={styles.container}>
-      <Text>테스크 상세</Text>
+      <Text>구현 중 입니다..</Text>
     </View>
   )
 }
