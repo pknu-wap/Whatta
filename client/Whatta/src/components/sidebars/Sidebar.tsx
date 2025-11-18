@@ -559,8 +559,9 @@ const S = StyleSheet.create({
   board: {
     flex: 1,
     backgroundColor: colors.task.sideBar,
-    borderTopRightRadius: 24,
+    borderTopRightRadius: 10,
     padding: 16,
+    borderRadius: 10,
   },
   card: {
     width: '100%',
