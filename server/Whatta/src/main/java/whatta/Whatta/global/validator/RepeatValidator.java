@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 public class RepeatValidator implements ConstraintValidator<ValidRepeat, RepeatRequest> {
 
     private static final Pattern WEEK_DAY = Pattern.compile("^(MON|TUE|WED|THU|FRI|SAT|SUN)$");
-    private static final Pattern MONTH_DAY = Pattern.compile("^D([1-9]|1[0-2])$"); //D1 ~ D12
+    private static final Pattern MONTH_DAY = Pattern.compile("^D([1-9]|[12][0-9]|3[01])$"); //D1 ~ D31
     private static final Pattern MONTH_NTH = Pattern.compile("^([1-4])(MON|TUE|WED|THU|FRI|SAT|SUN)$"); //4WED 4번째 주 수요일
     private static final Pattern MONTH_LAST = Pattern.compile("^LAST(MON|TUE|WED|THU|FRI|SAT|SUN)$"); //LASTWED 마지막 주 수요일
 

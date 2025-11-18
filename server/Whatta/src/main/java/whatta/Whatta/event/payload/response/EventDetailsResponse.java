@@ -1,13 +1,10 @@
 package whatta.Whatta.event.payload.response;
 
 import lombok.Builder;
-import whatta.Whatta.global.label.Label;
-import whatta.Whatta.global.label.payload.LabelsResponse;
 import whatta.Whatta.global.repeat.payload.RepeatResponse;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 
 @Builder
@@ -21,6 +18,7 @@ public record EventDetailsResponse(
         String startTime,
         String endTime,
         RepeatResponse repeat,
-        String colorKey
+        String colorKey,
+        ReminderNoti reminderNoti
 ) {
 }

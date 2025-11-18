@@ -5,6 +5,8 @@ import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.payload.response.EventDetailsResponse;
 import whatta.Whatta.global.repeat.payload.RepeatResponse;
 import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.user.payload.dto.ReminderNoti;
+import whatta.Whatta.user.payload.response.ReminderNotiResponse;
 
 @Component
 public class EventMapper {
@@ -20,6 +22,7 @@ public class EventMapper {
                 .endTime(LocalTimeUtil.localTimeToString(event.getEndTime()))
                 .repeat(RepeatResponse.fromEntity(event.getRepeat()))
                 .colorKey(event.getColorKey())
+                .reminderNoti(event.getReminderNotiAt())
                 .build();
     }
 }
