@@ -43,4 +43,8 @@ public class UserSetting {
 
     @Builder.Default
     private ScheduleSummaryNoti scheduleSummaryNoti = ScheduleSummaryNoti.builder().build();
+    //TODO:추후에 도시 선택기능 구현
+    //@NotNull
+    //private String cityCode;
+    //TODO: 알림 default 값은 알림 구현할 때 함께 구현하기
 }

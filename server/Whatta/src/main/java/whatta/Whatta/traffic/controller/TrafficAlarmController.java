@@ -22,7 +22,7 @@ import whatta.Whatta.traffic.service.TrafficAlarmService;
 
 import java.util.List;
 
-@Tag(name = "Traffic Alarm", description = "교통 알림 및 즐겨찾 관리 API")
+@Tag(name = "Traffic Alarm", description = "교통 알림 및 즐겨찾기 관리 API")
 @RestController
 @RequestMapping("/api/traffic")
 @RequiredArgsConstructor
@@ -54,6 +54,7 @@ public class TrafficAlarmController {
     }
 
     @GetMapping("/items")
+    @Operation(summary = "즐겨찾기 목록 조회", description = "즐겨찾기 목록을 조회합니다.")
     public ResponseEntity<?> getMyBusItems(
             @AuthenticationPrincipal String userId
     ){
