@@ -1230,7 +1230,7 @@ function DraggableFlexalbeEvent({
         )}:00`
       const dateISO = anchorDate
 
-      await http.patch(`/event/${id}`, {
+      await http.put(`/event/${id}`, {
         startDate: anchorDate,
         endDate: anchorDate,
         startTime: fmt(newStart),
