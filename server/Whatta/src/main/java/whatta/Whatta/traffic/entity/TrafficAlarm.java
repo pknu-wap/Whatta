@@ -8,29 +8,36 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-@Document("traffic_groups")
+@Document("traffic_alarms")
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class TrafficGroup {
+public class TrafficAlarm {
 
     @Id
     private String id;
 
     @NotNull
-    private String userid;
+    private String userId;
 
-    private String groupName;
-
-    private String busStationId;
-
-    private String busStationName;
+    @NotNull
+    private LocalTime alarmTime;
 
     @Builder.Default
-    private List<String> targetRouteIds = new ArrayList<>();
+    private Set<DayOfWeek> days = new HashSet<>();
+
+    @Builder.Default
+    private List<String> targetItemIds = new ArrayList<>();
+
+    @Builder.Default
+    private boolean isEnabled = true;
 
 }
