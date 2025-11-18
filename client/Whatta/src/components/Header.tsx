@@ -21,7 +21,7 @@ import Left from '@/assets/icons/left.svg'
 import Right from '@/assets/icons/right.svg'
 import colors from '@/styles/colors'
 import { useNavigation } from '@react-navigation/native'
-import { bus, EVENT } from '@/lib/eventBus'
+import { bus } from '@/lib/eventBus'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
@@ -98,19 +98,43 @@ const addMonthsToStart = (iso: string, dm: number) => {
   return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-01`
 }
 
+// 열려 있으면 닫고-실행, 아니면 바로 실행
+const useRunOrQueue = () => {
+  const { progress } = useDrawer()
+  return (fn: () => void) => {
+    if ((progress as any).value > 0.01) {
+      bus.emit('drawer:close-then', fn)
+    } else {
+      fn()
+    }
+  }
+}
+
 export default function Header() {
-  const { progress, toggle, close } = useDrawer()
+  const { progress, toggle, close, isOpen } = useDrawer()
   const navigation = useNavigation<any>()
 
   const [calVisible, setCalVisible] = useState(false)
   const [popup, setPopup] = useState(false)
   const [mode, setMode] = useState<ViewMode>('month') // 외부에서 바뀌면 구독으로 반영
+  const CLOSE_ANIM_MS = 220
 
   // 사이드바 열렸을 때만 헤더 전체를 탭 캐치
   const headerCatcherStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
-    pointerEvents: progress.value > 0.01 ? 'auto' : 'none',
   }))
+
+  const runOrQueue = React.useCallback(
+    (fn: () => void) => {
+      if (isOpen) {
+        close()
+        setTimeout(fn, CLOSE_ANIM_MS) // 닫힘 애니 끝난 뒤 실행
+      } else {
+        fn()
+      }
+    },
+    [isOpen, close],
+  )
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
@@ -216,25 +240,25 @@ export default function Header() {
 
   return (
     <View style={styles.root}>
-      {/* Header 영역 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={toggle}>
           <AnimatedMenu width={28} height={28} animatedProps={menuIconProps} />
         </TouchableOpacity>
 
+        {/* 달 이동/타이틀/우측 버튼 - 모두 runOrQueue로 감싸기 */}
         <View style={styles.dateGroup}>
-          <TouchableOpacity onPress={goPrev}>
+          <TouchableOpacity onPress={() => runOrQueue(goPrev)}>
             <Left width={24} height={24} color={colors.icon.default} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => setCalVisible(true)}
+            onPress={() => runOrQueue(() => setCalVisible(true))}
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={goNext}>
+          <TouchableOpacity onPress={() => runOrQueue(goNext)}>
             <Right
               width={24}
               height={24}
@@ -246,11 +270,13 @@ export default function Header() {
 
         {/* 필터 버튼 */}
         <TouchableOpacity
-          onPress={() => {
-            sliderX.setValue(0)
-            popupOpacity.setValue(1)
-            setPopup((p) => !p)
-          }}
+          onPress={() =>
+            runOrQueue(() => {
+              sliderX.setValue(0)
+              popupOpacity.setValue(1)
+              setPopup((p) => !p)
+            })
+          }
         >
           <Filter
             width={22}
@@ -262,6 +288,7 @@ export default function Header() {
       </View>
       <AnimatedRe.View
         style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}
+        pointerEvents="none"
       >
         <TouchableOpacity style={{ flex: 1 }} onPress={close} />
       </AnimatedRe.View>
