@@ -264,7 +264,7 @@ export default function DayView() {
     }
   }
 
-  // 🔥 FAB에서 사용하는 '할 일 생성' 팝업 열기
+  // FAB에서 사용하는 '할 일 생성' 팝업 열기
   const openCreateTaskPopup = React.useCallback((source?: string) => {
     setTaskPopupMode('create')
     setTaskPopupId(null)
@@ -273,7 +273,7 @@ export default function DayView() {
     let placementDate: string | null = null
     let placementTime: string | null = null
 
-    // 🔥 Day 탭에서 눌렀을 때만 헤더 기준 날짜를 미리 넣어주기
+    // Day 탭에서 눌렀을 때만 헤더 기준 날짜를 미리 넣어주기
     if (source === 'Day') {
       placementDate = anchorDateRef.current // 헤더에서 마지막으로 선택한 날짜
       placementTime = null // 시간은 선택 안 된 상태로 두고 싶으면 null 유지
@@ -586,7 +586,7 @@ export default function DayView() {
         style: 'destructive',
         onPress: async () => {
           try {
-            // ✅ DELETE /api/task/{taskId}
+            //DELETE /task/{taskId}
             await http.delete(`/task/${taskPopupId}`)
 
             // 캘린더 쪽에 변경 알리기
@@ -856,7 +856,7 @@ export default function DayView() {
                   item: { id: taskPopupId, date: anchorDate },
                 })
               } else {
-                // ✅ 새 테스크 생성 로직
+                // 새 테스크 생성 로직
                 const res = await http.post('/task', {
                   title: form.title,
                   content: form.memo,
