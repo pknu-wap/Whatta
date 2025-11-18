@@ -13,7 +13,6 @@ import {
 import InlineCalendar from '@/components/lnlineCalendar'
 import axios from 'axios'
 import { token } from '@/lib/token'
-import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import { getMyLabels, createLabel, type Label } from '@/api/label_api'
@@ -21,11 +20,11 @@ import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import Arrow from '@/assets/icons/arrow.svg'
 import Down from '@/assets/icons/down.svg'
-import { useRoute } from '@react-navigation/native'
 import { Picker } from '@react-native-picker/picker'
 import LabelChip from '@/components/LabelChip'
 import LabelPickerModal from '@/components/LabelPicker'
 import colors from '@/styles/colors'
+import type { EventItem } from '@/api/event_api'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -45,18 +44,6 @@ const MemoCalendar = memo(
 const H_PAD = 18
 const FILELD_ROW_H = 44
 
-type EventItem = {
-  id: string
-  title: string
-  content?: string
-  labels?: { id: number; title: string }[] | number[]
-  startDate: string // 'YYYY-MM-DD'
-  endDate: string // 'YYYY-MM-DD'
-  startTime?: string | null // 'HH:mm:ss' | null
-  endTime?: string | null
-  colorKey?: string // 'FF7A00' 같은 6자리
-}
-
 type Anchor = { x: number; y: number; w: number; h: number }
 
 type RouteParams = {
@@ -65,9 +52,17 @@ type RouteParams = {
   initial?: Partial<EventItem>
 }
 
-export default function ScheduleDetailScreen() {
-  const navigation = useNavigation()
-  const [visible] = useState(true)
+export default function EventDetailPopup({
+  visible,
+  eventId,
+  mode = 'create',
+  onClose,
+}: {
+  visible: boolean
+  eventId: string | null
+  mode?: 'edit' | 'create'
+  onClose: () => void
+}) {
   const [openCalendar, setOpenCalendar] = useState(false)
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
   const [openStartTime, setOpenStartTime] = useState(false)
@@ -93,14 +88,6 @@ export default function ScheduleDetailScreen() {
   // 미세 이동(클램프 영향 안받도록 transform에 적용)
   const NUDGE_X = -5 // 왼(−) / 오른쪽(+)
   const NUDGE_Y = -50 // 위(−) / 아래(+)
-
-  const route = useRoute<any>()
-  const params = (route?.params ?? {}) as RouteParams
-
-  const [mode, setMode] = useState<'create' | 'edit'>(
-    params.mode ?? (params.eventId ? 'edit' : 'create'),
-  )
-  const [eventId, setEventId] = useState<string | null>(params.eventId ?? null)
   const [rangePhase, setRangePhase] = useState<'start' | 'end'>('start')
 
   // 컴포넌트 내부 state (모달 열릴 때 유지할 상태)
@@ -341,7 +328,7 @@ export default function ScheduleDetailScreen() {
 
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
-  const close = () => navigation.goBack()
+  const close = () => onClose()
 
   /** 색상 */
   const COLORS = [
@@ -376,6 +363,9 @@ export default function ScheduleDetailScreen() {
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [memo, setMemo] = useState('')
+  // mode / eventId props 기반 초기화
+  const [currentMode] = useState<'create' | 'edit'>(mode)
+  const [currentEventId] = useState<string | null>(eventId)
 
   /** 날짜 & 시간 */
   const [start, setStart] = useState(new Date())
@@ -451,7 +441,7 @@ export default function ScheduleDetailScreen() {
         if (ym) bus.emit('calendar:invalidate', { ym })
       }
 
-      navigation.goBack()
+      onClose()
     } catch (err) {
       //console.log('일정 저장 실패:', err)
       alert('저장 실패')
@@ -558,6 +548,58 @@ export default function ScheduleDetailScreen() {
     }
   }
 
+  useEffect(() => {
+    async function fetchEventDetail() {
+      if (mode !== 'edit' || !eventId) return
+
+      try {
+        const access = token.getAccess()
+        const res = await axios.get(
+          `https://whatta-server-741565423469.asia-northeast3.run.app/api/event/${eventId}`,
+          { headers: { Authorization: `Bearer ${access}` } },
+        )
+
+        const ev = res.data.data
+        if (!ev) return
+
+        // 날짜
+        const s = new Date(ev.startDate)
+        const e = new Date(ev.endDate)
+
+        // input 값 상태 세팅
+        setScheduleTitle(ev.title ?? '')
+        setMemo(ev.content ?? '')
+        setSelectedLabelIds(ev.labels ?? [])
+        setSelectedColor('#' + ev.colorKey)
+
+        setStart(s)
+        setEnd(e)
+
+        if (ev.startTime) {
+          setTimeOn(true)
+          const [h, m] = ev.startTime.split(':').map(Number)
+          const ss = new Date(s)
+          ss.setHours(h)
+          ss.setMinutes(m)
+          setStart(ss)
+        }
+
+        if (ev.endTime) {
+          setTimeOn(true)
+          const [h, m] = ev.endTime.split(':').map(Number)
+          const ee = new Date(e)
+          ee.setHours(h)
+          ee.setMinutes(m)
+          setEnd(ee)
+        }
+      } catch (err) {
+        console.error('❌ 일정 상세 불러오기 실패:', err)
+      }
+    }
+
+    fetchEventDetail()
+  }, [mode, eventId])
+
   return (
     <>
       <Modal visible={visible} transparent animationType="slide">
@@ -584,10 +626,10 @@ export default function ScheduleDetailScreen() {
               {/* HEADER */}
               <View style={styles.header}>
                 <Pressable onPress={close}>
-                  <Xbutton width={12} height={12} hitSlop={8} color={'#808080'} />
+                  <Xbutton width={12} height={12} hitSlop={20} color={'#808080'} />
                 </Pressable>
                 <Pressable onPress={handleSave}>
-                  <Check width={12} height={12} hitSlop={8} color={'#808080'} />
+                  <Check width={12} height={12} hitSlop={20} color={'#808080'} />
                 </Pressable>
               </View>
               {/* 제목 + 색 */}
@@ -1559,7 +1601,7 @@ export default function ScheduleDetailScreen() {
                             )
                             // 리스트에서 제거
                             bus.emit('calendar:mutated', { op: 'delete', id: eventId })
-                            navigation.goBack()
+                            onClose()
                           } catch (e) {
                             alert('삭제 실패')
                           }
@@ -2086,11 +2128,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   timePicker: {
-    width: 80, // 폭
+    width: 90, // 폭
     height: 160, // 높이
   },
   timePickerItem: {
-    fontSize: 14, // ← 글자 크기
+    fontSize: 16, // ← 글자 크기
     fontWeight: '500', // 굵기 조절하고 싶으면
   },
 })

@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
+  Alert,
 } from 'react-native'
 
 import { useRoute } from '@react-navigation/native'
@@ -19,6 +20,9 @@ import { http } from '@/lib/http'
 import { fetchTasksForMonth } from '@/api/event_api'
 import { useFocusEffect } from '@react-navigation/native'
 import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
+import EventDetailPopup from '@/screens/More/EventDetailPopup'
+import type { EventItem } from '@/api/event_api'
+import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -679,6 +683,50 @@ export default function MonthView() {
   )
   const laneMapRef = useRef<Map<string, number>>(new Map())
 
+  // 일정 상세 팝업
+  const [eventPopupVisible, setEventPopupVisible] = useState(false)
+  const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
+  useEffect(() => {
+    const h = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      setEventPopupData(null)
+      setEventPopupVisible(true)
+    }
+    bus.on('popup:schedule:create', h)
+    return () => bus.off('popup:schedule:create', h)
+  }, [])
+
+  // 테스크 상세 팝업
+  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
+  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
+  const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
+
+  async function openTaskPopupFromApi(taskId: string) {
+    try {
+      const res = await http.get(`/task/${taskId}`)
+      const data = res.data?.data
+      if (!data) return
+
+      setTaskPopupMode('edit')
+      setTaskPopupId(data.id)
+      setTaskPopupTask({
+        id: data.id,
+        title: data.title ?? '',
+        content: data.content ?? '',
+        labels: data.labels ?? [],
+        completed: data.completed ?? false,
+        placementDate: data.placementDate,
+        placementTime: data.placementTime,
+        dueDateTime: data.dueDateTime ?? null,
+      })
+      setTaskPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }
+
   const mapApiToScheduleData = (raw: any): UISchedule => ({
     id: String(raw.id),
     name: raw.title ?? raw.name ?? '',
@@ -732,6 +780,37 @@ export default function MonthView() {
 
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
+
+  const openCreateTaskPopup = useCallback((source?: string) => {
+    setTaskPopupMode('create')
+    setTaskPopupId(null)
+
+    const placementDate = source === 'Month' ? today() : null
+    const placementTime = null
+
+    setTaskPopupTask({
+      id: null,
+      title: '',
+      content: '',
+      labels: [],
+      completed: false,
+      placementDate,
+      placementTime,
+      dueDateTime: null,
+    })
+
+    setTaskPopupVisible(true)
+  }, [])
+
+  useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      openCreateTaskPopup(payload.source)
+    }
+
+    bus.on('task:create', handler)
+    return () => bus.off('task:create', handler)
+  }, [openCreateTaskPopup])
 
   // 달 상태: 이 값만 바뀌면 전체가 그 달 기준으로 다시 그림
   const [ym, setYm] = useState<string>(() => {
@@ -1296,6 +1375,128 @@ export default function MonthView() {
         visible={popupVisible}
         onClose={() => setPopupVisible(false)}
         dayData={selectedDayData || {}}
+      />
+      <EventDetailPopup
+        visible={eventPopupVisible}
+        eventId={eventPopupData?.id ?? null}
+        mode={eventPopupData ? 'edit' : 'create'}
+        onClose={() => {
+          setEventPopupVisible(false)
+          setEventPopupData(null)
+        }}
+      />
+      <TaskDetailPopup
+        visible={taskPopupVisible}
+        mode={taskPopupMode}
+        taskId={taskPopupId ?? undefined}
+        initialTask={taskPopupTask}
+        onClose={() => {
+          setTaskPopupVisible(false)
+          setTaskPopupTask(null)
+          setTaskPopupId(null)
+        }}
+        onSave={async (form) => {
+          const pad = (n: number) => String(n).padStart(2, '0')
+
+          let placementDate: string | null = null
+          let placementTime: string | null = null
+          const fieldsToClear: string[] = []
+
+          // 날짜
+          if (form.hasDate && form.date) {
+            const d = form.date
+            placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+              d.getDate(),
+            )}`
+          } else {
+            fieldsToClear.push('placementDate')
+          }
+
+          // 시간
+          if (form.hasTime && form.time) {
+            const t = form.time
+            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
+              t.getSeconds(),
+            )}`
+          } else {
+            fieldsToClear.push('placementTime')
+          }
+
+          // 이 Task가 속하는 날짜 (없으면 현재 포커스된 날짜 기준)
+          const targetDate = placementDate ?? focusedDateISO
+
+          try {
+            if (taskPopupMode === 'edit') {
+              if (!taskPopupId) return
+
+              await http.patch(`/task/${taskPopupId}`, {
+                title: form.title,
+                content: form.memo,
+                labelIds: form.labelIds,
+                placementDate,
+                placementTime,
+                fieldsToClear,
+              })
+
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: { id: taskPopupId, date: targetDate },
+              })
+            } else {
+              // 새 테스크 생성
+              const res = await http.post('/task', {
+                title: form.title,
+                content: form.memo,
+                labelIds: form.labelIds,
+                placementDate,
+                placementTime,
+                date: targetDate,
+              })
+
+              const newId = res.data?.data?.id
+
+              bus.emit('calendar:mutated', {
+                op: 'create',
+                item: { id: newId, date: targetDate },
+              })
+            }
+
+            // 월간뷰 다시 조회
+            await fetchFresh(ym)
+
+            // 팝업 닫기
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          } catch (err) {
+            console.error('❌ 테스크 저장 실패:', err)
+            Alert.alert('오류', '테스크를 저장하지 못했습니다.')
+          }
+        }}
+        onDelete={
+          taskPopupMode === 'edit'
+            ? async () => {
+                if (!taskPopupId) return
+                try {
+                  await http.delete(`/task/${taskPopupId}`)
+
+                  bus.emit('calendar:mutated', {
+                    op: 'delete',
+                    item: { id: taskPopupId, date: focusedDateISO },
+                  })
+
+                  await fetchFresh(ym)
+
+                  setTaskPopupVisible(false)
+                  setTaskPopupId(null)
+                  setTaskPopupTask(null)
+                } catch (err) {
+                  console.error('❌ 테스크 삭제 실패:', err)
+                  Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+                }
+              }
+            : undefined
+        }
       />
     </ScreenWithSidebar>
   )

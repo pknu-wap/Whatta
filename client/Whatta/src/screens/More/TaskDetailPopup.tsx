@@ -200,10 +200,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
             {/* 헤더: X / 체크 */}
             <View style={styles.header}>
               <Pressable onPress={onClose}>
-                <Xbutton width={12} height={12} hitSlop={8} color={'#808080'} />
+                <Xbutton width={12} height={12} hitSlop={20} color={'#808080'} />
               </Pressable>
               <Pressable onPress={handleSave}>
-                <Check width={12} height={12} hitSlop={8} color={'#808080'} />
+                <Check width={12} height={12} hitSlop={20} color={'#808080'} />
               </Pressable>
             </View>
 
@@ -345,7 +345,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                       {/* AM/PM */}
                       <Picker
-                        style={{ width: 90, height: 160 }}
+                        style={{ width: 100, height: 160, fontSize: 13 }}
                         selectedValue={time.getHours() < 12 ? 'AM' : 'PM'}
                         onValueChange={(v) => {
                           const t = new Date(time)

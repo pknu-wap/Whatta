@@ -512,19 +512,33 @@ const TaskCard = memo(function TaskCard({
         )}
       </Pressable>
 
-      {/* 제목 */}
-      <GestureDetector gesture={pan}>
+      {/* 제목 영역 */}
+      {checked ? (
+        // 완료된 테스크: 드래그 비활성화
         <Text
           style={[
             ts('taskName'),
             { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
-            checked && { textDecorationLine: 'line-through' },
+            { textDecorationLine: 'line-through' },
           ]}
           numberOfLines={1}
         >
           {title}
         </Text>
-      </GestureDetector>
+      ) : (
+        // 예정 테스크만 드래그 가능
+        <GestureDetector gesture={pan}>
+          <Text
+            style={[
+              ts('taskName'),
+              { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
+            ]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        </GestureDetector>
+      )}
 
       {/* 점3개 핸들: 내부 순서 변경용 */}
       <Pressable

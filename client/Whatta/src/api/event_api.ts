@@ -86,6 +86,19 @@ export type ScheduleData = {
   multiDayEnd?: string
 }
 
+export type EventItem = {
+  id: string
+  title: string
+  content?: string
+  labels?: number[]
+  startDate: string // "YYYY-MM-DD"
+  endDate: string // "YYYY-MM-DD"
+  startTime?: string | null // "HH:mm:ss"
+  endTime?: string | null // "HH:mm:ss"
+  colorKey?: string // "FFFFFF"
+  repeat?: Repeat
+}
+
 // 3. Task → MonthView용 ScheduleData로 변환
 export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
   const raw = await fetchTasksRaw(ym)
