@@ -178,7 +178,7 @@ export default function MainTabs() {
             }}
             onPressTop2={() => {}}
             onPressPrimaryWhenOpen={() => {
-              navigation.navigate('AddSchedule')
+              bus.emit('popup:schedule:create', { source: activeTab })
             }}
           />
         )}

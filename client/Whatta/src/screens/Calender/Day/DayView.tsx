@@ -31,8 +31,10 @@ import axios from 'axios'
 import { token } from '@/lib/token'
 import { refreshTokens } from '@/api/auth'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
+import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
+import type { EventItem } from '@/api/event_api'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -133,6 +135,30 @@ export default function DayView() {
   const [checks, setChecks] = useState(INITIAL_CHECKS)
   const [events, setEvents] = useState<any[]>([])
   const [spanEvents, setSpanEvents] = useState<any[]>([])
+  const [eventPopupVisible, setEventPopupVisible] = useState(false)
+  const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
+
+  async function openEventDetail(eventId: string) {
+    try {
+      const res = await http.get(`/event/${eventId}`)
+      setEventPopupData(res.data.data)
+      setEventPopupVisible(true)
+    } catch (e) {
+      console.warn('event detail load error', e)
+      Alert.alert('오류', '일정 정보를 가져오지 못했습니다.')
+    }
+  }
+
+  useEffect(() => {
+    const h = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Day') return
+      setEventPopupData(null)
+      setEventPopupVisible(true)
+    }
+    bus.on('popup:schedule:create', h)
+    return () => bus.off('popup:schedule:create', h)
+  }, [])
+
   const [tasks, setTasks] = useState<any[]>([])
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
 
@@ -265,19 +291,12 @@ export default function DayView() {
   }
 
   // FAB에서 사용하는 '할 일 생성' 팝업 열기
-  const openCreateTaskPopup = React.useCallback((source?: string) => {
+  const openCreateTaskPopup = useCallback((source?: string) => {
     setTaskPopupMode('create')
     setTaskPopupId(null)
 
-    // 기본값: 날짜/시간 없음
-    let placementDate: string | null = null
-    let placementTime: string | null = null
-
-    // Day 탭에서 눌렀을 때만 헤더 기준 날짜를 미리 넣어주기
-    if (source === 'Day') {
-      placementDate = anchorDateRef.current // 헤더에서 마지막으로 선택한 날짜
-      placementTime = null // 시간은 선택 안 된 상태로 두고 싶으면 null 유지
-    }
+    const placementDate = source === 'Day' ? anchorDateRef.current : null
+    const placementTime = null
 
     setTaskPopupTask({
       id: null,
@@ -292,16 +311,15 @@ export default function DayView() {
 
     setTaskPopupVisible(true)
   }, [])
+
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
-      // payload?.source 에 'Month' | 'Week' | 'Day' 들어옴
-      openCreateTaskPopup(payload?.source)
+      if (payload?.source !== 'Day') return
+      openCreateTaskPopup(payload.source)
     }
 
     bus.on('task:create', handler)
-    return () => {
-      bus.off('task:create', handler)
-    }
+    return () => bus.off('task:create', handler)
   }, [openCreateTaskPopup])
 
   useEffect(() => {
@@ -774,6 +792,7 @@ export default function DayView() {
                   endMin={endMin}
                   color={`#${evt.colorKey}`}
                   anchorDate={anchorDate}
+                  onPress={() => openEventDetail(evt.id)}
                 />
               )
             })}
@@ -887,6 +906,16 @@ export default function DayView() {
             }
           }}
           onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
+        />
+        <EventDetailPopup
+          visible={eventPopupVisible}
+          eventId={eventPopupData?.id ?? null}
+          mode={eventPopupData ? 'edit' : 'create'} // id 있으면 edit, 없으면 create
+          onClose={() => {
+            setEventPopupVisible(false)
+            setEventPopupData(null)
+            fetchDailyEvents(anchorDate) // 일정 새로 반영
+          }}
         />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
@@ -1103,6 +1132,7 @@ type DraggableFlexalbeEventProps = {
   endMin: number
   color: string
   anchorDate: string
+  onPress?: () => void
 }
 
 function DraggableFlexalbeEvent({
@@ -1113,6 +1143,7 @@ function DraggableFlexalbeEvent({
   endMin,
   color,
   anchorDate,
+  onPress,
 }: DraggableFlexalbeEventProps) {
   const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
   const height = rawHeight - 2
@@ -1195,28 +1226,30 @@ function DraggableFlexalbeEvent({
           style,
         ]}
       >
-        <Text
-          style={{
-            color: '#000000',
-            fontWeight: '600',
-            fontSize: 13,
-            lineHeight: 15,
-          }}
-        >
-          {title}
-        </Text>
-        {!!place && (
+        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={10}>
           <Text
             style={{
-              color: '#FFFFFF',
-              fontSize: 10,
-              marginTop: 10,
-              lineHeight: 10,
+              color: '#000000',
+              fontWeight: '600',
+              fontSize: 13,
+              lineHeight: 15,
             }}
           >
-            {place}
+            {title}
           </Text>
-        )}
+          {!!place && (
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 10,
+                marginTop: 10,
+                lineHeight: 10,
+              }}
+            >
+              {place}
+            </Text>
+          )}
+        </Pressable>
       </Animated.View>
     </GestureDetector>
   )

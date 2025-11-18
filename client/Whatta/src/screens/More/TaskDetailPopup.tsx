@@ -200,10 +200,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
             {/* 헤더: X / 체크 */}
             <View style={styles.header}>
               <Pressable onPress={onClose}>
-                <Xbutton width={12} height={12} hitSlop={10} color={'#808080'} />
+                <Xbutton width={12} height={12} hitSlop={20} color={'#808080'} />
               </Pressable>
               <Pressable onPress={handleSave}>
-                <Check width={12} height={12} hitSlop={10} color={'#808080'} />
+                <Check width={12} height={12} hitSlop={20} color={'#808080'} />
               </Pressable>
             </View>
 
