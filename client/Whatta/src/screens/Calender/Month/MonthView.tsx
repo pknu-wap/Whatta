@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
+  Alert,
 } from 'react-native'
 
 import { useRoute } from '@react-navigation/native'
@@ -18,6 +19,10 @@ import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
 import { fetchTasksForMonth } from '@/api/event_api'
 import { useFocusEffect } from '@react-navigation/native'
+import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
+import EventDetailPopup from '@/screens/More/EventDetailPopup'
+import type { EventItem } from '@/api/event_api'
+import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -678,6 +683,50 @@ export default function MonthView() {
   )
   const laneMapRef = useRef<Map<string, number>>(new Map())
 
+  // 일정 상세 팝업
+  const [eventPopupVisible, setEventPopupVisible] = useState(false)
+  const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
+  useEffect(() => {
+    const h = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      setEventPopupData(null)
+      setEventPopupVisible(true)
+    }
+    bus.on('popup:schedule:create', h)
+    return () => bus.off('popup:schedule:create', h)
+  }, [])
+
+  // 테스크 상세 팝업
+  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
+  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
+  const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
+
+  async function openTaskPopupFromApi(taskId: string) {
+    try {
+      const res = await http.get(`/task/${taskId}`)
+      const data = res.data?.data
+      if (!data) return
+
+      setTaskPopupMode('edit')
+      setTaskPopupId(data.id)
+      setTaskPopupTask({
+        id: data.id,
+        title: data.title ?? '',
+        content: data.content ?? '',
+        labels: data.labels ?? [],
+        completed: data.completed ?? false,
+        placementDate: data.placementDate,
+        placementTime: data.placementTime,
+        dueDateTime: data.dueDateTime ?? null,
+      })
+      setTaskPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }
+
   const mapApiToScheduleData = (raw: any): UISchedule => ({
     id: String(raw.id),
     name: raw.title ?? raw.name ?? '',
@@ -728,6 +777,40 @@ export default function MonthView() {
   }
 
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
+
+  const [popupVisible, setPopupVisible] = useState(false)
+  const [selectedDayData, setSelectedDayData] = useState<any>(null)
+
+  const openCreateTaskPopup = useCallback((source?: string) => {
+    setTaskPopupMode('create')
+    setTaskPopupId(null)
+
+    const placementDate = source === 'Month' ? today() : null
+    const placementTime = null
+
+    setTaskPopupTask({
+      id: null,
+      title: '',
+      content: '',
+      labels: [],
+      completed: false,
+      placementDate,
+      placementTime,
+      dueDateTime: null,
+    })
+
+    setTaskPopupVisible(true)
+  }, [])
+
+  useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      openCreateTaskPopup(payload.source)
+    }
+
+    bus.on('task:create', handler)
+    return () => bus.off('task:create', handler)
+  }, [openCreateTaskPopup])
 
   // 달 상태: 이 값만 바뀌면 전체가 그 달 기준으로 다시 그림
   const [ym, setYm] = useState<string>(() => {
@@ -883,21 +966,75 @@ export default function MonthView() {
     return weeks
   }
 
+  type ExtendedScheduleData = ScheduleData & {
+    memo?: string
+    place?: string
+    time?: string
+  }
+
+  type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
+    colorKey?: string
+  }
+
   const handleDatePress = (dateItem: CalendarDateItem) => {
     if (!dateItem.isCurrentMonth) return
+
     const d = dateItem.fullDate
     setFocusedDateISO(
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
     )
-  }
 
-  // task API
-  const hhmm = (s?: string | null) => {
-    if (!s) return undefined
-    const m = /(\d{1,2}):(\d{2})/.exec(String(s))
-    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : undefined
-  }
+    setSelectedDayData({
+      date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+      spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter((s) => s.multiDayStart && s.multiDayEnd)
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#8B5CF6'
+          return {
+            title: s.name,
+            period: `${s.multiDayStart}~${s.multiDayEnd}`,
+            colorKey: s.colorKey,
+            color: baseColor,
+          }
+        }),
 
+      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#F4EAFF'
+          return {
+            title: s.name,
+            memo: s.memo ?? '',
+            color: baseColor,
+          }
+        }),
+      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+        const baseColor = t.colorKey
+          ? t.colorKey.startsWith('#')
+            ? t.colorKey
+            : `#${t.colorKey}`
+          : '#FFD966'
+        return {
+          title: t.name,
+          place: t.place ?? '',
+          time: t.time ?? '',
+          color: baseColor, // ← 원래 색 유지
+          borderColor: baseColor, // ← 보더도 같은 색 계열로
+        }
+      }),
+    })
+
+    setPopupVisible(true)
+  }
   // 서버에서 가져온 월간
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
 
@@ -920,7 +1057,7 @@ export default function MonthView() {
   }
 
   const fetchMonthlyApi = async (ymStr: string): Promise<MonthlyPayload> => {
-    const res = await http.get('/api/calendar/monthly', { params: { month: ymStr } })
+    const res = await http.get('/calendar/monthly', { params: { month: ymStr } })
     const data = res.data?.data ?? {}
     return {
       days: (data.days ?? []) as MonthlyDay[],
@@ -928,57 +1065,103 @@ export default function MonthView() {
     }
   }
 
+  // 월간 응답을 MonthView에서 사용하는 UISchedule 배열로 평탄화
+  const flattenMonthly = (fresh: MonthlyPayload): UISchedule[] => {
+    const list: UISchedule[] = []
+
+    const pickLabelId = (raw: any): string => {
+      const arr = Array.isArray(raw?.labels) ? raw.labels : []
+      if (arr.length === 0) return ''
+      const first = arr[0]
+      // labels가 [1] 이런 숫자 배열일 수도 있고,
+      // [{ id: 1, ... }] 이런 객체 배열일 수도 있으니 둘 다 처리
+      if (typeof first === 'object' && first !== null) {
+        return String(first.id ?? first.labelId ?? '')
+      }
+      return String(first)
+    }
+
+    // 1) 하루짜리(단일/반복) 일정들
+    ;(fresh.days ?? []).forEach((day: any) => {
+      const dateISO = (day.date ?? day.targetDate ?? '').slice(0, 10)
+
+      ;(day.events ?? []).forEach((ev: any) => {
+        list.push({
+          id: String(ev.id),
+          name: ev.title ?? ev.name ?? '',
+          date: dateISO,
+          isRecurring: !!ev.isRepeat,
+          isTask: !!ev.isTask, // 월간 응답은 항상 false/undefined라서 그냥 두면 됩니다
+          isCompleted: !!ev.isCompleted,
+          labelId: pickLabelId(ev), // ✅ 여기 수정
+          colorKey:
+            typeof ev.colorKey === 'string'
+              ? ev.colorKey.replace(/^#/, '').toUpperCase()
+              : undefined,
+        })
+      })
+    })
+
+    // 2) 멀티데이(spanEvents) – 기간 일정
+    ;(fresh.spanEvents ?? []).forEach((ev: any) => {
+      const start = (ev.startDate ?? '').slice(0, 10)
+      const end = (ev.endDate ?? '').slice(0, 10)
+
+      list.push({
+        id: String(ev.id),
+        name: ev.title ?? ev.name ?? '',
+        date: start,
+        isRecurring: !!ev.isRepeat,
+        isTask: false,
+        isCompleted: false,
+        labelId: pickLabelId(ev), // ✅ 여기도 수정
+        colorKey:
+          typeof ev.colorKey === 'string'
+            ? ev.colorKey.replace(/^#/, '').toUpperCase()
+            : undefined,
+        multiDayStart: start,
+        multiDayEnd: end,
+      })
+    })
+
+    return list
+  }
+
   // 월간 조회
   useEffect(() => {
     let alive = true
     ;(async () => {
+      setLoading(true)
       try {
-        setLoading(true)
-
-        // 1. 월간 페이로드 가져오기
+        // 1) 월간 일정은 반드시 가져온다
         const fresh = await fetchMonthlyApi(ym)
+        const monthlySchedules = flattenMonthly(fresh)
 
-        // 2. 월간 → 화면 모델(ScheduleData[])
-        const schedulesFromMonth = adaptMonthlyToSchedules(fresh)
+        // 2) Task는 실패해도 월간 일정은 살린다
+        let tasksThisMonth: UISchedule[] = []
+        try {
+          tasksThisMonth = await fetchTasksForMonth(ym)
+        } catch (err) {
+          console.warn('[MonthView] fetchTasksForMonth 실패, 일정만 표시합니다.', err)
+        }
 
-        // 3. 같은 달 Task → 화면 모델(ScheduleData[])
-        const tasksThisMonth = await fetchTasksForMonth(ym)
+        const merged: UISchedule[] = [...monthlySchedules, ...tasksThisMonth]
 
-        // 4. 합치기
-        // 새로: spanEvents + days[*].events 모두 스캔해서 색상 맵 구성
-        const colorById = new Map<string, string | undefined>()
-        // 멀티데이(기간 이벤트)
-        fresh.spanEvents.forEach((e) => {
-          colorById.set(String(e.id), e.colorKey)
-        })
-        // 단일/반복 이벤트(일자별)
-        ;(fresh.days ?? []).forEach((d: any) => {
-          ;(d.events ?? []).forEach((ev: any) => {
-            colorById.set(String(ev.id), ev.colorKey)
-          })
-        })
-        // schedulesFromMonth(단일/반복 + 스팬 변환 결과) + tasks 를 병합
-        const merged: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map(
-          (it) => ({
-            ...it,
-            // 이미 들어있으면 유지, 없으면 우리가 만든 맵에서 보충
-            colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
-          }),
-        )
-        setServerSchedules(merged)
-
-        const spansOnly = merged.filter((s) => s.multiDayStart && s.multiDayEnd)
         laneMapRef.current = buildLaneMap(merged.filter(isSpan))
 
         if (!alive) return
-        setDays(fresh.days) // 배열만 세팅 (타입 에러 사라짐)
-        setServerSchedules(merged) // 화면 렌더 소스
-      } catch (e) {
-        if (alive) setServerSchedules([])
+        setDays(fresh.days)
+        setServerSchedules(merged)
+      } catch (err) {
+        if (!alive) return
+        console.warn('[MonthView] fetchMonthlyApi 실패', err)
+        setDays([])
+        setServerSchedules([])
       } finally {
         if (alive) setLoading(false)
       }
     })()
+
     return () => {
       alive = false
     }
@@ -1188,6 +1371,133 @@ export default function MonthView() {
           </Animated.View>
         </ScrollView>
       </View>
+      <MonthDetailPopup
+        visible={popupVisible}
+        onClose={() => setPopupVisible(false)}
+        dayData={selectedDayData || {}}
+      />
+      <EventDetailPopup
+        visible={eventPopupVisible}
+        eventId={eventPopupData?.id ?? null}
+        mode={eventPopupData ? 'edit' : 'create'}
+        onClose={() => {
+          setEventPopupVisible(false)
+          setEventPopupData(null)
+        }}
+      />
+      <TaskDetailPopup
+        visible={taskPopupVisible}
+        mode={taskPopupMode}
+        taskId={taskPopupId ?? undefined}
+        initialTask={taskPopupTask}
+        onClose={() => {
+          setTaskPopupVisible(false)
+          setTaskPopupTask(null)
+          setTaskPopupId(null)
+        }}
+        onSave={async (form) => {
+          const pad = (n: number) => String(n).padStart(2, '0')
+
+          let placementDate: string | null = null
+          let placementTime: string | null = null
+          const fieldsToClear: string[] = []
+
+          // 날짜
+          if (form.hasDate && form.date) {
+            const d = form.date
+            placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+              d.getDate(),
+            )}`
+          } else {
+            fieldsToClear.push('placementDate')
+          }
+
+          // 시간
+          if (form.hasTime && form.time) {
+            const t = form.time
+            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
+              t.getSeconds(),
+            )}`
+          } else {
+            fieldsToClear.push('placementTime')
+          }
+
+          // 이 Task가 속하는 날짜 (없으면 현재 포커스된 날짜 기준)
+          const targetDate = placementDate ?? focusedDateISO
+
+          try {
+            if (taskPopupMode === 'edit') {
+              if (!taskPopupId) return
+
+              await http.patch(`/task/${taskPopupId}`, {
+                title: form.title,
+                content: form.memo,
+                labelIds: form.labelIds,
+                placementDate,
+                placementTime,
+                fieldsToClear,
+              })
+
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: { id: taskPopupId, date: targetDate },
+              })
+            } else {
+              // 새 테스크 생성
+              const res = await http.post('/task', {
+                title: form.title,
+                content: form.memo,
+                labelIds: form.labelIds,
+                placementDate,
+                placementTime,
+                date: targetDate,
+              })
+
+              const newId = res.data?.data?.id
+
+              bus.emit('calendar:mutated', {
+                op: 'create',
+                item: { id: newId, date: targetDate },
+              })
+            }
+
+            // 월간뷰 다시 조회
+            await fetchFresh(ym)
+
+            // 팝업 닫기
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          } catch (err) {
+            console.error('❌ 테스크 저장 실패:', err)
+            Alert.alert('오류', '테스크를 저장하지 못했습니다.')
+          }
+        }}
+        onDelete={
+          taskPopupMode === 'edit'
+            ? async () => {
+                if (!taskPopupId) return
+                try {
+                  await http.delete(`/task/${taskPopupId}`)
+
+                  bus.emit('calendar:mutated', {
+                    op: 'delete',
+                    item: { id: taskPopupId, date: focusedDateISO },
+                  })
+
+                  await fetchFresh(ym)
+
+                  setTaskPopupVisible(false)
+                  setTaskPopupId(null)
+                  setTaskPopupTask(null)
+                } catch (err) {
+                  console.error('❌ 테스크 삭제 실패:', err)
+                  Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+                }
+              }
+            : undefined
+        }
+      />
     </ScreenWithSidebar>
   )
 }

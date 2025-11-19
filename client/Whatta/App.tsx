@@ -5,6 +5,7 @@ import React, { createContext, useState, useCallback, useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import RootStack from '@/navigation/RootStack'
 import { ensureAuthReady } from '@/app/bootstrap'
+import { DrawerProvider } from '@/providers/DrawerProvider'
 
 // ✅ 라벨 타입
 export interface LabelItem {
@@ -73,9 +74,11 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>
-        <NavigationContainer>
-          <RootStack />
-        </NavigationContainer>
+        <DrawerProvider>
+          <NavigationContainer>
+            <RootStack />
+          </NavigationContainer>
+        </DrawerProvider>
       </FilterContext.Provider>
     </GestureHandlerRootView>
   )

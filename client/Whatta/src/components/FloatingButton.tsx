@@ -30,7 +30,7 @@ type FabProps = {
 const OFFSET_Y = 70
 const SPRING = { damping: 10, stiffness: 140, overshootClamping: true }
 
-const BTN_SIZE = 56
+const BTN_SIZE = 66
 
 export default function FabHybridIOS({
   collapsedIcon = <Plus width={BTN_SIZE} height={BTN_SIZE} />,
@@ -157,7 +157,7 @@ const S = StyleSheet.create({
   wrap: {
     position: 'absolute',
     alignItems: 'flex-end',
-    bottom: 114,
+    bottom: 97,
     right: 18,
   },
   overlay: { backgroundColor: 'rgba(255,255,255,0.7)' },
