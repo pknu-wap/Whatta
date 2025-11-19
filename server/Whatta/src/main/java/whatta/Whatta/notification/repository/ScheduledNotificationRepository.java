@@ -18,4 +18,6 @@ public interface ScheduledNotificationRepository extends MongoRepository<Schedul
     Optional<ScheduledNotification> findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(NotificationTargetType targetType, String targetId, NotiStatus status, LocalDateTime now);
 
     List<ScheduledNotification> findByStatusAndTriggerAtLessThanEqual(NotiStatus status, LocalDateTime now);
+
+    List<ScheduledNotification> findByStatusAndUserId(NotiStatus status, String userId);
 }
