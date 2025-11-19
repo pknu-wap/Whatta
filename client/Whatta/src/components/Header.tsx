@@ -21,7 +21,11 @@ import Filter from '@/assets/icons/filter.svg'
 import Left from '@/assets/icons/left.svg'
 import Right from '@/assets/icons/right.svg'
 import colors from '@/styles/colors'
-import { useNavigation, useFocusEffect, useNavigationState } from '@react-navigation/native'
+import {
+  useNavigation,
+  useFocusEffect,
+  useNavigationState,
+} from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
@@ -113,7 +117,6 @@ export default function Header() {
   const sliderX = useState(new Animated.Value(globalPopupState.sliderX))[0]
   const maxSlide = 38
   const [mode, setMode] = useState<ViewMode>('month')
-  const [anchorDate, setAnchorDate] = useState<string>(today())
 
   /* ✅ 현재 활성 탭 감지 */
   const currentRouteName = useNavigationState((state) => {
@@ -137,24 +140,24 @@ export default function Header() {
         sliderX.setValue(globalPopupState.sliderX)
       }
       return () => {}
-    }, [])
+    }, []),
   )
 
   const headerCatcherStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
   }))
 
-  const runOrQueue = React.useCallback(
-    (fn: () => void) => {
-      if (isOpen) {
-        close()
-        setTimeout(fn, CLOSE_ANIM_MS) // 닫힘 애니 끝난 뒤 실행
-      } else {
-        fn()
-      }
-    },
-    [isOpen, close],
-  )
+  // const runOrQueue = React.useCallback(
+  //   (fn: () => void) => {
+  //     if (isOpen) {
+  //       close()
+  //       setTimeout(fn, CLOSE_ANIM_MS) // 닫힘 애니 끝난 뒤 실행
+  //     } else {
+  //       fn()
+  //     }
+  //   },
+  //   [isOpen, close],
+  // )
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
@@ -175,8 +178,8 @@ export default function Header() {
       mode === 'month'
         ? addMonths(anchorDate, -1)
         : mode === 'week'
-        ? addDays(anchorDate, -7)
-        : addDays(anchorDate, -1)
+          ? addDays(anchorDate, -7)
+          : addDays(anchorDate, -1)
     bus.emit('calendar:set-date', iso)
   }
   const goNext = () => {
@@ -184,8 +187,8 @@ export default function Header() {
       mode === 'month'
         ? addMonths(anchorDate, +1)
         : mode === 'week'
-        ? addDays(anchorDate, +7)
-        : addDays(anchorDate, +1)
+          ? addDays(anchorDate, +7)
+          : addDays(anchorDate, +1)
     bus.emit('calendar:set-date', iso)
   }
 
@@ -236,7 +239,11 @@ export default function Header() {
   })
 
   const menuIconProps = useAnimatedProps(() => ({
-    color: interpolateColor(progress.value, [0, 1], [colors.icon.default, colors.primary.main]),
+    color: interpolateColor(
+      progress.value,
+      [0, 1],
+      [colors.icon.default, colors.primary.main],
+    ),
   }))
 
   return (
@@ -250,7 +257,7 @@ export default function Header() {
         {/* 날짜 그룹 */}
         {/* 달 이동/타이틀/우측 버튼 - 모두 runOrQueue로 감싸기 */}
         <View style={styles.dateGroup}>
-          <TouchableOpacity onPress={() => runOrQueue(goPrev)}>
+          <TouchableOpacity onPress={goPrev}>
             <Left width={24} height={24} color={colors.icon.default} />
           </TouchableOpacity>
 
@@ -263,21 +270,26 @@ export default function Header() {
                 setCalVisible(true)
               }
             }}
-<!--             onPress={() => runOrQueue(() => setCalVisible(true))} -->
+            // <!--             onPress={() => runOrQueue(() => setCalVisible(true))} -->
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={goNext}>
-            <Right width={24} height={24} color={colors.icon.default} style={{ marginTop: 2 }} />
-<!--           <TouchableOpacity onPress={() => runOrQueue(goNext)}>
             <Right
               width={24}
               height={24}
               color={colors.icon.default}
               style={{ marginTop: 2 }}
-            /> -->
+            />
+            {/* <!--           <TouchableOpacity onPress={() => runOrQueue(goNext)}>
+            <Right
+              width={24}
+              height={24}
+              color={colors.icon.default}
+              style={{ marginTop: 2 }}
+            /> --> */}
           </TouchableOpacity>
         </View>
 
@@ -294,13 +306,13 @@ export default function Header() {
               globalPopupState.opacity = 1
             }
           }}
-<!--           onPress={() =>
-            runOrQueue(() => {
-              sliderX.setValue(0)
-              popupOpacity.setValue(1)
-              setPopup((p) => !p)
-            })
-          } -->
+          // <!--           onPress={() =>
+          //             runOrQueue(() => {
+          //               sliderX.setValue(0)
+          //               popupOpacity.setValue(1)
+          //               setPopup((p) => !p)
+          //             })
+          //           } -->
         >
           <Filter
             width={22}
@@ -314,7 +326,16 @@ export default function Header() {
       {/* ✅ 헤더의 빈공간 클릭 시 닫기 */}
       {popup && (
         <>
-          <View style={{ position: 'absolute', top: 0, left: 44, width: 40, height: 48, zIndex: 2 }}>
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 44,
+              width: 40,
+              height: 48,
+              zIndex: 2,
+            }}
+          >
             <TouchableOpacity
               activeOpacity={1}
               style={{ flex: 1 }}
@@ -324,7 +345,16 @@ export default function Header() {
               }}
             />
           </View>
-          <View style={{ position: 'absolute', top: 0, right: 50, width: 40, height: 48, zIndex: 2 }}>
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 50,
+              width: 40,
+              height: 48,
+              zIndex: 2,
+            }}
+          >
             <TouchableOpacity
               activeOpacity={1}
               style={{ flex: 1 }}
@@ -337,9 +367,10 @@ export default function Header() {
         </>
       )}
 
-      <AnimatedRe.View style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}
+      <AnimatedRe.View
+        style={[StyleSheet.absoluteFill, headerCatcherStyle, { zIndex: 10 }]}
         pointerEvents="none"
-        >
+      >
         <TouchableOpacity style={{ flex: 1 }} onPress={close} />
       </AnimatedRe.View>
 
@@ -413,8 +444,18 @@ const styles = StyleSheet.create({
     marginLeft: 14,
   },
   dateGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  titleContainer: { alignItems: 'center', justifyContent: 'center', marginHorizontal: 10 },
-  title: { textAlign: 'center', fontSize: 20, fontWeight: '700', lineHeight: 23, letterSpacing: -0.4 },
+  titleContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 10,
+  },
+  title: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 23,
+    letterSpacing: -0.4,
+  },
   popupContainer: { position: 'absolute', right: 10, top: 48, zIndex: 999 },
   popupBox: {
     width: 158,
@@ -429,14 +470,41 @@ const styles = StyleSheet.create({
     elevation: 24,
   },
   popupTitle: { fontSize: 14, fontWeight: 'bold', marginLeft: 16 },
-  sliderTrack: { width: 38, height: 2, backgroundColor: 'rgba(0.2,0.2,0.2,1)', borderRadius: 1, position: 'absolute', right: 25, top: 22 },
-  sliderThumb: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#B4B4B4', position: 'absolute', top: -5 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 9 },
+  sliderTrack: {
+    width: 38,
+    height: 2,
+    backgroundColor: 'rgba(0.2,0.2,0.2,1)',
+    borderRadius: 1,
+    position: 'absolute',
+    right: 25,
+    top: 22,
+  },
+  sliderThumb: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#B4B4B4',
+    position: 'absolute',
+    top: -5,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 9,
+  },
   allText: { fontSize: 14, marginLeft: 16 },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
   colorDot: { width: 5, height: 12, marginRight: 4 },
   labelText: { fontSize: 14 },
   divider: { width: 126, height: 1, backgroundColor: '#e1e1e1', alignSelf: 'center' },
-  switchTrack: { width: 51, height: 31, borderRadius: 16, padding: 3, justifyContent: 'center', marginRight: 16 },
+  switchTrack: {
+    width: 51,
+    height: 31,
+    borderRadius: 16,
+    padding: 3,
+    justifyContent: 'center',
+    marginRight: 16,
+  },
   switchThumb: { width: 25, height: 25, borderRadius: 12.5, backgroundColor: '#fff' },
 })
