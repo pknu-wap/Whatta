@@ -20,7 +20,7 @@ import Plus from '@/assets/icons/plusbtn.svg'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
 
-export type EditableItem = { id: string; label: string }
+export type EditableItem = { id: string; label: string; fixed?: boolean }
 
 type Props = {
   title: string
@@ -111,8 +111,11 @@ export default function EditableListScreen({
   const commitInline = async (id: string, value: string) => {
     const title = value.trim()
 
+    // 내용이 없으면: 새로 만든 temp 라벨은 삭제, 기존 라벨은 그대로
     if (!title) {
-      if (id.startsWith('temp-')) notify((prev) => prev.filter((x) => x.id !== id))
+      if (id.startsWith('temp-')) {
+        notify((prev) => prev.filter((x) => x.id !== id))
+      }
       setEditingId(null)
       return
     }
@@ -121,10 +124,21 @@ export default function EditableListScreen({
     if (id.startsWith('temp-')) {
       try {
         const created = await onCreate?.(title)
-        if (created) notify((prev) => prev.map((x) => (x.id === id ? created : x)))
-      } catch {
+        if (created) {
+          // temp-로 된 가짜 아이템을 서버에서 받은 진짜 아이템으로 교체
+          notify((prev) => prev.map((x) => (x.id === id ? created : x)))
+        }
+      } catch (err: any) {
+        // 실패하면 temp 아이템 삭제
         notify((prev) => prev.filter((x) => x.id !== id))
-        Alert.alert('라벨 한도', `라벨은 최대 ${maxCount}개까지 생성할 수 있습니다.`)
+
+        // 중복 에러
+        if (err?.code === 'duplicate') {
+          Alert.alert('중복 라벨', '이미 같은 이름의 라벨이 있습니다.')
+        } else {
+          // 그 외 에러는 "최대 10개"로 처리
+          Alert.alert('라벨 한도', `라벨은 최대 ${maxCount}개까지 생성할 수 있습니다.`)
+        }
       } finally {
         setEditingId(null)
       }
@@ -135,6 +149,11 @@ export default function EditableListScreen({
     try {
       await onUpdate?.(id, title)
       notify((prev) => prev.map((x) => (x.id === id ? { ...x, label: title } : x)))
+    } catch (err: any) {
+      if (err?.code === 'duplicate') {
+        Alert.alert('중복 라벨', '이미 같은 이름의 라벨이 있습니다.')
+      }
+      // 다른 에러는 일단 추가 Alert 없이 무시
     } finally {
       setEditingId(null)
     }
@@ -143,15 +162,30 @@ export default function EditableListScreen({
   const confirmDelete = async (ids: string[]) => {
     if (!ids.length) return
 
-    const prev = items
-    notify(prev.filter((x) => !ids.includes(x.id)))
-    setSelected(new Set())
-
     try {
+      // 1) 서버 삭제 먼저
       await onDelete?.(ids)
-    } catch {
-      notify(prev)
+
+      // 2) 성공하면 리스트에서 제거
+      notify((prev) => prev.filter((x) => !ids.includes(x.id)))
+      setSelected(new Set())
+    } catch (e) {
+      console.log('삭제 실패', e)
+      Alert.alert('삭제 실패', '라벨 삭제 중 오류가 발생했습니다.')
     }
+  }
+
+  const deleteWithConfirm = (ids: string[]) => {
+    if (!ids.length) return
+
+    Alert.alert('삭제하시겠습니까?', '선택한 라벨이 삭제됩니다.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => confirmDelete(ids),
+      },
+    ])
   }
 
   const toggleSelect = (id: string) => {
@@ -185,9 +219,13 @@ export default function EditableListScreen({
         >
           {/* 편집 모드 체크박스 */}
           {editMode ? (
-            <Pressable onPress={() => toggleSelect(item.id)} style={S.checkboxWrap}>
-              {selected.has(item.id) ? <CheckOn /> : <CheckOff />}
-            </Pressable>
+            item.fixed ? (
+              <View style={{ width: 24 }} />
+            ) : (
+              <Pressable onPress={() => toggleSelect(item.id)} style={S.checkboxWrap}>
+                {selected.has(item.id) ? <CheckOn /> : <CheckOff />}
+              </Pressable>
+            )
           ) : null}
 
           {/* 중앙 영역 */}
@@ -219,18 +257,14 @@ export default function EditableListScreen({
 
           {/* 우측 아이콘 */}
           {!editMode ? (
-            labelMode ? (
+            item.fixed ? (
+              <View style={{ width: 24 }} /> // 아이콘 없는 빈 공간
+            ) : (
               <Pressable onPress={() => setEditingId(item.id)}>
                 <Pencil width={24} height={24} color="#333" />
               </Pressable>
-            ) : (
-              <Pressable onPress={() => onEditPress?.(item)}>
-                <Pencil width={24} height={24} color="#333" />
-              </Pressable>
             )
-          ) : (
-            <View style={{ width: 24 }} />
-          )}
+          ) : null}
         </View>
 
         {/* Accordion — 리마인더/교통알림 */}
@@ -248,13 +282,15 @@ export default function EditableListScreen({
         friction={2}
         rightThreshold={24}
         overshootRight={false}
-        renderRightActions={() => (
-          <View style={S.rightActions}>
-            <Pressable style={S.deleteBtn} onPress={() => confirmDelete([item.id])}>
-              <Trash color="#fff" />
-            </Pressable>
-          </View>
-        )}
+        renderRightActions={() =>
+          item.fixed ? null : (
+            <View style={S.rightActions}>
+              <Pressable style={S.deleteBtn} onPress={() => deleteWithConfirm([item.id])}>
+                <Trash color="#fff" />
+              </Pressable>
+            </View>
+          )
+        }
       >
         <Row item={item} />
       </Swipeable>
@@ -299,7 +335,7 @@ export default function EditableListScreen({
         {editMode ? (
           <View style={S.headerBottom}>
             <Pressable
-              onPress={() => canBulkDelete && confirmDelete(Array.from(selected))}
+              onPress={() => canBulkDelete && deleteWithConfirm(Array.from(selected))}
             >
               <Text
                 style={[S.headerLeft, { color: canBulkDelete ? '#B04FFF' : '#C0C2C7' }]}

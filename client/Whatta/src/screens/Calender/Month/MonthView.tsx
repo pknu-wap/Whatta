@@ -686,12 +686,17 @@ export default function MonthView() {
   // 일정 상세 팝업
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
+  const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
+
   useEffect(() => {
     const h = (payload?: { source?: string }) => {
       if (payload?.source !== 'Month') return
+
+      setEventPopupMode('create')
       setEventPopupData(null)
       setEventPopupVisible(true)
     }
+
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
   }, [])
@@ -1379,7 +1384,7 @@ export default function MonthView() {
       <EventDetailPopup
         visible={eventPopupVisible}
         eventId={eventPopupData?.id ?? null}
-        mode={eventPopupData ? 'edit' : 'create'}
+        mode={eventPopupMode}
         onClose={() => {
           setEventPopupVisible(false)
           setEventPopupData(null)
@@ -1432,7 +1437,7 @@ export default function MonthView() {
               await http.patch(`/task/${taskPopupId}`, {
                 title: form.title,
                 content: form.memo,
-                labelIds: form.labelIds,
+                labels: form.labels,
                 placementDate,
                 placementTime,
                 fieldsToClear,
@@ -1447,7 +1452,7 @@ export default function MonthView() {
               const res = await http.post('/task', {
                 title: form.title,
                 content: form.memo,
-                labelIds: form.labelIds,
+                labels: form.labels,
                 placementDate,
                 placementTime,
                 date: targetDate,

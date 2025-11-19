@@ -11,7 +11,7 @@ type GetLabelsRes = {
 type CreateLabelRes = {
   statuscode: string
   message: string
-  data: Label // { id, title }
+  data: Label
 }
 
 export async function getMyLabels(): Promise<Label[]> {
@@ -24,4 +24,19 @@ export async function createLabel(title: string): Promise<Label> {
     title,
   })
   return data.data
+}
+
+export async function updateLabel(id: number, title: string) {
+  await http.put(`/user/setting/label/${id}`, { title })
+}
+
+export async function deleteLabels(ids: number[]) {
+  return http.request({
+    method: 'DELETE',
+    url: '/user/setting/label',
+    data: ids,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
 }

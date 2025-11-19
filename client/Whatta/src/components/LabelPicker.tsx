@@ -23,6 +23,7 @@ type Props = {
   onRequestClose: () => void
   anchor: Anchor | null
   onCreateLabel?: (title: string) => Promise<UiLabel>
+  canAdd?: boolean
 }
 
 export default function LabelPickerModal({
@@ -33,6 +34,7 @@ export default function LabelPickerModal({
   onRequestClose,
   anchor,
   onCreateLabel,
+  canAdd = true,
 }: Props) {
   const [draft, setDraft] = useState('')
   const cardW = 145
@@ -59,12 +61,11 @@ export default function LabelPickerModal({
     try {
       if (onCreateLabel) {
         const newLabel = await onCreateLabel(name) // API 호출은 부모에게 맡김
-
         // 선택 목록 업데이트
         onChange([...selected, newLabel.id])
-      }
 
-      setDraft('')
+        setDraft('')
+      }
     } catch (err) {
       console.log('라벨 생성 실패', err)
     }
@@ -112,17 +113,22 @@ export default function LabelPickerModal({
 
             <View style={styles.sep} />
 
-            <View style={styles.inputRow}>
-              <TextInput
-                value={draft}
-                onChangeText={setDraft}
-                placeholder="입력..."
-                placeholderTextColor="#B3B3B3"
-                style={styles.input}
-                returnKeyType="done"
-                onSubmitEditing={add}
-              />
-            </View>
+            {canAdd && (
+              <>
+                {/* <View style={styles.sep} /> */}
+                <View style={styles.inputRow}>
+                  <TextInput
+                    value={draft}
+                    onChangeText={setDraft}
+                    placeholder="입력..."
+                    placeholderTextColor="#B3B3B3"
+                    style={styles.input}
+                    returnKeyType="done"
+                    onSubmitEditing={add}
+                  />
+                </View>
+              </>
+            )}
           </ScrollView>
         </View>
       </View>

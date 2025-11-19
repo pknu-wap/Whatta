@@ -138,24 +138,22 @@ export default function DayView() {
   const [spanEvents, setSpanEvents] = useState<any[]>([])
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
+  const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
 
-  async function openEventDetail(eventId: string) {
-    try {
-      const res = await http.get(`/event/${eventId}`)
-      setEventPopupData(res.data.data)
-      setEventPopupVisible(true)
-    } catch (e) {
-      console.warn('event detail load error', e)
-      Alert.alert('오류', '일정 정보를 가져오지 못했습니다.')
-    }
+  async function openEventDetail(id: string) {
+    const res = await http.get(`/event/${id}`)
+    setEventPopupData(res.data.data)
+    setEventPopupMode('edit')
+    setEventPopupVisible(true)
   }
-
   useEffect(() => {
     const h = (payload?: { source?: string }) => {
       if (payload?.source !== 'Day') return
+      setEventPopupMode('create')
       setEventPopupData(null)
       setEventPopupVisible(true)
     }
+
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
   }, [])
@@ -373,7 +371,7 @@ export default function DayView() {
         (e: any) =>
           !e.isSpan &&
           e.clippedEndTime !== '23:59:59.999999999' &&
-          e.clippedStartTime && 
+          e.clippedStartTime &&
           e.clippedEndTime,
       )
       const span = [
@@ -659,78 +657,85 @@ export default function DayView() {
                   bounces={false}
                 >
                   {spanEvents.map((t, i) => {
-  const current = anchorDate
+                    const current = anchorDate
 
-  let start = ""
-  let end = ""
+                    let start = ''
+                    let end = ''
 
-  // 하루짜리 allDayEvents
-  if (!t.startDate && !t.endDate && !t.startAt && !t.endAt) {
-    start = current
-    end = current
-  }
-  // allDaySpan (기간 있음)
-  else if (t.startDate && t.endDate) {
-    start = t.startDate
-    end = t.endDate
-  }
-  // timed span
-  else if (t.startAt && t.endAt) {
-    start = t.startAt.slice(0, 10)
-    end = t.endAt.slice(0, 10)
-  }
+                    // 하루짜리 allDayEvents
+                    if (!t.startDate && !t.endDate && !t.startAt && !t.endAt) {
+                      start = current
+                      end = current
+                    }
+                    // allDaySpan (기간 있음)
+                    else if (t.startDate && t.endDate) {
+                      start = t.startDate
+                      end = t.endDate
+                    }
+                    // timed span
+                    else if (t.startAt && t.endAt) {
+                      start = t.startAt.slice(0, 10)
+                      end = t.endAt.slice(0, 10)
+                    }
 
-  const isStart = current === start
-  const isEnd = current === end
+                    const isStart = current === start
+                    const isEnd = current === end
 
-  const raw = t.colorKey || t.color
-  const base = raw ? (raw.startsWith("#") ? raw : `#${raw}`) : "#8B5CF6"
-  const bg = `${base}26`
+                    const raw = t.colorKey || t.color
+                    const base = raw ? (raw.startsWith('#') ? raw : `#${raw}`) : '#8B5CF6'
+                    const bg = `${base}26`
 
-  return (
-    <View
-      key={t.id ?? i}
-      style={[
-        S.chip,
-        {
-          backgroundColor: bg,
-          borderTopLeftRadius: isStart ? 6 : 0,
-          borderBottomLeftRadius: isStart ? 6 : 0,
-          borderTopRightRadius: isEnd ? 6 : 0,
-          borderBottomRightRadius: isEnd ? 6 : 0,
-        },
-      ]}
-    >
-      {/* 왼쪽 컬러바 */}
-      {isStart && (
-        <View style={[S.chipBar, { left: 0, backgroundColor: base }]} />
-      )}
-
-      {/* 오른쪽 컬러바 */}
-      {isEnd && (
-        <View style={[S.chipBar, { right: 0, backgroundColor: base }]} />
-      )}
-
-      <View style={{ flex: 1, paddingHorizontal: 12 }}>
-        <Text style={S.chipText} numberOfLines={1}>
-          {t.title}
-        </Text>
-      </View>
-    </View>
-  )
-})}
+                    return (
+                      <Pressable key={t.id ?? i} onPress={() => openEventDetail(t.id)}>
+                        <View
+                          style={[
+                            S.chip,
+                            {
+                              backgroundColor: bg,
+                              borderTopLeftRadius: isStart ? 6 : 0,
+                              borderBottomLeftRadius: isStart ? 6 : 0,
+                              borderTopRightRadius: isEnd ? 6 : 0,
+                              borderBottomRightRadius: isEnd ? 6 : 0,
+                            },
+                          ]}
+                        >
+                          {isStart && (
+                            <View
+                              style={[S.chipBar, { left: 0, backgroundColor: base }]}
+                            />
+                          )}
+                          {isEnd && (
+                            <View
+                              style={[S.chipBar, { right: 0, backgroundColor: base }]}
+                            />
+                          )}
+                          <View style={{ flex: 1, paddingHorizontal: 12 }}>
+                            <Text style={S.chipText} numberOfLines={1}>
+                              {t.title}
+                            </Text>
+                          </View>
+                        </View>
+                      </Pressable>
+                    )
+                  })}
 
                   {checks.map((c) => (
                     <Pressable
                       key={c.id}
                       style={S.checkRow}
-                      onPress={() => toggleCheck(c.id)}
+                      onPress={() => openTaskPopupFromApi(c.id)}
                     >
-                      <View style={S.checkboxWrap}>
+                      {/* 체크박스만 눌렀을 때 토글 */}
+                      <Pressable
+                        onPress={() => toggleCheck(c.id)}
+                        style={S.checkboxWrap}
+                        hitSlop={10}
+                      >
                         <View style={[S.checkbox, c.done && S.checkboxOn]}>
                           {c.done && <Text style={S.checkmark}>✓</Text>}
                         </View>
-                      </View>
+                      </Pressable>
+
                       <Text
                         style={[S.checkText, c.done && S.checkTextDone]}
                         numberOfLines={1}
@@ -905,7 +910,7 @@ export default function DayView() {
                 await http.patch(`/task/${taskPopupId}`, {
                   title: form.title,
                   content: form.memo,
-                  labelIds: form.labelIds,
+                  labels: form.labels,
                   placementDate,
                   placementTime,
                   fieldsToClear,
@@ -920,7 +925,7 @@ export default function DayView() {
                 const res = await http.post('/task', {
                   title: form.title,
                   content: form.memo,
-                  labelIds: form.labelIds,
+                  labels: form.labels,
                   placementDate,
                   placementTime,
                   date: placementDate ?? anchorDate,
@@ -951,7 +956,7 @@ export default function DayView() {
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
-          mode={eventPopupData ? 'edit' : 'create'} // id 있으면 edit, 없으면 create
+          mode={eventPopupMode}
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
@@ -1379,11 +1384,11 @@ const S = StyleSheet.create({
   },
 
   chipBar: {
-  position: 'absolute',
-  top: 0,
-  bottom: 0,
-  width: 5,
-},
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 5,
+  },
 
   chipText: {
     ...ts('daySchedule'),
