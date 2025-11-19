@@ -612,16 +612,14 @@ export default function EventDetailPopup({
   }, [mode, eventId])
 
   const isMultiDaySpan = React.useMemo(() => {
-    if (!eventData) return false
+    if (!start || !end) return false
 
-    const start = eventData.startDate
-    const end = eventData.endDate
+    // 날짜만 비교
+    const sd = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
+    const ed = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime()
 
-    // 멀티데이인지 판별
-    const isSpan = !!start && !!end && start.slice(0, 10) !== end.slice(0, 10)
-
-    return isSpan
-  }, [eventData])
+    return ed > sd
+  }, [start, end])
 
   useEffect(() => {
     if (visible && mode === 'create') {
@@ -1405,8 +1403,6 @@ export default function EventDetailPopup({
                   {/* 일정/알림 */}
                   {!isMultiDaySpan && (
                     <>
-                      <View style={styles.sep} />
-
                       <View style={styles.row}>
                         <Text style={styles.label}>알림</Text>
 
