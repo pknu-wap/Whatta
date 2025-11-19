@@ -38,6 +38,8 @@ import { refreshTokens } from '@/api/auth'
 
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
+
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
 /* -------------------------------------------------------------------------- */
@@ -1464,6 +1466,9 @@ export default function WeekView() {
     transform: [{ scale: scale.value }],
   }))
 
+  const { items: filterLabels } = useLabelFilter()
+  const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
+
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1722,7 +1727,9 @@ export default function WeekView() {
                   }
                   const isTodayCol = d === today
                   const layoutEvents = layoutDayEvents(bucket.timelineEvents || [])
-                  const timedTasks = bucket.timedTasks || []
+                  const timedTasks = (bucket.timedTasks || []).filter((t: any) =>
+                    (t.labels ?? []).some((lid: number) => enabledLabelIds.includes(lid)),
+                  )
 
                   const groupedTasks = timedTasks.reduce(
                     (acc: Record<string, any[]>, t: any) => {

@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: 145,
-    maxHeight: 230,
+    maxHeight: 200,
     backgroundColor: '#fff',
     borderRadius: 10,
     shadowColor: '#525252',

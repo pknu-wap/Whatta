@@ -23,6 +23,7 @@ import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -675,8 +676,6 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 // 4. 메인 컴포넌트: MonthView (필터 반영 + 오류 수정)
 // --------------------------------------------------------------------
 export default function MonthView() {
-  const route = useRoute<any>()
-  const labelsParam = route.params?.labels ?? null
   // 월별 캐시 (ym -> days/schedules)
   const cacheRef = useRef<Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>>(
     new Map(),
@@ -755,18 +754,6 @@ export default function MonthView() {
 
   // 페이드 값
   const fade = useRef(new Animated.Value(1)).current
-
-  // labels → 활성 라벨 id 배열로 안전 변환
-  const activeLabelIds: string[] | null = useMemo(() => {
-    if (!Array.isArray(labelsParam)) return null
-    const enabled = labelsParam
-      .filter((l: any) => l && typeof l === 'object' && 'enabled' in l && 'id' in l)
-      .filter((l: any) => !!l.enabled)
-      .map((l: any) => String(l.id))
-    // 전부 켜짐이면 = 필터 OFF
-    const allOn = enabled.length === labelsParam.length
-    return allOn ? null : enabled
-  }, [labelsParam])
 
   const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -1188,14 +1175,27 @@ export default function MonthView() {
     setFocusedDateISO(`${year}-${pad(monthIndex + 1)}-01`)
   }, [year, monthIndex])
 
-  // 필터링 된 일정
-  const filteredSchedules = useMemo(
-    () =>
-      activeLabelIds
-        ? serverSchedules.filter((s) => activeLabelIds.includes(s.labelId))
-        : serverSchedules,
-    [activeLabelIds, serverSchedules],
-  )
+  const { items: filterLabels } = useLabelFilter()
+
+  // 필터링 된 일정 (라벨 on/off 반영)
+  const filteredSchedules = useMemo(() => {
+    // 필터 라벨이 아직 없으면 그대로
+    if (!filterLabels || filterLabels.length === 0) return serverSchedules
+
+    const enabledIds = filterLabels.filter((x) => x.enabled).map((x) => String(x.id))
+
+    // 전부 켜져 있으면 -> 필터 OFF와 동일
+    if (enabledIds.length === filterLabels.length) {
+      return serverSchedules
+    }
+
+    // labelId 가 없으면 항상 보이게 할지, 숨길지 선택 가능
+    // 지금은 "라벨 없는 일정/테스크는 항상 보이게" 로 구현
+    return serverSchedules.filter((s) => {
+      if (!s.labelId || s.labelId === '') return true
+      return enabledIds.includes(String(s.labelId))
+    })
+  }, [filterLabels, serverSchedules])
 
   useEffect(() => {
     setCalendarDates(

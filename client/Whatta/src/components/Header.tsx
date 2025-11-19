@@ -27,6 +27,7 @@ import {
   useNavigationState,
 } from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
@@ -205,25 +206,9 @@ export default function Header() {
     return fmtDay(anchorDate)
   }, [anchorDate, mode])
 
-  const [labels, setLabels] = useState([
-    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
-    { id: '2', name: '약속', color: '#B04FFF', enabled: true },
-    { id: '3', name: '동아리', color: '#B04FFF', enabled: true },
-    { id: '4', name: '수업', color: '#B04FFF', enabled: true },
-  ])
+  const { items: filterLabels, toggleLabel, toggleAll } = useLabelFilter()
 
-  const allOn = labels.every((l) => l.enabled)
-  const toggleAll = () => {
-    const newLabels = labels.map((l) => ({ ...l, enabled: !allOn }))
-    setLabels(newLabels)
-    navigation.setParams({ labels: newLabels })
-  }
-  const toggleLabel = (i: number) => {
-    const newArr = [...labels]
-    newArr[i].enabled = !newArr[i].enabled
-    setLabels(newArr)
-    navigation.setParams({ labels: newArr })
-  }
+  const allOn = filterLabels.length > 0 && filterLabels.every((l) => l.enabled)
 
   // ✅ 슬라이더: 드래그 & 터치 이동 가능
   const pan = PanResponder.create({
@@ -403,19 +388,31 @@ export default function Header() {
             <View style={{ height: 16 }} />
             <View style={styles.row}>
               <Text style={styles.allText}>전체</Text>
-              <CustomSwitch value={allOn} onToggle={toggleAll} />
+              <CustomSwitch
+                value={allOn}
+                onToggle={() => {
+                  toggleAll()
+                  bus.emit('filter:changed', filterLabels)
+                }}
+              />
             </View>
 
             <View style={{ height: 7 }} />
             <View style={styles.divider} />
             <View style={{ height: 15 }} />
-            {labels.map((l, i) => (
+            {filterLabels.map((l) => (
               <View key={l.id} style={styles.row}>
                 <View style={styles.labelRow}>
-                  <View style={[styles.colorDot, { backgroundColor: l.color }]} />
-                  <Text style={styles.labelText}>{l.name}</Text>
+                  <View style={[styles.colorDot, { backgroundColor: '#B04FFF' }]} />
+                  <Text style={styles.labelText}>{l.title}</Text>
                 </View>
-                <CustomSwitch value={l.enabled} onToggle={() => toggleLabel(i)} />
+                <CustomSwitch
+                  value={l.enabled}
+                  onToggle={() => {
+                    toggleLabel(l.id)
+                    bus.emit('filter:changed', filterLabels)
+                  }}
+                />
               </View>
             ))}
           </Animated.View>

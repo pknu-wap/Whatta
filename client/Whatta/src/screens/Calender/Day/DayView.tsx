@@ -36,6 +36,7 @@ import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -356,52 +357,83 @@ export default function DayView() {
     }, [nowTop]),
   )
 
-  const fetchDailyEvents = useCallback(async (dateISO: string) => {
-    try {
-      const res = await http.get('/calendar/daily', { params: { date: dateISO } })
-      const data = res.data.data
-      const timed = data.timedEvents || []
-      const timedTasks = data.timedTasks || []
-      const allDay = data.allDayTasks || []
-      const floating = data.floatingTasks || []
-      const allDaySpan = data.allDaySpanEvents || []
-      const allDayEvents = data.allDayEvents || []
+  // 라벨 필터링
+  const { items: filterLabels } = useLabelFilter()
+  const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
-      const timelineEvents = timed.filter(
-        (e: any) =>
-          !e.isSpan &&
-          e.clippedEndTime !== '23:59:59.999999999' &&
-          e.clippedStartTime &&
-          e.clippedEndTime,
-      )
-      const span = [
-        ...timed.filter(
-          (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
-        ),
-        ...allDaySpan,
-        ...allDayEvents,
-      ]
+  const fetchDailyEvents = useCallback(
+    async (dateISO: string) => {
+      try {
+        const res = await http.get('/calendar/daily', { params: { date: dateISO } })
+        const data = res.data.data
 
-      setEvents(timelineEvents)
-      setSpanEvents(span)
-      setTasks(timedTasks)
-      setChecks([
-        ...allDay.map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          done: t.completed ?? false,
-        })),
-        ...floating.map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          done: t.completed ?? false,
-        })),
-      ])
-    } catch (err) {
-      console.error('❌ 일간 일정 불러오기 실패:', err)
-      alert('일간 일정 불러오기 실패')
-    }
-  }, [])
+        const timed = data.timedEvents || []
+        const timedTasks = data.timedTasks || []
+        const allDay = data.allDayTasks || []
+        const floating = data.floatingTasks || []
+        const allDaySpan = data.allDaySpanEvents || []
+        const allDayEvents = data.allDayEvents || []
+
+        // 이벤트 정리
+        const timelineEvents = timed.filter(
+          (e: any) =>
+            !e.isSpan &&
+            e.clippedEndTime !== '23:59:59.999999999' &&
+            e.clippedStartTime &&
+            e.clippedEndTime,
+        )
+
+        const span = [
+          ...timed.filter(
+            (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
+          ),
+          ...allDaySpan,
+          ...allDayEvents,
+        ]
+
+        const checksAll = [
+          ...allDay.map((t: any) => ({
+            id: t.id,
+            title: t.title,
+            done: t.completed ?? false,
+            labels: t.labels ?? [],
+          })),
+          ...floating.map((t: any) => ({
+            id: t.id,
+            title: t.title,
+            done: t.completed ?? false,
+            labels: t.labels ?? [],
+          })),
+        ]
+
+        // -----------------------
+        // 2) 🌈 필터 적용
+        // -----------------------
+        const filterTask = (t: any) => {
+          if (!t.labels || t.labels.length === 0) return true
+          return t.labels.some((id: number) => enabledLabelIds.includes(id))
+        }
+
+        const filterEvent = (ev: any) => {
+          if (!ev.labels || ev.labels.length === 0) return true
+          return ev.labels.some((id: number) => enabledLabelIds.includes(id))
+        }
+
+        // 이제 필터 적용한 값으로 세팅
+        setEvents(timelineEvents.filter(filterEvent))
+        setSpanEvents(span.filter(filterEvent))
+        setTasks(timedTasks.filter(filterTask))
+        setChecks(checksAll.filter(filterTask))
+      } catch (err) {
+        console.error('❌ 일간 일정 불러오기 실패:', err)
+        alert('일간 일정 불러오기 실패')
+      }
+    },
+    [enabledLabelIds],
+  )
+  useEffect(() => {
+    fetchDailyEvents(anchorDate)
+  }, [enabledLabelIds])
 
   const measureLayouts = useCallback(() => {
     taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
@@ -632,7 +664,6 @@ export default function DayView() {
       },
     ])
   }
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScreenWithSidebar mode="overlay">

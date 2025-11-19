@@ -1,4 +1,3 @@
-// src/providers/LabelProvider.tsx
 import React, {
   createContext,
   useContext,
@@ -9,17 +8,16 @@ import React, {
 import { getMyLabels, type Label } from '@/api/label_api'
 import { bus } from '@/lib/eventBus'
 
-/** 컨텍스트 안에서 쓸 값 타입 */
+// 컨텍스트 안에서 쓸 값 타입
 type LabelContextValue = {
   labels: Label[]
   refresh: () => Promise<void>
 }
 
-/** 기본값: 아직 Provider 밖에서 쓰면 안 되므로 undefined 허용 */
+// 기본값: 아직 Provider 밖에서 쓰면 안 되므로 undefined 허용
 const LabelContext = createContext<LabelContextValue | undefined>(undefined)
 
 export function LabelProvider({ children }: { children: ReactNode }) {
-  // 🔴 useState([]) 때문에 never[]로 추론됐던 부분을 명시적으로 Label[]로 지정
   const [labels, setLabels] = useState<Label[]>([])
 
   const FIXED_LABELS = ['일정', '할 일']
@@ -53,7 +51,7 @@ export function LabelProvider({ children }: { children: ReactNode }) {
   return <LabelContext.Provider value={value}>{children}</LabelContext.Provider>
 }
 
-/** 라벨 사용 훅 */
+// 라벨 사용 훅 */
 export function useLabels() {
   const ctx = useContext(LabelContext)
   if (!ctx) {
