@@ -27,6 +27,7 @@ import LabelChip from '@/components/LabelChip'
 import LabelPickerModal from '@/components/LabelPicker'
 import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
+import { ensureNotificationPermissionForToggle } from '@/lib/fcm';
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -1397,9 +1398,21 @@ export default function EventDetailPopup({
 
                       <Toggle
                         value={remindOn}
-                        onChange={(v) => {
-                          setRemindOn(v)
-                          if (!v) setRemindOpen(false)
+                        onChange={async (v) => {
+                          if (!v) {
+                            setRemindOn(false)
+                            setRemindOpen(false)
+                            return
+                          }
+
+                          const ok = await ensureNotificationPermissionForToggle()
+                          if (!ok) { // 여전히 권한 없음 → 토글 되돌리기
+                            setRemindOn(false)
+                            setRemindOpen(false)
+                            return
+                          }
+
+                          setRemindOn(true) // 권한 ok
                         }}
                       />
                     </View>
