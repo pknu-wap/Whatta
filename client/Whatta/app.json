@@ -36,8 +36,6 @@
     "plugins": [
       "expo-font",
       "expo-secure-store",
-      "@react-native-firebase/app",
-      "@react-native-firebase/messaging",
       [
         "expo-build-properties",
         {
@@ -45,10 +43,7 @@
             "useFrameworks": "static",
             "deploymentTarget": "15.1",
             "flipper": false,
-            "forceStaticLinking": [
-              "RNFBApp",
-              "RNFBMessaging"
-            ]
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
           }
         }
       ]
