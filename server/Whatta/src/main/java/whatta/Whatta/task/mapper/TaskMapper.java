@@ -22,7 +22,7 @@ public class TaskMapper {
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
                 .repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
-                .reminderNotiAt((request.getPlacementTime() != null)? request.getReminderNoti() : null)
+                //.reminderNotiAt((request.getPlacementTime() != null)? request.getReminderNoti() : null)
                 .build();
     }
 
@@ -42,7 +42,7 @@ public class TaskMapper {
                 .sortNumber(task.getSortNumber())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
-                .reminderNoti(task.getReminderNotiAt())
+                //.reminderNoti(task.getReminderNotiAt())
                 .build();
     }
 

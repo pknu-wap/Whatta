@@ -7,7 +7,7 @@ import whatta.Whatta.notification.entity.FcmToken;
 @Repository
 public interface FcmTokenRepository extends MongoRepository<FcmToken, String> {
 
-    FcmToken findByFcmToken(String token);
+    void deleteByUserId(String userId);
 
     FcmToken findByUserId(String userId);
 
