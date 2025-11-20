@@ -12,7 +12,6 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native'
-import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
@@ -1662,22 +1661,9 @@ export default function EventDetailPopup({
 
                             <Toggle
                               value={remindOn}
-                              onChange={async (v) => {
-                                if (!v) {
-                                  setRemindOn(false)
-                                  setRemindOpen(false)
-                                  return
-                                }
-
-                                const ok = await ensureNotificationPermissionForToggle()
-                                if (!ok) {
-                                  // 여전히 권한 없음 → 토글 되돌리기
-                                  setRemindOn(false)
-                                  setRemindOpen(false)
-                                  return
-                                }
-
-                                setRemindOn(true) // 권한 okRemindOpen(false)
+                              onChange={(v) => {
+                                setRemindOn(v)
+                                if (!v) setRemindOpen(false)
                               }}
                             />
                           </View>
