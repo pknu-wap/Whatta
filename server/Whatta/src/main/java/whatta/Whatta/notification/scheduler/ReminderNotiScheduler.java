@@ -105,6 +105,6 @@ public class ReminderNotiScheduler {
             sb.append("곧 ");
         }
 
-        return sb.toString().trim();
+        return sb.toString();
     }
 }
