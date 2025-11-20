@@ -7,7 +7,36 @@ import RootStack from '@/navigation/RootStack'
 import { ensureAuthReady } from '@/app/bootstrap'
 import { DrawerProvider } from '@/providers/DrawerProvider'
 import { LabelProvider } from '@/providers/LabelProvider'
-import { LabelFilterProvider } from '@/providers/LabelFilterProvider' // ⭐ 새로 만들 것
+import { LabelFilterProvider } from '@/providers/LabelFilterProvider' 
+import messaging from '@react-native-firebase/messaging'
+import { Alert } from "react-native";
+
+// 포그라운드 메시지 핸들러
+messaging().onMessage(async remoteMessage => {
+  console.log('Foreground Message received:', remoteMessage);
+  Alert.alert('[FCM] Foreground Message received:', JSON.stringify(remoteMessage));
+});
+
+// ✅ 라벨 타입
+export interface LabelItem {
+  id: string
+  name: string
+  color: string
+  enabled: boolean
+}
+
+interface FilterContextType {
+  labels: LabelItem[]
+  toggleLabel: (id: string) => void
+  toggleAll: () => void
+}
+
+// ✅ 전역 라벨 컨텍스트
+export const FilterContext = createContext<FilterContextType>({
+  labels: [],
+  toggleLabel: () => {},
+  toggleAll: () => {},
+})
 
 export default function App() {
   const [ready, setReady] = useState(false)
