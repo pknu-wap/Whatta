@@ -225,6 +225,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
             { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
           ]}
         >
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           <View style={[styles.box, { width: SHEET_W, height: SHEET_H }]}>
             {/* 헤더: X / 체크 */}
             <View style={styles.header}>
