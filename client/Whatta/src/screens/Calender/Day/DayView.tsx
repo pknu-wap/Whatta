@@ -1098,7 +1098,6 @@ function DraggableTaskBox({
 
   const handleDrop = async (newTime: string) => {
     try {
-      // PUT → PATCH 로 변경 + date 제거 (edit 로직과 동일하게)
       await http.patch(`/task/${id}`, {
         placementDate: anchorDate,
         placementTime: newTime,
@@ -1265,7 +1264,7 @@ function DraggableFlexalbeEvent({
         )}:00`
       const dateISO = anchorDate
 
-      await http.put(`/event/${id}`, {
+      await http.patch(`/event/${id}`, {
         startDate: anchorDate,
         endDate: anchorDate,
         startTime: fmt(newStart),
