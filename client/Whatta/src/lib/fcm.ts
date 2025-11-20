@@ -43,6 +43,7 @@ export async function registerFcmToken(installationId: string) {
   try {
     await http.post('/fcm/token', {
       fcmToken: token,
+      enabled: true,
       platform: 'IOS', // 수정: 지금은 iOS만이니 하드코딩
     })
     console.log('서버로 FCM 토큰 등록 완료')
