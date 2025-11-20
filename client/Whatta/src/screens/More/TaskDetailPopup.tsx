@@ -186,6 +186,18 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setMemo(initialTask.content ?? '')
   }, [visible, initialTask])
 
+  useEffect(() => {
+    if (!visible) return
+    if (mode !== 'create') return
+    if (!labels.length) return // 라벨 목록이 아직 없으면 패스
+
+    setLabelIds((prev) => {
+      if (prev.length) return prev // 이미 뭔가 선택돼 있으면 유지
+      const defaultLabel = labels.find((l) => l.title === '할 일')
+      return defaultLabel ? [defaultLabel.id] : prev
+    })
+  }, [visible, mode, labels])
+
   const handleSave = () => {
     const value: TaskFormValue = {
       title,

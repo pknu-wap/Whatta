@@ -636,6 +636,18 @@ export default function EventDetailPopup({
     }
   }, [visible, mode])
 
+  useEffect(() => {
+    if (!visible) return
+    if (mode !== 'create') return
+    if (!labels.length) return // 라벨 아직 로딩 전이면 패스
+
+    setSelectedLabelIds((prev) => {
+      if (prev.length) return prev // 이미 사용자가 고른 게 있으면 건드리지 않기
+      const defaultLabel = labels.find((l) => l.title === '일정')
+      return defaultLabel ? [defaultLabel.id] : prev
+    })
+  }, [visible, mode, labels])
+
   const handleDelete = async () => {
     try {
       const access = token.getAccess()
