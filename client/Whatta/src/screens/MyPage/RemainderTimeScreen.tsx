@@ -168,7 +168,7 @@ export default function RemainderTimeScreen() {
   useEffect(() => {
     ;(async () => {
       try {
-        const res = await http.get('/user/setting/reminder')
+        const res = await http.get('/api/user/setting/reminder')
         const data = res.data?.data
         const list: ReminderDTO[] = Array.isArray(data) ? data : data ? [data] : []
         const mapped = list.map(fromDto)
@@ -218,7 +218,7 @@ export default function RemainderTimeScreen() {
       // 4) 중복 아니면 서버에 PUT
       ;(async () => {
         try {
-          await http.put(`/user/setting/reminder/${id}`, toDto(updated))
+          await http.put(`/api/user/setting/reminder/${id}`, toDto(updated))
         } catch (e) {
           console.warn('reminder update error', e)
         }
@@ -239,7 +239,7 @@ export default function RemainderTimeScreen() {
     if (openId === id) setOpenId(null)
     ;(async () => {
       try {
-        await http.delete('/user/setting/reminder', {
+        await http.delete('/api/user/setting/reminder', {
           data: [id],
         })
       } catch (e) {
@@ -264,7 +264,7 @@ export default function RemainderTimeScreen() {
           if (openId && selected.has(openId)) setOpenId(null)
           ;(async () => {
             try {
-              await http.delete('/user/setting/reminder', {
+              await http.delete('/api/user/setting/reminder', {
                 data: ids,
               })
             } catch (e) {
@@ -309,7 +309,7 @@ export default function RemainderTimeScreen() {
     ;(async () => {
       try {
         const body = { day, hour, minute }
-        const res = await http.post('/user/setting/reminder', body)
+        const res = await http.post('/api/user/setting/reminder', body)
         const d: ReminderDTO = res.data?.data ?? res.data
         const item = fromDto(d)
         setReminders((prev) => [...prev, item])

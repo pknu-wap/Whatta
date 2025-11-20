@@ -4,7 +4,6 @@ import MyPageScreen from '@/screens/MyPage/MyPageScreen'
 import { PlaceholderScreen } from '@/screens/MyPage/PlaceholderScreen'
 import LabelsScreen from '@/screens/MyPage/LabelScreen'
 import RemainderScreen from '@/screens/MyPage/RemainderTimeScreen'
-import SummaryScreean from '@/screens/MyPage/SummaryTimeScreen'
 
 export type MyPageStackList = {
   MyPageList: undefined
@@ -42,8 +41,8 @@ export default function MyPageStack() {
       />
       <Stack.Screen
         name="CalendarNotif"
-        component={SummaryScreean}
-        options={{ headerShown: false }}
+        component={PlaceholderScreen}
+        options={{ title: '알림 시간 수정' }}
       />
       <Stack.Screen
         name="vibration"
