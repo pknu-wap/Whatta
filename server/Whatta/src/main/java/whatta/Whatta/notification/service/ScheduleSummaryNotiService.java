@@ -60,7 +60,7 @@ public class ScheduleSummaryNotiService {
 
     private String buildTitle(LocalDate date, int eventCount, int taskCount) {
         //예: 11월 20일 일정 요약 (일정 3개 . 할 일 2개)
-        String title = String.format("%d월 %일", date.getMonthValue(), date.getDayOfMonth());
+        String title = String.format("%d월 %d일", date.getMonthValue(), date.getDayOfMonth());
         return String.format(
                 "%s 일정 요약 (일정 %d개 · 할 일 %d개)",
                 title,
