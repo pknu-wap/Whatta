@@ -10,6 +10,7 @@ import { LabelProvider } from '@/providers/LabelProvider'
 import { LabelFilterProvider } from '@/providers/LabelFilterProvider'
 import messaging from '@react-native-firebase/messaging'
 import { Alert } from 'react-native'
+import CustomSplash from '@/screens/CustomSplash'
 
 // 포그라운드 메시지 핸들러
 messaging().onMessage(async (remoteMessage) => {
@@ -19,6 +20,7 @@ messaging().onMessage(async (remoteMessage) => {
 
 export default function App() {
   const [ready, setReady] = useState(false)
+  const [splashDone, setSplashDone] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -30,11 +32,14 @@ export default function App() {
     })()
   }, [])
 
-  if (!ready) {
+  if (!ready || !splashDone) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
+      // <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      //   <ActivityIndicator size="large" />
+      // </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <CustomSplash onFinish={() => setSplashDone(true)} />
+      </GestureHandlerRootView>
     )
   }
 

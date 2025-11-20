@@ -8,8 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/whatta_logo.png",
-      "resizeMoed": "contain",
+      "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
@@ -22,6 +21,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/whatta_logo.png",
         "backgroundColor": "#ffffff"
@@ -47,12 +47,13 @@
           }
         }
       ],
+
       "@react-native-firebase/app",
       "@react-native-firebase/messaging"
     ],
     "extra": {
       "eas": {
-        "projectId": "b895d0bb-969a-4bde-bb79-27d84e2c27a7"
+        "projectId": "b895d0bb-969a-4bd e-bb79-27d84e2c27a7"
       }
     }
   }
