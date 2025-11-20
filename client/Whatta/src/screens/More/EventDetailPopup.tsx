@@ -26,7 +26,7 @@ import LabelPickerModal from '@/components/LabelPicker'
 import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
 import { http } from '@/lib/http'
-import { ensureNotificationPermissionForToggle } from '@/lib/fcm';
+import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -1586,143 +1586,7 @@ export default function EventDetailPopup({
                               </Text>
                             </Pressable>
                             {/* 날짜 지정 */}
-                          )
-                        })()}
-                      </View>
-                      {endOpen && (
-                        <View style={styles.remindDropdown}>
-                          <Pressable
-                            style={[styles.remindItem, styles.remindItemDivider]}
-                            onPress={() => {
-                              setEndMode('none')
-                              setRepeatEndDate(null)
-                              setEndOpen(false)
-                              setEndDateCustomOpen(false)
-                            }}
-                          >
-                            {endMode === 'none' && (
-                              <View
-                                pointerEvents="none"
-                                style={styles.remindSelectedBg}
-                              />
-                            )}
-                            <Text
-                              style={[
-                                styles.remindItemText,
-                                endMode === 'none' && {
-                                  color: '#A84FF0',
-                                  fontWeight: '700',
-                                },
-                              ]}
-                            >
-                              없음
-                            </Text>
-                          </Pressable>
-                          {/* 날짜 지정 */}
-                          <Pressable
-                            style={styles.remindItem}
-                            onPress={() => {
-                              if (endMode !== 'date') {
-                                setEndMode('date') // 선택 상태는 '맞춤 설정'으로 유지
-                                setEndDateCustomOpen(true) // 처음 클릭 시 열기
-                              } else {
-                                setEndDateCustomOpen((v) => !v) // 다시 클릭 시 토글(닫힘/열림)
-                              }
-                            }}
-                          >
-                            {endMode === 'date' && (
-                              <View
-                                pointerEvents="none"
-                                style={styles.remindSelectedBg}
-                              />
-                            )}
-                            <Text
-                              style={[
-                                styles.remindItemText,
-                                endMode === 'date' && {
-                                  color: '#A84FF0',
-                                  fontWeight: '700',
-                                },
-                              ]}
-                            >
-                              맞춤 설정
-                            </Text>
-                          </Pressable>
-                          {/* 인라인 캘린더: '날짜 지정' 바로 아래에 붙여 표시 */}
-                          {endMode === 'date' && endDateCustomOpen && (
-                            <View style={{ marginTop: 2 }}>
-                              <InlineCalendar
-                                open
-                                value={repeatEndDate ?? start}
-                                onSelect={(d) => setRepeatEndDate(d)}
-                              />
-                            </View>
-                          )}
-                        </View>
-                      )}
 
-                      <View style={styles.sep} />
-                    </>
-                  )}
-                  {/* 일정/알림 */}
-                  <View style={styles.row}>
-                    <Text style={styles.label}>알림</Text>
-
-                    {/* 오른쪽 영역 */}
-                    <View style={styles.rowRight}>
-                      {(() => {
-                        const baseColor = remindOn ? '#333333' : '#B3B3B3'
-                        const arrowColor = remindOpen ? '#B04FFF' : baseColor
-                        return (
-                          <Pressable
-                            style={styles.remindButton}
-                            onPress={() => {
-                              if (!remindOn) return
-                              setRemindOpen((v) => !v)
-                            }}
-                            hitSlop={8}
-                          >
-                            <Text style={[styles.remindTextBtn, { color: baseColor }]}>
-                              {displayRemind}
-                            </Text>
-
-                            <Down width={10} height={10} color={arrowColor} />
-                          </Pressable>
-                        )
-                      })()}
-
-                      <Toggle
-                        value={remindOn}
-                        onChange={async (v) => {
-                          if (!v) {
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
-
-                          const ok = await ensureNotificationPermissionForToggle()
-                          if (!ok) { // 여전히 권한 없음 → 토글 되돌리기
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
-
-                          setRemindOn(true) // 권한 ok
-                        }}
-                      />
-                    </View>
-                  </View>
-
-                  {/* 드롭다운 리스트 */}
-                  {remindOn && remindOpen && (
-                    <View style={styles.remindDropdown}>
-                      {REMIND_OPTIONS.map((opt, idx) => {
-                        const selected = opt === remindValue
-                        const isLast = idx === REMIND_OPTIONS.length - 1
-                        const isCustom = opt === '맞춤 설정'
-
-                        return (
-                          <View key={opt}>
                             <Pressable
                               style={styles.remindItem}
                               onPress={() => {
