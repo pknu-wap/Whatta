@@ -1,9 +1,4 @@
-import React, {
-  useRef,
-  useState,
-  useEffect,
-  useCallback,
-} from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -15,6 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Vibration,
+  Alert,
 } from 'react-native'
 import {
   GestureHandlerRootView,
@@ -39,6 +35,10 @@ import { bus } from '@/lib/eventBus'
 import axios from 'axios'
 import { token } from '@/lib/token'
 import { refreshTokens } from '@/api/auth'
+
+import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
+import EventDetailPopup from '@/screens/More/EventDetailPopup'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
@@ -95,9 +95,7 @@ const todayISO = () => {
 const addDays = (iso: string, d: number) => {
   const [y, m, dd] = iso.split('-').map(Number)
   const base = new Date(y, m - 1, dd + d)
-  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}-${pad2(
-    base.getDate(),
-  )}`
+  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}-${pad2(base.getDate())}`
 }
 
 const startOfWeek = (iso: string) => {
@@ -124,10 +122,9 @@ const DAY_PX = 24 * 60 * PIXELS_PER_MIN
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 50
 
-const SIDE_PADDING = 16 * 2  // ← 좌우 여백 합 = 32
+const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 const getDayColWidth = (count: number) =>
   (SCREEN_W - TIME_COL_W - SIDE_PADDING) / (count > 0 ? count : 7)
-
 
 let prevLayoutMap: Record<string, LayoutedEvent> = {}
 
@@ -252,9 +249,7 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
 
     const overlappingGroup = sorted.filter(
       (other) =>
-        other.id !== ev.id &&
-        other.startMin < ev.endMin &&
-        other.endMin > ev.startMin,
+        other.id !== ev.id && other.startMin < ev.endMin && other.endMin > ev.startMin,
     )
 
     const hasOverlap = overlappingGroup.length > 0
@@ -265,9 +260,7 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
     let isPartialOverlap = false
 
     if (hasOverlap) {
-      const group = [...overlappingGroup, ev].sort(
-        (a, b) => a.startMin - b.startMin,
-      )
+      const group = [...overlappingGroup, ev].sort((a, b) => a.startMin - b.startMin)
       group.forEach((e, idx) => {
         const depth = idx
         layout.push({
@@ -309,10 +302,7 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
     const bucket = data[dateISO]
     if (!bucket) return
 
-    const list = [
-      ...(bucket.spanEvents || []),
-      ...(bucket.checks || []),
-    ]
+    const list = [...(bucket.spanEvents || []), ...(bucket.checks || [])]
 
     list.forEach((e: any) => {
       const id = String(e.id)
@@ -375,8 +365,7 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
     while (
       lanes[row] &&
       lanes[row].some(
-        (other) =>
-          !(ev.endIdx < other.startIdx || ev.startIdx > other.endIdx),
+        (other) => !(ev.endIdx < other.startIdx || ev.startIdx > other.endIdx),
       )
     ) {
       row++
@@ -392,7 +381,6 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
 /* -------------------------------------------------------------------------- */
 /* Task 시간 파싱 헬퍼 */
 /* -------------------------------------------------------------------------- */
-
 
 function getTaskTime(t: any): string {
   if (t?.placementTime && typeof t.placementTime === 'string') {
@@ -413,12 +401,9 @@ function getTaskTime(t: any): string {
 function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) {
   if (!task) return overrides
 
-  const labels =
-    Array.isArray(task.labels)
-      ? task.labels.map((l: any) =>
-          typeof l === 'number' ? l : l.id ?? l.labelId ?? l,
-        )
-      : undefined
+  const labels = Array.isArray(task.labels)
+    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
+    : undefined
 
   const base: any = {
     title: task.title,
@@ -552,43 +537,43 @@ function TaskGroupBox({
     })
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    if (!isActiveDrag.value) return
+    .onChange((e) => {
+      if (!isActiveDrag.value) return
 
-    let nextY = translateY.value + e.changeY
+      let nextY = translateY.value + e.changeY
 
-    // 드래그 Y 제한 (0~24시 범위 보장)
-    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+      // 드래그 Y 제한 (0~24시 범위 보장)
+      const DAY_PX = 24 * 60 * PIXELS_PER_MIN
 
-    const minY = -topBase
-    const maxY = DAY_PX - topBase - height
+      const minY = -topBase
+      const maxY = DAY_PX - topBase - height
 
-    if (nextY < minY) nextY = minY
-    if (nextY > maxY) nextY = maxY
-    translateY.value = nextY
+      if (nextY < minY) nextY = minY
+      if (nextY > maxY) nextY = maxY
+      translateY.value = nextY
 
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    if (!isActiveDrag.value) return
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!isActiveDrag.value) return
 
-    const SNAP = 5 * PIXELS_PER_MIN
-    let snappedY = Math.round(translateY.value / SNAP) * SNAP
+      const SNAP = 5 * PIXELS_PER_MIN
+      let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
-    // 드롭 시에도 0~24시 범위로 한 번 더 clamp
-    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
-    const minY = -topBase
-    const maxY = DAY_PX - topBase - height
-    if (snappedY < minY) snappedY = minY
-    if (snappedY > maxY) snappedY = maxY
+      // 드롭 시에도 0~24시 범위로 한 번 더 clamp
+      const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+      const minY = -topBase
+      const maxY = DAY_PX - topBase - height
+      if (snappedY < minY) snappedY = minY
+      if (snappedY > maxY) snappedY = maxY
 
-    translateY.value = withSpring(snappedY)
+      translateY.value = withSpring(snappedY)
 
-    const dayOffset = Math.round(translateX.value / dayColWidth)
-    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-    isActiveDrag.value = false
-    runOnJS(handleDropGroup)(snappedY, dayOffset)
-  })
+      const dayOffset = Math.round(translateX.value / dayColWidth)
+      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+      isActiveDrag.value = false
+      runOnJS(handleDropGroup)(snappedY, dayOffset)
+    })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
@@ -616,11 +601,7 @@ function TaskGroupBox({
     if (!target) return
 
     const completed = !!target.completed
-    const base =
-      target.placementDate ??
-      target.dueDateTime ??
-      target.date ??
-      todayISO()
+    const base = target.placementDate ?? target.dueDateTime ?? target.date ?? todayISO()
     const taskDateISO = String(base).slice(0, 10)
 
     try {
@@ -651,11 +632,7 @@ function TaskGroupBox({
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
-        style={[
-          S.taskGroupBox,
-          style,
-          !expanded && { justifyContent: 'center' },
-        ]}
+        style={[S.taskGroupBox, style, !expanded && { justifyContent: 'center' }]}
       >
         <View style={S.taskGroupInner}>
           <Pressable onPress={toggleExpand} style={S.groupHeaderRow}>
@@ -677,14 +654,9 @@ function TaskGroupBox({
                   onPress={() => toggleTaskDone(t.id)}
                 >
                   <View
-                    style={[
-                      S.groupTaskCheckbox,
-                      t.completed && S.groupTaskCheckboxOn,
-                    ]}
+                    style={[S.groupTaskCheckbox, t.completed && S.groupTaskCheckboxOn]}
                   >
-                    {t.completed && (
-                      <Text style={S.groupTaskCheckmark}>✓</Text>
-                    )}
+                    {t.completed && <Text style={S.groupTaskCheckmark}>✓</Text>}
                   </View>
                   <Text
                     style={[
@@ -775,32 +747,32 @@ function DraggableTaskBox({
   const handleDrop = async (movedY: number, dayOffset: number) => {
     try {
       const SNAP = 5 * PIXELS_PER_MIN
-const snappedY = Math.round(movedY / SNAP) * SNAP
-translateY.value = withSpring(snappedY)
+      const snappedY = Math.round(movedY / SNAP) * SNAP
+      translateY.value = withSpring(snappedY)
 
-const actualTopPx = topBase + snappedY
-let newStart = actualTopPx / PIXELS_PER_MIN
+      const actualTopPx = topBase + snappedY
+      let newStart = actualTopPx / PIXELS_PER_MIN
 
-// 24시간 범위 안에서만 이동
-if (newStart < 0) newStart = 0
-if (newStart > 24 * 60 - 1) newStart = 24 * 60 - 1
+      // 24시간 범위 안에서만 이동
+      if (newStart < 0) newStart = 0
+      if (newStart > 24 * 60 - 1) newStart = 24 * 60 - 1
 
-const h = Math.floor(newStart / 60)
-const m = Math.floor(newStart % 60)
-const fmt = (n: number) => String(n).padStart(2, '0')
+      const h = Math.floor(newStart / 60)
+      const m = Math.floor(newStart % 60)
+      const fmt = (n: number) => String(n).padStart(2, '0')
 
-const newTime = `${fmt(h)}:${fmt(m)}:00`
+      const newTime = `${fmt(h)}:${fmt(m)}:00`
 
-const newDateISO = addDays(dateISO, dayOffset)
+      const newDateISO = addDays(dateISO, dayOffset)
 
-const full = await http.get(`/task/${id}`)
-const task = full.data.data
-const payload = buildTaskUpdatePayload(task, {
-  placementDate: newDateISO,
-  placementTime: newTime,
-})
+      const full = await http.get(`/task/${id}`)
+      const task = full.data.data
+      const payload = buildTaskUpdatePayload(task, {
+        placementDate: newDateISO,
+        placementTime: newTime,
+      })
 
-await http.patch(`/task/${id}`, payload)
+      await http.patch(`/task/${id}`, payload)
 
       bus.emit('calendar:mutated', {
         op: 'update',
@@ -813,7 +785,7 @@ await http.patch(`/task/${id}`, payload)
         },
       })
     } catch (err: any) {
-      console.log("❌ Task 이동 실패 디버그:", err.response?.data || err.message)
+      console.log('❌ Task 이동 실패 디버그:', err.response?.data || err.message)
     }
   }
 
@@ -831,43 +803,43 @@ await http.patch(`/task/${id}`, payload)
     })
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    if (!isActiveDrag.value) return
+    .onChange((e) => {
+      if (!isActiveDrag.value) return
 
-    let nextY = translateY.value + e.changeY
+      let nextY = translateY.value + e.changeY
 
-    // 드래그 Y 제한 (0~24시 범위 보장)
-    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+      // 드래그 Y 제한 (0~24시 범위 보장)
+      const DAY_PX = 24 * 60 * PIXELS_PER_MIN
 
-    const minY = -topBase
-    const maxY = DAY_PX - topBase - height
+      const minY = -topBase
+      const maxY = DAY_PX - topBase - height
 
-    if (nextY < minY) nextY = minY
-    if (nextY > maxY) nextY = maxY
-    translateY.value = nextY
+      if (nextY < minY) nextY = minY
+      if (nextY > maxY) nextY = maxY
+      translateY.value = nextY
 
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    if (!isActiveDrag.value) return
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!isActiveDrag.value) return
 
-    const SNAP = 5 * PIXELS_PER_MIN
-    let snappedY = Math.round(translateY.value / SNAP) * SNAP
+      const SNAP = 5 * PIXELS_PER_MIN
+      let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
-    // 드롭 시에도 0~24시 범위로 한 번 더 clamp
-    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
-    const minY = -topBase
-    const maxY = DAY_PX - topBase - height
-    if (snappedY < minY) snappedY = minY
-    if (snappedY > maxY) snappedY = maxY
+      // 드롭 시에도 0~24시 범위로 한 번 더 clamp
+      const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+      const minY = -topBase
+      const maxY = DAY_PX - topBase - height
+      if (snappedY < minY) snappedY = minY
+      if (snappedY > maxY) snappedY = maxY
 
-    translateY.value = withSpring(snappedY)
+      translateY.value = withSpring(snappedY)
 
-    const dayOffset = Math.round(translateX.value / dayColWidth)
-    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-    isActiveDrag.value = false
-    runOnJS(handleDrop)(snappedY, dayOffset)
-  })
+      const dayOffset = Math.round(translateX.value / dayColWidth)
+      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+      isActiveDrag.value = false
+      runOnJS(handleDrop)(snappedY, dayOffset)
+    })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
@@ -888,10 +860,7 @@ await http.patch(`/task/${id}`, payload)
               {done && <Text style={S.taskCheckmark}>✓</Text>}
             </View>
 
-            <Text
-              style={[S.taskTitle, done && S.taskTitleDone]}
-              numberOfLines={0}
-            >
+            <Text style={[S.taskTitle, done && S.taskTitleDone]} numberOfLines={0}>
               {title}
             </Text>
           </Pressable>
@@ -1020,48 +989,47 @@ function DraggableFlexalbeEvent({
       runOnJS(triggerHaptic)()
     })
 
-    const eventHeight = (endMin - startMin) * PIXELS_PER_MIN
-    const maxBottom =
-      24 * 60 * PIXELS_PER_MIN - eventHeight
+  const eventHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const maxBottom = 24 * 60 * PIXELS_PER_MIN - eventHeight
 
   const drag = Gesture.Pan()
-  .onChange((e) => {
-    if (!isActiveDrag.value) return
+    .onChange((e) => {
+      if (!isActiveDrag.value) return
 
-    let nextY = translateY.value + e.changeY
+      let nextY = translateY.value + e.changeY
 
-    // 드래그 Y 제한 (0~24시 범위 보장)
-    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+      // 드래그 Y 제한 (0~24시 범위 보장)
+      const DAY_PX = 24 * 60 * PIXELS_PER_MIN
 
-    const minY = -topBase
-    const maxY = DAY_PX - topBase - height
+      const minY = -topBase
+      const maxY = DAY_PX - topBase - height
 
-    if (nextY < minY) nextY = minY
-    if (nextY > maxY) nextY = maxY
-    translateY.value = nextY
+      if (nextY < minY) nextY = minY
+      if (nextY > maxY) nextY = maxY
+      translateY.value = nextY
 
-    translateX.value += e.changeX
-  })
-  .onEnd(() => {
-    if (!isActiveDrag.value) return
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!isActiveDrag.value) return
 
-    const SNAP = 5 * PIXELS_PER_MIN
-    let snappedY = Math.round(translateY.value / SNAP) * SNAP
+      const SNAP = 5 * PIXELS_PER_MIN
+      let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
-    // 드롭 시에도 0~24시 범위로 한 번 더 clamp
-    const DAY_PX = 24 * 60 * PIXELS_PER_MIN
-    const minY = -topBase
-    const maxY = DAY_PX - topBase - height
-    if (snappedY < minY) snappedY = minY
-    if (snappedY > maxY) snappedY = maxY
+      // 드롭 시에도 0~24시 범위로 한 번 더 clamp
+      const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+      const minY = -topBase
+      const maxY = DAY_PX - topBase - height
+      if (snappedY < minY) snappedY = minY
+      if (snappedY > maxY) snappedY = maxY
 
-    translateY.value = withSpring(snappedY)
+      translateY.value = withSpring(snappedY)
 
-    const dayOffset = Math.round(translateX.value / dayColWidth)
-    translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
-    isActiveDrag.value = false
-    runOnJS(handleDrop)(snappedY, dayOffset)
-  })
+      const dayOffset = Math.round(translateX.value / dayColWidth)
+      translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+      isActiveDrag.value = false
+      runOnJS(handleDrop)(snappedY, dayOffset)
+    })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
@@ -1128,6 +1096,74 @@ export default function WeekView() {
 
   const SINGLE_HEIGHT = 22
 
+  // Task Popup
+  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
+  const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
+  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
+  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+
+  const openTaskPopupFromApi = async (taskId: string) => {
+    const res = await http.get(`/task/${taskId}`)
+    const data = res.data.data
+    if (!data) return
+
+    setTaskPopupMode('edit')
+    setTaskPopupId(data.id)
+    setTaskPopupTask(data)
+    setTaskPopupVisible(true)
+  }
+
+  useEffect(() => {
+    const h = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Week') return
+
+      // Create mode
+      setTaskPopupMode('create')
+      setTaskPopupId(null)
+      setTaskPopupTask({
+        id: null,
+        title: '',
+        content: '',
+        labels: [],
+        placementDate: anchorDate,
+        placementTime: null,
+        dueDateTime: null,
+      })
+      setTaskPopupVisible(true)
+    }
+
+    bus.on('task:create', h)
+    return () => bus.off('task:create', h)
+  }, [anchorDate])
+
+  // Event Popup
+  const [eventPopupVisible, setEventPopupVisible] = useState(false)
+  const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
+  const [eventPopupData, setEventPopupData] = useState<any | null>(null)
+
+  const openEventDetail = async (eventId: string) => {
+    const res = await http.get(`/event/${eventId}`)
+    const ev = res.data.data
+    if (!ev) return
+
+    setEventPopupMode('edit')
+    setEventPopupData(ev)
+    setEventPopupVisible(true)
+  }
+
+  useEffect(() => {
+    const h = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Week') return
+
+      setEventPopupMode('create')
+      setEventPopupData(null)
+      setEventPopupVisible(true)
+    }
+
+    bus.on('popup:schedule:create', h)
+    return () => bus.off('popup:schedule:create', h)
+  }, [])
+
   useEffect(() => {
     if (isZoomed) {
       const arr = Array.from({ length: 5 }, (_, i) => addDays(anchorDate, i - 2))
@@ -1185,9 +1221,7 @@ export default function WeekView() {
       setLoading(true)
       const resList = await Promise.all(
         dates.map((d) =>
-          http
-            .get('/calendar/daily', { params: { date: d } })
-            .catch(() => null),
+          http.get('/calendar/daily', { params: { date: d } }).catch(() => null),
         ),
       )
 
@@ -1332,10 +1366,7 @@ export default function WeekView() {
   )
 
   useEffect(() => {
-    const onMutated = (payload: {
-      op: 'create' | 'update' | 'delete'
-      item: any
-    }) => {
+    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
       if (!payload?.item) return
       const item = payload.item
 
@@ -1360,13 +1391,10 @@ export default function WeekView() {
   const today = todayISO()
   const spanBars = buildWeekSpanEvents(weekDates, weekData)
   const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight =
-    maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
   const dayColWidth = getDayColWidth(weekDates.length)
 
-
-  
   const toggleSpanTaskCheck = async (
     taskId: string,
     prevDone: boolean,
@@ -1438,6 +1466,9 @@ export default function WeekView() {
     transform: [{ scale: scale.value }],
   }))
 
+  const { items: filterLabels } = useLabelFilter()
+  const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
+
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1508,10 +1539,8 @@ export default function WeekView() {
                     }}
                   >
                     {spanBars.map((s) => {
-                      const left =
-                        TIME_COL_W + s.startIdx * dayColWidth + 2
-                      const width =
-                        (s.endIdx - s.startIdx + 1) * dayColWidth - 4
+                      const left = TIME_COL_W + s.startIdx * dayColWidth + 2
+                      const width = (s.endIdx - s.startIdx + 1) * dayColWidth - 4
                       const isSingleDay = s.startISO === s.endISO
                       const isTask = s.color === '#000000'
 
@@ -1573,9 +1602,7 @@ export default function WeekView() {
                                 fontWeight: '700',
                                 maxWidth: '90%',
                                 includeFontPadding: false,
-                                textDecorationLine: s.done
-                                  ? 'line-through'
-                                  : 'none',
+                                textDecorationLine: s.done ? 'line-through' : 'none',
                               }}
                               numberOfLines={1}
                             >
@@ -1684,10 +1711,10 @@ export default function WeekView() {
                         {h === 0
                           ? '오전 12시'
                           : h < 12
-                          ? `오전 ${h}시`
-                          : h === 12
-                          ? '오후 12시'
-                          : `오후 ${h - 12}시`}
+                            ? `오전 ${h}시`
+                            : h === 12
+                              ? '오후 12시'
+                              : `오후 ${h - 12}시`}
                       </Text>
                     </View>
                   ))}
@@ -1696,52 +1723,33 @@ export default function WeekView() {
                 {weekDates.map((d) => {
                   const bucket = weekData[d] || {
                     timelineEvents: [],
-                    timedTasks:
-                      [],
+                    timedTasks: [],
                   }
                   const isTodayCol = d === today
-                  const layoutEvents = layoutDayEvents(
-                    bucket.timelineEvents || [],
+                  const layoutEvents = layoutDayEvents(bucket.timelineEvents || [])
+                  const timedTasks = (bucket.timedTasks || []).filter((t: any) =>
+                    (t.labels ?? []).some((lid: number) => enabledLabelIds.includes(lid)),
                   )
-                  const timedTasks = bucket.timedTasks || []
 
                   const groupedTasks = timedTasks.reduce(
                     (acc: Record<string, any[]>, t: any) => {
                       const timeKey = getTaskTime(t)
-                      acc[timeKey] = acc[timeKey]
-                        ? [...acc[timeKey], t]
-                        : [t]
+                      acc[timeKey] = acc[timeKey] ? [...acc[timeKey], t] : [t]
                       return acc
                     },
                     {},
                   )
 
                   return (
-                    <View
-                      key={`${d}-col`}
-                      style={[S.dayCol, { width: dayColWidth }]}
-                    >
+                    <View key={`${d}-col`} style={[S.dayCol, { width: dayColWidth }]}>
                       {HOURS.map((_, i) => (
-                        <View
-                          key={`${d}-row-${i}`}
-                          style={S.hourRow}
-                        />
+                        <View key={`${d}-row-${i}`} style={S.hourRow} />
                       ))}
 
                       {isTodayCol && nowTop !== null && (
                         <>
-                          <View
-                            style={[
-                              S.liveBar,
-                              { top: nowTop },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              S.liveDot,
-                              { top: nowTop - 3 },
-                            ]}
-                          />
+                          <View style={[S.liveBar, { top: nowTop }]} />
+                          <View style={[S.liveDot, { top: nowTop - 3 }]} />
                         </>
                       )}
 
@@ -1764,86 +1772,72 @@ export default function WeekView() {
                         />
                       ))}
 
-                      {Object.entries(groupedTasks).map(
-                        ([timeKey, group]) => {
-                          const list = group as any[]
-                          if (!list.length) return null
+                      {Object.entries(groupedTasks).map(([timeKey, group]) => {
+                        const list = group as any[]
+                        if (!list.length) return null
 
-                          const timeStr = getTaskTime(list[0])
-                          const [h, m] = timeStr
-                            .split(':')
-                            .map((n) => Number(n) || 0)
-                          const start = h + m / 60
+                        const timeStr = getTaskTime(list[0])
+                        const [h, m] = timeStr.split(':').map((n) => Number(n) || 0)
+                        const start = h + m / 60
 
-                          return list.length > 1 ? (
-                            <TaskGroupBox
-                              key={`${d}-${timeKey}-${list.length}`}
-                              tasks={list}
-                              startHour={start}
-                              dayColWidth={dayColWidth}
-                              dateISO={d}
-                              onLocalChange={({
-                                id,
-                                dateISO,
-                                completed,
-                              }) => {
-                                if (typeof completed === 'boolean') {
-                                  setWeekData((prev: WeekData) => {
-                                    const copy = { ...prev }
-                                    const bucket = copy[dateISO]
-                                    if (!bucket) return copy
+                        return list.length > 1 ? (
+                          <TaskGroupBox
+                            key={`${d}-${timeKey}-${list.length}`}
+                            tasks={list}
+                            startHour={start}
+                            dayColWidth={dayColWidth}
+                            dateISO={d}
+                            onLocalChange={({ id, dateISO, completed }) => {
+                              if (typeof completed === 'boolean') {
+                                setWeekData((prev: WeekData) => {
+                                  const copy = { ...prev }
+                                  const bucket = copy[dateISO]
+                                  if (!bucket) return copy
 
-                                    if (bucket.timedTasks) {
-                                      bucket.timedTasks =
-                                        bucket.timedTasks.map((t: any) =>
-                                          String(t.id) === String(id)
-                                            ? { ...t, completed }
-                                            : t,
-                                        )
+                                  if (bucket.timedTasks) {
+                                    bucket.timedTasks = bucket.timedTasks.map((t: any) =>
+                                      String(t.id) === String(id)
+                                        ? { ...t, completed }
+                                        : t,
+                                    )
+                                  }
+
+                                  return copy
+                                })
+                              }
+                            }}
+                          />
+                        ) : (
+                          <DraggableTaskBox
+                            key={`${d}-${timeKey}-single-${list[0].id}`}
+                            id={String(list[0].id)}
+                            title={list[0].title}
+                            startHour={start}
+                            done={list[0].completed ?? false}
+                            dateISO={d}
+                            dayColWidth={dayColWidth}
+                            onLocalChange={({ id, dateISO, completed }) => {
+                              if (typeof completed === 'boolean') {
+                                setWeekData((prev: WeekData) => {
+                                  const copy = { ...prev }
+                                  const bucket = copy[dateISO]
+                                  if (!bucket) return copy
+                                  bucket.timedTasks = bucket.timedTasks.map((t: any) => {
+                                    if (String(t.id) !== String(id)) {
+                                      return t
                                     }
-
-                                    return copy
+                                    return {
+                                      ...t,
+                                      completed,
+                                    }
                                   })
-                                }
-                              }}
-                                />
-                          ) : (
-                            <DraggableTaskBox
-                              key={`${d}-${timeKey}-single-${list[0].id}`}
-                              id={String(list[0].id)}
-                              title={list[0].title}
-                              startHour={start}
-                              done={list[0].completed ?? false}
-                              dateISO={d}
-                              dayColWidth={dayColWidth}
-                              onLocalChange={({
-                                id,
-                                dateISO,
-                                completed,
-                              }) => {
-                                if (typeof completed === 'boolean') {
-                                  setWeekData((prev: WeekData) => {
-                                    const copy = { ...prev }
-                                    const bucket = copy[dateISO]
-                                    if (!bucket) return copy
-                                    bucket.timedTasks =
-                                      bucket.timedTasks.map((t: any) => {
-                                        if (String(t.id) !== String(id)) {
-                                          return t
-                                        }
-                                        return {
-                                          ...t,
-                                          completed,
-                                        }
-                                      })
-                                    return copy
-                                  })
-                                }
-                              }}
-                                />
-                          )
-                        },
-                      )}
+                                  return copy
+                                })
+                              }
+                            }}
+                          />
+                        )
+                      })}
                     </View>
                   )
                 })}
@@ -1851,6 +1845,102 @@ export default function WeekView() {
             </ScrollView>
           </Animated.View>
         </GestureDetector>
+        <TaskDetailPopup
+          visible={taskPopupVisible}
+          mode={taskPopupMode}
+          taskId={taskPopupId ?? undefined}
+          initialTask={taskPopupTask}
+          onClose={() => {
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          }}
+          onSave={async (form) => {
+            const pad = (n: number) => String(n).padStart(2, '0')
+
+            let placementDate: string | null = null
+            let placementTime: string | null = null
+            const fieldsToClear: string[] = []
+
+            // 날짜 변환
+            if (form.hasDate && form.date) {
+              const d = form.date
+              placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+            } else {
+              fieldsToClear.push('placementDate')
+            }
+
+            // 시간 변환
+            if (form.hasTime && form.time) {
+              const t = form.time
+              placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
+                t.getSeconds(),
+              )}`
+            } else {
+              fieldsToClear.push('placementTime')
+            }
+
+            try {
+              if (taskPopupMode === 'edit') {
+                // 기존 테스크 수정
+                if (!taskPopupId) return
+
+                await http.patch(`/task/${taskPopupId}`, {
+                  title: form.title,
+                  content: form.memo,
+                  labels: form.labels,
+                  placementDate,
+                  placementTime,
+                  fieldsToClear,
+                })
+
+                bus.emit('calendar:mutated', {
+                  op: 'update',
+                  item: { id: taskPopupId },
+                })
+              } else {
+                // 새 테스크 생성
+                const res = await http.post('/task', {
+                  title: form.title,
+                  content: form.memo,
+                  labels: form.labels,
+                  placementDate,
+                  placementTime,
+                  date: placementDate ?? anchorDate,
+                })
+
+                const newId = res.data?.data?.id
+
+                bus.emit('calendar:mutated', {
+                  op: 'create',
+                  item: { id: newId },
+                })
+              }
+
+              // 주간뷰 갱신
+              await fetchWeek(weekDates)
+
+              // 팝업 닫기
+              setTaskPopupVisible(false)
+              setTaskPopupId(null)
+              setTaskPopupTask(null)
+            } catch (err) {
+              console.error('❌ 테스크 저장 실패:', err)
+              Alert.alert('오류', '테스크를 저장하지 못했습니다.')
+            }
+          }}
+        />
+
+        <EventDetailPopup
+          visible={eventPopupVisible}
+          eventId={eventPopupData?.id ?? null}
+          mode={eventPopupMode}
+          onClose={() => {
+            setEventPopupVisible(false)
+            setEventPopupData(null)
+            fetchWeek(weekDates) // 일정 새로 반영
+          }}
+        />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

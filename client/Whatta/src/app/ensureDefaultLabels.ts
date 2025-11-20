@@ -1,6 +1,6 @@
 import { http } from '@/lib/http'
 
-const LABEL_BASE = '/api/user/setting/label'
+const LABEL_BASE = '/user/setting/label'
 const DEFAULTS = ['일정', '할 일'] as const
 
 type LabelDTO = { id: string | number; title: string }

@@ -7,6 +7,7 @@ import {
   Animated,
   PanResponder,
   TouchableWithoutFeedback,
+  Pressable,
 } from 'react-native'
 import AnimatedRe, {
   interpolateColor,
@@ -27,6 +28,7 @@ import {
   useNavigationState,
 } from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
@@ -205,25 +207,9 @@ export default function Header() {
     return fmtDay(anchorDate)
   }, [anchorDate, mode])
 
-  const [labels, setLabels] = useState([
-    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
-    { id: '2', name: '약속', color: '#B04FFF', enabled: true },
-    { id: '3', name: '동아리', color: '#B04FFF', enabled: true },
-    { id: '4', name: '수업', color: '#B04FFF', enabled: true },
-  ])
+  const { items: filterLabels, toggleLabel, toggleAll } = useLabelFilter()
 
-  const allOn = labels.every((l) => l.enabled)
-  const toggleAll = () => {
-    const newLabels = labels.map((l) => ({ ...l, enabled: !allOn }))
-    setLabels(newLabels)
-    navigation.setParams({ labels: newLabels })
-  }
-  const toggleLabel = (i: number) => {
-    const newArr = [...labels]
-    newArr[i].enabled = !newArr[i].enabled
-    setLabels(newArr)
-    navigation.setParams({ labels: newArr })
-  }
+  const allOn = filterLabels.length > 0 && filterLabels.every((l) => l.enabled)
 
   // ✅ 슬라이더: 드래그 & 터치 이동 가능
   const pan = PanResponder.create({
@@ -245,6 +231,17 @@ export default function Header() {
       [colors.icon.default, colors.primary.main],
     ),
   }))
+
+  useEffect(() => {
+    const closeHandler = () => {
+      setPopup(false)
+      globalPopupState.popup = false
+      // 🔹 밖에서 닫을 때도 ScreenWithSidebar 쪽 상태 맞춰주기
+      bus.emit('filter:popup', false)
+    }
+    bus.on('filter:close', closeHandler)
+    return () => bus.off('filter:close', closeHandler)
+  }, [])
 
   return (
     <View style={styles.root}>
@@ -270,7 +267,6 @@ export default function Header() {
                 setCalVisible(true)
               }
             }}
-            // <!--             onPress={() => runOrQueue(() => setCalVisible(true))} -->
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
@@ -283,13 +279,6 @@ export default function Header() {
               color={colors.icon.default}
               style={{ marginTop: 2 }}
             />
-            {/* <!--           <TouchableOpacity onPress={() => runOrQueue(goNext)}>
-            <Right
-              width={24}
-              height={24}
-              color={colors.icon.default}
-              style={{ marginTop: 2 }}
-            /> --> */}
           </TouchableOpacity>
         </View>
 
@@ -305,14 +294,9 @@ export default function Header() {
               globalPopupState.sliderX = maxSlide
               globalPopupState.opacity = 1
             }
+            // 🔹 사이드바처럼 전체 오버레이가 알 수 있도록 이벤트 쏘기
+            bus.emit('filter:popup', next)
           }}
-          // <!--           onPress={() =>
-          //             runOrQueue(() => {
-          //               sliderX.setValue(0)
-          //               popupOpacity.setValue(1)
-          //               setPopup((p) => !p)
-          //             })
-          //           } -->
         >
           <Filter
             width={22}
@@ -324,6 +308,22 @@ export default function Header() {
       </View>
 
       {/* ✅ 헤더의 빈공간 클릭 시 닫기 */}
+      {/* {popup && (
+        <Pressable
+          style={{
+            position: 'absolute',
+            top: 48,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 998,
+          }}
+          onPress={() => {
+            setPopup(false)
+            globalPopupState.popup = false
+          }}
+        />
+      )} */}
       {popup && (
         <>
           <View
@@ -377,7 +377,13 @@ export default function Header() {
       {/* 필터창 */}
       {popup && (
         <Animated.View style={[styles.popupContainer, { opacity: popupOpacity }]}>
-          <Animated.View style={[styles.popupBox, { opacity: popupOpacity }]}>
+          <Animated.View
+            style={[styles.popupBox, { opacity: popupOpacity }]}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height
+              bus.emit('filter:popup-height', h)
+            }}
+          >
             <Text style={styles.popupTitle}>필터</Text>
 
             {/* ✅ 슬라이더: 드래그 + 터치 이동 */}
@@ -403,19 +409,31 @@ export default function Header() {
             <View style={{ height: 16 }} />
             <View style={styles.row}>
               <Text style={styles.allText}>전체</Text>
-              <CustomSwitch value={allOn} onToggle={toggleAll} />
+              <CustomSwitch
+                value={allOn}
+                onToggle={() => {
+                  toggleAll()
+                  bus.emit('filter:changed', filterLabels)
+                }}
+              />
             </View>
 
             <View style={{ height: 7 }} />
             <View style={styles.divider} />
             <View style={{ height: 15 }} />
-            {labels.map((l, i) => (
+            {filterLabels.map((l) => (
               <View key={l.id} style={styles.row}>
                 <View style={styles.labelRow}>
-                  <View style={[styles.colorDot, { backgroundColor: l.color }]} />
-                  <Text style={styles.labelText}>{l.name}</Text>
+                  <View style={[styles.colorDot, { backgroundColor: '#B04FFF' }]} />
+                  <Text style={styles.labelText}>{l.title}</Text>
                 </View>
-                <CustomSwitch value={l.enabled} onToggle={() => toggleLabel(i)} />
+                <CustomSwitch
+                  value={l.enabled}
+                  onToggle={() => {
+                    toggleLabel(l.id)
+                    bus.emit('filter:changed', filterLabels)
+                  }}
+                />
               </View>
             ))}
           </Animated.View>

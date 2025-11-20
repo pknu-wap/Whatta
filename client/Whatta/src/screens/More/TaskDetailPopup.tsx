@@ -19,6 +19,9 @@ import Down from '@/assets/icons/down.svg'
 import LabelChip from '@/components/LabelChip'
 import LabelPickerModal, { UiLabel } from '@/components/LabelPicker'
 import { Picker } from '@react-native-picker/picker'
+import { useLabels } from '@/providers/LabelProvider'
+import { http } from '@/lib/http'
+import { bus } from '@/lib/eventBus'
 
 const H_PAD = 18
 
@@ -33,7 +36,7 @@ type TaskFormValue = {
   date?: Date
   hasTime: boolean
   time?: Date
-  labelIds: number[]
+  labels: number[]
   memo: string
 }
 
@@ -101,7 +104,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     initialHasTime = false,
     initialTime,
     initialLabelIds = [],
-    labels: labelProp,
     onClose,
     onSave,
     onDelete,
@@ -137,7 +139,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
   const labelBtnRef = useRef<View>(null)
-  const labels = labelProp ?? []
+  const { labels: globalLabels } = useLabels()
+  const labels = globalLabels
+  const MAX_LABELS = 10
+  const isFull = labels.length >= MAX_LABELS
 
   // 피커 열림 상태
   const [dateOpen, setDateOpen] = useState(false)
@@ -163,12 +168,35 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       hasTimeFlag ? new Date(`2020-01-01T${initialTask.placementTime}`) : new Date(),
     )
 
-    setLabelIds(
-      Array.isArray(initialTask.labels) ? initialTask.labels.map((lb: any) => lb.id) : [],
-    )
+    if (Array.isArray(initialTask.labels)) {
+      const first = initialTask.labels[0]
+
+      if (typeof first === 'number') {
+        setLabelIds(initialTask.labels as number[])
+      } else if (typeof first === 'object' && first !== null) {
+        // 혹시 객체 배열이 올 경우 대비
+        setLabelIds((initialTask.labels as { id: number }[]).map((lb) => lb.id))
+      } else {
+        setLabelIds([])
+      }
+    } else {
+      setLabelIds([])
+    }
 
     setMemo(initialTask.content ?? '')
   }, [visible, initialTask])
+
+  useEffect(() => {
+    if (!visible) return
+    if (mode !== 'create') return
+    if (!labels.length) return // 라벨 목록이 아직 없으면 패스
+
+    setLabelIds((prev) => {
+      if (prev.length) return prev // 이미 뭔가 선택돼 있으면 유지
+      const defaultLabel = labels.find((l) => l.title === '할 일')
+      return defaultLabel ? [defaultLabel.id] : prev
+    })
+  }, [visible, mode, labels])
 
   const handleSave = () => {
     const value: TaskFormValue = {
@@ -178,7 +206,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       date: hasDate ? date : undefined,
       hasTime,
       time: hasTime ? time : undefined,
-      labelIds: labelIds.slice(0, 3),
+      labels: labelIds.slice(0, 3),
     }
 
     onSave(value)
@@ -197,6 +225,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
             { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
           ]}
         >
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           <View style={[styles.box, { width: SHEET_W, height: SHEET_H }]}>
             {/* 헤더: X / 체크 */}
             <View style={styles.header}>
@@ -432,6 +461,16 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     onChange={(ids) => setLabelIds(ids.slice(0, 3))}
                     onRequestClose={() => setLabelModalOpen(false)}
                     anchor={labelAnchor}
+                    canAdd={!isFull}
+                    onCreateLabel={async (title) => {
+                      // 서버에 라벨 생성
+                      const res = await http.post('/user/setting/label', { title })
+
+                      bus.emit('label:mutated')
+
+                      // 새 라벨 반환
+                      return { id: res.data.data.id, title }
+                    }}
                   />
                 )}
 
