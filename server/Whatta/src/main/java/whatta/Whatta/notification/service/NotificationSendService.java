@@ -30,6 +30,7 @@ public class NotificationSendService {
 
     public void sendReminder(String userId, String title, String body, String targetId) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if(token == null) { return; }
 
         send(token.getFcmToken(), title, body, Map.of(
                 "type", "REMINDER",
