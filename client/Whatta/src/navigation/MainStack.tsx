@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { View } from 'react-native'
+import React, { useState, useEffect } from 'react'
+import { View, Pressable, Dimensions } from 'react-native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
@@ -35,6 +35,25 @@ export default function MainTabs() {
   const insets = useSafeAreaInsets()
   const [activeTab, setActiveTab] = useState('Month')
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  const POPUP_WIDTH = 158
+  const POPUP_RIGHT_MARGIN = 10
+  const POPUP_TOP = 48
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+  const [popupHeight, setPopupHeight] = useState(0)
+
+  useEffect(() => {
+    const handler = (h: number) => setPopupHeight(h)
+    bus.on('filter:popup-height', handler)
+    return () => bus.off('filter:popup-height', handler)
+  }, [])
+
+  const [filterOpen, setFilterOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = (open: boolean) => setFilterOpen(open)
+    bus.on('filter:popup', handler)
+    return () => bus.off('filter:popup', handler)
+  }, [])
 
   const showFab = ['Month', 'Week', 'Day'].includes(activeTab)
 
@@ -66,6 +85,61 @@ export default function MainTabs() {
   return (
     <DrawerProvider>
       <View style={{ flex: 1 }}>
+        {filterOpen && (
+          <>
+            {/* TOP 영역 */}
+            <Pressable
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: POPUP_TOP,
+                zIndex: 9999,
+              }}
+              onPress={() => bus.emit('filter:close')}
+            />
+
+            {/* LEFT 영역 */}
+            <Pressable
+              style={{
+                position: 'absolute',
+                top: POPUP_TOP,
+                left: 0,
+                width: SCREEN_WIDTH - POPUP_WIDTH - POPUP_RIGHT_MARGIN,
+                bottom: 0,
+                zIndex: 9999,
+              }}
+              onPress={() => bus.emit('filter:close')}
+            />
+
+            {/* RIGHT 영역 */}
+            <Pressable
+              style={{
+                position: 'absolute',
+                top: POPUP_TOP,
+                right: 0,
+                width: POPUP_RIGHT_MARGIN,
+                bottom: 0,
+                zIndex: 9999,
+              }}
+              onPress={() => bus.emit('filter:close')}
+            />
+
+            {/* BOTTOM 영역 (동적 높이) */}
+            <Pressable
+              style={{
+                position: 'absolute',
+                top: POPUP_TOP + popupHeight + 50,
+                left: SCREEN_WIDTH - POPUP_WIDTH - POPUP_RIGHT_MARGIN,
+                right: 0,
+                bottom: 0,
+                zIndex: 9999,
+              }}
+              onPress={() => bus.emit('filter:close')}
+            />
+          </>
+        )}
         <Tab.Navigator
           initialRouteName="Month"
           screenListeners={{

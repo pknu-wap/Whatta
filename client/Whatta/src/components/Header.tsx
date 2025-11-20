@@ -7,6 +7,7 @@ import {
   Animated,
   PanResponder,
   TouchableWithoutFeedback,
+  Pressable,
 } from 'react-native'
 import AnimatedRe, {
   interpolateColor,
@@ -231,6 +232,17 @@ export default function Header() {
     ),
   }))
 
+  useEffect(() => {
+    const closeHandler = () => {
+      setPopup(false)
+      globalPopupState.popup = false
+      // 🔹 밖에서 닫을 때도 ScreenWithSidebar 쪽 상태 맞춰주기
+      bus.emit('filter:popup', false)
+    }
+    bus.on('filter:close', closeHandler)
+    return () => bus.off('filter:close', closeHandler)
+  }, [])
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -255,7 +267,6 @@ export default function Header() {
                 setCalVisible(true)
               }
             }}
-            // <!--             onPress={() => runOrQueue(() => setCalVisible(true))} -->
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
@@ -268,13 +279,6 @@ export default function Header() {
               color={colors.icon.default}
               style={{ marginTop: 2 }}
             />
-            {/* <!--           <TouchableOpacity onPress={() => runOrQueue(goNext)}>
-            <Right
-              width={24}
-              height={24}
-              color={colors.icon.default}
-              style={{ marginTop: 2 }}
-            /> --> */}
           </TouchableOpacity>
         </View>
 
@@ -290,14 +294,9 @@ export default function Header() {
               globalPopupState.sliderX = maxSlide
               globalPopupState.opacity = 1
             }
+            // 🔹 사이드바처럼 전체 오버레이가 알 수 있도록 이벤트 쏘기
+            bus.emit('filter:popup', next)
           }}
-          // <!--           onPress={() =>
-          //             runOrQueue(() => {
-          //               sliderX.setValue(0)
-          //               popupOpacity.setValue(1)
-          //               setPopup((p) => !p)
-          //             })
-          //           } -->
         >
           <Filter
             width={22}
@@ -309,6 +308,22 @@ export default function Header() {
       </View>
 
       {/* ✅ 헤더의 빈공간 클릭 시 닫기 */}
+      {/* {popup && (
+        <Pressable
+          style={{
+            position: 'absolute',
+            top: 48,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 998,
+          }}
+          onPress={() => {
+            setPopup(false)
+            globalPopupState.popup = false
+          }}
+        />
+      )} */}
       {popup && (
         <>
           <View
@@ -362,7 +377,13 @@ export default function Header() {
       {/* 필터창 */}
       {popup && (
         <Animated.View style={[styles.popupContainer, { opacity: popupOpacity }]}>
-          <Animated.View style={[styles.popupBox, { opacity: popupOpacity }]}>
+          <Animated.View
+            style={[styles.popupBox, { opacity: popupOpacity }]}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height
+              bus.emit('filter:popup-height', h)
+            }}
+          >
             <Text style={styles.popupTitle}>필터</Text>
 
             {/* ✅ 슬라이더: 드래그 + 터치 이동 */}

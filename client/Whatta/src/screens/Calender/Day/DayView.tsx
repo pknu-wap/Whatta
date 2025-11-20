@@ -406,9 +406,7 @@ export default function DayView() {
           })),
         ]
 
-        // -----------------------
-        // 2) 🌈 필터 적용
-        // -----------------------
+        // 필터 적용
         const filterTask = (t: any) => {
           if (!t.labels || t.labels.length === 0) return true
           return t.labels.some((id: number) => enabledLabelIds.includes(id))
@@ -664,6 +662,7 @@ export default function DayView() {
       },
     ])
   }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScreenWithSidebar mode="overlay">
