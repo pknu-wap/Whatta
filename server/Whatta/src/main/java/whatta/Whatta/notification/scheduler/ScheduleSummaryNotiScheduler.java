@@ -22,7 +22,7 @@ public class ScheduleSummaryNotiScheduler {
     private final ScheduleSummaryNotiService scheduleSummaryNotiService;
 
     //매분마다 요약알림 보낼 시각인지 체크
-    @Scheduled(fixedDelay = 60_000)
+    @Scheduled(fixedRate = 60 * 1000) //1분마다
     public void processDailySummary() {
 
         List<ScheduleSummaryNotiSlim> notis = userSettingRepository.findByScheduleSummaryNotiEnabledTrue();
@@ -34,8 +34,10 @@ public class ScheduleSummaryNotiScheduler {
             }
 
             LocalDateTime nowUser = LocalDateTime.now();
+            log.info("localDateTime: {}", nowUser);
+            log.info("noti Time: {}", noti.getTime());
 
-            // 보내야 할 시각인지 확인
+            //보내야 할 시각인지 확인
             if (!isTimeToSend(nowUser.toLocalTime(), noti.getTime())) {
                 continue;
             }

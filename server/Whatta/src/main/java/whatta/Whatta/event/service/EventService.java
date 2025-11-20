@@ -84,6 +84,7 @@ public class EventService {
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
+        //System.out.println("get localTime :" + event.getStartTime() + " / " + event.getEndTime());
         return eventMapper.toEventDetailsResponse(event);
     }
 
@@ -97,7 +98,6 @@ public class EventService {
 
         LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
         LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
-        System.out.println("editing : " + endTime);
         validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
 
         //수정

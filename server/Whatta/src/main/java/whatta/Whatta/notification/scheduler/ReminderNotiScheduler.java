@@ -27,9 +27,10 @@ public class ReminderNotiScheduler {
     private final EventRepository eventRepository;
     private final TaskRepository taskRepository;
 
-    @Scheduled(fixedDelay = 60_000)
+    @Scheduled(fixedRate = 60 * 1000) //1분마다
     public void sendReminder() {
         LocalDateTime now = LocalDateTime.now();
+        //log.info("localDateTime: {}", now);
 
         List<ScheduledNotification> dueNotis =
                 scheduledNotiService.findDueReminders(now);
@@ -104,6 +105,6 @@ public class ReminderNotiScheduler {
             sb.append("곧 ");
         }
 
-        return sb.toString().trim();
+        return sb.toString();
     }
 }

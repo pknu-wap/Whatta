@@ -4,11 +4,13 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.calendar.payload.response.DailyResponse;
 import whatta.Whatta.calendar.service.CalendarViewService;
+import whatta.Whatta.global.util.LocalTimeUtil;
 import whatta.Whatta.user.enums.NotifyDay;
 import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -59,23 +61,19 @@ public class ScheduleSummaryNotiService {
     }
 
     private String buildTitle(LocalDate date, int eventCount, int taskCount) {
-        //예: 2025-11-20 일정 요약 (일정 3개 · 할 일 2개)
+        //예: 11월 20일 일정
+        String title = String.format("%d월 %d일", date.getMonthValue(), date.getDayOfMonth());
         return String.format(
-                "%s 일정 요약 (일정 %d개 · 할 일 %d개)",
-                date,
-                eventCount,
-                taskCount
+                "%s 일정",
+                title
         );
     }
 
     private String buildBody(LocalDate targetDate,
                              DailyResponse daily,
                              int eventCount,
-                             int taskCount) {                                    // 이 부분을 수정했다고 표시
+                             int taskCount) {
         StringBuilder sb = new StringBuilder();
-
-        sb.append(String.format("%s 기준 요약\n", targetDate));
-        sb.append(String.format("📅 일정 %d개 · 📝 할 일 %d개\n\n", eventCount, taskCount));
 
         // ---- 시간지정 있는 일정 + task만 사용 ---- //
 
@@ -92,26 +90,41 @@ public class ScheduleSummaryNotiService {
         //1) 시간 있는 일정에서 최대 3개까지 채우기
         for (int i = 0; i < Math.min(3, timedEvents.size()); i++) {
             var e = timedEvents.get(i);
-            previewLines.add(String.format("⏰ %s %s", e.clippedStartTime(), e.title()));
+            previewLines.add(String.format("\u200B -  %s %s", formatTime(e.clippedStartTime()), e.title()));
         }
 
         //2) 남은 칸 시간지정 task로 채우기 (총 4개까지)
         int remainingTimed = 4 - previewLines.size();
         for (int i = 0; i < Math.min(remainingTimed, timedTask.size()); i++) {
             var t = timedTask.get(i);
-            previewLines.add(String.format("📝 %s %s", t.placementTime(), t.title()));
+            previewLines.add(String.format("☑ %s %s", formatTime(t.placementTime()), t.title()));
         }
 
         //3) 남은 칸 시간지정 없는 task로 채우기 (총 4개까지)
         int remaining = 4 - previewLines.size();
         for (int i = 0; i < Math.min(remaining, allDayTask.size()); i++) {
             var t = allDayTask.get(i);
-            previewLines.add(String.format("📝 %s ", t.title()));
+            previewLines.add(String.format("☑ %s ", t.title()));
         }
 
-        // 3) previewLines 출력   // 수정
+        // 3) previewLines 출력
         previewLines.forEach(line -> sb.append(line).append("\n"));
 
         return sb.toString().trim();
+    }
+
+    private String formatTime(LocalTime time) {
+        if (time == null) {
+            return "";
+        }
+        return String.format("%02d:%02d", time.getHour(), time.getMinute());
+    }
+
+    private String formatTime(String timeStr) {
+        if (timeStr == null || timeStr.isBlank()) {
+            return "";
+        }
+        LocalTime time = LocalTimeUtil.stringToLocalTime(timeStr);
+        return formatTime(time);
     }
 }

@@ -4,12 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.security.JwtTokenProvider;
+import whatta.Whatta.user.entity.ScheduleSummaryNoti;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.payload.response.LoginResponse;
 import whatta.Whatta.user.repository.UserRepository;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
+import java.time.LocalTime;
 import java.util.Optional;
 
 @Service
@@ -32,6 +34,9 @@ public class UserService {
 
             UserSetting setting = UserSetting.builder()
                     .userId(newUser.getId())
+                    .scheduleSummaryNoti(ScheduleSummaryNoti.builder()
+                            .time(LocalTime.of(9,0))
+                            .build())
                     .build();
             userSettingRepository.save(setting);
 
