@@ -59,10 +59,11 @@ public class ScheduleSummaryNotiService {
     }
 
     private String buildTitle(LocalDate date, int eventCount, int taskCount) {
-        //예: 2025-11-20 일정 요약 (일정 3개 · 할 일 2개)
+        //예: 11월 20일 일정 요약 (일정 3개 . 할 일 2개)
+        String title = String.format("%d월 %일", date.getMonthValue(), date.getDayOfMonth());
         return String.format(
                 "%s 일정 요약 (일정 %d개 · 할 일 %d개)",
-                date,
+                title,
                 eventCount,
                 taskCount
         );
@@ -71,10 +72,9 @@ public class ScheduleSummaryNotiService {
     private String buildBody(LocalDate targetDate,
                              DailyResponse daily,
                              int eventCount,
-                             int taskCount) {                                    // 이 부분을 수정했다고 표시
+                             int taskCount) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append(String.format("%s 기준 요약\n", targetDate));
         sb.append(String.format("📅 일정 %d개 · 📝 할 일 %d개\n\n", eventCount, taskCount));
 
         // ---- 시간지정 있는 일정 + task만 사용 ---- //
