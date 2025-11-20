@@ -8,6 +8,14 @@ export type Repeat = {
   endDate?: string
 }
 
+export interface RepeatRule {
+  interval: number // 1, 2, 3... 반복 간격
+  unit: 'DAY' | 'WEEK' | 'MONTH' | 'CUSTOM'
+  on: string[] // WEEK일 때 ["MON","TUE"] 이런 식
+  endDate: string | null // yyyy-mm-dd
+  exceptionDates?: string[]
+}
+
 export type CreateEventPayload = {
   title: string
   content?: string
@@ -16,7 +24,7 @@ export type CreateEventPayload = {
   endDate: string // "YYYY-MM-DD"
   startTime?: string | null // "HH:mm:ss"
   endTime?: string | null // "HH:mm:ss"
-  repeat?: Repeat
+  repeat?: RepeatRule | null
   colorKey?: string // "FFFFFF"
 }
 
@@ -96,7 +104,7 @@ export type EventItem = {
   startTime?: string | null // "HH:mm:ss"
   endTime?: string | null // "HH:mm:ss"
   colorKey?: string // "FFFFFF"
-  repeat?: Repeat
+  repeat?: RepeatRule | null
 }
 
 // 3. Task → MonthView용 ScheduleData로 변환

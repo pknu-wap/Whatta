@@ -13,8 +13,6 @@ import {
   TouchableOpacity,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
-import axios from 'axios'
-import { token } from '@/lib/token'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import { getMyLabels, createLabel, type Label } from '@/api/label_api'
@@ -27,6 +25,7 @@ import LabelChip from '@/components/LabelChip'
 import LabelPickerModal from '@/components/LabelPicker'
 import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
+import { http } from '@/lib/http'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -216,6 +215,26 @@ export default function EventDetailPopup({
       Object.entries(obj).filter(([, v]) => v !== null && v !== undefined),
     ) as T
 
+  const buildBasePayload = () => {
+    const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+
+    const base = {
+      title: scheduleTitle,
+      content: memo ?? '',
+      labels: selectedLabelIds.length ? selectedLabelIds : [],
+      startDate: ymdLocal(start),
+      endDate: ymdLocal(end),
+      startTime: timeOn ? hms(start) : undefined,
+      endTime: timeOn ? hms(end) : undefined,
+      colorKey: hex,
+    }
+
+    return {
+      payload: stripNil(base),
+      colorHex: hex,
+    }
+  }
+
   const closeAll = () => {
     setOpenCalendar(false)
     setOpenStartTime(false)
@@ -397,49 +416,27 @@ export default function EventDetailPopup({
     </Pressable>
   )
 
-  /* 저장 */
-  const handleSave = async () => {
+  /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
+  const saveNormal = async () => {
     try {
-      const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+      const { payload, colorHex } = buildBasePayload()
 
-      const base = {
-        title: scheduleTitle,
-        content: memo ?? '',
-        labels: selectedLabelIds.length ? selectedLabelIds : [],
-        startDate: ymdLocal(start),
-        endDate: ymdLocal(end),
-        startTime: timeOn ? hms(start) : undefined,
-        endTime: timeOn ? hms(end) : undefined,
-        colorKey: hex,
-      }
-
-      const payload = stripNil(base)
-      const access = token.getAccess()
-
-      let saved
+      let saved: any
 
       if (mode === 'edit' && eventId) {
         // 수정(PATCH)
-        const res = await axios.patch(
-          `https://whatta-server-741565423469.asia-northeast3.run.app/api/event/${eventId}`,
-          payload,
-          { headers: { Authorization: `Bearer ${access}` } },
-        )
+        const res = await http.patch(`/event/${eventId}`, payload)
         saved = res?.data
       } else {
         // 생성(POST)
-        const res = await axios.post(
-          `https://whatta-server-741565423469.asia-northeast3.run.app/api/event`,
-          payload,
-          { headers: { Authorization: `Bearer ${access}` } },
-        )
+        const res = await http.post('/event', payload)
         saved = res?.data
       }
 
       if (saved) {
         const enriched = {
           ...(saved ?? {}),
-          colorKey: hex,
+          colorKey: colorHex,
           startDate: saved?.startDate ?? payload.startDate,
           endDate: saved?.endDate ?? payload.endDate,
         }
@@ -456,6 +453,139 @@ export default function EventDetailPopup({
       console.log('일정 저장 실패:', err)
       alert('저장 실패')
     }
+  }
+
+  /** 🔹 반복 일정 수정 – "이 일정만" */
+  const saveRepeatOnlyThis = async () => {
+    if (!eventId || !eventData?.repeat) {
+      await saveNormal()
+      return
+    }
+
+    try {
+      const { payload, colorHex } = buildBasePayload()
+      const occDate = payload.startDate as string // yyyy-MM-dd
+
+      const prev = eventData.repeat.exceptionDates ?? []
+      const next = prev.includes(occDate) ? prev : [...prev, occDate]
+
+      // 1) 기존 반복 일정에 exceptionDates 패치
+      await http.patch(`/event/${eventId}`, {
+        repeat: {
+          ...eventData.repeat,
+          exceptionDates: next,
+        },
+      })
+
+      // 2) 수정된 내용을 가진 단일 일정 생성
+      const createPayload = {
+        ...payload,
+        repeat: null,
+      }
+
+      const resNew = await http.post('/event', createPayload)
+      const saved = resNew?.data
+
+      if (saved) {
+        const enriched = {
+          ...(saved ?? {}),
+          colorKey: colorHex,
+          startDate: saved?.startDate ?? createPayload.startDate,
+          endDate: saved?.endDate ?? createPayload.endDate,
+        }
+
+        bus.emit('calendar:mutated', { op: 'create', item: enriched })
+        const ym = enriched.startDate.slice(0, 7)
+        bus.emit('calendar:invalidate', { ym })
+      }
+
+      onClose()
+    } catch (err) {
+      console.log('반복 일정 단일 수정 실패:', err)
+      alert('저장 실패')
+    }
+  }
+
+  /** 🔹 반복 일정 수정 – "이후 일정 모두" */
+  const saveRepeatApplyAll = async () => {
+    if (!eventId || !eventData?.repeat) {
+      await saveNormal()
+      return
+    }
+
+    try {
+      const { payload, colorHex } = buildBasePayload()
+      const occDate = payload.startDate as string // yyyy-MM-dd
+
+      const d = new Date(
+        Number(occDate.slice(0, 4)),
+        Number(occDate.slice(5, 7)) - 1,
+        Number(occDate.slice(8, 10)),
+      )
+      d.setDate(d.getDate() - 1)
+      const prevDay = ymdLocal(d) // 전날
+
+      // 1) 기존 반복 일정 끝을 "전날"로 자르기
+      await http.patch(`/event/${eventId}`, {
+        repeat: {
+          ...eventData.repeat,
+          endDate: prevDay,
+        },
+      })
+
+      // 2) 수정된 내용 + 원래 repeat로 새 일정 생성 (이후 구간)
+      const createPayload: any = {
+        ...payload,
+        repeat: eventData.repeat, // 서버 스키마에 맞게 필요하면 조정
+      }
+
+      const resNew = await http.post('/event', createPayload)
+      const saved = resNew?.data
+
+      if (saved) {
+        const enriched = {
+          ...(saved ?? {}),
+          colorKey: colorHex,
+          startDate: saved?.startDate ?? createPayload.startDate,
+          endDate: saved?.endDate ?? createPayload.endDate,
+        }
+
+        bus.emit('calendar:mutated', { op: 'create', item: enriched })
+        const ym = enriched.startDate?.slice(0, 7)
+        if (ym) bus.emit('calendar:invalidate', { ym })
+      }
+
+      onClose()
+    } catch (err) {
+      console.log('반복 일정 전체 수정 실패:', err)
+      alert('저장 실패')
+    }
+  }
+
+  /* 저장 버튼 핸들러 – 반복 여부에 따라 분기 */
+  const handleSave = async () => {
+    // 🔹 편집 모드 + 반복 일정인 경우만 분기
+    if (mode === 'edit' && eventData?.repeat != null) {
+      Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '이 일정만',
+          onPress: () => {
+            void saveRepeatOnlyThis()
+          },
+        },
+        {
+          text: '이후 일정 모두',
+          onPress: () => {
+            void saveRepeatApplyAll()
+          },
+        },
+      ])
+      return
+    }
+
+    // 일반 일정 / 생성 모드 → 기존 로직
+    await saveNormal()
   }
 
   // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
@@ -563,12 +693,7 @@ export default function EventDetailPopup({
       if (mode !== 'edit' || !eventId) return
 
       try {
-        const access = token.getAccess()
-        const res = await axios.get(
-          `https://whatta-server-741565423469.asia-northeast3.run.app/api/event/${eventId}`,
-          { headers: { Authorization: `Bearer ${access}` } },
-        )
-
+        const res = await http.get(`/event/${eventId}`)
         const ev = res.data.data
         if (!ev) return
 
@@ -648,28 +773,106 @@ export default function EventDetailPopup({
     })
   }, [visible, mode, labels])
 
-  const handleDelete = async () => {
+  const deleteNormal = async () => {
     try {
-      const access = token.getAccess()
-      await axios.delete(
-        `https://whatta-server-741565423469.asia-northeast3.run.app/api/event/${eventId}`,
-        { headers: { Authorization: `Bearer ${access}` } },
-      )
+      await http.delete(`/event/${eventId}`)
 
       bus.emit('calendar:mutated', { op: 'delete', id: eventId })
       onClose()
     } catch (e) {
+      console.log('일정 삭제 실패:', e)
+      alert('삭제 실패')
+    }
+  }
+
+  const deleteRepeatOnlyThis = async () => {
+    if (!eventData?.repeat) {
+      await deleteNormal()
+      return
+    }
+
+    try {
+      const occDate = ymdLocal(start)
+
+      const prev = eventData.repeat.exceptionDates ?? []
+      const next = prev.includes(occDate) ? prev : [...prev, occDate]
+
+      await http.patch(`/event/${eventId}`, {
+        repeat: {
+          ...eventData.repeat,
+          exceptionDates: next,
+        },
+      })
+
+      const ym = occDate.slice(0, 7)
+      bus.emit('calendar:invalidate', { ym })
+
+      onClose()
+    } catch (e) {
+      console.log('반복 일정 단일 삭제 실패:', e)
+      alert('삭제 실패')
+    }
+  }
+
+  const deleteRepeatAllFuture = async () => {
+    if (!eventData?.repeat) {
+      await deleteNormal()
+      return
+    }
+
+    try {
+      const d = new Date(start)
+      d.setDate(d.getDate() - 1)
+      const prevDay = ymdLocal(d)
+
+      await http.patch(`/event/${eventId}`, {
+        repeat: {
+          ...eventData.repeat,
+          endDate: prevDay,
+        },
+      })
+
+      const ym = start.toISOString().slice(0, 7)
+      bus.emit('calendar:invalidate', { ym })
+
+      onClose()
+    } catch (e) {
+      console.log('반복 일정 전체 삭제 실패:', e)
       alert('삭제 실패')
     }
   }
 
   const confirmDelete = () => {
+    // 반복 일정이면 옵션 2개
+    if (eventData?.repeat != null) {
+      Alert.alert('반복 일정 삭제', '이후 반복하는 일정들도 삭제하시겠습니까?', [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '이 일정만',
+          onPress: () => {
+            void deleteRepeatOnlyThis()
+          },
+        },
+        {
+          text: '이후 모두 삭제',
+          style: 'destructive',
+          onPress: () => {
+            void deleteRepeatAllFuture()
+          },
+        },
+      ])
+      return
+    }
+
+    // 일반 일정
     Alert.alert('삭제', '이 일정을 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       {
         text: '삭제',
         style: 'destructive',
-        onPress: handleDelete,
+        onPress: () => {
+          void deleteNormal()
+        },
       },
     ])
   }
