@@ -16,14 +16,13 @@ import java.time.LocalTime;
 public class ScheduleSummaryNoti {
 
     @Builder.Default
-    private boolean enabled = true;
+    private boolean enabled = false;
 
     @NotNull
     @Builder.Default
     private NotifyDay notifyDay = NotifyDay.TODAY;
 
     @NotNull
-    @Builder.Default
-    private LocalTime time = LocalTime.of(9, 0);
+    private LocalTime time;
 
 }

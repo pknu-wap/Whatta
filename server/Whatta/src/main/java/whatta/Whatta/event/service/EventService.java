@@ -84,6 +84,7 @@ public class EventService {
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
+        //System.out.println("get localTime :" + event.getStartTime() + " / " + event.getEndTime());
         return eventMapper.toEventDetailsResponse(event);
     }
 
