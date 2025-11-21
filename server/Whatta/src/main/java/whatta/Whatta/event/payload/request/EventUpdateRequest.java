@@ -26,7 +26,7 @@ public record EventUpdateRequest(
 
         @Valid
         RepeatRequest repeat,
-        @Schema(example = "FFFFFF")
+        @Schema(example = "#FFD966")
         String colorKey,
 
         ReminderNoti reminderNoti,
