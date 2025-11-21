@@ -37,6 +37,7 @@ import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import AddImageSheet from '@/screens/More/Ocr'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -121,6 +122,19 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 let draggingEventId: string | null = null
 
 export default function DayView() {
+  // 📌 이미지 추가 모달 열기
+const [imagePopupVisible, setImagePopupVisible] = useState(false)
+
+useEffect(() => {
+  const handler = (payload?: { source?: string }) => {
+    if (payload?.source !== 'Day') return
+    setImagePopupVisible(true)
+  }
+
+  bus.on('popup:image:create', handler)
+  return () => bus.off('popup:image:create', handler)
+}, [])
+
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
@@ -1002,6 +1016,12 @@ export default function DayView() {
             fetchDailyEvents(anchorDate) // 일정 새로 반영
           }}
         />
+        <AddImageSheet
+  visible={imagePopupVisible}
+  onClose={() => setImagePopupVisible(false)}
+  onTakePhoto={() => console.log("촬영하기")}
+  onPickImage={() => console.log("사진 불러오기")}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
