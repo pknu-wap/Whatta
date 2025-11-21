@@ -515,21 +515,30 @@ export default function DayView() {
   const showScrollbar = contentH > wrapH
 
   const toggleCheck = async (id: string) => {
-    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: !c.done } : c)))
+  const current = checks.find((c) => c.id === id)
+  if (!current) return
 
-    try {
-      const target = checks.find((c) => c.id === id)
-      if (!target) return
+  const nextDone = !current.done
 
-      await http.patch(`/task/${id}`, {
-        completed: !target.done,
-      })
+  // UI 즉시 변경
+  setChecks((prev) =>
+    prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)),
+  )
 
-      bus.emit('calendar:mutated', { op: 'update', item: { id } })
-    } catch (err: any) {
-      console.error('❌ 테스크 상태 업데이트 실패:', err.message)
-    }
+  // 서버에 보낼 값도 nextDone 사용
+  try {
+    await http.patch(`/task/${id}`, {
+      completed: nextDone,
+    })
+
+    bus.emit('calendar:mutated', {
+      op: 'update',
+      item: { id },
+    })
+  } catch (err) {
+    console.error('❌ 테스크 상태 업데이트 실패:', err)
   }
+}
 
   useEffect(() => {
     const onStart = ({ task }: any) => {
@@ -1098,7 +1107,6 @@ function DraggableTaskBox({
 
   const handleDrop = async (newTime: string) => {
     try {
-      // PUT → PATCH 로 변경 + date 제거 (edit 로직과 동일하게)
       await http.patch(`/task/${id}`, {
         placementDate: anchorDate,
         placementTime: newTime,
@@ -1180,7 +1188,16 @@ function DraggableTaskBox({
       >
         {/* ✅ 체크박스 영역 */}
         <Pressable
-          onPress={() => setDone((prev) => !prev)}
+          onPress={() => {
+  const next = !done
+  setDone(next)
+
+  http.patch(`/task/${id}`, {
+    completed: next,
+  }).catch(err =>
+    console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
+  )
+}}
           style={{
             width: 18,
             height: 18,
@@ -1265,7 +1282,7 @@ function DraggableFlexalbeEvent({
         )}:00`
       const dateISO = anchorDate
 
-      await http.put(`/event/${id}`, {
+      await http.patch(`/event/${id}`, {
         startDate: anchorDate,
         endDate: anchorDate,
         startTime: fmt(newStart),
