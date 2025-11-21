@@ -1,5 +1,7 @@
 package whatta.Whatta.ocr.payload.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public record OcrRequestImage(
         String format, //jpg | jpeg | png (pdf와 tiff도 가능하나 미지원)
         String name,

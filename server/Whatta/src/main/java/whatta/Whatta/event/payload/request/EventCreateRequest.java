@@ -34,7 +34,7 @@ public record EventCreateRequest (
         RepeatRequest repeat,
 
         @NotBlank(message = "일정 타임 박스의 컬러 값은 필수입니다.")
-        @Schema(example = "FFFFFF")
+        @Schema(example = "#FFD966")
         String colorKey,
 
         ReminderNoti reminderNoti
