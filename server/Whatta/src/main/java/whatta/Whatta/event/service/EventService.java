@@ -95,10 +95,15 @@ public class EventService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
-        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
-        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
-        System.out.println("editing : " + endTime);
-        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
+        LocalTime ReqStartTime = LocalTimeUtil.stringToLocalTime(request.startTime());
+        LocalTime ReqEndTime = LocalTimeUtil.stringToLocalTime(request.endTime());
+
+        LocalDate startDate = (request.startDate() == null) ? originalEvent.getStartDate() : request.startDate();
+        LocalDate endDate = (request.endDate() == null) ? originalEvent.getEndDate() : request.endDate();
+        LocalTime startTime = (ReqStartTime == null) ? originalEvent.getStartTime() : ReqStartTime;
+        LocalTime endTime = (ReqEndTime == null) ? originalEvent.getEndTime() : ReqEndTime;
+
+        validateDateTimeOrder(startDate, endDate, startTime, endTime); //TODO: fieldsToClear에 time이 null로 초기화 됐을 때 검증을 반영할 수 없음 -> 추후 수정해야 함
 
         //수정
         Event.EventBuilder builder = originalEvent.toBuilder();
