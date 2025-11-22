@@ -11,6 +11,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import whatta.Whatta.global.security.JwtAuthenticationEntryPoint;
 import whatta.Whatta.global.security.JwtAuthenticationFilter;
 import whatta.Whatta.global.security.JwtTokenProvider;
 
@@ -25,6 +26,7 @@ import whatta.Whatta.global.security.JwtTokenProvider;
 )
 public class SecurityConfig {
 
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtTokenProvider jwtTokenProvider;
 
     @Bean
@@ -39,7 +41,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/user/guest/login", "/api/auth/refresh").permitAll()
                         .anyRequest().authenticated()
                 )
-
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
