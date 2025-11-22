@@ -34,10 +34,10 @@ public class AuthService {
         String userId = authentication.getName();
 
         //user 조회 및 refreshToken 일치 확인
-        User user = userRepository.findUserById(userId)
+        User user = userRepository.findByInstallationId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
-        if(!refreshToken.equals(user.getRefreshToken())) {
+        if(user.getRefreshToken() == null || !user.getRefreshToken().equals(refreshToken)) {
             throw new RestApiException(ErrorCode.INVALID_TOKEN);
         }
 
