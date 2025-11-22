@@ -17,7 +17,7 @@ public class CalendarMapper {
                 .title(item.title())
                 .colorKey(item.colorKey())
                 .labels(item.labels())
-                .isRepeat(item.isRepeat())
+                .isRepeat(item.repeat() != null)
                 .build();
     }
     public AllDaySpanEvent allDayEventItemToSpanResponse(CalendarAllDayEventItem item) {
@@ -29,7 +29,7 @@ public class CalendarMapper {
                 .isSpan(item.isSpan())
                 .startDate(item.startDate())
                 .endDate(item.endDate())
-                .isRepeat(item.isRepeat())
+                .isRepeat(item.repeat() != null)
                 .build();
     }
 
@@ -53,7 +53,7 @@ public class CalendarMapper {
                 .isSpan(item.isSpan())
                 .startAt(LocalDateTime.of(item.startDate(), item.startTime()))
                 .endAt(LocalDateTime.of(item.endDate(), item.endTime()))
-                .isRepeat(item.isRepeat())
+                .isRepeat(item.repeat() != null)
                 .build();
     }
 
@@ -77,7 +77,7 @@ public class CalendarMapper {
                 .endDate(result.endDate())
                 .startTime(LocalTimeUtil.localTimeToString(result.startTime()))
                 .endTime(LocalTimeUtil.localTimeToString(result.endTime()))
-                .isRepeat(result.isRepeat())
+                .isRepeat(result.repeat() != null)
                 .build();
     }
 
@@ -89,7 +89,7 @@ public class CalendarMapper {
                 .labels(result.labels())
                 .startTime(LocalTimeUtil.localTimeToString(result.endTime()))
                 .endTime(LocalTimeUtil.localTimeToString(result.startTime()))
-                .isRepeat(result.isRepeat())
+                .isRepeat(result.repeat() != null)
                 .build();
     }
 

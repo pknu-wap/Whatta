@@ -20,7 +20,6 @@ public record CalendarTimedEventItem(
         LocalDate startDate,
         LocalDate endDate,
 
-        Boolean isRepeat,
         Repeat repeat
 ) {
 }

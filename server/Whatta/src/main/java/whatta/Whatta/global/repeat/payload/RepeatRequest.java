@@ -22,7 +22,7 @@ public record RepeatRequest (
                 .interval(interval)
                 .unit(unit)
                 .on(on)
-                .endDate(endDate)
+                .endDate((endDate == null)? LocalDate.of(2999, 12, 31) : endDate)
                 .exceptionDates(exceptionDates)
                 .build();
     }

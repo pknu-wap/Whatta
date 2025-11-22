@@ -60,7 +60,7 @@ public class CalendarViewService {
 
         //시간지정 없는 event ---------------------------------------------------------------
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
-            if (event.isRepeat()) {
+            if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
                         LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
                         event.repeat(),
@@ -80,7 +80,6 @@ public class CalendarViewService {
                             .isSpan(event.isSpan())
                             .startDate(instanceDate)
                             .endDate(newEndDate)
-                            .isRepeat(true)
                             .repeat(event.repeat())
                             .build();
 
@@ -110,7 +109,7 @@ public class CalendarViewService {
         //시간지정 있는 event -> 해당 날짜에 알맞게 클리핑 -----------------------------------------
         List<TimedEvent> timedEvents = new ArrayList<>();
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
-            if (event.isRepeat()) {
+            if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
                         LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
                         event.repeat(),
@@ -132,7 +131,6 @@ public class CalendarViewService {
                             .endDate(newEndDate)
                             .startTime(event.startTime())
                             .endTime(event.endTime())
-                            .isRepeat(true)
                             .repeat(event.repeat())
                             .build();
 
@@ -199,7 +197,7 @@ public class CalendarViewService {
         //시간지정 없는 기간 event ------------------------------------------------------------
         List<AllDaySpanEvent> spanEvents = new ArrayList<>();
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
-            if (event.isRepeat()) {
+            if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
                         LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
                         event.repeat(),
@@ -218,7 +216,6 @@ public class CalendarViewService {
                             .isSpan(event.isSpan())
                             .startDate(instanceDate)
                             .endDate(newEndDate)
-                            .isRepeat(true)
                             .repeat(event.repeat())
                             .build();
 
@@ -247,7 +244,7 @@ public class CalendarViewService {
 
         //시간지정 있는 event -> 기간 내에서 날짜별 클리핑 ------------------------------------------
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
-            if (event.isRepeat()) {
+            if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
                         LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
                         event.repeat(),
@@ -271,7 +268,6 @@ public class CalendarViewService {
                             .endDate(clipEndDate)
                             .startTime(event.startTime())
                             .endTime(event.endTime())
-                            .isRepeat(true)
                             .repeat(event.repeat())
                             .build();
 
@@ -391,7 +387,7 @@ public class CalendarViewService {
         //기간 event
         List<MonthSpanEvent> spanEvents = new ArrayList<>();
         for(CalendarMonthlyEventResult event : eventsResult) {
-            if (event.isRepeat()) {
+            if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
                         LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
                         event.repeat(),
