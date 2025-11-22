@@ -236,6 +236,47 @@ export default function EventDetailPopup({
     }
   }
 
+  const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
+
+  const buildRepeatPayload = () => { // repeat 탭에서만 사용할 repeat payload 생성 함수
+
+    // repeatMode가 'custom'이면 unit/interval을 custom 피커값으로 결정
+    const interval =
+      repeatMode === 'custom' ? repeatEvery : 1
+    const unit =
+      repeatMode === 'daily'
+        ? 'DAY'
+        : repeatMode === 'weekly'
+          ? 'WEEK'
+          : repeatMode === 'monthly'
+            ? 'MONTH'
+            : repeatUnit === 'day'
+              ? 'DAY'
+              : repeatUnit === 'week'
+                ? 'WEEK'
+                : 'MONTH'
+
+    // WEEK/MONTH일 때 on 값 계산
+    const on =
+    unit === 'WEEK'
+      ? [WEEKDAY_ENUM[start.getDay()]]
+      : unit === 'MONTH'
+        ? monthlyOpt === 'byDate'
+          ? null
+          : monthlyOpt === 'byNthWeekday'
+            ? [`${nth}${WEEKDAY_ENUM[start.getDay()]}`]
+            : [`LAST_${WEEKDAY_ENUM[start.getDay()]}`]
+        : null
+
+    return stripNil({
+      interval,
+      unit,
+      on,
+      endDate: endMode === 'date' && repeatEndDate ? ymdLocal(repeatEndDate) : null,
+      exceptionDates: eventData?.repeat?.exceptionDates ?? undefined,
+    })
+  }
+
   const closeAll = () => {
     setOpenCalendar(false)
     setOpenStartTime(false)
@@ -565,6 +606,49 @@ export default function EventDetailPopup({
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
+
+    //반복모드 저장
+    if (activeTab === 'repeat') {
+      const { payload, colorHex } = buildBasePayload()
+      const repeatPayload = buildRepeatPayload()
+
+      const finalPayload = {
+        ...payload,
+        repeat: repeatPayload,
+      }
+
+      try {
+        let saved: any
+        if (mode === 'edit' && eventId) {
+          const res = await http.patch(`/event/${eventId}`, finalPayload)
+          saved = res?.data
+        } else {
+          const res = await http.post('/event', finalPayload)
+          saved = res?.data
+        }
+
+        if (saved) {
+          const enriched = {
+            ...(saved ?? {}),
+            colorKey: colorHex,
+            startDate: saved?.startDate ?? finalPayload.startDate,
+            endDate: saved?.endDate ?? finalPayload.endDate,
+          }
+
+          bus.emit('calendar:mutated', { op: 'create', item: enriched })
+          const ym = enriched.startDate?.slice(0, 7)
+          if (ym) bus.emit('calendar:invalidate', { ym })
+        }
+
+        onClose()
+      } catch (err) {
+        console.log('반복 일정 저장 실패:', err)
+        console.log('requestBody: ', finalPayload )
+        alert('저장 실패')
+      }
+      return
+    }
+    
     // 편집 모드 + 반복 일정인 경우만 분기
     if (mode === 'edit' && eventData?.repeat != null) {
       Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
