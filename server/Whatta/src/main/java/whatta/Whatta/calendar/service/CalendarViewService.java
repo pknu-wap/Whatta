@@ -13,13 +13,18 @@ import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
+import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.global.repeat.RepeatUnit;
 import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.global.util.RepeatUtil;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -52,7 +57,42 @@ public class CalendarViewService {
 
         List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
         List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event
+
+        //시간지정 없는 event ---------------------------------------------------------------
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
+            if (event.isRepeat()) {
+                List<LocalDate> instanceDates = expandRepeatDates(
+                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        event.repeat(),
+                        date, date
+                );
+
+                long span = ChronoUnit.DAYS.between(event.startDate(), event.endDate()); //원본 span 길이
+
+                for (LocalDate instanceDate : instanceDates) {
+                    LocalDate newEndDate = instanceDate.plusDays(span);
+
+                    CalendarAllDayEventItem instance = CalendarAllDayEventItem.builder()
+                            .id(event.id())
+                            .title(event.title())
+                            .colorKey(event.colorKey())
+                            .labels(event.labels())
+                            .isSpan(event.isSpan())
+                            .startDate(instanceDate)
+                            .endDate(newEndDate)
+                            .isRepeat(true)
+                            .repeat(event.repeat())
+                            .build();
+
+                    if (instance.isSpan()) {
+                        spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(instance));
+                    } else {
+                        allDayEvents.add(calendarMapper.allDayEventItemToResponse(instance));
+                    }
+                }
+                continue;
+            }
+
             if (event.isSpan()) {
                 spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(event));
             }
@@ -61,22 +101,57 @@ public class CalendarViewService {
             }
         }
 
-        //시간지정 없는 task
+        //시간지정 없는 task ----------------------------------------------------------------
         List<AllDayTask> allDayTasks = new ArrayList<>();
         for(CalendarAllDayTaskItem task : tasksResult.allDayTasks()) {
             allDayTasks.add(calendarMapper.allDayTaskItemToResponse(task));
         }
 
-        //시간지정 있는 event -> 해당 날짜에 알맞게 클리핑
+        //시간지정 있는 event -> 해당 날짜에 알맞게 클리핑 -----------------------------------------
         List<TimedEvent> timedEvents = new ArrayList<>();
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
+
+            if (event.isRepeat()) {
+                List<LocalDate> instanceDates = expandRepeatDates(
+                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        event.repeat(),
+                        date, date
+                );
+
+                long span = ChronoUnit.DAYS.between(event.startDate(), event.endDate()); //원본 span 길이
+
+                for (LocalDate instanceDate : instanceDates) {
+                    LocalDate newEndDate = instanceDate.plusDays(span);
+
+                    CalendarTimedEventItem instance = CalendarTimedEventItem.builder()
+                            .id(event.id())
+                            .title(event.title())
+                            .colorKey(event.colorKey())
+                            .labels(event.labels())
+                            .isSpan(event.isSpan())
+                            .startDate(instanceDate)
+                            .endDate(newEndDate)
+                            .startTime(event.startTime())
+                            .endTime(event.endTime())
+                            .isRepeat(true)
+                            .repeat(event.repeat())
+                            .build();
+
+                    LocalTime clippedStartTime = date.equals(instance.startDate()) ? event.startTime() : LocalTime.MIN;
+                    LocalTime clippedEndTime = date.equals(instance.endDate()) ? event.endTime() : LocalTime.MAX;
+
+                    timedEvents.add(calendarMapper.timedEventItemToResponse(instance, clippedStartTime, clippedEndTime));
+                }
+                continue;
+            }
+
             LocalTime clippedStartTime = date.equals(event.startDate()) ? event.startTime() : LocalTime.MIN; //date가 기간의 첫날이 아니면 -> 0시부터
             LocalTime clippedEndTime = date.equals(event.endDate()) ? event.endTime() : LocalTime.MAX; //date가 기간의 마지막 날이 아니면 -> 24시로 끊음
 
             timedEvents.add(calendarMapper.timedEventItemToResponse(event, clippedStartTime, clippedEndTime));
         }
 
-        //시간지정 있는 task
+        //시간지정 있는 task ----------------------------------------------------------------
         List<TimedTask> timedTasks = new ArrayList<>();
         for(CalendarTimedTaskItem task : tasksResult.timedTasks()) {
             timedTasks.add(calendarMapper.timedTaskItemToResponse(task));
@@ -90,7 +165,6 @@ public class CalendarViewService {
                 .timedEvents(timedEvents)
                 .timedTasks(timedTasks)
                 .build();
-
     }
 
 
@@ -303,4 +377,53 @@ public class CalendarViewService {
         }
         return dates;
     }
+
+    private List<LocalDate> expandRepeatDates(LocalDateTime startAt, Repeat repeat,
+                                              LocalDate rangeStart, LocalDate rangeEnd) {
+        List<LocalDate> result = new ArrayList<>();
+        if (repeat == null) return result;
+
+        LocalDateTime cursor = rangeStart.atStartOfDay().minusSeconds(1);
+        LocalDateTime rangeEndTime = rangeEnd.atTime(LocalTime.MAX);
+
+        int safeGuard = 0;
+        while (safeGuard++ < 1000) {
+
+            LocalDateTime next = findNextOccurrenceStartAfter(startAt, repeat, cursor);
+            if (next == null || next.isAfter(rangeEndTime)) break;
+
+            LocalDate occDate = next.toLocalDate();
+
+            if (repeat.getExceptionDates() != null
+                    && repeat.getExceptionDates().contains(occDate)) {
+                cursor = occDate.plusDays(1).atStartOfDay();
+                continue;
+            }
+
+            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) {
+                result.add(occDate);
+            }
+
+            cursor = occDate.plusDays(1).atStartOfDay();
+        }
+        return result;
+    }
+    private LocalDateTime findNextOccurrenceStartAfter(LocalDateTime startAt, Repeat repeat, LocalDateTime from) {
+        RepeatUnit unit = repeat.getUnit();
+        int interval = repeat.getInterval();
+        LocalDate endDate = repeat.getEndDate();
+        LocalTime startTime = startAt.toLocalTime();
+
+        switch (unit) {
+            case DAY:
+                return RepeatUtil.findNextDaily(startAt.toLocalDate(), startTime, interval, endDate, from);
+            case WEEK:
+                return RepeatUtil.findNextWeekly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
+            case MONTH:
+                return RepeatUtil.findNextMonthly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
+            default:
+                throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
+        }
+    }
+
 }

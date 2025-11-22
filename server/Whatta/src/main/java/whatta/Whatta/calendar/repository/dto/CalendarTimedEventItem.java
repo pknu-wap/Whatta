@@ -1,9 +1,13 @@
 package whatta.Whatta.calendar.repository.dto;
 
+import lombok.Builder;
+import whatta.Whatta.global.repeat.Repeat;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+@Builder
 public record CalendarTimedEventItem(
         String id,
         String title,
@@ -16,6 +20,7 @@ public record CalendarTimedEventItem(
         LocalDate startDate,
         LocalDate endDate,
 
-        Boolean isRepeat
+        Boolean isRepeat,
+        Repeat repeat
 ) {
 }
