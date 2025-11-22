@@ -39,6 +39,7 @@ import { refreshTokens } from '@/api/auth'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import AddImageSheet from '@/screens/More/Ocr'
 
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
@@ -1082,6 +1083,43 @@ function DraggableFlexalbeEvent({
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView() {
+
+  const [imagePopupVisible, setImagePopupVisible] = useState(false)
+  
+  const sendToOCR = async (base64: string, ext?: string) => {
+    try {
+      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+  
+      const lower = ext?.toLowerCase()
+      const format = lower === 'png' ? 'png' : 'jpg'
+  
+      const res = await http.post('/ocr', {
+        imageType: 'COLLEGE_TIMETABLE',
+        image: {
+          format,
+          name: `timetable.${format}`,
+          data: cleanBase64,
+        },
+      })
+  
+      console.log('OCR 성공:', res.data)
+      Alert.alert('OCR 결과', JSON.stringify(res.data))
+    } catch (err: any) {
+      console.log('OCR 실패:', err.response?.data ?? err)
+      Alert.alert('오류', 'OCR 처리 실패')
+    }
+  }
+
+  useEffect(() => {
+  const handler = (payload?: { source?: string }) => {
+    if (payload?.source !== 'Week') return
+    setImagePopupVisible(true)
+  }
+
+  bus.on('popup:image:create', handler)
+  return () => bus.off('popup:image:create', handler)
+}, [])
+
   const [anchorDate, setAnchorDate] = useState(todayISO())
   const [isZoomed, setIsZoomed] = useState(false)
   const [weekDates, setWeekDates] = useState<string[]>([])
@@ -1930,7 +1968,6 @@ export default function WeekView() {
             }
           }}
         />
-
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
@@ -1941,6 +1978,12 @@ export default function WeekView() {
             fetchWeek(weekDates) // 일정 새로 반영
           }}
         />
+        <AddImageSheet
+  visible={imagePopupVisible}
+  onClose={() => setImagePopupVisible(false)}
+  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

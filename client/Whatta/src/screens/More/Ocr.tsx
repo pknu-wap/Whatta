@@ -88,9 +88,9 @@ export default function AddImageSheet({
       animationType="fade"
       onRequestClose={onClose}
     >
-      {/* Dim */}
+      {/* Overlay */}
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.dim} />
+        <View style={[StyleSheet.absoluteFill, styles.overlay]} />
       </TouchableWithoutFeedback>
 
       {/* Bottom Sheet */}
@@ -131,21 +131,29 @@ export default function AddImageSheet({
 }
 
 const styles = StyleSheet.create({
-  dim: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-  },
+
+  overlay: {
+  ...StyleSheet.absoluteFillObject,
+  backgroundColor: 'rgba(255,255,255,0.7)',
+  zIndex: 1,
+},
+
   sheet: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    height: '26%',
-    backgroundColor: 'white',
-    paddingTop: 17,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-    shadowColor: '#00000040',
-  },
+  position: 'absolute',
+  bottom: 0,
+  width: '100%',
+  height: '26%',
+  backgroundColor: 'white',
+  paddingTop: 17,
+  borderTopLeftRadius: 10,
+  borderTopRightRadius: 10,
+  shadowColor: '#000',
+  shadowOpacity: 0.25,
+  shadowRadius: 4,
+  shadowOffset: { width: 0, height: 0 },
+  zIndex: 2,
+},
+
   handle: {
     width: 36,
     height: 5,

@@ -24,6 +24,7 @@ import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import AddImageSheet from '@/screens/More/Ocr'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -676,6 +677,39 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 // 4. 메인 컴포넌트: MonthView (필터 반영 + 오류 수정)
 // --------------------------------------------------------------------
 export default function MonthView() {
+
+  // 📌 OCR 이미지 추가 이벤트
+const [imagePopupVisible, setImagePopupVisible] = useState(false)
+
+const sendToOCR = async (base64: string, ext?: string) => {
+  try {
+    const res = await http.post('/ocr', {
+      imageType: 'COLLEGE_TIMETABLE',
+      image: {
+        format: ext ?? 'jpg',
+        name: 'timetable',
+        data: base64,
+      },
+    })
+
+    console.log('OCR 성공:', res.data)
+    Alert.alert('OCR 결과', JSON.stringify(res.data))
+  } catch (err: any) {
+    console.log('OCR 실패:', err.response?.data ?? err)
+    Alert.alert('오류', 'OCR 처리 실패')
+  }
+}
+
+useEffect(() => {
+  const handler = (payload?: { source?: string }) => {
+    if (payload?.source !== 'Month') return
+    setImagePopupVisible(true)
+  }
+
+  bus.on('popup:image:create', handler)
+  return () => bus.off('popup:image:create', handler)
+}, [])
+
   // 월별 캐시 (ym -> days/schedules)
   const cacheRef = useRef<Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>>(
     new Map(),
@@ -1503,6 +1537,12 @@ export default function MonthView() {
             : undefined
         }
       />
+      <AddImageSheet
+  visible={imagePopupVisible}
+  onClose={() => setImagePopupVisible(false)}
+  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+/>
     </ScreenWithSidebar>
   )
 }
