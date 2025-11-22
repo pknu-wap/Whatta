@@ -16,8 +16,9 @@ import * as ImagePicker from 'expo-image-picker'
 interface Props {
   visible: boolean
   onClose: () => void
-  onTakePhoto?: (uri: string) => void
-  onPickImage?: (uri: string) => void
+  onTakePhoto?: (uri: string, base64: string, ext?: string) => void 
+  onPickImage?: (uri: string, base64: string, ext?: string) => void
+  
 }
 
 export default function AddImageSheet({
@@ -29,42 +30,57 @@ export default function AddImageSheet({
 
   // 📸 촬영하기
   const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== 'granted') {
-      alert('카메라 권한이 필요합니다!')
-      return
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-    })
-
-    if (!result.canceled) {
-      const uri = result.assets[0].uri
-      onTakePhoto?.(uri)
-    }
+  const { status } = await ImagePicker.requestCameraPermissionsAsync()
+  if (status !== 'granted') {
+    alert('카메라 권한이 필요합니다!')
+    return
   }
+
+  const result = await ImagePicker.launchCameraAsync({
+    mediaTypes: ['images'],
+    base64: true,
+    quality: 1,
+  })
+
+  if (!result.canceled) {
+    const asset = result.assets[0]
+
+    // ★ 확장자 안전 추출
+    let ext = asset.uri.split('.').pop()?.split('?')[0].toLowerCase()
+    if (ext === 'heic') ext = 'jpg'
+
+    // ★ base64 prefix 제거
+    const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
+
+    onTakePhoto?.(asset.uri, cleanBase64!, ext)
+  }
+}
 
   // 🖼 갤러리에서 선택
   const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (status !== 'granted') {
-      alert('사진 접근 권한이 필요합니다!')
-      return
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-    })
-
-    if (!result.canceled) {
-      const uri = result.assets[0].uri
-      onPickImage?.(uri)
-    }
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+  if (status !== 'granted') {
+    alert('사진 접근 권한이 필요합니다!')
+    return
   }
 
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    base64: true,
+    quality: 1,
+  })
+
+  if (!result.canceled) {
+    const asset = result.assets[0]
+
+    let ext = asset.uri.split('.').pop()?.split('?')[0].toLowerCase()
+    if (ext === 'heic') ext = 'jpg'
+
+    const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
+
+    onPickImage?.(asset.uri, cleanBase64!, ext)
+  }
+}
   return (
     <Modal
       transparent

@@ -125,6 +125,30 @@ export default function DayView() {
   // 📌 이미지 추가 모달 열기
 const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
+const sendToOCR = async (base64: string, ext?: string) => {
+  try {
+    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+
+    const lower = ext?.toLowerCase()
+    const format = lower === 'png' ? 'png' : 'jpg'
+
+    const res = await http.post('/ocr', {
+      imageType: 'COLLEGE_TIMETABLE',
+      image: {
+        format,
+        name: `timetable.${format}`,
+        data: cleanBase64,
+      },
+    })
+
+    console.log('OCR 성공:', res.data)
+    Alert.alert('OCR 결과', JSON.stringify(res.data))
+  } catch (err: any) {
+    console.log('OCR 실패:', err.response?.data ?? err)
+    Alert.alert('오류', 'OCR 처리 실패')
+  }
+}
+
 useEffect(() => {
   const handler = (payload?: { source?: string }) => {
     if (payload?.source !== 'Day') return
@@ -1019,8 +1043,8 @@ useEffect(() => {
         <AddImageSheet
   visible={imagePopupVisible}
   onClose={() => setImagePopupVisible(false)}
-  onTakePhoto={() => console.log("촬영하기")}
-  onPickImage={() => console.log("사진 불러오기")}
+  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
 />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
