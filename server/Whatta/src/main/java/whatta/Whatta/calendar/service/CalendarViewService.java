@@ -110,7 +110,6 @@ public class CalendarViewService {
         //시간지정 있는 event -> 해당 날짜에 알맞게 클리핑 -----------------------------------------
         List<TimedEvent> timedEvents = new ArrayList<>();
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
-
             if (event.isRepeat()) {
                 List<LocalDate> instanceDates = expandRepeatDates(
                         LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
@@ -167,8 +166,6 @@ public class CalendarViewService {
                 .build();
     }
 
-
-
     public WeeklyResponse getWeekly(String userId, LocalDate start, LocalDate end) {
 
         //날짜 리스트
@@ -199,9 +196,42 @@ public class CalendarViewService {
             timedTasksByDate.put(date,   new ArrayList<>());
         }
 
-        //시간지정 없는 기간 event
+        //시간지정 없는 기간 event ------------------------------------------------------------
         List<AllDaySpanEvent> spanEvents = new ArrayList<>();
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
+            if (event.isRepeat()) {
+                List<LocalDate> instanceDates = expandRepeatDates(
+                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        event.repeat(),
+                        start, end);
+
+                long span = ChronoUnit.DAYS.between(event.startDate(), event.endDate()); //원본 span 길이
+
+                for (LocalDate instanceDate : instanceDates) {
+                    LocalDate newEndDate = instanceDate.plusDays(span);
+
+                    CalendarAllDayEventItem instance = CalendarAllDayEventItem.builder()
+                            .id(event.id())
+                            .title(event.title())
+                            .colorKey(event.colorKey())
+                            .labels(event.labels())
+                            .isSpan(event.isSpan())
+                            .startDate(instanceDate)
+                            .endDate(newEndDate)
+                            .isRepeat(true)
+                            .repeat(event.repeat())
+                            .build();
+
+                    if (event.isSpan()) {
+                        spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(instance));
+                    }
+                    else {  //시간지정 없고 기간도 없는 event
+                        allDayEventsByDate.get(event.startDate()).add(calendarMapper.allDayEventItemToResponse(instance));
+                    }
+                }
+                continue;
+            }
+
             if (event.isSpan()) {
                 spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(event));
             }
@@ -210,13 +240,52 @@ public class CalendarViewService {
             }
         }
 
-        //시간지정 없는 task
+        //시간지정 없는 task -----------------------------------------------------------------
         for(CalendarAllDayTaskItem task : tasksResult.allDayTasks()) {
             allDayTasksByDate.get(task.placementDate()).add(calendarMapper.allDayTaskItemToResponse(task));
         }
 
-        //시간지정 있는 event -> 기간 내에서 날짜별 클리핑
+        //시간지정 있는 event -> 기간 내에서 날짜별 클리핑 ------------------------------------------
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
+            if (event.isRepeat()) {
+                List<LocalDate> instanceDates = expandRepeatDates(
+                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        event.repeat(),
+                        start, end
+                );
+
+                long span = ChronoUnit.DAYS.between(event.startDate(), event.endDate()); //원본 span 길이
+
+                for (LocalDate instanceDate : instanceDates) {
+                    LocalDate clipStartDate = instanceDate.isBefore(start) ? start : event.startDate();
+                    LocalDate clipEndDate = instanceDate.plusDays(span).isAfter(end) ? end : event.endDate();
+
+
+                    CalendarTimedEventItem instance = CalendarTimedEventItem.builder()
+                            .id(event.id())
+                            .title(event.title())
+                            .colorKey(event.colorKey())
+                            .labels(event.labels())
+                            .isSpan(event.isSpan())
+                            .startDate(clipStartDate)
+                            .endDate(clipEndDate)
+                            .startTime(event.startTime())
+                            .endTime(event.endTime())
+                            .isRepeat(true)
+                            .repeat(event.repeat())
+                            .build();
+
+                    for(LocalDate date = clipStartDate; !date.isAfter(clipEndDate); date = date.plusDays(1)) {
+                        LocalTime clippedStartTime = date.equals(instance.startDate()) ? instance.startTime() : LocalTime.MIN;
+                        LocalTime clippedEndTime = date.equals(instance.endDate()) ? instance.endTime() : LocalTime.MAX;
+
+                        timedEventsByDate.get(date)
+                                .add(calendarMapper.timedEventItemToResponse(instance, clippedStartTime, clippedEndTime));
+                    }
+                }
+                continue;
+            }
+
             LocalDate clipStartDate = event.startDate().isBefore(start) ? start : event.startDate();
             LocalDate clipEndDate = event.endDate().isAfter(end) ? end : event.endDate();
 
@@ -229,7 +298,7 @@ public class CalendarViewService {
             }
         }
 
-        //시간지정 있는 task
+        //시간지정 있는 task ------------------------------------------------------------------
         for(CalendarTimedTaskItem task : tasksResult.timedTasks()) {
             timedTasksByDate.get(task.placementDate()).add(calendarMapper.timedTaskItemToResponse(task));
         }
