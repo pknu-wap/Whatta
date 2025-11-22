@@ -226,7 +226,7 @@ public class CalendarViewService {
                         spanEvents.add(calendarMapper.allDayEventItemToSpanResponse(instance));
                     }
                     else {  //시간지정 없고 기간도 없는 event
-                        allDayEventsByDate.get(event.startDate()).add(calendarMapper.allDayEventItemToResponse(instance));
+                        allDayEventsByDate.get(instance.startDate()).add(calendarMapper.allDayEventItemToResponse(instance));
                     }
                 }
                 continue;
@@ -257,8 +257,8 @@ public class CalendarViewService {
                 long span = ChronoUnit.DAYS.between(event.startDate(), event.endDate()); //원본 span 길이
 
                 for (LocalDate instanceDate : instanceDates) {
-                    LocalDate clipStartDate = instanceDate.isBefore(start) ? start : event.startDate();
-                    LocalDate clipEndDate = instanceDate.plusDays(span).isAfter(end) ? end : event.endDate();
+                    LocalDate clipStartDate = instanceDate.isBefore(start) ? start : instanceDate;
+                    LocalDate clipEndDate = instanceDate.plusDays(span).isAfter(end) ? end : instanceDate.plusDays(span);
 
 
                     CalendarTimedEventItem instance = CalendarTimedEventItem.builder()
