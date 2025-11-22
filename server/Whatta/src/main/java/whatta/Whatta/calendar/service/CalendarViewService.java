@@ -29,6 +29,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
+import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
+
 @Service
 @AllArgsConstructor
 public class CalendarViewService {
@@ -477,22 +479,4 @@ public class CalendarViewService {
         }
         return result;
     }
-    private LocalDateTime findNextOccurrenceStartAfter(LocalDateTime startAt, Repeat repeat, LocalDateTime from) {
-        RepeatUnit unit = repeat.getUnit();
-        int interval = repeat.getInterval();
-        LocalDate endDate = repeat.getEndDate();
-        LocalTime startTime = startAt.toLocalTime();
-
-        switch (unit) {
-            case DAY:
-                return RepeatUtil.findNextDaily(startAt.toLocalDate(), startTime, interval, endDate, from);
-            case WEEK:
-                return RepeatUtil.findNextWeekly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
-            case MONTH:
-                return RepeatUtil.findNextMonthly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
-            default:
-                throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
-        }
-    }
-
 }
