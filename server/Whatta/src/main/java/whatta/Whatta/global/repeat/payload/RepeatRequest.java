@@ -9,7 +9,6 @@ import whatta.Whatta.global.repeat.RepeatUnit;
 import java.time.LocalDate;
 import java.util.List;
 
-@Getter
 @ValidRepeat
 public record RepeatRequest (
     int interval,
