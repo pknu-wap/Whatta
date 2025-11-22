@@ -20,19 +20,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
         throws ServletException, IOException {
+        try {
+            String token = jwtTokenProvider.resolveToken(request);
 
-        String token = jwtTokenProvider.resolveToken(request);
-
-        if (token != null) {
-            try {
-                    Authentication authentication = jwtTokenProvider.getAuthentication(token);
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                request.setAttribute("exception", ExpiredJwtException.class.getSimpleName());
-            } catch (io.jsonwebtoken.JwtException e) {
-                request.setAttribute("exception", "InvalidJwtException");
+            if (token != null) {
+                jwtTokenProvider.validateToken(token);
+                Authentication authentication = jwtTokenProvider.getAuthentication(token);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            request.setAttribute("exception", ExpiredJwtException.class.getSimpleName());
+        } catch (io.jsonwebtoken.JwtException e) {
+            request.setAttribute("exception", "InvalidJwtException");
         }
         filterChain.doFilter(request, response);
     }
