@@ -55,7 +55,6 @@ public class CalendarEventsRepositoryCustom {
                 .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
-                .andExpression("repeat != null").as("isRepeat")
                 .and("repeat").as("repeat"));
 
         List<AggregationOperation> timedOperations = new ArrayList<>();
@@ -71,7 +70,6 @@ public class CalendarEventsRepositoryCustom {
                 .andExpression("startDate != endDate").as("isSpan")
                 .and("startDate").as("startDate")
                 .and("endDate").as("endDate")
-                .andExpression("repeat != null").as("isRepeat")
                 .and("repeat").as("repeat"));
         timedOperations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startTime"),
@@ -128,7 +126,6 @@ public class CalendarEventsRepositoryCustom {
                         .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
-                        .andExpression("repeat != null").as("isRepeat")
                         .and("repeat").as("repeat"));
         allDayOperations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startDate"))));
@@ -146,7 +143,6 @@ public class CalendarEventsRepositoryCustom {
                         .andExpression("startDate != endDate").as("isSpan")
                         .and("startDate").as("startDate")
                         .and("endDate").as("endDate")
-                        .andExpression("repeat != null").as("isRepeat")
                         .and("repeat").as("repeat"));
         timedOperations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startDate"),
@@ -203,7 +199,6 @@ public class CalendarEventsRepositoryCustom {
                 .and("endDate").as("endDate")
                 .and("startTime").as("startTime")
                 .and("endTime").as("endTime")
-                .andExpression("repeat != null").as("isRepeat")
                 .and("repeat").as("repeat"));
         operations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startDate"),

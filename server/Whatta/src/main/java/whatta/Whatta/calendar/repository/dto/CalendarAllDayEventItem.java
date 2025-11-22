@@ -17,7 +17,6 @@ public record CalendarAllDayEventItem(
         LocalDate startDate,
         LocalDate endDate,
 
-        Boolean isRepeat,
         Repeat repeat
 ) {
 }
