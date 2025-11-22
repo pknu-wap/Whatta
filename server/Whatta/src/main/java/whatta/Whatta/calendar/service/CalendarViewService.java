@@ -14,9 +14,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.global.repeat.Repeat;
-import whatta.Whatta.global.repeat.RepeatUnit;
 import whatta.Whatta.global.util.LabelUtil;
-import whatta.Whatta.global.util.RepeatUtil;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
@@ -381,7 +379,7 @@ public class CalendarViewService {
         List<CalendarMonthlyTaskResult> tasksResult = tasksFuture.join();
 
         //라벨 리스트
-        List<LabelItem> labelPalette = buildMonthlyLabelPalette(userId, eventsResult);
+        List<LabelItem> labelPalette = buildMonthlyLabelPalette(userId, eventsResult, tasksResult);
 
         Map<LocalDate, List<MonthEvent>> eventByDate = new HashMap<>();
         Map<LocalDate, List<MonthTask>> taskByDate = new HashMap<>();
@@ -393,6 +391,40 @@ public class CalendarViewService {
         //기간 event
         List<MonthSpanEvent> spanEvents = new ArrayList<>();
         for(CalendarMonthlyEventResult event : eventsResult) {
+            if (event.isRepeat()) {
+                List<LocalDate> instanceDates = expandRepeatDates(
+                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        event.repeat(),
+                        start, end);
+
+                long span = ChronoUnit.DAYS.between(event.startDate(), event.endDate()); //원본 span 길이
+
+                for (LocalDate instanceDate : instanceDates) {
+                    LocalDate newEndDate = instanceDate.plusDays(span);
+
+                    CalendarMonthlyEventResult instance = CalendarMonthlyEventResult.builder()
+                            .id(event.id())
+                            .title(event.title())
+                            .colorKey(event.colorKey())
+                            .labels(event.labels())
+                            .isSpan(event.isSpan())
+                            .startDate(instanceDate)
+                            .endDate(newEndDate)
+                            .startTime(event.startTime())
+                            .endTime(event.endTime())
+                            .isRepeat(true)
+                            .repeat(event.repeat())
+                            .build();
+
+                    if (event.isSpan()) {
+                        spanEvents.add(calendarMapper.MonthlyEventResultToSpanResponse(instance));
+                    }
+                    else {
+                        eventByDate.get(instance.startDate()).add(calendarMapper.MonthlyEventResultToResponse(instance));
+                    }
+                }
+                continue;
+            }
             if (event.isSpan()) {
                 spanEvents.add(calendarMapper.MonthlyEventResultToSpanResponse(event));
             }
@@ -423,18 +455,24 @@ public class CalendarViewService {
                 .build();
     }
 
-    //TODO: 현재 월간은 이벤트만 라벨 목록을 반환함 -> 추후 task도 라벨id를 가지도록 리팩토링해야 함
-    private List<LabelItem> buildMonthlyLabelPalette(String userId, List<CalendarMonthlyEventResult> monthlyEvents) {
+    private List<LabelItem> buildMonthlyLabelPalette(String userId, List<CalendarMonthlyEventResult> monthlyEvents, List<CalendarMonthlyTaskResult> taskResults) {
+        System.out.println("[getMonthly] userId = " + userId);
         Set<Long> labelIds = new LinkedHashSet<>();
-        for (CalendarMonthlyEventResult item : monthlyEvents) {
-            if (item.labels() != null && !item.labels().isEmpty()) {
-                labelIds.addAll(item.labels());
+        for (CalendarMonthlyEventResult event : monthlyEvents) {
+            if (event.labels() != null && !event.labels().isEmpty()) {
+                labelIds.addAll(event.labels());
+            }
+        }
+        for (CalendarMonthlyTaskResult task : taskResults) {
+            if (task.labels() != null && !task.labels().isEmpty()) {
+                labelIds.addAll(task.labels());
             }
         }
         if (labelIds.isEmpty()) {
             return List.of();
         }
 
+        System.out.println("label Ids : " + labelIds);
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 

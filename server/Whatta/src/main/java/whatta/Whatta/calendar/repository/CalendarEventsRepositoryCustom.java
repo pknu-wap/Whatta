@@ -171,13 +171,28 @@ public class CalendarEventsRepositoryCustom {
 
     public List<CalendarMonthlyEventResult> getMonthlyViewByUserId(String userId, LocalDate start, LocalDate end) {
 
-        List<AggregationOperation> operations = new ArrayList<>();
-        operations.add(Aggregation.match(
-                Criteria.where("userId").is(userId)
-                        .and("startDate").lte(end)
-                        .and("endDate").gte(start))
+        Criteria base = Criteria.where("userId").is(userId)
+                .and("startDate").lte(end);
+
+        Criteria nonRepeat = new Criteria().andOperator(
+                Criteria.where("repeat").is(null),
+                Criteria.where("endDate").gte(start)
         );
 
+        Criteria hasRepeat = new Criteria().andOperator(
+                Criteria.where("repeat").ne(null),
+                Criteria.where("repeat.endDate").gte(start)
+        );
+
+        AggregationOperation commonMatch = Aggregation.match(
+                new Criteria().andOperator(
+                        base,
+                        new Criteria().orOperator(nonRepeat, hasRepeat)
+                )
+        );
+
+        List<AggregationOperation> operations = new ArrayList<>();
+        operations.add(commonMatch);
         operations.add(Aggregation.project()
                 .and("_id").as("id")
                 .and("title").as("title")
@@ -188,7 +203,8 @@ public class CalendarEventsRepositoryCustom {
                 .and("endDate").as("endDate")
                 .and("startTime").as("startTime")
                 .and("endTime").as("endTime")
-                .andExpression("repeat != null").as("isRepeat"));
+                .andExpression("repeat != null").as("isRepeat")
+                .and("repeat").as("repeat"));
         operations.add(Aggregation.sort(Sort.by(
                 Sort.Order.asc("startDate"),
                 Sort.Order.asc("endDate"),
