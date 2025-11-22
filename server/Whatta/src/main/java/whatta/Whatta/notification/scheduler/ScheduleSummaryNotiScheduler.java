@@ -34,8 +34,6 @@ public class ScheduleSummaryNotiScheduler {
             }
 
             LocalDateTime nowUser = LocalDateTime.now();
-            log.info("localDateTime: {}", nowUser);
-            log.info("noti Time: {}", noti.getTime());
 
             //보내야 할 시각인지 확인
             if (!isTimeToSend(nowUser.toLocalTime(), noti.getTime())) {

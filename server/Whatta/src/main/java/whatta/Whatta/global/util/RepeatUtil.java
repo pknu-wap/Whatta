@@ -1,5 +1,8 @@
 package whatta.Whatta.global.util;
 
+import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.global.repeat.RepeatUnit;
+
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -9,6 +12,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class RepeatUtil {
+
+    public static LocalDateTime findNextOccurrenceStartAfter(LocalDateTime startAt, Repeat repeat, LocalDateTime from) {
+        RepeatUnit unit = repeat.getUnit();
+        int interval = repeat.getInterval();
+        LocalDate endDate = repeat.getEndDate();
+        LocalTime startTime = startAt.toLocalTime();
+
+        switch (unit) {
+            case DAY:
+                return findNextDaily(startAt.toLocalDate(), startTime, interval, endDate, from);
+            case WEEK:
+                return findNextWeekly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
+            case MONTH:
+                return findNextMonthly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
+            default:
+                throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
+        }
+    }
 
     public static LocalDateTime findNextDaily(LocalDate baseDate, LocalTime startTime, int interval, LocalDate endDate, LocalDateTime from) {
         LocalDate fromDate = from.toLocalDate();
@@ -241,5 +262,4 @@ public class RepeatUtil {
 
         return LocalDateTime.of(date, startTime);
     }
-
 }
