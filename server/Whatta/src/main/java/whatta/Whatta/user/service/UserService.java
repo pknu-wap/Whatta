@@ -38,8 +38,8 @@ public class UserService {
             return newUser;
         });
         //각각 토큰 발급
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId());
-        String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getInstallationId());
+        String refreshToken = jwtTokenProvider.createRefreshToken(user.getInstallationId());
 
         //refresh토큰 저장
         user.updateRefreshToken(refreshToken);
