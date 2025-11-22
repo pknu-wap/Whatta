@@ -12,12 +12,13 @@ import java.util.List;
 @Getter
 @Builder
 @ValidRepeat
-public class RepeatResponse {
-    private final int interval;
-    private final RepeatUnit unit;
-    private final List<String> on;
-    private final LocalDate endDate;
-
+public record RepeatResponse (
+        int interval,
+        RepeatUnit unit,
+        List<String> on,
+        LocalDate endDate,
+        List<LocalDate> exceptionDates
+){
     public static RepeatResponse fromEntity(Repeat repeat){ //변환로직은 추후에 서비스로 이동
         if (repeat == null) return null;
         return RepeatResponse.builder()
@@ -25,6 +26,7 @@ public class RepeatResponse {
                 .unit(repeat.getUnit())
                 .on(repeat.getOn())
                 .endDate(repeat.getEndDate())
+                .exceptionDates(repeat.getExceptionDates())
                 .build();
     }
 }
