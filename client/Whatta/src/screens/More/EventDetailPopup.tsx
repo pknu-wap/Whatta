@@ -60,11 +60,13 @@ export default function EventDetailPopup({
   eventId,
   mode = 'create',
   onClose,
+  initial,
 }: {
   visible: boolean
   eventId: string | null
   mode?: 'edit' | 'create'
   onClose: () => void
+  initial?: Partial<EventItem>
 }) {
   const [openCalendar, setOpenCalendar] = useState(false)
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
@@ -238,6 +240,47 @@ export default function EventDetailPopup({
     }
   }
 
+  const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
+
+  const buildRepeatPayload = () => { // repeat 탭에서만 사용할 repeat payload 생성 함수
+
+    // repeatMode가 'custom'이면 unit/interval을 custom 피커값으로 결정
+    const interval =
+      repeatMode === 'custom' ? repeatEvery : 1
+    const unit =
+      repeatMode === 'daily'
+        ? 'DAY'
+        : repeatMode === 'weekly'
+          ? 'WEEK'
+          : repeatMode === 'monthly'
+            ? 'MONTH'
+            : repeatUnit === 'day'
+              ? 'DAY'
+              : repeatUnit === 'week'
+                ? 'WEEK'
+                : 'MONTH'
+
+    // WEEK/MONTH일 때 on 값 계산
+    const on =
+    unit === 'WEEK'
+      ? [WEEKDAY_ENUM[start.getDay()]]
+      : unit === 'MONTH'
+        ? monthlyOpt === 'byDate'
+          ? null
+          : monthlyOpt === 'byNthWeekday'
+            ? [`${nth}${WEEKDAY_ENUM[start.getDay()]}`]
+            : [`LAST_${WEEKDAY_ENUM[start.getDay()]}`]
+        : null
+
+    return stripNil({
+      interval,
+      unit,
+      on,
+      endDate: endMode === 'date' && repeatEndDate ? ymdLocal(repeatEndDate) : null,
+      exceptionDates: eventData?.repeat?.exceptionDates ?? undefined,
+    })
+  }
+
   const closeAll = () => {
     setOpenCalendar(false)
     setOpenStartTime(false)
@@ -332,6 +375,22 @@ export default function EventDetailPopup({
   const [labels, setLabels] = useState<Label[]>([])
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>('schedule')
 
+  useEffect(() => {
+    if (!visible) return
+
+    const isRepeatInitial =
+      initial?.repeat != null 
+
+    const isRepeatFetched =
+      eventData?.repeat != null
+
+    if (isRepeatInitial || isRepeatFetched) {
+      setActiveTab('repeat')
+    } else {
+      setActiveTab('schedule')
+    }
+  }, [visible, initial, eventData])
+  
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [memo, setMemo] = useState('')
@@ -513,7 +572,10 @@ export default function EventDetailPopup({
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
-    // 편집 모드 + 반복 일정인 경우만 분기
+
+    //반복모드 저장
+    if (activeTab === 'repeat') {
+        // 편집 모드 + 반복 일정인 경우만 분기
     if (mode === 'edit' && eventData?.repeat != null) {
       Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
         { text: '취소', style: 'cancel' },
@@ -530,6 +592,46 @@ export default function EventDetailPopup({
           },
         },
       ])
+      return
+    }
+
+      const { payload, colorHex } = buildBasePayload()
+      const repeatPayload = buildRepeatPayload()
+
+      const finalPayload = {
+        ...payload,
+        repeat: repeatPayload,
+      }
+
+      try {
+        let saved: any
+        if (mode === 'edit' && eventId) {
+          const res = await http.patch(`/event/${eventId}`, finalPayload)
+          saved = res?.data
+        } else {
+          const res = await http.post('/event', finalPayload)
+          saved = res?.data
+        }
+
+        if (saved) {
+          const enriched = {
+            ...(saved ?? {}),
+            colorKey: colorHex,
+            startDate: saved?.startDate ?? finalPayload.startDate,
+            endDate: saved?.endDate ?? finalPayload.endDate,
+          }
+
+          bus.emit('calendar:mutated', { op: 'create', item: enriched })
+          const ym = enriched.startDate?.slice(0, 7)
+          if (ym) bus.emit('calendar:invalidate', { ym })
+        }
+
+        onClose()
+      } catch (err) {
+        console.log('반복 일정 저장 실패:', err)
+        console.log('requestBody: ', finalPayload )
+        alert('저장 실패')
+      }
       return
     }
 
@@ -768,9 +870,13 @@ export default function EventDetailPopup({
         const ev = res.data.data
         if (!ev) return
 
+        //인스턴스 start/endDate가 있으면 그걸 우선 사용함
+        const startIso = initial?.startDate ?? ev.startDate
+        const endIso = initial?.endDate ?? ev.endDate
+
         // 날짜
-        const s = new Date(ev.startDate)
-        const e = new Date(ev.endDate)
+        const s = new Date(startIso)
+        const e = new Date(endIso)
 
         // input 값 상태 세팅
         setScheduleTitle(ev.title ?? '')
@@ -799,13 +905,48 @@ export default function EventDetailPopup({
           setEnd(ee)
         }
         setEventData(ev)
+        if (ev?.isRepeat || ev?.repeat != null) {
+          setActiveTab('repeat')
+          const r = ev.repeat
+
+          // 1) endDate 세팅
+          if (r.endDate) {
+            setEndMode('date')
+            setRepeatEndDate(new Date(r.endDate))
+          } else {
+            setEndMode('none')
+            setRepeatEndDate(null)
+          }
+
+          // 2) repeatMode 결정
+          // - interval=1 이고 unit이 DAY/WEEK/MONTH에 딱 맞으면 daily/weekly/monthly
+          // - 그 외는 custom으로 보내고 repeatEvery/repeatUnit 세팅
+          const unit = r.unit
+          const interval = r.interval ?? 1
+
+          if (unit === 'DAY' && interval === 1) {
+            setRepeatMode('daily')
+          } else if (unit === 'WEEK' && interval === 1) {
+            setRepeatMode('weekly')
+          } else if (unit === 'MONTH' && interval === 1) {
+            setRepeatMode('monthly')
+          } else {
+            setRepeatMode('custom')
+            setRepeatEvery(interval)
+            setRepeatUnit(
+              unit === 'DAY' ? 'day' : unit === 'WEEK' ? 'week' : 'month',
+            )
+          }
+        }
+
       } catch (err) {
         console.error('❌ 일정 상세 불러오기 실패:', err)
+        
       }
     }
 
     fetchEventDetail()
-  }, [mode, eventId])
+  }, [mode, eventId, initial])
 
   const isMultiDaySpan = React.useMemo(() => {
     if (!start || !end) return false
