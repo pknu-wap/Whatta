@@ -1910,7 +1910,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                       top: 0,
                       left: TIME_COL_W,
                       width: weekDates.length * dayColWidth,
-                      height: 185,
+                      height: 150,
                       flexDirection: 'row',
                     }}
                   >
