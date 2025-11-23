@@ -33,5 +33,5 @@ public class TaskCreateRequest {
     @Valid
     private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
 
-    //private ReminderNoti reminderNoti;
+    private ReminderNoti reminderNoti;
 }

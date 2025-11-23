@@ -33,5 +33,5 @@ public class TaskUpdateRequest {
 
     private List<String> fieldsToClear; //null로 필드 초기화
 
-    //private ReminderNoti reminderNoti;
+    private ReminderNoti reminderNoti;
 }
