@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   TouchableOpacity,
   Switch,
-  Alert, // 추가: 알림 불가/권한 알럿용
+  Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import InlineCalendar from '@/components/lnlineCalendar'
@@ -24,7 +24,7 @@ import { Picker } from '@react-native-picker/picker'
 import { useLabels } from '@/providers/LabelProvider'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
-import { ensureNotificationPermissionForToggle } from '@/lib/fcm' // 추가: 권한 ensure
+import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
 
 const H_PAD = 18
 
@@ -41,7 +41,7 @@ type TaskFormValue = {
   time?: Date
   labels: number[]
   memo: string
-  reminderNoti: { day: number; hour: number; minute: number } | null // 추가: 알림 payload
+  reminderNoti: { day: number; hour: number; minute: number } | null
 }
 
 type TaskDetailPopupProps = {
@@ -147,32 +147,28 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [labelIds, setLabelIds] = useState<number[]>(initialLabelIds)
   const [memo, setMemo] = useState('')
 
-  // =========================
-  // 추가: 알림(리마인드) state
-  // =========================
-  const [remindOn, setRemindOn] = useState(false) // 추가
-  const [remindOpen, setRemindOpen] = useState(false) // 추가
+  // 알림(리마인드) state
+  const [remindOn, setRemindOn] = useState(false)
+  const [remindOpen, setRemindOpen] = useState(false)
   const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null) // 추가
 
-  const [customOpen, setCustomOpen] = useState(false) // 추가
-  const [customHour, setCustomHour] = useState(1) // 추가: 기본 1시간 전
-  const [customMinute, setCustomMinute] = useState(0) // 추가
+  const [customOpen, setCustomOpen] = useState(false) 
+  const [customHour, setCustomHour] = useState(1) 
+  const [customMinute, setCustomMinute] = useState(0) 
 
   const [reminderPresets, setReminderPresets] = useState<
     { id: string; day: number; hour: number; minute: number }[]
-  >([]) // 추가
+  >([]) 
 
   // h,m을 사람이 읽는 "h시간 m분 전"
-  const formatCustomLabel = (h: number, m: number) => { // 추가
+  const formatCustomLabel = (h: number, m: number) => { 
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
     return body.length ? `${body} 전` : '0분 전'
   }
 
-  // =========================
   // 라벨 피커 모달용
-  // =========================
   type Anchor = { x: number; y: number; w: number; h: number }
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
@@ -186,10 +182,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [dateOpen, setDateOpen] = useState(false)
   const [timeOpen, setTimeOpen] = useState(false)
 
-  // =========================
-  // 추가: 알림 preset 서버에서 불러오기
-  // =========================
-  useEffect(() => { // 추가
+  // 알림 preset 서버에서 불러오기
+  useEffect(() => {
     if (!visible) return
 
     const fetchPresets = async () => {
@@ -205,21 +199,19 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }, [visible])
 
   // preset + '맞춤 설정' 옵션 구성
-  const presetOptions = reminderPresets.map((p) => ({ // 추가
+  const presetOptions = reminderPresets.map((p) => ({
     type: 'preset' as const,
     ...p,
     label: formatCustomLabel(p.hour, p.minute),
   }))
 
-  const remindOptions = [ // 추가
+  const remindOptions = [
     ...presetOptions,
     { type: 'custom' as const, label: '맞춤 설정' },
   ]
 
-  // =========================
-  // 추가: reminderNoti 빌더
-  // =========================
-  function buildReminderNoti() { // 추가
+  // reminderNoti 빌더
+  function buildReminderNoti() {
     if (!remindOn || !remindValue) return null
 
     if (remindValue === 'custom') {
@@ -238,18 +230,16 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }
 
   // 현재 custom 라벨
-  const customLabel = formatCustomLabel(customHour, customMinute) // 추가
+  const customLabel = formatCustomLabel(customHour, customMinute)
 
   // 버튼에 뜨는 표시용 텍스트
-  const displayRemind = React.useMemo(() => { // 추가
+  const displayRemind = React.useMemo(() => {
     if (!remindOn || !remindValue) return ''
     if (remindValue === 'custom') return customLabel
     return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
   }, [remindOn, remindValue, customLabel])
 
-  // =========================
   // visible / initialTask 바뀔 때마다 폼 초기화
-  // =========================
   useEffect(() => {
     if (!visible) return
     if (!initialTask) return
@@ -285,11 +275,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
     setMemo(initialTask.content ?? '')
 
-    // =========================
-    // 추가: 서버에서 받은 reminderNoti 초기 반영
-    // =========================
+    // 서버에서 받은 reminderNoti 초기 반영
     const rn = initialTask.reminderNoti
-    if (rn && hasDateFlag && hasTimeFlag) { // 수정: 날짜+시간 둘다 있어야만 on 가능
+    if (rn && hasDateFlag && hasTimeFlag) { // 날짜+시간 둘다 있어야만 on 가능
       setRemindOn(true)
 
       // preset에서 동일 값 찾기
@@ -314,7 +302,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       setRemindValue(null)
       setCustomOpen(false)
     }
-  }, [visible, initialTask, reminderPresets]) // 수정: reminderPresets 반영되면 재평가
+  }, [visible, initialTask, reminderPresets])
 
   useEffect(() => {
     if (!visible) return
@@ -328,13 +316,11 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     })
   }, [visible, mode, labels])
 
-  // =========================
-  // 추가: 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
-  // =========================
-  const remindEligible = hasDate && hasTime // 추가
+  // 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
+  const remindEligible = hasDate && hasTime 
 
   // 날짜/시간이 꺼지면 알림도 강제 off
-  useEffect(() => { // 추가
+  useEffect(() => {
     if (!remindEligible) {
       setRemindOn(false)
       setRemindOpen(false)
