@@ -72,8 +72,8 @@ public class ScheduledNotificationService {
             return;
         }
 
-        //알림 시각 계산
-        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), task.getRepeat(), task.getReminderNotiAt());
+        //알림 시각 계산 ** 임시로 task 반복 x **
+        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), null, task.getReminderNotiAt());
 
         if(triggerAt == null) { return;}
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성

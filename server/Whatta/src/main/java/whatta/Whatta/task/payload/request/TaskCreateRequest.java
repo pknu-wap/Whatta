@@ -30,8 +30,8 @@ public class TaskCreateRequest {
 
     private LocalDateTime dueDateTime; //마감일, 마감시간
 
-    @Valid
-    private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
+    //@Valid
+    //private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
 
-    //private ReminderNoti reminderNoti;
+    private ReminderNoti reminderNoti;
 }

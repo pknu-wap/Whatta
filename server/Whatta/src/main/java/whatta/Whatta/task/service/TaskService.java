@@ -75,7 +75,7 @@ public class TaskService {
 
         Task savedTask = taskRepository.save(newTask);
         //알림 추가
-        //scheduledNotiService.createScheduledNotification(savedTask);
+        scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -111,10 +111,10 @@ public class TaskService {
         if(request.getPlacementDate() != null) builder.placementDate(request.getPlacementDate());
         if(request.getPlacementTime() != null) builder.placementTime(request.getPlacementTime());
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
-        if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
+        //if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
         if(request.getSortNumber() != null) builder.sortNumber(
                 (Boolean.TRUE.equals(request.getCompleted())? 0L : request.getSortNumber()));
-        //if(request.getReminderNoti() != null) builder.reminderNotiAt(request.getReminderNoti());
+        if(request.getReminderNoti() != null) builder.reminderNotiAt(request.getReminderNoti());
 
         //명시된 field를 null로 초기화
         //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
@@ -139,12 +139,12 @@ public class TaskService {
                     case "dueDateTime":
                         builder.dueDateTime(null);
                         break;
-                    case "repeat":
+                    /*case "repeat":
                         builder.repeat(null);
+                        break;*/
+                    case "reminderNoti":
+                        builder.reminderNotiAt(null);
                         break;
-//                    case "reminderNoti":
-//                        builder.reminderNotiAt(null);
-//                        break;
                 }
             }
         }
@@ -153,8 +153,7 @@ public class TaskService {
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
         //알림 수정
-        //
-        //scheduledNotiService.createScheduledNotification(savedTask);
+        scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
