@@ -2012,9 +2012,9 @@ export default function WeekView() {
                           </>
                         )}
 
-                        {layoutEvents.map((ev) => (
+                        {layoutEvents.map((ev, idx) => (
                           <DraggableFlexalbeEvent
-                            key={`${d}-${ev.id}`}
+                            key={`${d}-${ev.id}-${idx}`}
                             id={ev.id}
                             title={ev.title}
                             place={ev.place}
