@@ -26,8 +26,8 @@ public class TaskUpdateRequest {
 
     private LocalDateTime dueDateTime; //마감일, 마감시간
 
-    @Valid
-    private RepeatRequest repeat;
+    //@Valid
+    //private RepeatRequest repeat;
 
     private Long sortNumber;//정렬
 

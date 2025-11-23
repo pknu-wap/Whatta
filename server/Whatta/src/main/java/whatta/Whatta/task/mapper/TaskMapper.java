@@ -21,7 +21,7 @@ public class TaskMapper {
                 .placementDate(request.getPlacementDate())
                 .placementTime(request.getPlacementTime())
                 .dueDateTime(request.getDueDateTime())
-                .repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
+                //.repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
                 .reminderNotiAt((request.getPlacementTime() != null)? request.getReminderNoti() : null)
                 .build();
     }
@@ -38,7 +38,7 @@ public class TaskMapper {
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
-                .repeat(RepeatResponse.fromEntity(task.getRepeat()))
+                //.repeat(RepeatResponse.fromEntity(task.getRepeat()))
                 .sortNumber(task.getSortNumber())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())

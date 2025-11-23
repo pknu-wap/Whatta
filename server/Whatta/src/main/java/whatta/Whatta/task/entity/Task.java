@@ -51,8 +51,8 @@ public class Task {
     private LocalTime placementTime;
     private LocalDateTime dueDateTime;
 
-    @Valid
-    private Repeat repeat;
+    //@Valid
+    //private Repeat repeat;
 
     @NotNull
     @Builder.Default
