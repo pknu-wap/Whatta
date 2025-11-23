@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.notification.service.NotificationSendService;
 import whatta.Whatta.traffic.entity.BusItem;
 import whatta.Whatta.traffic.entity.TrafficAlarm;
 import whatta.Whatta.traffic.payload.request.BusItemCreateRequest;
@@ -15,6 +16,7 @@ import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
 import whatta.Whatta.traffic.repository.BusItemRepository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +26,9 @@ public class TrafficAlarmService {
 
     private final BusItemRepository itemRepository;
     private final TrafficAlarmRepository alarmRepository;
+    private final NotificationSendService notificationSendService;
+
+    private static final int NOTIFY_THRESHOLD_SECONDS = 300;
 
     //교통알림 생성
     public TrafficAlarmResponse createAlarm(String userId, TrafficAlarmCreateRequest request) {
@@ -88,6 +93,20 @@ public class TrafficAlarmService {
         if(validCount != itemIds.size()) {
             throw new RestApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+    }
+
+    public void CheckAndNotify(TrafficAlarm alarm) {
+        //알림에 연결된 버스목록 조회
+        List<BusItem> items = itemRepository.findAllById(alarm.getTargetItemIds());
+
+        if(items.isEmpty()) return;
+
+        //버스정류장ID을 기준으로 그룹핑
+        Map<String, List<BusItem>> itemsByStation = items.stream()
+                .collect(Collectors.groupingBy(BusItem :: getBusStationId));
+
+        StringBuilder notificationBody = new StringBuilder();
+        int busesNotifiedCount = 0;
     }
 }
 
