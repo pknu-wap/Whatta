@@ -2072,7 +2072,8 @@ export default function WeekView() {
                                           )
                                       }
 
-                                      return copy
+                                      copy[dateISO] = { ...bucket }
+                                      return { ...copy }
                                     })
                                   }
                                 }}
