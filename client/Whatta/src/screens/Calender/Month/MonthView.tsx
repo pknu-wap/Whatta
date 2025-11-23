@@ -771,6 +771,14 @@ export default function MonthView() {
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
+  const { items: filterLabels } = useLabelFilter()
+
+  // "할 일" 라벨 id 찾기 (없으면 null)
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    return found ? Number(found.id) : null
+  }, [filterLabels])
+
   const openCreateTaskPopup = useCallback((source?: string) => {
     setTaskPopupMode('create')
     setTaskPopupId(null)
@@ -782,7 +790,7 @@ export default function MonthView() {
       id: null,
       title: '',
       content: '',
-      labels: [],
+      labels: todoLabelId ? [todoLabelId] : [],
       completed: false,
       placementDate,
       placementTime,
@@ -790,7 +798,7 @@ export default function MonthView() {
     })
 
     setTaskPopupVisible(true)
-  }, [])
+  }, [todoLabelId])
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -1172,8 +1180,6 @@ export default function MonthView() {
   useEffect(() => {
     setFocusedDateISO(`${year}-${pad(monthIndex + 1)}-01`)
   }, [year, monthIndex])
-
-  const { items: filterLabels } = useLabelFilter()
 
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {

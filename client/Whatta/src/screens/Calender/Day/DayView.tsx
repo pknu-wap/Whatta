@@ -316,6 +316,13 @@ export default function DayView() {
     }
   }
 
+   const { items: filterLabels } = useLabelFilter()
+
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    return found ? Number(found.id) : null
+  }, [filterLabels])
+
   // FAB에서 사용하는 '할 일 생성' 팝업 열기
   const openCreateTaskPopup = useCallback((source?: string) => {
     setTaskPopupMode('create')
@@ -328,7 +335,7 @@ export default function DayView() {
       id: null,
       title: '',
       content: '',
-      labels: [],
+      labels: todoLabelId ? [todoLabelId] : [],
       completed: false,
       placementDate,
       placementTime,
@@ -384,7 +391,6 @@ export default function DayView() {
   )
 
   // 라벨 필터링
-  const { items: filterLabels } = useLabelFilter()
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
   const fetchDailyEvents = useCallback(
