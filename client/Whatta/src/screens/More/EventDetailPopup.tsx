@@ -59,11 +59,13 @@ export default function EventDetailPopup({
   eventId,
   mode = 'create',
   onClose,
+  initial,
 }: {
   visible: boolean
   eventId: string | null
   mode?: 'edit' | 'create'
   onClose: () => void
+  initial?: Partial<EventItem>
 }) {
   const [openCalendar, setOpenCalendar] = useState(false)
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
@@ -782,9 +784,13 @@ export default function EventDetailPopup({
         const ev = res.data.data
         if (!ev) return
 
+        //인스턴스 start/endDate가 있으면 그걸 우선 사용함
+        const startIso = initial?.startDate ?? ev.startDate
+        const endIso = initial?.endDate ?? ev.endDate
+
         // 날짜
-        const s = new Date(ev.startDate)
-        const e = new Date(ev.endDate)
+        const s = new Date(startIso)
+        const e = new Date(endIso)
 
         // input 값 상태 세팅
         setScheduleTitle(ev.title ?? '')
@@ -819,7 +825,7 @@ export default function EventDetailPopup({
     }
 
     fetchEventDetail()
-  }, [mode, eventId])
+  }, [mode, eventId, initial])
 
   const isMultiDaySpan = React.useMemo(() => {
     if (!start || !end) return false

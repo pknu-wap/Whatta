@@ -1935,6 +1935,7 @@ export default function WeekView() {
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
           mode={eventPopupMode}
+          initial={eventPopupData ?? undefined}
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
