@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   TouchableOpacity,
   Switch,
+  Alert, // 추가: 알림 불가/권한 알럿용
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import InlineCalendar from '@/components/lnlineCalendar'
@@ -23,6 +24,7 @@ import { Picker } from '@react-native-picker/picker'
 import { useLabels } from '@/providers/LabelProvider'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
+import { ensureNotificationPermissionForToggle } from '@/lib/fcm' // 추가: 권한 ensure
 
 const H_PAD = 18
 
@@ -39,6 +41,7 @@ type TaskFormValue = {
   time?: Date
   labels: number[]
   memo: string
+  reminderNoti: { day: number; hour: number; minute: number } | null // 추가: 알림 payload
 }
 
 type TaskDetailPopupProps = {
@@ -95,6 +98,15 @@ const formatTimeLabel = (date: Date) => {
   return `${h}:${m} ${ampm}`
 }
 
+// 추가: 일정 상세 알림 preset 타입 그대로 가져옴
+type ReminderPreset = {
+  id: string
+  day: number
+  hour: number
+  minute: number
+  label: string
+}
+
 export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const {
     visible,
@@ -135,7 +147,32 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [labelIds, setLabelIds] = useState<number[]>(initialLabelIds)
   const [memo, setMemo] = useState('')
 
+  // =========================
+  // 추가: 알림(리마인드) state
+  // =========================
+  const [remindOn, setRemindOn] = useState(false) // 추가
+  const [remindOpen, setRemindOpen] = useState(false) // 추가
+  const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null) // 추가
+
+  const [customOpen, setCustomOpen] = useState(false) // 추가
+  const [customHour, setCustomHour] = useState(1) // 추가: 기본 1시간 전
+  const [customMinute, setCustomMinute] = useState(0) // 추가
+
+  const [reminderPresets, setReminderPresets] = useState<
+    { id: string; day: number; hour: number; minute: number }[]
+  >([]) // 추가
+
+  // h,m을 사람이 읽는 "h시간 m분 전"
+  const formatCustomLabel = (h: number, m: number) => { // 추가
+    const hh = h > 0 ? `${h}시간` : ''
+    const mm = m > 0 ? `${m}분` : ''
+    const body = [hh, mm].filter(Boolean).join(' ')
+    return body.length ? `${body} 전` : '0분 전'
+  }
+
+  // =========================
   // 라벨 피커 모달용
+  // =========================
   type Anchor = { x: number; y: number; w: number; h: number }
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
@@ -149,7 +186,70 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [dateOpen, setDateOpen] = useState(false)
   const [timeOpen, setTimeOpen] = useState(false)
 
+  // =========================
+  // 추가: 알림 preset 서버에서 불러오기
+  // =========================
+  useEffect(() => { // 추가
+    if (!visible) return
+
+    const fetchPresets = async () => {
+      try {
+        const res = await http.get('/user/setting/reminder')
+        setReminderPresets(res.data.data)
+      } catch (err) {
+        console.log('❌ 리마인드 preset 불러오기 실패:', err)
+      }
+    }
+
+    fetchPresets()
+  }, [visible])
+
+  // preset + '맞춤 설정' 옵션 구성
+  const presetOptions = reminderPresets.map((p) => ({ // 추가
+    type: 'preset' as const,
+    ...p,
+    label: formatCustomLabel(p.hour, p.minute),
+  }))
+
+  const remindOptions = [ // 추가
+    ...presetOptions,
+    { type: 'custom' as const, label: '맞춤 설정' },
+  ]
+
+  // =========================
+  // 추가: reminderNoti 빌더
+  // =========================
+  function buildReminderNoti() { // 추가
+    if (!remindOn || !remindValue) return null
+
+    if (remindValue === 'custom') {
+      return {
+        day: 0,
+        hour: customHour,
+        minute: customMinute,
+      }
+    }
+
+    return {
+      day: remindValue.day,
+      hour: remindValue.hour,
+      minute: remindValue.minute,
+    }
+  }
+
+  // 현재 custom 라벨
+  const customLabel = formatCustomLabel(customHour, customMinute) // 추가
+
+  // 버튼에 뜨는 표시용 텍스트
+  const displayRemind = React.useMemo(() => { // 추가
+    if (!remindOn || !remindValue) return ''
+    if (remindValue === 'custom') return customLabel
+    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+  }, [remindOn, remindValue, customLabel])
+
+  // =========================
   // visible / initialTask 바뀔 때마다 폼 초기화
+  // =========================
   useEffect(() => {
     if (!visible) return
     if (!initialTask) return
@@ -175,7 +275,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       if (typeof first === 'number') {
         setLabelIds(initialTask.labels as number[])
       } else if (typeof first === 'object' && first !== null) {
-        // 혹시 객체 배열이 올 경우 대비
         setLabelIds((initialTask.labels as { id: number }[]).map((lb) => lb.id))
       } else {
         setLabelIds([])
@@ -185,7 +284,37 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     }
 
     setMemo(initialTask.content ?? '')
-  }, [visible, initialTask])
+
+    // =========================
+    // 추가: 서버에서 받은 reminderNoti 초기 반영
+    // =========================
+    const rn = initialTask.reminderNoti
+    if (rn && hasDateFlag && hasTimeFlag) { // 수정: 날짜+시간 둘다 있어야만 on 가능
+      setRemindOn(true)
+
+      // preset에서 동일 값 찾기
+      const matched = reminderPresets.find(
+        (p) => p.day === rn.day && p.hour === rn.hour && p.minute === rn.minute,
+      )
+
+      if (matched) {
+        setRemindValue({
+          ...(matched as any),
+          label: formatCustomLabel(matched.hour, matched.minute),
+        })
+        setCustomOpen(false)
+      } else {
+        setRemindValue('custom')
+        setCustomHour(rn.hour ?? 0)
+        setCustomMinute(rn.minute ?? 0)
+        setCustomOpen(true)
+      }
+    } else {
+      setRemindOn(false)
+      setRemindValue(null)
+      setCustomOpen(false)
+    }
+  }, [visible, initialTask, reminderPresets]) // 수정: reminderPresets 반영되면 재평가
 
   useEffect(() => {
     if (!visible) return
@@ -193,11 +322,26 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     if (!labels.length) return // 라벨 목록이 아직 없으면 패스
 
     setLabelIds((prev) => {
-      if (prev.length) return prev // 이미 뭔가 선택돼 있으면 유지
+      if (prev.length) return prev
       const defaultLabel = labels.find((l) => l.title === '할 일')
       return defaultLabel ? [defaultLabel.id] : prev
     })
   }, [visible, mode, labels])
+
+  // =========================
+  // 추가: 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
+  // =========================
+  const remindEligible = hasDate && hasTime // 추가
+
+  // 날짜/시간이 꺼지면 알림도 강제 off
+  useEffect(() => { // 추가
+    if (!remindEligible) {
+      setRemindOn(false)
+      setRemindOpen(false)
+      setRemindValue(null)
+      setCustomOpen(false)
+    }
+  }, [remindEligible])
 
   const handleSave = () => {
     const value: TaskFormValue = {
@@ -208,6 +352,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       hasTime,
       time: hasTime ? time : undefined,
       labels: labelIds.slice(0, 3),
+      reminderNoti: buildReminderNoti(), // 추가
     }
 
     onSave(value)
@@ -271,7 +416,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                   style={[styles.row, { marginTop: 16 }]}
                   onPress={() => {
                     if (!hasDate) setHasDate(true)
-                    setDateOpen((prev) => !prev) // 열고/닫기 토글
+                    setDateOpen((prev) => !prev)
                   }}
                 >
                   <Text style={styles.label}>날짜</Text>
@@ -295,6 +440,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     />
                   </View>
                 </Pressable>
+
                 {/* 날짜 선택 영역 */}
                 {hasDate && dateOpen && (
                   <>
@@ -339,6 +485,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     />
                   </View>
                 </Pressable>
+
                 {/* 시간 인라인 피커 */}
                 {hasTime && timeOpen && (
                   <View style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}>
@@ -353,7 +500,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                           const t = new Date(time)
                           const isPM = t.getHours() >= 12
 
-                          // 선택한 시간 v(1~12)를 Date 객체의 24시간으로 변환
                           if (isPM) t.setHours(v === 12 ? 12 : v + 12)
                           else t.setHours(v === 12 ? 0 : v)
 
@@ -399,6 +545,158 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                         <Picker.Item label="AM" value="AM" />
                         <Picker.Item label="PM" value="PM" />
                       </Picker>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.sep} />
+                {/* 알림 */}
+                <View style={styles.row}> 
+                  <Text style={styles.label}>알림</Text>
+                  <View style={styles.rowRight}>
+                    <Pressable
+                      style={styles.alarmButton}
+                      onPress={() => {
+                        if (!remindOn) return
+                        setRemindOpen((v) => !v)
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text
+                        style={[
+                          styles.remindTextBtn,
+                          { color: remindOn ? '#333333' : '#B3B3B3' },
+                        ]}
+                      >
+                        {displayRemind}
+                      </Text>
+                      <Down
+                        width={10}
+                        height={10}
+                        color={remindOpen ? '#B04FFF' : remindOn ? '#333333' : '#B3B3B3'}
+                      />
+                    </Pressable>
+
+                    <Switch
+                      value={remindOn}
+                      disabled={!remindEligible}
+                      onValueChange={async (v) => {
+                        if (v && !remindEligible) {
+                          Alert.alert('알림 설정 불가', '날짜와 시간을 먼저 설정해주세요.')
+                          setRemindOn(false)
+                          return
+                        }
+
+                        if (!v) {
+                          setRemindOn(false)
+                          setRemindOpen(false)
+                          setRemindValue(null)
+                          setCustomOpen(false)
+                          return
+                        }
+
+                        const ok = await ensureNotificationPermissionForToggle()
+                        if (!ok) {
+                          setRemindOn(false)
+                          setRemindOpen(false)
+                          return
+                        }
+
+                        setRemindOn(true)
+                      }}
+                      trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                      thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}
+                      style={{
+                        transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+                        opacity: remindEligible ? 1 : 0.5,
+                      }}
+                    />
+                  </View>
+                </View>
+                {/* 드롭다운 리스트 */}
+                {remindOn && remindOpen && (
+                  <View style={styles.remindDropdown}>
+                    {remindOptions.map((opt, idx) => {
+                      const isLast = idx === remindOptions.length - 1
+                      const selected =
+                        opt.type === 'preset'
+                          ? (remindValue as any)?.id === opt.id
+                          : remindValue === 'custom'
+
+                      return (
+                        <View key={opt.type === 'preset' ? opt.id : 'custom'}>
+                          <Pressable
+                            style={[
+                              styles.remindItem,
+                              !isLast && styles.remindItemDivider,
+                            ]}
+                            onPress={() => {
+                              if (opt.type === 'custom') {
+                                setRemindValue('custom')
+                                setCustomOpen((v) => !v)
+                                return
+                              }
+
+                              setRemindValue(opt as any)
+                              setCustomOpen(false)
+                              setRemindOpen(false)
+                            }}
+                          >
+                            {selected && (
+                              <View pointerEvents="none" style={styles.remindSelectedBg} />
+                            )}
+                            <Text
+                              style={[
+                                styles.remindItemText,
+                                selected && { color: '#A84FF0', fontWeight: '700' },
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      )
+                    })}
+                  </View>
+                )}
+
+                {/* 맞춤 설정 인라인 피커 */}
+                {customOpen && remindOn && (
+                  <View style={styles.remindPickerWrap}>
+                    <View style={styles.remindPickerInner}>
+                      {/* HOUR */}
+                      <View style={styles.remindPickerBox}>
+                        <Picker
+                          selectedValue={customHour}
+                          onValueChange={(v) => setCustomHour(v)}
+                          style={styles.remindPicker}
+                          itemStyle={styles.remindPickerItem}
+                        >
+                          {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                            <Picker.Item key={h} label={`${h}`} value={h} />
+                          ))}
+                        </Picker>
+                      </View>
+
+                      <Text style={styles.remindPickerColon}>:</Text>
+                      <View style={styles.remindPickerBox}>
+                        <Picker
+                          selectedValue={customMinute}
+                          onValueChange={(v) => setCustomMinute(v)}
+                          style={styles.remindPicker}
+                          itemStyle={styles.remindPickerItem}
+                        >
+                          {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                            <Picker.Item
+                              key={m}
+                              label={String(m).padStart(2, '0')}
+                              value={m}
+                            />
+                          ))}
+                        </Picker>
+                      </View>
+
+                      <Text style={styles.remindPickerSuffix}>전</Text>
                     </View>
                   </View>
                 )}
@@ -474,12 +772,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     anchor={labelAnchor}
                     canAdd={!isFull}
                     onCreateLabel={async (title) => {
-                      // 서버에 라벨 생성
                       const res = await http.post('/user/setting/label', { title })
-
                       bus.emit('label:mutated')
-
-                      // 새 라벨 반환
                       return { id: res.data.data.id, title }
                     }}
                   />
@@ -621,7 +915,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // 라벨 / 드롭다운
   remindButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -635,7 +928,94 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333333',
   },
-  // 메모
+  alarmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 40,
+    paddingHorizontal: 8,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  remindTextBtn: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  remindDropdown: {
+    width: 278,
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'center',
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  remindItem: {
+    height: 44,
+    width: 278,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  remindItemDivider: {
+    borderBottomColor: '#B3B3B3',
+    borderBottomWidth: 0.3,
+  },
+  remindItemText: {
+    fontSize: 16,
+    color: '#333333',
+    fontWeight: '600',
+  },
+  remindSelectedBg: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 38,
+    width: 278,
+    backgroundColor: '#E6E6E6',
+    borderRadius: 10,
+    alignSelf: 'center',
+  },
+  remindPickerWrap: {
+    paddingVertical: 6,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+  },
+  remindPickerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: 150,
+  },
+  remindPickerBox: {
+    width: 100,
+    height: 210,
+    justifyContent: 'center',
+  },
+  remindPicker: {
+    width: 100,
+    height: 210,
+  },
+  remindPickerItem: {
+    fontSize: 16,
+    color: '#333',
+  },
+  remindPickerColon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginHorizontal: 6,
+  },
+  remindPickerSuffix: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginLeft: 6,
+  },
+
   memoSection: {
     marginTop: 3,
     flex: 1,
@@ -657,7 +1037,6 @@ const styles = StyleSheet.create({
     color: '#222222',
     backgroundColor: '#FFFFFF',
   },
-  // 삭제
   deleteBtn: {
     alignSelf: 'flex-start',
     paddingVertical: 10,
