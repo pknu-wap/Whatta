@@ -306,6 +306,7 @@ export default function DayView() {
         placementDate: data.placementDate,
         placementTime: data.placementTime,
         dueDateTime: data.dueDateTime ?? null,
+        reminderNoti: data.reminderNoti ?? null,
       })
 
       setTaskPopupVisible(true)
@@ -314,6 +315,13 @@ export default function DayView() {
       Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
     }
   }
+
+   const { items: filterLabels } = useLabelFilter()
+
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    return found ? Number(found.id) : null
+  }, [filterLabels])
 
   // FAB에서 사용하는 '할 일 생성' 팝업 열기
   const openCreateTaskPopup = useCallback((source?: string) => {
@@ -327,7 +335,7 @@ export default function DayView() {
       id: null,
       title: '',
       content: '',
-      labels: [],
+      labels: todoLabelId ? [todoLabelId] : [],
       completed: false,
       placementDate,
       placementTime,
@@ -383,7 +391,6 @@ export default function DayView() {
   )
 
   // 라벨 필터링
-  const { items: filterLabels } = useLabelFilter()
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
   const fetchDailyEvents = useCallback(
@@ -936,7 +943,7 @@ export default function DayView() {
           visible={taskPopupVisible}
           mode={taskPopupMode}
           taskId={taskPopupId ?? undefined}
-          initialTask={popupTaskMemo}
+          initialTask={taskPopupTask}
           onClose={() => {
             setTaskPopupVisible(false)
             setTaskPopupId(null)
@@ -965,9 +972,13 @@ export default function DayView() {
               fieldsToClear.push('placementTime')
             }
 
+            const reminderNoti = form.reminderNoti ?? null
+            if (!reminderNoti) fieldsToClear.push('reminderNoti')
+
+            const targetDate = placementDate ?? anchorDate
+
             try {
               if (taskPopupMode === 'edit') {
-                // ✅ 기존 수정 로직
                 if (!taskPopupId) return
 
                 await http.patch(`/task/${taskPopupId}`, {
@@ -976,12 +987,13 @@ export default function DayView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   fieldsToClear,
                 })
 
                 bus.emit('calendar:mutated', {
                   op: 'update',
-                  item: { id: taskPopupId, date: anchorDate },
+                  item: { id: taskPopupId, date: targetDate },
                 })
               } else {
                 // 새 테스크 생성 로직
@@ -991,14 +1003,17 @@ export default function DayView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
-                  date: placementDate ?? anchorDate,
+                  reminderNoti,
+                  date: targetDate,
                 })
+
+                console.log('task: '+ form.time + placementDate + placementTime + reminderNoti?.hour + reminderNoti?.hour + reminderNoti?.minute)
 
                 const newId = res.data?.data?.id
 
                 bus.emit('calendar:mutated', {
                   op: 'create',
-                  item: { id: newId, date: anchorDate },
+                  item: { id: newId, date: targetDate },
                 })
               }
 
@@ -1016,6 +1031,7 @@ export default function DayView() {
           }}
           onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
         />
+
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}

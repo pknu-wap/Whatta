@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -1101,6 +1101,13 @@ export default function WeekView() {
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
   const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
   const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+  
+  const { items: filterLabels } = useLabelFilter()
+
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일')
+    return found ? Number(found.id) : null
+  }, [filterLabels])
 
   const openTaskPopupFromApi = async (taskId: string) => {
     const res = await http.get(`/task/${taskId}`)
@@ -1124,7 +1131,7 @@ export default function WeekView() {
         id: null,
         title: '',
         content: '',
-        labels: [],
+        labels: todoLabelId ? [todoLabelId] : [],
         placementDate: anchorDate,
         placementTime: null,
         dueDateTime: null,
@@ -1134,7 +1141,7 @@ export default function WeekView() {
 
     bus.on('task:create', h)
     return () => bus.off('task:create', h)
-  }, [anchorDate])
+  }, [anchorDate, todoLabelId])
 
   // Event Popup
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
@@ -1466,7 +1473,6 @@ export default function WeekView() {
     transform: [{ scale: scale.value }],
   }))
 
-  const { items: filterLabels } = useLabelFilter()
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
   if (loading && !weekDates.length) {
@@ -1880,6 +1886,9 @@ export default function WeekView() {
               fieldsToClear.push('placementTime')
             }
 
+            const reminderNoti = form.reminderNoti ?? null
+            if (!reminderNoti) fieldsToClear.push('reminderNoti')
+
             try {
               if (taskPopupMode === 'edit') {
                 // 기존 테스크 수정
@@ -1891,6 +1900,7 @@ export default function WeekView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   fieldsToClear,
                 })
 
@@ -1906,6 +1916,7 @@ export default function WeekView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   date: placementDate ?? anchorDate,
                 })
 
