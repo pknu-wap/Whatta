@@ -10,6 +10,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   TouchableOpacity,
+  Switch,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import InlineCalendar from '@/components/lnlineCalendar'
@@ -276,15 +277,20 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                   <Text style={styles.label}>날짜</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {hasDate && <Text style={styles.dateBigText}>{kDateText(date)}</Text>}
-                    <Toggle
+                    <Switch
                       value={hasDate}
-                      onChange={(v) => {
+                      onValueChange={(v) => {
                         setHasDate(v)
                         if (!v) {
                           setDateOpen(false)
                           setTimeOpen(false)
                           setHasTime(false)
                         }
+                      }}
+                      trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                      thumbColor={hasDate ? '#B04FFF' : '#FFFFFF'}
+                      style={{
+                        transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                       }}
                     />
                   </View>
@@ -312,9 +318,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     {hasTime && (
                       <Text style={styles.dateBigText}>{formatTimeLabel(time)}</Text>
                     )}
-                    <Toggle
+                    <Switch
                       value={hasTime}
-                      onChange={(v) => {
+                      onValueChange={(v) => {
                         if (v && !hasDate) setHasDate(true)
                         setHasTime(v)
                         if (!v) setTimeOpen(false)
@@ -324,6 +330,11 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                           t.setMinutes(0)
                           setTime(t)
                         }
+                      }}
+                      trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                      thumbColor={hasTime ? '#B04FFF' : '#FFFFFF'}
+                      style={{
+                        transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                       }}
                     />
                   </View>

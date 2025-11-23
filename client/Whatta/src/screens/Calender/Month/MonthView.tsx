@@ -1420,9 +1420,7 @@ export default function MonthView() {
           // 시간
           if (form.hasTime && form.time) {
             const t = form.time
-            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
-              t.getSeconds(),
-            )}`
+            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:00`
           } else {
             fieldsToClear.push('placementTime')
           }

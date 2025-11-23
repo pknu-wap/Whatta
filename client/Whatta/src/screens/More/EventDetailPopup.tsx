@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   TouchableOpacity,
+  Switch,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -228,6 +229,7 @@ export default function EventDetailPopup({
       startTime: timeOn ? hms(start) : undefined,
       endTime: timeOn ? hms(end) : undefined,
       colorKey: hex,
+      reminderNoti: reminderNoti,
     }
 
     return {
@@ -295,60 +297,6 @@ export default function EventDetailPopup({
   }
 
   const pickingEndRef = React.useRef(false) // 종료 선택 대기 플래그
-  const onCalendarSelect = (d: Date) => {
-    // 00:00 정규화
-    const picked = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-
-    const s0 = startOfDay(start)
-    const e0 = startOfDay(end)
-
-    // 1. 종료 선택 대기 중 (pickingEndRef.current === true)
-    if (pickingEndRef.current) {
-      if (picked.getTime() >= s0.getTime()) {
-        // 선택 날짜가 시작일보다 같거나 늦으면 종료일로 확정
-        setEnd(picked)
-        setStart(start) // 하이라이트 즉시 적용을 위해 start 상태도 명시적으로 호출
-        setWhichDate('end')
-      } else {
-        // 선택 날짜가 시작일보다 빠르면: 새 시작일로 리셋 (단일)
-        setStart(picked)
-        setEnd(picked)
-        setWhichDate('start')
-      }
-      pickingEndRef.current = false // 대기 해제
-      return
-    }
-
-    // 2. 일반 선택/단일 상태
-    const isSingle = s0.getTime() === e0.getTime()
-
-    if (isSingle) {
-      // 단일 상태에서 탭:
-      if (picked.getTime() > s0.getTime()) {
-        // 더 늦으면 즉시 범위 완성
-        setEnd(picked)
-        setStart(start) // 💡 하이라이트 즉시 적용을 위해 start 상태도 명시적으로 호출
-        setWhichDate('end')
-      } else if (picked.getTime() < s0.getTime()) {
-        // 더 이르면 시작일만 리셋, 다음 탭 대기 진입
-        setStart(picked)
-        setEnd(picked)
-        setWhichDate('start')
-        pickingEndRef.current = true
-      } else {
-        // 같은 날을 다시 탭 (단일 상태 유지)
-        pickingEndRef.current = true // 다음 탭에서 종료 선택하도록 대기 진입
-      }
-      return
-    }
-
-    // 3. 범위가 있는 상태에서 탭:
-    // → "그 날로 단일 리셋" + 다음 탭에서 종료 선택 대기
-    setStart(picked)
-    setEnd(picked)
-    setWhichDate('start')
-    pickingEndRef.current = true
-  }
 
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
@@ -589,6 +537,66 @@ export default function EventDetailPopup({
     await saveNormal()
   }
 
+  const onCalendarSelect = (d: Date) => {
+    if (activeTab === 'repeat' && endMode === 'none') {
+      setStart(new Date(d.getFullYear(), d.getMonth(), d.getDate()))
+      setEnd(new Date(d.getFullYear(), d.getMonth(), d.getDate()))
+      return
+    }
+    // 00:00 정규화
+    const picked = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+
+    const s0 = startOfDay(start)
+    const e0 = startOfDay(end)
+
+    // 1. 종료 선택 대기 중 (pickingEndRef.current === true)
+    if (pickingEndRef.current) {
+      if (picked.getTime() >= s0.getTime()) {
+        // 선택 날짜가 시작일보다 같거나 늦으면 종료일로 확정
+        setEnd(picked)
+        setStart(start) // 하이라이트 즉시 적용을 위해 start 상태도 명시적으로 호출
+        setWhichDate('end')
+      } else {
+        // 선택 날짜가 시작일보다 빠르면: 새 시작일로 리셋 (단일)
+        setStart(picked)
+        setEnd(picked)
+        setWhichDate('start')
+      }
+      pickingEndRef.current = false // 대기 해제
+      return
+    }
+
+    // 2. 일반 선택/단일 상태
+    const isSingle = s0.getTime() === e0.getTime()
+
+    if (isSingle) {
+      // 단일 상태에서 탭:
+      if (picked.getTime() > s0.getTime()) {
+        // 더 늦으면 즉시 범위 완성
+        setEnd(picked)
+        setStart(start)
+        setWhichDate('end')
+      } else if (picked.getTime() < s0.getTime()) {
+        // 더 이르면 시작일만 리셋, 다음 탭 대기 진입
+        setStart(picked)
+        setEnd(picked)
+        setWhichDate('start')
+        pickingEndRef.current = true
+      } else {
+        // 같은 날을 다시 탭 (단일 상태 유지)
+        pickingEndRef.current = true // 다음 탭에서 종료 선택하도록 대기 진입
+      }
+      return
+    }
+
+    // 3. 범위가 있는 상태에서 탭: 그 날로 단일 리셋 + 다음 탭에서 종료 선택 대기
+    // → "그 날로 단일 리셋" + 다음 탭에서 종료 선택 대기
+    setStart(picked)
+    setEnd(picked)
+    setWhichDate('start')
+    pickingEndRef.current = true
+  }
+
   // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
   useEffect(() => {
     const applyAnchor = (iso: string) => {
@@ -619,22 +627,84 @@ export default function EventDetailPopup({
   const [openTime, setOpenTime] = useState(false)
 
   // 알림 드롭다운
-  const REMIND_OPTIONS = [
-    '10분 전',
-    '30분 전',
-    '1시간 전',
-    '하루 전',
-    '일주일 전',
-    '맞춤 설정',
-  ] as const
-  type RemindOpt = (typeof REMIND_OPTIONS)[number]
+  type ReminderPreset = {
+    id: string
+    day: number
+    hour: number
+    minute: number
+    label: string
+  }
+  const [reminderPresets, setReminderPresets] = useState<
+    { id: string; day: number; hour: number; minute: number }[]
+  >([])
+  const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null)
 
-  const [remindValue, setRemindValue] = useState<RemindOpt>('하루 전')
+  useEffect(() => {
+    if (!visible) return
+
+    const fetchPresets = async () => {
+      try {
+        const res = await http.get('/user/setting/reminder')
+        setReminderPresets(res.data.data)
+      } catch (err) {
+        console.log('❌ 리마인드 preset 불러오기 실패:', err)
+      }
+    }
+
+    fetchPresets()
+  }, [visible])
+  // 프리셋 + '맞춤 설정'
+  const presetOptions = reminderPresets.map((p) => ({
+    type: 'preset' as const,
+    ...p,
+    label: formatCustomLabel(p.hour, p.minute),
+  }))
+
+  const remindOptions = [
+    ...presetOptions,
+    { type: 'custom' as const, label: '맞춤 설정' },
+  ]
   const [remindOpen, setRemindOpen] = useState(false)
+
+  function buildReminderNoti() {
+    // 알림 토글 꺼져 있거나, 선택된 값이 없으면 null
+    if (!remindOn || !remindValue) return null
+
+    // 맞춤 설정
+    if (remindValue === 'custom') {
+      return {
+        day: 0,
+        hour: customHour,
+        minute: customMinute,
+      }
+    }
+
+    // remindValue는 preset 객체라고 확정
+    return {
+      day: remindValue.day,
+      hour: remindValue.hour,
+      minute: remindValue.minute,
+    }
+  }
+
+  const { payload, colorHex } = buildBasePayload()
+  const reminderNoti = buildReminderNoti()
+
   // 현재 h,m 포맷
   const customLabel = formatCustomLabel(customHour, customMinute)
   // 버튼에 보여줄 텍스트: 맞춤 설정이면 항상 실시간 표시
-  const displayRemind = remindValue === '맞춤 설정' ? customLabel : remindValue
+  const displayRemind = React.useMemo(() => {
+    // 알림이 꺼져 있거나, 아직 선택 안 했으면 빈 문자열
+    if (!remindOn || !remindValue) return ''
+
+    // 커스텀 알림이면 항상 커스텀 라벨
+    if (remindValue === 'custom') {
+      return customLabel
+    }
+
+    // preset이면 label 사용 (없으면 시간으로 만들어서 반환)
+    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+  }, [remindOn, remindValue, customLabel])
 
   // 반복 모드: monthly 세부 옵션 펼침 여부
   const [monthlyOpen, setMonthlyOpen] = useState(false)
@@ -759,6 +829,7 @@ export default function EventDetailPopup({
       setEnd(today)
       setTimeOn(false)
       setRemindOn(false)
+      setActiveTab('schedule')
     }
   }, [visible, mode])
 
@@ -772,7 +843,92 @@ export default function EventDetailPopup({
       const defaultLabel = labels.find((l) => l.title === '일정')
       return defaultLabel ? [defaultLabel.id] : prev
     })
+
+    // 알림 드롭다운 + 맞춤 피커
+    setRemindOpen(false)
+    setCustomOpen(false)
   }, [visible, mode, labels])
+
+  useEffect(() => {
+    if (!visible) return
+
+    // 반복
+    setRepeatOpen(false)
+    setMonthlyOpen(false)
+    setRepeatCustomOpen(false)
+    setEndOpen(false)
+    setEndDateCustomOpen(false)
+    // 날짜/시간 패널
+    setOpenCalendar(false)
+    setOpenTime(false)
+    setOpenStartTime(false)
+    setOpenEndTime(false)
+    // 알림 섹션만 닫기
+    setRemindOpen(false)
+    setCustomOpen(false)
+  }, [visible])
+
+  useEffect(() => {
+    async function fetchEventDetail() {
+      // 팝업이 안 보일 때는 굳이 요청 안 함
+      if (!visible) return
+      if (mode !== 'edit' || !eventId) return
+
+      try {
+        const res = await http.get(`/event/${eventId}`)
+        const ev = res.data.data
+        if (!ev) return
+
+        // 날짜 세팅
+        const s = new Date(ev.startDate)
+        const e = new Date(ev.endDate)
+
+        setScheduleTitle(ev.title ?? '')
+        setMemo(ev.content ?? '')
+        setSelectedLabelIds(ev.labels ?? [])
+        setSelectedColor('#' + ev.colorKey)
+
+        setStart(s)
+        setEnd(e)
+
+        if (ev.startTime) {
+          setTimeOn(true)
+          const [h, m] = ev.startTime.split(':').map(Number)
+          const ss = new Date(s)
+          ss.setHours(h)
+          ss.setMinutes(m)
+          setStart(ss)
+        }
+
+        if (ev.endTime) {
+          setTimeOn(true)
+          const [h, m] = ev.endTime.split(':').map(Number)
+          const ee = new Date(e)
+          ee.setHours(h)
+          ee.setMinutes(m)
+          setEnd(ee)
+        }
+
+        setEventData(ev)
+
+        // repeat 여부로 탭 초기화
+        // repeat가 null/undefined면 일반 일정 → 'schedule'
+        // repeat 객체가 있으면 반복 일정 → 'repeat'
+        setActiveTab(ev.repeat ? 'repeat' : 'schedule')
+      } catch (err) {
+        console.error('❌ 일정 상세 불러오기 실패:', err)
+      }
+    }
+
+    fetchEventDetail()
+  }, [mode, eventId, visible])
+
+  // 일정 종료일(end) 변경 → 반복 종료일도 따라가도록 동기화
+  useEffect(() => {
+    if (activeTab === 'repeat' && endMode === 'date') {
+      setRepeatEndDate(end)
+    }
+  }, [end, activeTab, endMode])
 
   const deleteNormal = async () => {
     try {
@@ -906,7 +1062,6 @@ export default function EventDetailPopup({
                 onResponderRelease={() => {
                   if (!customOpen) return
                   if (pickerTouchingRef.current) return
-                  setCustomOpen(false)
                 }}
               >
                 {/* HEADER */}
@@ -1173,6 +1328,7 @@ export default function EventDetailPopup({
 
                           return (
                             <View style={{ flexDirection: 'row', gap: 5 }}>
+                              {/* 시간 피커 */}
                               {/* HOUR */}
                               <Picker
                                 style={styles.timePicker}
@@ -1242,13 +1398,12 @@ export default function EventDetailPopup({
                     {/* 시간 */}
                     <View style={[styles.row, { marginTop: 18 }]}>
                       <Text style={styles.label}>시간</Text>
-                      <Toggle
+                      <Switch
                         value={timeOn}
-                        onChange={(v) => {
+                        onValueChange={(v) => {
                           setTimeOn(v)
                           if (v) {
                             const now = new Date()
-
                             // 가장 가까운 5분으로 스냅
                             const min = now.getMinutes()
                             const snap = min % 5 === 0 ? min : min + (5 - (min % 5))
@@ -1264,6 +1419,11 @@ export default function EventDetailPopup({
                           } else {
                             setOpenTime(false)
                           }
+                        }}
+                        trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                        thumbColor={timeOn ? '#B04FFF' : '#FFFFFF'}
+                        style={{
+                          transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                         }}
                       />
                     </View>
@@ -1563,6 +1723,7 @@ export default function EventDetailPopup({
                               onPress={() => {
                                 setEndMode('none')
                                 setRepeatEndDate(null)
+                                setEnd(start)
                                 setEndOpen(false)
                                 setEndDateCustomOpen(false)
                               }}
@@ -1622,7 +1783,15 @@ export default function EventDetailPopup({
                                 <InlineCalendar
                                   open
                                   value={repeatEndDate ?? start}
-                                  onSelect={(d) => setRepeatEndDate(d)}
+                                  onSelect={(d) => {
+                                    if (d.getTime() < start.getTime()) {
+                                      setRepeatEndDate(start)
+                                      setEnd(start)
+                                    } else {
+                                      setRepeatEndDate(d)
+                                      setEnd(d)
+                                    }
+                                  }}
                                 />
                               </View>
                             )}
@@ -1661,53 +1830,60 @@ export default function EventDetailPopup({
                               )
                             })()}
 
-                            <Toggle
+                            <Switch
                               value={remindOn}
-                              onChange={async (v) => {
-                          if (!v) {
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
+                              onValueChange={async (v) => {
+                                if (!v) {
+                                  setRemindOn(false)
+                                  setRemindOpen(false)
+                                  return
+                                }
 
-                          const ok = await ensureNotificationPermissionForToggle()
-                          if (!ok) { // 여전히 권한 없음 → 토글 되돌리기
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
+                                const ok = await ensureNotificationPermissionForToggle()
+                                if (!ok) {
+                                  setRemindOn(false)
+                                  setRemindOpen(false)
+                                  return
+                                }
 
-                          setRemindOn(true) // 권한 ok
-                        }}
+                                setRemindOn(true) // 권한 ok
+                              }}
+                              trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                              thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}
+                              style={{
+                                transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+                              }}
                             />
                           </View>
                         </View>
                         {/* 드롭다운 리스트 */}
                         {remindOn && remindOpen && (
                           <View style={styles.remindDropdown}>
-                            {REMIND_OPTIONS.map((opt, idx) => {
-                              const selected = opt === remindValue
-                              const isLast = idx === REMIND_OPTIONS.length - 1
-                              const isCustom = opt === '맞춤 설정'
+                            {remindOptions.map((opt, idx) => {
+                              const isLast = idx === remindOptions.length - 1
+                              const selected =
+                                opt.type === 'preset'
+                                  ? (remindValue as any)?.id === opt.id
+                                  : remindValue === 'custom'
 
                               return (
-                                <View key={opt}>
+                                <View key={opt.type === 'preset' ? opt.id : 'custom'}>
                                   <Pressable
                                     style={[
                                       styles.remindItem,
                                       !isLast && styles.remindItemDivider,
                                     ]}
-                                    onStartShouldSetResponderCapture={() => true}
                                     onPress={() => {
-                                      if (isCustom) {
-                                        setRemindValue('맞춤 설정') // 버튼 텍스트는 실시간 표시에 맡김
-                                        setCustomOpen((prev) => !prev) // 열려 있으면 닫기, 닫혀 있으면 열기
+                                      if (opt.type === 'custom') {
+                                        setRemindValue('custom')
+                                        setCustomOpen((v) => !v)
                                         return
                                       }
-                                      // 일반 옵션
-                                      setRemindValue(opt)
-                                      setCustomOpen(false) // 인라인 피커 닫기
-                                      setRemindOpen(false) // 드롭다운 닫기
+
+                                      // preset 선택 → 바로 값 세팅
+                                      setRemindValue(opt) // 전체 preset 객체 저장
+                                      setCustomOpen(false)
+                                      setRemindOpen(false)
                                     }}
                                   >
                                     {selected && (
@@ -1716,6 +1892,7 @@ export default function EventDetailPopup({
                                         style={styles.remindSelectedBg}
                                       />
                                     )}
+
                                     <Text
                                       style={[
                                         styles.remindItemText,
@@ -1725,83 +1902,56 @@ export default function EventDetailPopup({
                                         },
                                       ]}
                                     >
-                                      {isCustom ? '맞춤 설정' : opt}
+                                      {opt.label}
                                     </Text>
                                   </Pressable>
-
-                                  {/* '맞춤 설정' 항목 바로 밑에 인라인 피커 */}
-                                  {isCustom && customOpen && (
-                                    <View
-                                      style={styles.inlinePickerInList}
-                                      onStartShouldSetResponder={() => true}
-                                      onMoveShouldSetResponder={() => true}
-                                      onStartShouldSetResponderCapture={() => true}
-                                      onTouchStart={() => {
-                                        pickerTouchingRef.current = true
-                                      }}
-                                      onTouchEnd={() => {
-                                        setTimeout(
-                                          () => (pickerTouchingRef.current = false),
-                                          0,
-                                        )
-                                      }}
-                                    >
-                                      <View
-                                        style={{ height: 8, pointerEvents: 'none' }}
-                                      />
-                                      <View style={styles.inlinePickerRow}>
-                                        {/* 시간 */}
-                                        <View style={styles.inlinePickerBox}>
-                                          <Picker
-                                            selectedValue={customHour}
-                                            onValueChange={(v) => {
-                                              setCustomHour(v)
-                                              setRemindValue('맞춤 설정') // 실시간 표시 유지
-                                            }}
-                                            style={styles.inlinePicker}
-                                            itemStyle={styles.inlinePickerItem}
-                                          >
-                                            {HOURS.map((h) => (
-                                              <Picker.Item
-                                                key={h}
-                                                label={`${h}시간`}
-                                                value={h}
-                                              />
-                                            ))}
-                                          </Picker>
-                                        </View>
-
-                                        {/* 분(5분 단위) */}
-                                        <View style={styles.inlinePickerBox}>
-                                          <Picker
-                                            selectedValue={customMinute}
-                                            onValueChange={(v) => {
-                                              setCustomMinute(v)
-                                              setRemindValue('맞춤 설정') // 실시간 표시 유지
-                                            }}
-                                            style={styles.inlinePicker}
-                                            itemStyle={styles.inlinePickerItem}
-                                          >
-                                            {MINUTES.map((m) => (
-                                              <Picker.Item
-                                                key={m}
-                                                label={`${m}분`}
-                                                value={m}
-                                              />
-                                            ))}
-                                          </Picker>
-                                        </View>
-
-                                        {/* '전' */}
-                                        <Text style={styles.inlineSuffix}>전</Text>
-                                      </View>
-                                    </View>
-                                  )}
                                 </View>
                               )
                             })}
                           </View>
                         )}
+                        {/* 맞춤 설정 인라인 피커 */}
+                        {customOpen && remindOn && (
+                          <View style={styles.remindPickerWrap}>
+                            <View style={styles.remindPickerInner}>
+                              {/* HOUR */}
+                              <View style={styles.remindPickerBox}>
+                                <Picker
+                                  selectedValue={customHour}
+                                  onValueChange={(v) => setCustomHour(v)}
+                                  style={styles.remindPicker}
+                                  itemStyle={styles.remindPickerItem}
+                                >
+                                  {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                                    <Picker.Item key={h} label={`${h}`} value={h} />
+                                  ))}
+                                </Picker>
+                              </View>
+                              <Text style={styles.remindPickerColon}>:</Text>
+
+                              {/* MINUTE */}
+                              <View style={styles.remindPickerBox}>
+                                <Picker
+                                  selectedValue={customMinute}
+                                  onValueChange={(v) => setCustomMinute(v)}
+                                  style={styles.remindPicker}
+                                  itemStyle={styles.remindPickerItem}
+                                >
+                                  {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                                    <Picker.Item
+                                      key={m}
+                                      label={String(m).padStart(2, '0')}
+                                      value={m}
+                                    />
+                                  ))}
+                                </Picker>
+                              </View>
+
+                              <Text style={styles.remindPickerSuffix}>전</Text>
+                            </View>
+                          </View>
+                        )}
+
                         <View style={styles.sep} />
                       </>
                     )}
@@ -2440,5 +2590,48 @@ const styles = StyleSheet.create({
   timePickerItem: {
     fontSize: 16, // ← 글자 크기
     fontWeight: '500', // 굵기 조절하고 싶으면
+  },
+  remindPickerWrap: {
+    paddingVertical: 6,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+  },
+
+  remindPickerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: 150,
+  },
+
+  remindPickerBox: {
+    width: 100,
+    height: 210,
+    justifyContent: 'center',
+  },
+
+  remindPicker: {
+    width: 100,
+    height: 210,
+  },
+
+  remindPickerItem: {
+    fontSize: 16,
+    color: '#333',
+  },
+
+  remindPickerColon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginHorizontal: 6,
+  },
+
+  remindPickerSuffix: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginLeft: 6,
   },
 })
