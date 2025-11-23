@@ -1766,7 +1766,7 @@ export default function WeekView() {
                       paddingBottom: 4,
                     }}
                   >
-                    {spanBars.map((s) => {
+                    {spanBars.map((s, i) => {
                       const left =
                         TIME_COL_W + s.startIdx * dayColWidth
 
@@ -1779,7 +1779,7 @@ export default function WeekView() {
                       if (isTask) {
                         return (
                           <Pressable
-                            key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}`}
+                            key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
                             onPress={() =>
                               toggleSpanTaskCheck(
                                 String(s.id),
@@ -1856,7 +1856,7 @@ export default function WeekView() {
 
                       return (
                         <View
-                          key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}`}
+                          key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
                           style={baseStyle}
                         >
                           {weekDates.includes(s.startISO) &&
