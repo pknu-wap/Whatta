@@ -477,8 +477,7 @@ function TaskGroupBox({
 
   useEffect(() => {
     setLocalTasks(tasks)
-    // 내용이 바뀌면 다시 펼쳤을 때 폭을 재계산할 수 있도록 초기화
-    setContentWidth(null)
+    // 내용이 바뀌면 다시 펼쳤을 때 폭을 재계산할 수 있도록 초기화// setContentWidth(null);
   }, [tasks])
 
   const triggerHaptic = () => {
@@ -641,7 +640,7 @@ function TaskGroupBox({
       runOnJS(handleDropGroup)(snappedY, dayOffset)
     })
 
-  const composedGesture = Gesture.Simultaneous(longPress, drag)
+    const composedGesture = Gesture.Simultaneous(longPress, drag)
 
     const style = useAnimatedStyle(() => ({
     top: topBase + translateY.value,
@@ -659,6 +658,43 @@ function TaskGroupBox({
       }
       return next
     })
+  }
+
+  
+  const onToggleGroupTask = async (task: any) => {
+    const taskId = String(task.id)
+    const newCompleted = !task.completed
+
+    const taskDateISO = dateISO
+
+    try {
+      const full = await http.get(`/task/${taskId}`)
+      const fullTask = full.data.data
+
+      const payload = buildTaskUpdatePayload(fullTask, {
+        completed: newCompleted,
+        placementDate: fullTask.placementDate ?? taskDateISO,
+      })
+
+      await http.patch(`/task/${taskId}`, payload)
+
+      // 서버 반영 후에만 로컬 업데이트 (깜빡임 제거)
+      setLocalTasks(prev =>
+        prev.map(t =>
+          String(t.id) === taskId ? { ...t, completed: newCompleted } : t,
+        ),
+      )
+
+      onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: newCompleted })
+
+    } catch (err: any) {
+      console.error(
+        '❌ TaskGroup PATCH 실패:',
+        err && (err as any).response && (err as any).response.data
+          ? (err as any).response.data
+          : (err as any).message ?? String(err),
+      )
+    }
   }
 
   const toggleTaskDone = async (taskId: string) => {
@@ -767,7 +803,7 @@ function TaskGroupBox({
       >
         <View style={S.taskGroupInner}>
           <Pressable
-            onPress={toggleExpand}
+            onPress={(e) => { e.stopPropagation?.(); toggleExpand(); }}
             style={[
               S.groupHeaderRow,
               expanded ? { paddingLeft: 14 } : { paddingLeft: 5 },
@@ -796,34 +832,40 @@ function TaskGroupBox({
           {expanded && (
             <View style={S.groupList}>
               {localTasks.map((t: any) => (
-                <Pressable
+                <View
                   key={String(t.id)}
                   style={S.groupTaskRow}
-                  onPress={() => toggleTaskDone(t.id)}
                 >
-                  <View
-                    style={[
-                      S.groupTaskCheckbox,
-                      t.completed && S.groupTaskCheckboxOn,
-                    ]}
+                  <Pressable onPress={(e) => { e.stopPropagation?.(); onToggleGroupTask(t); }}>
+                    <View
+                      style={[
+                        S.groupTaskCheckbox,
+                        t.completed && S.groupTaskCheckboxOn,
+                      ]}
+                    >
+                      {t.completed && (
+                        <Text style={S.groupTaskCheckmark}>✓</Text>
+                      )}
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation?.(); onToggleGroupTask(t); }}
+                    style={{ flex: 1 }}
                   >
-                    {t.completed && (
-                      <Text style={S.groupTaskCheckmark}>✓</Text>
-                    )}
-                  </View>
-                  <Text
-                    style={[
-                      S.groupTaskTitle,
-                      t.completed && {
-                        color: '#999999',
-                        textDecorationLine: 'line-through',
-                      },
-                    ]}
-                    numberOfLines={0}
-                  >
-                    {t.title}
-                  </Text>
-                </Pressable>
+                    <Text
+                      style={[
+                        S.groupTaskTitle,
+                        t.completed && {
+                          color: '#999999',
+                          textDecorationLine: 'line-through',
+                        },
+                      ]}
+                      numberOfLines={0}
+                    >
+                      {t.title}
+                    </Text>
+                  </Pressable>
+                </View>
               ))}
             </View>
           )}
@@ -872,6 +914,19 @@ function DraggableTaskBox({
   const height = ROW_H - 6
   const [done, setDone] = useState(initialDone)
   const isActiveDrag = useSharedValue(false)
+
+  // ⏱️ Task 시간(=startHour)이 서버/상태 변경으로 달라지면
+  // 남아 있던 translate 오프셋 때문에 topBase + translateY가 두 번 더해져서 튀는 현상이 생길 수 있다.
+  // → startHour가 바뀔 때마다 드래그 오프셋을 0으로 초기화한다.
+  const prevStartHourRef = useRef(startHour)
+
+  useEffect(() => {
+    if (prevStartHourRef.current !== startHour) {
+      translateY.value = 0
+      translateX.value = 0
+    }
+    prevStartHourRef.current = startHour
+  }, [startHour])
 
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 1
@@ -1091,6 +1146,24 @@ function DraggableFlexalbeEvent({
   const isDragging = useSharedValue(0)
   const isActiveDrag = useSharedValue(false)
   const dragStartTop = useSharedValue(topBase)
+  const dropBoost = useSharedValue(0)
+
+  // ⏱️ 드롭 이후 서버에서 startMin/endMin이 변경되면
+  // topBase는 새 값 기준으로 바뀌지만 이전 드래그 오프셋(translateY/translateX)이 그대로 남아 있어서
+  // 화면 위치가 '새 topBase + 예전 오프셋'으로 계산되며 튀는 문제가 생길 수 있다.
+  // → time props가 바뀔 때마다 오프셋과 dragStartTop을 리셋해서 기준을 다시 맞춰 준다.
+  const prevStartRef = useRef(startMin)
+  const prevEndRef = useRef(endMin)
+
+  useEffect(() => {
+    if (prevStartRef.current !== startMin || prevEndRef.current !== endMin) {
+      translateY.value = 0
+      translateX.value = 0
+      dragStartTop.value = (startMin / 60) * ROW_H
+    }
+    prevStartRef.current = startMin
+    prevEndRef.current = endMin
+  }, [startMin, endMin])
 
   const triggerHaptic = () => {
     Vibration.vibrate(50)
@@ -1240,8 +1313,15 @@ function DraggableFlexalbeEvent({
 
       const dayOffset = Math.round(translateX.value / dayColWidth)
       translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
+
+      // 드롭 시에는 잠깐 동안 최상단 zIndex를 유지해서
+      // 겹침 레이아웃 재계산 과정에서도 방금 놓은 일정이 뒤로 갔다가 다시 앞으로
+      // 튀어오르는 현상이 없도록 dropBoost로 강조한다.
+      dropBoost.value = 1
       isActiveDrag.value = false
       isDragging.value = withDelay(200, withTiming(0))
+      dropBoost.value = withDelay(220, withTiming(0))
+
       runOnJS(handleDrop)(snappedY, dayOffset)
     })
 
@@ -1250,8 +1330,8 @@ function DraggableFlexalbeEvent({
   const style = useAnimatedStyle(() => ({
     top: topBase + translateY.value,
     transform: [{ translateX: translateX.value }],
-    zIndex: isDragging.value ? 9999 : overlapDepth,
-    elevation: isDragging.value ? 50 : 0,
+    zIndex: (isDragging.value || dropBoost.value) ? 9999 : overlapDepth,
+    elevation: (isDragging.value || dropBoost.value) ? 50 : 0,
   }))
 
   return (
@@ -1285,12 +1365,34 @@ function DraggableFlexalbeEvent({
 export default function WeekView() {
   const [anchorDate, setAnchorDate] = useState(todayISO())
   const [isZoomed, setIsZoomed] = useState(false)
+
+  // inserted handleSwipe
+  const handleSwipe = useCallback(
+    (direction: string) => {
+      const step = isZoomed ? 5 : 7;
+      const offset = direction === 'next' ? step : -step;
+      setAnchorDate(prev => addDays(prev, offset));
+    },
+    [isZoomed],
+  );
   const [weekDates, setWeekDates] = useState<string[]>([])
+
+  // 🧹 주(weekDates)가 완전히 바뀔 때는 겹침 레이아웃 메모리를 초기화해서
+  // 이전 주의 overlap 정보가 새 주에 섞여 들어와 위치가 튀는 것을 방지한다.
+  useEffect(() => {
+    prevLayoutMap = {}
+  }, [weekDates])
+
   const [weekData, setWeekData] = useState<WeekData>({})
   const [loading, setLoading] = useState(true)
 
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
+
+  const [spanWrapH, setSpanWrapH] = useState(150)
+  const [spanContentH, setSpanContentH] = useState(150)
+  const [spanThumbTop, setSpanThumbTop] = useState(0)
+  const spanScrollRef = useRef<ScrollView>(null)
 
   const gridScrollRef = useRef<ScrollView>(null)
   const scrollOffsetRef = useRef(0)
@@ -1685,6 +1787,8 @@ const openTaskPopupFromApi = async (taskId: string) => {
     maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
   const dayColWidth = getDayColWidth(weekDates.length)
+  const showSpanScrollbar = spanContentH > spanWrapH -10
+
 
   const toggleSpanTaskCheck = async (
     taskId: string,
@@ -1738,8 +1842,40 @@ const openTaskPopupFromApi = async (taskId: string) => {
     }
   }
 
-  const scale = useSharedValue(1)
-  const pinchGesture = Gesture.Pinch()
+    const scale = useSharedValue(1)
+  const swipeTranslateX = useSharedValue(0)
+  
+  const SWIPE_THRESHOLD = SCREEN_W * 0.25;
+
+  const swipeGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      'worklet';
+      let next = e.translationX;
+      const maxOffset = SCREEN_W * 0.15;
+      if (next > maxOffset) next = maxOffset;
+      if (next < -maxOffset) next = -maxOffset;
+      swipeTranslateX.value = next;
+    })
+    .onEnd(() => {
+      'worklet';
+      const current = swipeTranslateX.value;
+      const trigger = SCREEN_W * 0.06;
+
+      if (current > trigger) {
+        swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
+          runOnJS(handleSwipe)('prev');
+          swipeTranslateX.value = withTiming(0, { duration: 160 });
+        });
+      } else if (current < -trigger) {
+        swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
+          runOnJS(handleSwipe)('next');
+          swipeTranslateX.value = withTiming(0, { duration: 160 });
+        });
+      } else {
+        swipeTranslateX.value = withTiming(0, { duration: 150 });
+      }
+    });
+const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
       scale.value = e.scale
     })
@@ -1753,7 +1889,14 @@ const openTaskPopupFromApi = async (taskId: string) => {
       scale.value = withTiming(1, { duration: 150 })
     })
 
-  const animatedStyle = useAnimatedStyle(() => ({
+  
+  const composedGesture = Gesture.Simultaneous(pinchGesture, swipeGesture)
+
+
+  const swipeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipeTranslateX.value }],
+  }))
+const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }))
 
@@ -1774,8 +1917,8 @@ const openTaskPopupFromApi = async (taskId: string) => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScreenWithSidebar mode="overlay">
-        <GestureDetector gesture={pinchGesture}>
-          <Animated.View style={[S.screen, animatedStyle]}>
+        <GestureDetector gesture={composedGesture}>
+          <Animated.View style={[S.screen, animatedStyle, swipeStyle]}>
             {/* 헤더 - 기존 WeekView 스타일 유지 */}
             <FullBleed padH={16}>
               <View style={S.weekHeaderRow}>
@@ -1821,10 +1964,66 @@ const openTaskPopupFromApi = async (taskId: string) => {
             {/* spanbar 영역 */}
             <FullBleed padH={16}>
               <View style={S.spanTaskBoxWrap}>
-                <View style={[S.spanTaskBox, { height: 150 }]}>
+                <View
+                  style={[S.spanTaskBox, { height: 150 }]}
+                  onLayout={(e) => setSpanWrapH(e.nativeEvent.layout.height)}
+                >
+                  {/* spanbar 요일선 (task/일정 뒤에) */}
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: TIME_COL_W,
+                      width: weekDates.length * dayColWidth,
+                      height: 185,
+                      flexDirection: 'row',
+                    }}
+                  >
+                    {weekDates.map((d, colIdx) => (
+                      <View
+                        key={`spanbar-colline-${d}`}
+                        style={{
+                          width: dayColWidth,
+                          borderLeftWidth: colIdx === 0 ? 0 : 0.3,
+                          borderLeftColor: '#E6E6E6',
+                        }}
+                      />
+                    ))}
+                  </View>
                   <ScrollView
-                    showsVerticalScrollIndicator={true}
-                    indicatorStyle="black"
+                    ref={spanScrollRef}
+                    showsVerticalScrollIndicator={false}
+                    scrollEventThrottle={16}
+                    onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
+
+  const ratio =
+    contentSize.height <= layoutMeasurement.height
+      ? 0
+      : contentOffset.y /
+        (contentSize.height - layoutMeasurement.height)
+
+  // 기본 top 계산
+  const rawTop =
+    ratio *
+    (layoutMeasurement.height -
+      thumbH(layoutMeasurement.height, contentSize.height))
+
+  // thumb 높이 (진한색 부분)
+  const thumbHeight = thumbH(layoutMeasurement.height, contentSize.height)
+
+  // track의 실제 높이 (지금 너는 top:0, bottom:6 → trackHeight = layoutMeasurement.height - 6)
+  const trackHeight = layoutMeasurement.height - 6
+
+  // clamp: thumb이 트랙 밖으로 절대 못 나가게 제한
+  const maxTop = trackHeight - thumbHeight
+  const clampedTop = Math.max(0, Math.min(rawTop, maxTop))
+
+  setSpanThumbTop(clampedTop)
+}}
+
+                    onContentSizeChange={(_, h) => setSpanContentH(h)}
                     contentContainerStyle={{
                       height: spanAreaHeight,
                       position: 'relative',
@@ -1897,10 +2096,34 @@ const openTaskPopupFromApi = async (taskId: string) => {
                         )
                       }
 
+                      function mixWhite(hex: string, whitePercent: number) {
+                      const clean = hex.replace('#', '')
+                      const r = parseInt(clean.slice(0, 2), 16)
+                      const g = parseInt(clean.slice(2, 4), 16)
+                      const b = parseInt(clean.slice(4, 6), 16)
+
+                      const w = whitePercent / 100
+                      const base = 1 - w
+
+                      const mix = (c: number) => Math.round(c * base + 255 * w)
+
+                      const newR = mix(r)
+                      const newG = mix(g)
+                      const newB = mix(b)
+
+                      return (
+                        '#' +
+                        newR.toString(16).padStart(2, '0') +
+                        newG.toString(16).padStart(2, '0') +
+                        newB.toString(16).padStart(2, '0')
+                      ).toUpperCase()
+                    }
+
+
                       const mainColor = s.color?.startsWith('#')
                         ? s.color
                         : `#${s.color || 'B04FFF'}`
-                      const lightColor = `${mainColor}26`
+                      const lightColor = mixWhite(mainColor, 70)
 
                       const baseStyle: any = {
                         position: 'absolute',
@@ -1975,6 +2198,27 @@ const openTaskPopupFromApi = async (taskId: string) => {
                     })}
 
                   </ScrollView>
+                  {showSpanScrollbar && (
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        S.spanScrollTrack,
+                        {
+                          right : -10,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          S.spanScrollThumb,
+                          {
+                            height: thumbH(spanWrapH, spanContentH),
+                            transform: [{ translateY: spanThumbTop }],
+                          },
+                        ]}
+                      />
+                    </View>
+                  )}
                 </View>
 
                 <View pointerEvents="none" style={S.boxBottomLine} />
@@ -2082,9 +2326,9 @@ const openTaskPopupFromApi = async (taskId: string) => {
                             <View style={[S.liveDot, { top: nowTop - 3 }]} />
                           </>
                         )}
-                        {layoutEvents.map((ev, idx) => (
+                        {layoutEvents.map((ev) => (
                           <DraggableFlexalbeEvent
-                            key={`${d}-${ev.id}-${idx}`}
+                            key={`${d}-${ev.id}`}
                             id={ev.id}
                             title={ev.title}
                             place={ev.place}
@@ -2142,8 +2386,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
                                           )
                                       }
 
-                                      copy[dateISO] = { ...bucket }
-                                      return { ...copy }
+                                      return copy
                                     })
                                   }
                                 }}
@@ -2296,6 +2539,11 @@ const openTaskPopupFromApi = async (taskId: string) => {
   )
 }
 
+function thumbH(visibleH: number, contentH: number) {
+  const minH = 18
+  const h = (visibleH * visibleH) / Math.max(contentH, 1)
+  return Math.max(minH, Math.min(h, visibleH))
+}
 
 /* -------------------------------------------------------------------------- */
 /* 스타일 */
@@ -2343,7 +2591,7 @@ const S = StyleSheet.create({
   spanTaskBox: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
+    overflow: 'visible',
     borderRadius: 0,
     borderWidth: 0,
     borderColor: 'transparent',
@@ -2590,6 +2838,22 @@ const S = StyleSheet.create({
     flexWrap: 'wrap',
     overflow: 'visible',
     includeFontPadding: false,
+  },
+
+  spanScrollTrack: {
+    position: 'absolute',
+    top: 0,
+    bottom: 6,
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  spanScrollThumb: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderRadius: 2,
+    backgroundColor: colors.neutral.gray,
   },
 
   timelineInner: {
