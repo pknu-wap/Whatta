@@ -26,15 +26,18 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
         String exceptionCode = (String) request.getAttribute("exception");
 
-        ErrorCode errorCode = ErrorCode.INVALID_TOKEN;
+        if (exceptionCode == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+            return;
+        }
 
-        if (exceptionCode != null) {
-            if (exceptionCode.equals(ExpiredJwtException.class.getSimpleName())) {
+        ErrorCode errorCode;
+
+        if (exceptionCode.equals(ExpiredJwtException.class.getSimpleName())) {
                 errorCode = ErrorCode.EXPIRED_TOKEN;
-            }
-            else {
+        }
+        else {
                 errorCode = ErrorCode.INVALID_TOKEN;
-            }
         }
         setResponse(response, errorCode);
     }

@@ -1,6 +1,7 @@
 package whatta.Whatta.user.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @SecurityRequirement(name = "BearerAuth")
     @PostMapping("/refresh")
     @Operation(summary = "Jwt 재발급", description = "refresh token을 이용하여 access token을 재발급합니다.")
     public ResponseEntity<?> refreshToken(HttpServletRequest request) {
