@@ -427,6 +427,22 @@ export default function EventDetailPopup({
   const [labels, setLabels] = useState<Label[]>([])
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>('schedule')
 
+  useEffect(() => {
+    if (!visible) return
+
+    const isRepeatInitial =
+      initial?.repeat != null 
+
+    const isRepeatFetched =
+      eventData?.repeat != null
+      
+    if (isRepeatInitial || isRepeatFetched) {
+      setActiveTab('repeat') // ✅ 여기 수정
+    } else {
+      setActiveTab('schedule') // ✅ 여기 수정
+    }
+  }, [visible, initial, eventData])
+  
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [memo, setMemo] = useState('')
@@ -819,6 +835,10 @@ export default function EventDetailPopup({
           setEnd(ee)
         }
         setEventData(ev)
+        if (ev?.isRepeat || ev?.repeat != null) {
+          setActiveTab('repeat')
+        }
+
       } catch (err) {
         console.error('❌ 일정 상세 불러오기 실패:', err)
       }

@@ -141,9 +141,34 @@ export default function DayView() {
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
 
-  async function openEventDetail(id: string) {
-    const res = await http.get(`/event/${id}`)
-    setEventPopupData(res.data.data)
+  function getInstanceDates(ev: any, currentDateISO: string) {
+  // 1) 기간/종일 span: startDate/endDate가 내려오는 케이스
+  if (ev.startDate && ev.endDate) {
+    return { startDate: ev.startDate, endDate: ev.endDate }
+  }
+
+  // 2) 시간지정 일정(반복 포함): startAt/endAt이 내려오는 케이스
+  if (ev.startAt && ev.endAt) {
+    return {
+      startDate: ev.startAt.slice(0, 10),
+      endDate: ev.endAt.slice(0, 10),
+    }
+  }
+
+  // 3) 시간지정 없는 단일 종일(allDayEvents): 날짜 필드가 아예 없는 케이스
+  return { startDate: currentDateISO, endDate: currentDateISO }
+}
+  
+  async function openEventDetail(ev: any) { //객체로 받음
+    const res = await http.get(`/event/${ev.id}`)
+
+    const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current) 
+
+    setEventPopupData({
+    ...res.data.data,
+    startDate,
+    endDate,
+  } )
     setEventPopupMode('edit')
     setEventPopupVisible(true)
   }
@@ -725,7 +750,7 @@ export default function DayView() {
                     const bg = `${base}26`
 
                     return (
-                      <Pressable key={t.id ?? i} onPress={() => openEventDetail(t.id)}>
+                      <Pressable key={t.id ?? i} onPress={() => openEventDetail(t)}>
                         <View
                           style={[
                             S.chip,
@@ -877,7 +902,7 @@ export default function DayView() {
                   endMin={endMin}
                   color={`#${evt.colorKey}`}
                   anchorDate={anchorDate}
-                  onPress={() => openEventDetail(evt.id)}
+                  onPress={() => openEventDetail(evt)}
                 />
               )
             })}
