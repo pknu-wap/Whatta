@@ -1880,6 +1880,9 @@ export default function WeekView() {
               fieldsToClear.push('placementTime')
             }
 
+            const reminderNoti = form.reminderNoti ?? null
+            if (!reminderNoti) fieldsToClear.push('reminderNoti')
+
             try {
               if (taskPopupMode === 'edit') {
                 // 기존 테스크 수정
@@ -1891,6 +1894,7 @@ export default function WeekView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   fieldsToClear,
                 })
 
@@ -1906,6 +1910,7 @@ export default function WeekView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   date: placementDate ?? anchorDate,
                 })
 
