@@ -1423,6 +1423,9 @@ export default function MonthView() {
           } else {
             fieldsToClear.push('placementTime')
           }
+          //reminderNoti
+          const reminderNoti = form.reminderNoti ?? null
+          if (!reminderNoti) fieldsToClear.push('reminderNoti')
 
           // 이 Task가 속하는 날짜 (없으면 현재 포커스된 날짜 기준)
           const targetDate = placementDate ?? focusedDateISO
@@ -1437,6 +1440,7 @@ export default function MonthView() {
                 labels: form.labels,
                 placementDate,
                 placementTime,
+                reminderNoti,
                 fieldsToClear,
               })
 
@@ -1452,6 +1456,7 @@ export default function MonthView() {
                 labels: form.labels,
                 placementDate,
                 placementTime,
+                reminderNoti,
                 date: targetDate,
               })
 
