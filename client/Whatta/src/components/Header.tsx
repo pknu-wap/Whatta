@@ -7,7 +7,7 @@ import {
   Animated,
   PanResponder,
   TouchableWithoutFeedback,
-  Pressable,
+  Switch,
 } from 'react-native'
 import AnimatedRe, {
   interpolateColor,
@@ -409,11 +409,17 @@ export default function Header() {
             <View style={{ height: 16 }} />
             <View style={styles.row}>
               <Text style={styles.allText}>전체</Text>
-              <CustomSwitch
+              <Switch
                 value={allOn}
-                onToggle={() => {
+                onValueChange={() => {
                   toggleAll()
                   bus.emit('filter:changed', filterLabels)
+                }}
+                trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                thumbColor={allOn ? '#B04FFF' : '#FFFFFF'}
+                style={{
+                  transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }],
+                  marginRight: 8,
                 }}
               />
             </View>
@@ -424,14 +430,19 @@ export default function Header() {
             {filterLabels.map((l) => (
               <View key={l.id} style={styles.row}>
                 <View style={styles.labelRow}>
-                  <View style={[styles.colorDot, { backgroundColor: '#B04FFF' }]} />
                   <Text style={styles.labelText}>{l.title}</Text>
                 </View>
-                <CustomSwitch
+                <Switch
                   value={l.enabled}
-                  onToggle={() => {
+                  onValueChange={() => {
                     toggleLabel(l.id)
                     bus.emit('filter:changed', filterLabels)
+                  }}
+                  trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                  thumbColor={l.enabled ? '#B04FFF' : '#FFFFFF'}
+                  style={{
+                    transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }],
+                    marginRight: 8,
                   }}
                 />
               </View>

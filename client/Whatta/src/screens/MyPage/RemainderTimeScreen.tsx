@@ -11,6 +11,7 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import Plus from '@/assets/icons/plusbtn.svg'
 import { Picker } from '@react-native-picker/picker'
 import { http } from '@/lib/http'
+import Left from '@/assets/icons/left.svg'
 
 type ReminderItem = {
   id: string
@@ -37,10 +38,15 @@ const DAY_OPTIONS = [
 const MAX_REMINDERS = 5
 
 function formatLabel(item: ReminderItem) {
-  const dayLabel = item.day === 0 ? '당일' : item.day === 1 ? '전날' : `${item.day}일 전`
-  const hh = String(item.hour).padStart(2, '0')
-  const mm = String(item.minute).padStart(2, '0')
-  return `${dayLabel} ${hh}:${mm}`
+  const dayLabel = item.day === 0 ? '당일' : '전날'
+
+  let parts = []
+  if (item.hour > 0) parts.push(`${item.hour}시간`)
+  if (item.minute > 0) parts.push(`${item.minute}분`)
+
+  const timeLabel = parts.length ? parts.join(' ') + ' 전' : '0분 전'
+
+  return `${dayLabel} ${timeLabel}`
 }
 
 type RowProps = {
@@ -63,78 +69,80 @@ function ReminderRow({
   onToggleSelect,
   onChange,
 }: RowProps) {
-  const update = (patch: Partial<ReminderItem>) => onChange(patch)
-
-  const header = (
-    <View style={S.rowHeader}>
-      {editMode ? (
-        <Pressable onPress={onToggleSelect} style={S.checkboxWrap}>
-          {selected ? <CheckOn /> : <CheckOff />}
-        </Pressable>
-      ) : null}
-
-      <Pressable
-        style={S.rowTitleArea}
-        onPress={editMode ? onToggleSelect : onToggleOpen}
-      >
-        <Text style={S.rowTitleText}>{formatLabel(item)}</Text>
-      </Pressable>
-
-      {!editMode ? (
-        <Pressable style={S.rowRightIcon} onPress={onToggleOpen}>
-          <Pencil width={24} height={24} color="#333" />
-        </Pressable>
-      ) : (
-        <View style={S.rowRightIcon} />
-      )}
-    </View>
-  )
-
-  const accordion = isOpen ? (
-    <View style={S.accordion}>
-      <Text style={S.optionLabel}>알림 시점</Text>
-
-      <View style={S.pickerRow}>
-        {/* 당일 / 전날 */}
-        <Picker
-          style={S.picker}
-          selectedValue={item.day}
-          onValueChange={(v) => update({ day: v as number })}
-        >
-          {DAY_OPTIONS.map((d) => (
-            <Picker.Item key={d.value} label={d.label} value={d.value} />
-          ))}
-        </Picker>
-
-        {/* 시 (0~23) */}
-        <Picker
-          style={S.picker}
-          selectedValue={item.hour}
-          onValueChange={(v) => update({ hour: v as number })}
-        >
-          {HOURS.map((h) => (
-            <Picker.Item key={h} label={String(h).padStart(2, '0')} value={h} />
-          ))}
-        </Picker>
-
-        {/* 분 (0~59) */}
-        <Picker
-          style={S.picker}
-          selectedValue={item.minute}
-          onValueChange={(v) => update({ minute: v as number })}
-        >
-          {MINUTES.map((m) => (
-            <Picker.Item key={m} label={String(m).padStart(2, '0')} value={m} />
-          ))}
-        </Picker>
-      </View>
-    </View>
-  ) : null
+  const HOURS = Array.from({ length: 24 }, (_, i) => i)
+  const MINUTES = Array.from({ length: 60 }, (_, i) => i)
 
   return (
     <View>
-      {header}
-      {accordion}
+      {/* HEADER */}
+      <View style={S.rowHeader}>
+        {editMode ? (
+          <Pressable onPress={onToggleSelect} style={S.checkboxWrap}>
+            {selected ? <CheckOn /> : <CheckOff />}
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          style={S.rowTitleArea}
+          onPress={editMode ? onToggleSelect : onToggleOpen}
+        >
+          <Text style={S.rowTitleText}>{formatLabel(item)}</Text>
+        </Pressable>
+
+        {!editMode ? (
+          <Pressable style={S.rowRightIcon} onPress={onToggleOpen}>
+            <Pencil width={24} height={24} color="#333" />
+          </Pressable>
+        ) : (
+          <View style={S.rowRightIcon} />
+        )}
+      </View>
+
+      {/* DROPDOWN */}
+      {isOpen && (
+        <View style={S.accordion}>
+          <View style={S.pickerRow}>
+            {/* 당일 / 전날 */}
+            <Picker
+              style={S.picker}
+              selectedValue={item.day}
+              onValueChange={(v) => onChange({ day: v as number })}
+              itemStyle={S.pickerItem}
+            >
+              <Picker.Item label="당일" value={0} />
+              <Picker.Item label="전날" value={1} />
+            </Picker>
+
+            {/* 시간 */}
+            <Picker
+              style={S.picker}
+              selectedValue={item.hour}
+              onValueChange={(v) => onChange({ hour: v as number })}
+              itemStyle={S.pickerItem}
+            >
+              {HOURS.map((h) => (
+                <Picker.Item key={h} label={`${h}시간`} value={h} />
+              ))}
+            </Picker>
+
+            {/* 분 */}
+            <Picker
+              style={S.picker}
+              selectedValue={item.minute}
+              onValueChange={(v) => onChange({ minute: v as number })}
+              itemStyle={S.pickerItem}
+            >
+              {MINUTES.map((m) => (
+                <Picker.Item key={m} label={`${m}분`} value={m} />
+              ))}
+            </Picker>
+
+            <View style={S.unitBox}>
+              <Text style={S.unitText}>전</Text>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   )
 }
@@ -195,12 +203,11 @@ export default function RemainderTimeScreen() {
   // 피커 변경 시: state 업데이트 + 서버 PUT
   const updateReminder = (id: string, patch: Partial<ReminderItem>) => {
     setReminders((prev) => {
-      // 1) 일단 변경을 적용한 next 상태 만들어 보기
       const next = prev.map((it) => (it.id === id ? { ...it, ...patch } : it))
       const updated = next.find((it) => it.id === id)
       if (!updated) return prev
 
-      // 2) 중복 검사: 나(id) 말고 같은 (day, hour, minute)를 가진 게 있는지
+      // 중복 검사
       const duplicated = next.some(
         (it) =>
           it.id !== id &&
@@ -208,17 +215,22 @@ export default function RemainderTimeScreen() {
           it.hour === updated.hour &&
           it.minute === updated.minute,
       )
-
       if (duplicated) {
-        // 3) 있으면 Alert 띄우고, 서버 요청도 안 보내고 변경 취소
-        Alert.alert('중복 알림', '이미 동일한 시간의 리마인드 알림이 있습니다.')
+        Alert.alert('중복 알림', '이미 동일한 리마인드 알림이 있습니다.')
         return prev
       }
 
-      // 4) 중복 아니면 서버에 PUT
+      // 서버 전송용 offsetMinutes 계산
+      const offsetMinutes = updated.day * -1440 + updated.hour * -60 + updated.minute * -1
+
       ;(async () => {
         try {
-          await http.put(`/user/setting/reminder/${id}`, toDto(updated))
+          await http.put(`/user/setting/reminder/${id}`, {
+            day: updated.day,
+            hour: updated.hour,
+            minute: updated.minute,
+            offsetMinutes,
+          })
         } catch (e) {
           console.warn('reminder update error', e)
         }
@@ -330,7 +342,7 @@ export default function RemainderTimeScreen() {
       {/* 상단 헤더 */}
       <View style={S.header}>
         <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
-          <Text style={{ fontSize: 18 }}>←</Text>
+          <Left width={30} height={30} color="#B4B4B4" />
         </Pressable>
 
         <Text style={S.headerTitle}>리마인드 알림 시간</Text>
@@ -373,6 +385,7 @@ export default function RemainderTimeScreen() {
         data={reminders}
         keyExtractor={(item) => item.id}
         ItemSeparatorComponent={() => <View style={S.separator} />}
+        ListFooterComponent={<View style={S.separator} />}
         renderItem={({ item }) => (
           <Swipeable
             friction={2}
@@ -428,9 +441,8 @@ const S = StyleSheet.create({
   headerRight: { fontSize: 16, fontWeight: '700', color: '#B04FFF' },
 
   separator: {
-    height: StyleSheet.hairlineWidth,
+    height: 0.5,
     backgroundColor: '#E3E5EA',
-    marginLeft: 16,
   },
 
   // Row
@@ -443,7 +455,7 @@ const S = StyleSheet.create({
   },
   checkboxWrap: { marginRight: 12 },
   rowTitleArea: { flex: 1, justifyContent: 'center' },
-  rowTitleText: { fontSize: 17, fontWeight: '600', color: colors.text.title },
+  rowTitleText: { fontSize: 18, fontWeight: '600', color: colors.text.title },
   rowRightIcon: { width: 24, alignItems: 'flex-end' },
 
   // Swipe delete
@@ -469,10 +481,28 @@ const S = StyleSheet.create({
   pickerRow: {
     marginTop: 8,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   picker: {
     flex: 1,
+    height: 220,
+  },
+  pickerItem: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+
+  unitBox: {
     height: 160,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+
+  unitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 })

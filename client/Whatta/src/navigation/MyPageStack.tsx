@@ -5,6 +5,7 @@ import { PlaceholderScreen } from '@/screens/MyPage/PlaceholderScreen'
 import LabelsScreen from '@/screens/MyPage/LabelScreen'
 import RemainderScreen from '@/screens/MyPage/RemainderTimeScreen'
 import SummaryScreean from '@/screens/MyPage/SummaryTimeScreen'
+import TrafficAlertStack from '@/navigation/TrafficAlertStack'
 
 export type MyPageStackList = {
   MyPageList: undefined
@@ -12,13 +13,13 @@ export type MyPageStackList = {
   Preferences: undefined
   NotifDefaults: undefined
   vibration: undefined
-  TransitAlerts: undefined
   Labels: undefined
   Transitvibration: undefined
   CalendarNotif: undefined
   FirstPages: undefined
   CalendarVibration: undefined
   UsageReminders: undefined
+  TrafficAlertsRoot: undefined
 }
 
 const Stack = createNativeStackNavigator<MyPageStackList>()
@@ -51,9 +52,9 @@ export default function MyPageStack() {
         options={{ title: 'OCR 시간표 등록' }}
       />
       <Stack.Screen
-        name="TransitAlerts"
-        component={PlaceholderScreen}
-        options={{ title: '교통 알림' }}
+        name="TrafficAlertsRoot"
+        component={TrafficAlertStack}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="NotifDefaults"
