@@ -306,6 +306,7 @@ export default function DayView() {
         placementDate: data.placementDate,
         placementTime: data.placementTime,
         dueDateTime: data.dueDateTime ?? null,
+        reminderNoti: data.reminderNoti ?? null,
       })
 
       setTaskPopupVisible(true)
@@ -936,7 +937,7 @@ export default function DayView() {
           visible={taskPopupVisible}
           mode={taskPopupMode}
           taskId={taskPopupId ?? undefined}
-          initialTask={popupTaskMemo}
+          initialTask={taskPopupTask}
           onClose={() => {
             setTaskPopupVisible(false)
             setTaskPopupId(null)
@@ -965,9 +966,13 @@ export default function DayView() {
               fieldsToClear.push('placementTime')
             }
 
+            const reminderNoti = form.reminderNoti ?? null
+            if (!reminderNoti) fieldsToClear.push('reminderNoti')
+
+            const targetDate = placementDate ?? anchorDate
+
             try {
               if (taskPopupMode === 'edit') {
-                // ✅ 기존 수정 로직
                 if (!taskPopupId) return
 
                 await http.patch(`/task/${taskPopupId}`, {
@@ -976,12 +981,13 @@ export default function DayView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   fieldsToClear,
                 })
 
                 bus.emit('calendar:mutated', {
                   op: 'update',
-                  item: { id: taskPopupId, date: anchorDate },
+                  item: { id: taskPopupId, date: targetDate },
                 })
               } else {
                 // 새 테스크 생성 로직
@@ -991,14 +997,17 @@ export default function DayView() {
                   labels: form.labels,
                   placementDate,
                   placementTime,
-                  date: placementDate ?? anchorDate,
+                  reminderNoti,
+                  date: targetDate,
                 })
+
+                console.log('task: '+ form.time + placementDate + placementTime + reminderNoti?.hour + reminderNoti?.hour + reminderNoti?.minute)
 
                 const newId = res.data?.data?.id
 
                 bus.emit('calendar:mutated', {
                   op: 'create',
-                  item: { id: newId, date: anchorDate },
+                  item: { id: newId, date: targetDate },
                 })
               }
 
@@ -1016,6 +1025,7 @@ export default function DayView() {
           }}
           onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
         />
+
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
