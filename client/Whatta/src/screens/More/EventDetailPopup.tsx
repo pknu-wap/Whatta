@@ -435,11 +435,11 @@ export default function EventDetailPopup({
 
     const isRepeatFetched =
       eventData?.repeat != null
-      
+
     if (isRepeatInitial || isRepeatFetched) {
-      setActiveTab('repeat') // ✅ 여기 수정
+      setActiveTab('repeat')
     } else {
-      setActiveTab('schedule') // ✅ 여기 수정
+      setActiveTab('schedule')
     }
   }, [visible, initial, eventData])
   
@@ -837,10 +837,41 @@ export default function EventDetailPopup({
         setEventData(ev)
         if (ev?.isRepeat || ev?.repeat != null) {
           setActiveTab('repeat')
+          const r = ev.repeat
+
+          // 1) endDate 세팅
+          if (r.endDate) {
+            setEndMode('date')
+            setRepeatEndDate(new Date(r.endDate))
+          } else {
+            setEndMode('none')
+            setRepeatEndDate(null)
+          }
+
+          // 2) repeatMode 결정
+          // - interval=1 이고 unit이 DAY/WEEK/MONTH에 딱 맞으면 daily/weekly/monthly
+          // - 그 외는 custom으로 보내고 repeatEvery/repeatUnit 세팅
+          const unit = r.unit
+          const interval = r.interval ?? 1
+
+          if (unit === 'DAY' && interval === 1) {
+            setRepeatMode('daily')
+          } else if (unit === 'WEEK' && interval === 1) {
+            setRepeatMode('weekly')
+          } else if (unit === 'MONTH' && interval === 1) {
+            setRepeatMode('monthly')
+          } else {
+            setRepeatMode('custom')
+            setRepeatEvery(interval)
+            setRepeatUnit(
+              unit === 'DAY' ? 'day' : unit === 'WEEK' ? 'week' : 'month',
+            )
+          }
         }
 
       } catch (err) {
         console.error('❌ 일정 상세 불러오기 실패:', err)
+        
       }
     }
 
