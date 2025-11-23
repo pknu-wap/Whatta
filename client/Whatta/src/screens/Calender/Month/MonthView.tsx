@@ -260,9 +260,7 @@ function getEventsForDate(
     }
     // 반복
     if (it.isRecurring) {
-      const [y, m, d] = it.date.split('-').map(Number)
-      const base = new Date(y, m - 1, d)
-      if (base.getDay() === dow && iso >= it.date) {
+      if (it.date === iso) { 
         ;(it.isTask ? tasks : singles).push(it as WithLane)
       }
       return
