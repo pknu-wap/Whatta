@@ -2082,29 +2082,24 @@ const openTaskPopupFromApi = async (taskId: string) => {
                             <View style={[S.liveDot, { top: nowTop - 3 }]} />
                           </>
                         )}
-
-                        {layoutEvents.map((ev) => (
-                          <Pressable
-                            key={`${d}-${ev.id}`}
-                            onPress={() => openEventDetail(ev.id)}
-                          >
-                            <DraggableFlexalbeEvent
-                              id={ev.id}
-                              title={ev.title}
-                              place={ev.place}
-                              startMin={ev.startMin}
-                              endMin={ev.endMin}
-                              color={ev.color}
-                              dateISO={d}
-                              column={ev.column}
-                              columnsTotal={ev.columnsTotal}
-                              isPartialOverlap={ev.isPartialOverlap}
-                              overlapDepth={ev.overlapDepth ?? 0}
-                              dayColWidth={dayColWidth}
-                              weekDates={weekDates}
-                              dayIndex={colIdx}
-                            />
-                          </Pressable>
+                        {layoutEvents.map((ev, idx) => (
+                          <DraggableFlexalbeEvent
+                            key={`${d}-${ev.id}-${idx}`}
+                            id={ev.id}
+                            title={ev.title}
+                            place={ev.place}
+                            startMin={ev.startMin}
+                            endMin={ev.endMin}
+                            color={ev.color}
+                            dateISO={d}
+                            column={ev.column}
+                            columnsTotal={ev.columnsTotal}
+                            isPartialOverlap={ev.isPartialOverlap}
+                            overlapDepth={ev.overlapDepth ?? 0}
+                            dayColWidth={dayColWidth}
+                            weekDates={weekDates}
+                            dayIndex={colIdx}
+                          />
                         ))}
 
                         {Object.entries(groupedTasks).map(([timeKey, group]) => {
