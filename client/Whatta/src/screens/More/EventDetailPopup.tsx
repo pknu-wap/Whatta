@@ -627,6 +627,26 @@ export default function EventDetailPopup({
 
     //반복모드 저장
     if (activeTab === 'repeat') {
+        // 편집 모드 + 반복 일정인 경우만 분기
+    if (mode === 'edit' && eventData?.repeat != null) {
+      Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '이 일정만',
+          onPress: () => {
+            void saveRepeatOnlyThis()
+          },
+        },
+        {
+          text: '이후 일정 모두',
+          onPress: () => {
+            void saveRepeatApplyAll()
+          },
+        },
+      ])
+      return
+    }
+
       const { payload, colorHex } = buildBasePayload()
       const repeatPayload = buildRepeatPayload()
 
@@ -664,26 +684,6 @@ export default function EventDetailPopup({
         console.log('requestBody: ', finalPayload )
         alert('저장 실패')
       }
-      return
-    }
-    
-    // 편집 모드 + 반복 일정인 경우만 분기
-    if (mode === 'edit' && eventData?.repeat != null) {
-      Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '이 일정만',
-          onPress: () => {
-            void saveRepeatOnlyThis()
-          },
-        },
-        {
-          text: '이후 일정 모두',
-          onPress: () => {
-            void saveRepeatApplyAll()
-          },
-        },
-      ])
       return
     }
 
