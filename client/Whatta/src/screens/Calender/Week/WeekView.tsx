@@ -2142,7 +2142,8 @@ const openTaskPopupFromApi = async (taskId: string) => {
                                           )
                                       }
 
-                                      return copy
+                                      copy[dateISO] = { ...bucket }
+                                      return { ...copy }
                                     })
                                   }
                                 }}
