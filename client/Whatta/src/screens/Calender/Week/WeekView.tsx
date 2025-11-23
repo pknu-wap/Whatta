@@ -1832,7 +1832,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
                       paddingBottom: 4,
                     }}
                   >
-                    {spanBars.map((s) => {
+                    {spanBars.map((s, i) => {
                       const left =
                         TIME_COL_W + s.startIdx * dayColWidth
 
@@ -1845,7 +1845,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
                       if (isTask) {
                         return (
                           <Pressable
-                            key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}`}
+                            key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
                             onPress={() =>
                               toggleSpanTaskCheck(
                                 String(s.id),
@@ -1922,7 +1922,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
 
                       return (
                         <View
-                          key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}`}
+                          key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
                           style={baseStyle}
                         >
                           {weekDates.includes(s.startISO) &&
