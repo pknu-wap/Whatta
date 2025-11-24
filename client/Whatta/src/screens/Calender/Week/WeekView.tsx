@@ -2336,9 +2336,9 @@ const animatedStyle = useAnimatedStyle(() => ({
                             <View style={[S.liveDot, { top: nowTop - 3 }]} />
                           </>
                         )}
-                        {layoutEvents.map((ev) => (
+                        {layoutEvents.map((ev,i) => (
                           <DraggableFlexalbeEvent
-                            key={`${d}-${ev.id}-${ev.startMin}-${ev.endMin}`}
+                            key={`ev-${ev.id}-${i}`}
                             id={ev.id}
                             title={ev.title}
                             place={ev.place}
