@@ -968,76 +968,81 @@ export default function MonthView() {
   }
 
   const handleDatePress = (dateItem: CalendarDateItem) => {
-    if (!dateItem.isCurrentMonth) return
+    if (!dateItem.isCurrentMonth) return;
 
-    const d = dateItem.fullDate
+    const d = dateItem.fullDate;
     setFocusedDateISO(
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
         d.getDate(),
       ).padStart(2, '0')}`,
-    )
+    );
 
     const isOneDayNoTime = (s: ExtendedScheduleDataWithColor) =>
-      !s.isTask && !s.multiDayStart && !s.multiDayEnd
+      !s.isTask && !s.multiDayStart && !s.multiDayEnd;
 
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
       dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+
       spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => (s.multiDayStart && s.multiDayEnd) || isOneDayNoTime(s))
+        .filter((s) => {
+          const isMulti = s.multiDayStart && s.multiDayEnd;
+          const isSingleNoTime = isOneDayNoTime(s);
+          return isMulti || isSingleNoTime;
+        })
         .map((s) => {
+          const start = s.multiDayStart ?? s.date;
+          const end = s.multiDayEnd ?? s.date;
           const baseColor = s.colorKey
             ? s.colorKey.startsWith('#')
               ? s.colorKey
               : `#${s.colorKey}`
-            : '#8B5CF6'
-          const start = s.multiDayStart ?? s.date
-          const end = s.multiDayEnd ?? s.date
+            : '#8B5CF6';
           return {
             title: s.name,
             period: `${start}~${end}`,
             colorKey: s.colorKey,
             color: baseColor,
-          }
+          };
         }),
+
       normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter(
-          (s) =>
-            !s.isTask &&
-            !s.multiDayStart &&
-            !s.multiDayEnd &&
-            !isOneDayNoTime(s),
-        )
+        .filter((s) => {
+          const isSingleNoTime = isOneDayNoTime(s);
+          return !s.isTask && !s.multiDayStart && !s.multiDayEnd && !isSingleNoTime;
+        })
         .map((s) => {
           const baseColor = s.colorKey
             ? s.colorKey.startsWith('#')
               ? s.colorKey
               : `#${s.colorKey}`
-            : '#F4EAFF'
+            : '#F4EAFF';
           return {
             title: s.name,
             memo: s.memo ?? '',
             color: baseColor,
-          }
+          };
         }),
+
       timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
         const baseColor = t.colorKey
           ? t.colorKey.startsWith('#')
             ? t.colorKey
             : `#${t.colorKey}`
-          : '#FFD966'
+          : '#FFD966';
         return {
           title: t.name,
           place: t.place ?? '',
           time: t.time ?? '',
           color: baseColor,
           borderColor: baseColor,
-        }
+        };
       }),
-    })
+    });
 
-    setPopupVisible(true)
-  }
+    setPopupVisible(true);
+};
+
 
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
 
