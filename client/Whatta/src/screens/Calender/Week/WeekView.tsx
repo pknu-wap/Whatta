@@ -260,7 +260,9 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
 
     const overlappingGroup = sorted.filter(
       (other) =>
-        other.id !== ev.id && other.startMin < ev.endMin && other.endMin > ev.startMin,
+        other.id !== ev.id &&
+        other.startMin < ev.endMin &&
+        other.endMin > ev.startMin,
     )
 
     const hasOverlap = overlappingGroup.length > 0
@@ -271,7 +273,9 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
     let isPartialOverlap = false
 
     if (hasOverlap) {
-      const group = [...overlappingGroup, ev].sort((a, b) => a.startMin - b.startMin,)
+      const group = [...overlappingGroup, ev].sort(
+        (a, b) => a.startMin - b.startMin,
+      )
       group.forEach((e, idx) => {
         const depth = idx
         layout.push({
@@ -313,7 +317,10 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
     const bucket = data[dateISO]
     if (!bucket) return
 
-    const list = [...(bucket.spanEvents || []), ...(bucket.checks || [])]
+    const list = [
+      ...(bucket.spanEvents || []),
+      ...(bucket.checks || []),
+    ]
 
     list.forEach((e: any) => {
       const id = String(e.id)
@@ -413,9 +420,12 @@ function getTaskTime(t: any): string {
 function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) {
   if (!task) return overrides
 
-  const labels = Array.isArray(task.labels)
-    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
-    : undefined
+  const labels =
+    Array.isArray(task.labels)
+      ? task.labels.map((l: any) =>
+          typeof l === 'number' ? l : l.id ?? l.labelId ?? l,
+        )
+      : undefined
 
   const base: any = {
     title: task.title,
