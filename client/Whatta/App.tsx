@@ -10,7 +10,7 @@ import { LabelProvider } from '@/providers/LabelProvider'
 import { LabelFilterProvider } from '@/providers/LabelFilterProvider'
 import messaging from '@react-native-firebase/messaging'
 import CustomSplash from '@/screens/CustomSplash'
-import { SafeAreaProvider,useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 // 포그라운드 메시지 핸들러
 // messaging().onMessage(async (remoteMessage) => {
@@ -35,13 +35,13 @@ function ForegroundBanner({
     Animated.sequence([
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 250,
+        duration: 350,
         useNativeDriver: true,
       }),
-      Animated.delay(2000),
+      Animated.delay(3000),
       Animated.timing(translateY, {
         toValue: -100,
-        duration: 250,
+        duration: 350,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -67,8 +67,25 @@ function ForegroundBanner({
   )
 }
 
-export default function App() {
+function ForegroundBannerHost({
+  message,
+  onHide,
+}: {
+  message: { title: string; body: string } | null
+  onHide: () => void
+}) {
   const insets = useSafeAreaInsets()
+  return (
+    <ForegroundBanner
+      message={message}
+      onHide={onHide}
+      topInset={insets.top}
+    />
+  )
+}
+
+export default function App() {
+  
   const [ready, setReady] = useState(false)
   const [splashDone, setSplashDone] = useState(false)
 
@@ -116,9 +133,6 @@ export default function App() {
 
   if (!ready || !splashDone) {
     return (
-      // <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      //   <ActivityIndicator size="large" />
-      // </View>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <CustomSplash onFinish={() => setSplashDone(true)} />
       </GestureHandlerRootView>
@@ -126,21 +140,26 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-    <ForegroundBanner 
-      message={fgMsg} onHide={() => setFgMsg(null)}
-      topInset={insets.top}
-      />
-      <LabelProvider>
-        <LabelFilterProvider>
-          <DrawerProvider>
-            <NavigationContainer>
-              <RootStack />
-            </NavigationContainer>
-          </DrawerProvider>
-        </LabelFilterProvider>
-      </LabelProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider> 
+      {/* ✅ [수정] SafeAreaProvider로 전체 감싸기 */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {/* ✅ [수정] ForegroundBanner 직접 호출 대신 Host 사용 */}
+        <ForegroundBannerHost 
+          message={fgMsg}
+          onHide={() => setFgMsg(null)}
+        />
+
+        <LabelProvider>
+          <LabelFilterProvider>
+            <DrawerProvider>
+              <NavigationContainer>
+                <RootStack />
+              </NavigationContainer>
+            </DrawerProvider>
+          </LabelFilterProvider>
+        </LabelProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   )
 }
 
@@ -151,37 +170,32 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
 
-    // 카드처럼 보이도록 여백/라운드/배경
-    //marginTop: (StatusBar.currentHeight ?? 0) + 8, // status bar 아래 살짝 띄움
-    marginHorizontal: 12,                          // 좌우 여백
-    paddingHorizontal: 14,                         // 패딩 조금 줄여서 깔끔
+    marginHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,                          
-    backgroundColor: '#FFFFFF',                    // 하얀 배경
-    borderRadius: 16,                              // 동글동글
-    borderWidth: 1,                                // 살짝 테두리
-    borderColor: 'rgba(0,0,0,0.06)',               // 아주 연한 테두리
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
 
-    // iOS 그림자
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
 
-    // Android 그림자
     elevation: 6,
-
     zIndex: 9999,
   },
 
   title: {
-    color: '#111111',      // 검정 계열
+    color: '#111111',
     fontSize: 15,
     fontWeight: '700',
   },
 
   body: {
-    color: '#444444',      // 본문은 살짝 연하게
+    color: '#444444',
     fontSize: 13,
-    marginTop: 3,          // 간격 조금
+    marginTop: 3,
   },
 })
