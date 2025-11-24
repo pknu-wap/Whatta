@@ -196,13 +196,13 @@ export default function CalendarNotifScreen() {
           <View style={S.rowHeader}>
             <Pressable
               style={S.rowTitleArea}
-              onPress={() => setPickerOpen((prev) => !prev)} // ✅ 제목 눌러도 접기/펼치기
+              onPress={() => setPickerOpen((prev) => !prev)} // 제목 눌러도 접기/펼치기
             >
               <Text style={S.rowTitleText}>{formatLabel(setting)}</Text>
             </Pressable>
 
             <Pressable onPress={() => setPickerOpen((prev) => !prev)}>
-              <Text style={S.rowRightText}>편집</Text>
+              <Text style={S.rowRightText}>{pickerOpen ? '완료' : '편집'}</Text>
             </Pressable>
           </View>
 
