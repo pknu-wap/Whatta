@@ -120,6 +120,10 @@ export default function Header() {
   const maxSlide = 38
   const [mode, setMode] = useState<ViewMode>('month')
 
+  const [days, setDays] = useState<number>(7)
+  const [rangeStart, setRangeStart] = useState<string | null>(null)
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
+
   /* ✅ 현재 활성 탭 감지 */
   const currentRouteName = useNavigationState((state) => {
     const route = state.routes[state.index]
@@ -166,10 +170,15 @@ export default function Header() {
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: { date: string; mode: ViewMode }) => {
+    const onState = (st: { date: string; mode: ViewMode; days?: number; rangeStart?: string; rangeEnd?: string}) => {
       setAnchorDate(st.date)
       setMode(st.mode)
+
+      if (st.days) setDays(st.days)
+      if (st.rangeStart) setRangeStart(st.rangeStart)
+      if (st.rangeEnd) setRangeEnd(st.rangeEnd)
     }
+    
     bus.on('calendar:state', onState)
     bus.emit('calendar:request-sync', null)
     return () => bus.off('calendar:state', onState)
@@ -180,7 +189,7 @@ export default function Header() {
       mode === 'month'
         ? addMonths(anchorDate, -1)
         : mode === 'week'
-          ? addDays(anchorDate, -7)
+          ? addDays(anchorDate, -days)
           : addDays(anchorDate, -1)
     bus.emit('calendar:set-date', iso)
   }
@@ -189,7 +198,7 @@ export default function Header() {
       mode === 'month'
         ? addMonths(anchorDate, +1)
         : mode === 'week'
-          ? addDays(anchorDate, +7)
+          ? addDays(anchorDate, +days)
           : addDays(anchorDate, +1)
     bus.emit('calendar:set-date', iso)
   }
