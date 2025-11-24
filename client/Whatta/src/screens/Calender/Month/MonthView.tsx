@@ -977,26 +977,37 @@ export default function MonthView() {
       ).padStart(2, '0')}`,
     )
 
+    const isOneDayNoTime = (s: ExtendedScheduleDataWithColor) =>
+      !s.isTask && !s.multiDayStart && !s.multiDayEnd
+
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
       dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
       spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => s.multiDayStart && s.multiDayEnd)
+        .filter((s) => (s.multiDayStart && s.multiDayEnd) || isOneDayNoTime(s))
         .map((s) => {
           const baseColor = s.colorKey
             ? s.colorKey.startsWith('#')
               ? s.colorKey
               : `#${s.colorKey}`
             : '#8B5CF6'
+          const start = s.multiDayStart ?? s.date
+          const end = s.multiDayEnd ?? s.date
           return {
             title: s.name,
-            period: `${s.multiDayStart}~${s.multiDayEnd}`,
+            period: `${start}~${end}`,
             colorKey: s.colorKey,
             color: baseColor,
           }
         }),
       normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+        .filter(
+          (s) =>
+            !s.isTask &&
+            !s.multiDayStart &&
+            !s.multiDayEnd &&
+            !isOneDayNoTime(s),
+        )
         .map((s) => {
           const baseColor = s.colorKey
             ? s.colorKey.startsWith('#')
