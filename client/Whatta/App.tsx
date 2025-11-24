@@ -35,13 +35,13 @@ function ForegroundBanner({
     Animated.sequence([
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 350,
+        duration: 250,
         useNativeDriver: true,
       }),
       Animated.delay(3000),
       Animated.timing(translateY, {
         toValue: -100,
-        duration: 350,
+        duration: 250,
         useNativeDriver: true,
       }),
     ]).start(() => {
