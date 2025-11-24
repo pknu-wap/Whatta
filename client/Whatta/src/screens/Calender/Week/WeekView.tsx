@@ -2258,7 +2258,7 @@ const animatedStyle = useAnimatedStyle(() => ({
 
                         {layoutEvents.map((ev) => (
                           <DraggableFlexalbeEvent
-                            key={`${d}-${ev.id}`}
+                            key={`${d}-${ev.id}-${ev.startMin}-${ev.endMin}`}
                             id={ev.id}
                             title={ev.title}
                             place={ev.place}
