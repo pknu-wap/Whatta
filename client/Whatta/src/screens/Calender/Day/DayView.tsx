@@ -38,10 +38,15 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
+import type { OCREvent } from '@/screens/More/OcrEventCardSlider'
+import EventPopupSlider from '@/screens/More/EventPopupSlider'
+import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
   timeout: 8000,
+  withCredentials: false,
+  
 })
 
 // 요청 인터셉터
@@ -122,31 +127,92 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 let draggingEventId: string | null = null
 
 export default function DayView() {
+  
+
+  // OCR 카드
+const [ocrModalVisible, setOcrModalVisible] = useState(false)
+const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+
   // 📌 이미지 추가 모달 열기
 const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
 const sendToOCR = async (base64: string, ext?: string) => {
-  try {
-    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+  const MOCK_MODE = false
 
-    const lower = ext?.toLowerCase()
-    const format = lower === 'png' ? 'png' : 'jpg'
-
-    const res = await http.post('/ocr', {
-      imageType: 'COLLEGE_TIMETABLE',
-      image: {
-        format,
-        name: `timetable.${format}`,
-        data: cleanBase64,
+  if (MOCK_MODE) {
+    const mock = [
+      {
+        id: "temp1",
+        title: "기초 프로그래밍",
+        date: anchorDateRef.current,
+        startTime: "09:00",
+        endTime: "10:15",
       },
-    })
+      {
+        id: "temp2",
+        title: "캠퍼스 영어",
+        date: anchorDateRef.current,
+        startTime: "11:00",
+        endTime: "12:15",
+      },
+      {
+        id: "temp3",
+        title: "창의 설계",
+        date: anchorDateRef.current,
+        startTime: "14:00",
+        endTime: "15:30",
+      },
+    ];
+
+    setOcrEvents(mock);
+    setOcrModalVisible(true);
+    return;
+  }
+
+  try {
+    const cleanBase64 = base64.includes(',')
+  ? base64.split(',')[1]
+  : base64
+    const lower = (ext ?? 'jpg').toLowerCase()
+const format =
+  lower === 'png' ? 'png' :
+  lower === 'jpeg' ? 'jpeg' :
+  'jpg'
+
+    const res = await http.post(
+  '/ocr',
+  {
+    imageType: 'COLLEGE_TIMETABLE',
+    image: {
+      format,
+      name: `timetable.${format}`,
+      data: cleanBase64,
+    },
+  },
+  { timeout: 20000 }   // ⬅ 20초
+  
+)
 
     console.log('OCR 성공:', res.data)
-    Alert.alert('OCR 결과', JSON.stringify(res.data))
+
+    const parsed = res.data?.data?.events?.map((ev: any, idx: number) => ({
+      id: ev.id ?? String(idx),
+      title: ev.title ?? '제목 없음',
+      date: ev.date ?? anchorDateRef.current,
+      startTime: ev.startTime ?? null,
+      endTime: ev.endTime ?? null,
+    }))
+
+    setOcrEvents(parsed)
+    setOcrModalVisible(true)
+
   } catch (err: any) {
-    console.log('OCR 실패:', err.response?.data ?? err)
-    Alert.alert('오류', 'OCR 처리 실패')
-  }
+  console.log('🔍 OCR 실패 Raw Error:', err)              // ★ 중요
+  console.log('🔍 OCR 실패 response:', err.response)      // ★ 중요
+  console.log('🔍 OCR 실패 data:', err.response?.data)    // ★ 중요
+  console.log('🔑 token.getAccess():', token.getAccess())
+  Alert.alert('오류', 'OCR 처리 실패')
+}
 }
 
 useEffect(() => {
@@ -1033,6 +1099,7 @@ useEffect(() => {
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
+          initial={eventPopupData ?? undefined}
           mode={eventPopupMode}
           onClose={() => {
             setEventPopupVisible(false)
@@ -1045,6 +1112,16 @@ useEffect(() => {
   onClose={() => setImagePopupVisible(false)}
   onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
   onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+/>
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+  onAddEvent={(ev) => {
+    console.log('추가 클릭됨:', ev)
+    // 여기서 실제 일정 생성 API 호출해도 되고,
+    // EventDetailPopup 띄워서 수정 후 저장도 가능해!
+  }}
 />
       </ScreenWithSidebar>
     </GestureHandlerRootView>

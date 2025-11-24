@@ -59,11 +59,13 @@ export default function EventDetailPopup({
   eventId,
   mode = 'create',
   onClose,
+  initial,
 }: {
   visible: boolean
   eventId: string | null
   mode?: 'edit' | 'create'
   onClose: () => void
+  initial?: Partial<EventItem>
 }) {
   const [openCalendar, setOpenCalendar] = useState(false)
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
@@ -382,7 +384,9 @@ export default function EventDetailPopup({
   const btnText: string | undefined = hasLabels ? undefined : '없음'
 
   const [labels, setLabels] = useState<Label[]>([])
-  const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>('schedule')
+  const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
+  initial ? 'repeat' : 'schedule'
+)
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
@@ -591,6 +595,8 @@ export default function EventDetailPopup({
 
   // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
   useEffect(() => {
+    if (initial) return
+    
     const applyAnchor = (iso: string) => {
       const [y, m, d] = iso.split('-').map(Number)
       const anchor = new Date(y, m - 1, d)
@@ -748,7 +754,7 @@ export default function EventDetailPopup({
   }, [start, end])
 
   useEffect(() => {
-    if (visible && mode === 'create') {
+    if (visible && mode === 'create' && !initial) {
       setScheduleTitle('')
       setMemo('')
       setSelectedLabelIds([])
@@ -773,6 +779,43 @@ export default function EventDetailPopup({
       return defaultLabel ? [defaultLabel.id] : prev
     })
   }, [visible, mode, labels])
+
+  // 🔥 초기값 적용 (OCR로 들어온 경우)
+useEffect(() => {
+  if (!visible || !initial) return
+  if (!initial) return
+
+  if (initial.title) setScheduleTitle(initial.title)
+
+  if (initial.startDate) {
+    const [y, m, d] = initial.startDate.split('-').map(Number)
+    const dd = new Date(y, m - 1, d)
+    setStart(dd)
+    setEnd(dd)
+  }
+
+  if (initial.startTime && initial.endTime) {
+    setTimeOn(true)
+
+    const [sh, sm] = initial.startTime.split(':').map(Number)
+    const [eh, em] = initial.endTime.split(':').map(Number)
+
+    const s = new Date(start)
+    s.setHours(sh)
+    s.setMinutes(sm)
+    setStart(s)
+
+    const e = new Date(end)
+    e.setHours(eh)
+    e.setMinutes(em)
+    setEnd(e)
+  } else {
+    setTimeOn(false)
+  }
+
+  setRepeatMode('weekly')
+  
+}, [visible, initial])
 
   const deleteNormal = async () => {
     try {
