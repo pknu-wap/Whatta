@@ -1,14 +1,16 @@
 import React from 'react'
-import { Modal, View, FlatList, Dimensions, StyleSheet } from 'react-native'
+import { Modal, View, FlatList, Dimensions, StyleSheet, Pressable, Text } from 'react-native'
 import OCREventCard from './OcrEventCard'
+import colors from '@/styles/colors'
 
 export interface OCREvent {
   id: string
   title: string
+  content?: string
+  weekDay?: string
   date: string
   startTime?: string
   endTime?: string
-  week?: string
 }
 
 interface Props {
@@ -16,6 +18,7 @@ interface Props {
   events: OCREvent[]
   onClose: () => void
   onAddEvent: (ev: OCREvent) => void
+  onSaveAll?: () => void     // 🔥 옵션으로 전체 저장 기능
 }
 
 export default function OCREventCardSlider({
@@ -23,39 +26,60 @@ export default function OCREventCardSlider({
   events,
   onClose,
   onAddEvent,
+  onSaveAll,
 }: Props) {
   const { width } = Dimensions.get('window')
   const ITEM_WIDTH = width * 0.88
-  const SPACING = 16
+  const SPACING = 6
+  const SIDE_PADDING = (width - ITEM_WIDTH) / 1.55
 
   return (
     <Modal transparent visible={visible} animationType="fade">
-      <View style={styles.overlay} onTouchEnd={onClose} />
+      <View style={styles.overlay}>
 
-      <View style={styles.sliderWrap}>
-        <FlatList
-          data={events}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          decelerationRate="fast"
-          snapToInterval={ITEM_WIDTH + SPACING} // 카드 하나씩 스냅
-          contentContainerStyle={{
-            paddingHorizontal: (width - ITEM_WIDTH) / 2,
-          }}
-          renderItem={({ item }) => (
-            <View style={{ width: ITEM_WIDTH, marginRight: SPACING }}>
-              <OCREventCard
-                title={item.title}
-                date={item.date}
-                week={item.week}
-                startTime={item.startTime}
-                endTime={item.endTime}
-                onAdd={() => onAddEvent(item)}
-              />
-            </View>
-          )}
-        />
+        <View style={styles.centerWrap}>
+          {/* 🔵 카드 슬라이더 */}
+   <FlatList
+  data={events}
+  keyExtractor={(item) => item.id}
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  decelerationRate="fast"
+  snapToInterval={ITEM_WIDTH + SPACING}
+  ListHeaderComponent={<View style={{ width: SIDE_PADDING }} />}
+  ListFooterComponent={<View style={{ width: SIDE_PADDING }} />}
+  renderItem={({ item, index }) => {
+  const isLast = index === events.length - 1
+  return (
+    <View
+      style={{
+        width: ITEM_WIDTH,
+        marginRight: isLast ? 0 : SPACING,  // 🔥 마지막 카드만 margin 제거
+      }}
+    >
+      <OCREventCard
+        title={item.title}
+        date={item.date}
+        week={item.weekDay}
+        startTime={item.startTime}
+        endTime={item.endTime}
+        onSubmit={(data) => onAddEvent({ ...item, ...data })}
+        onClose={onClose}
+      />
+    </View>
+  )
+}}
+/>
+
+          {/* 🔥 하단 고정 버튼 */}
+          <Pressable
+            style={styles.saveAllBtn}
+            onPress={onSaveAll ?? onClose}
+          >
+            <Text style={styles.saveAllText}>모두 저장</Text>
+          </Pressable>
+        </View>
+
       </View>
     </Modal>
   )
@@ -63,16 +87,34 @@ export default function OCREventCardSlider({
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    flex: 1,
+    backgroundColor: '#000000B2',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  sliderWrap: {
-    position: 'absolute',
-    bottom: 40,
+
+  centerWrap: {
     width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+  },
+
+  saveAllBtn: {
+    marginTop: 20,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: 64,
+    width: 100,
+    height: 44,
+    alignItems: 'center',
+  },
+
+  saveAllText: {
+    color: colors.primary.main,
+    fontSize: 12,
+    fontWeight: '700',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2
   },
 })

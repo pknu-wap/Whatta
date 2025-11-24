@@ -40,6 +40,7 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
+import OCREventCardSlider, { OCREvent } from '@/screens/More/OcrEventCardSlider'
 
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
@@ -87,6 +88,41 @@ http.interceptors.response.use(
 /* -------------------------------------------------------------------------- */
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
+const today = () => {
+  const t = new Date()
+  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
+}
+
+function getDateOfWeek(weekDay: string): string {
+  if (!weekDay) return today()
+
+  const key = weekDay.trim().toUpperCase()   // ⭐ 중요
+
+  const map: any = {
+    MON: 1,
+    TUE: 2,
+    WED: 3,
+    THU: 4,
+    FRI: 5,
+    SAT: 6,
+    SUN: 0,
+  }
+
+  const target = map[key]
+  if (target === undefined) {
+    console.log("❌ Unknown weekDay:", weekDay)
+    return today()
+  }
+
+  const now = new Date()
+  const todayIdx = now.getDay()
+
+  const diff = target - todayIdx
+  const d = new Date()
+  d.setDate(now.getDate() + diff)
+
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
 
 const todayISO = () => {
   const t = new Date()
@@ -1084,31 +1120,54 @@ function DraggableFlexalbeEvent({
 
 export default function WeekView() {
 
+  // OCR 카드 팝업
+const [ocrModalVisible, setOcrModalVisible] = useState(false)
+const [ocrEvents, setOcrEvents] = useState<any[]>([])
+
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
   
-  const sendToOCR = async (base64: string, ext?: string) => {
-    try {
-      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
-  
-      const lower = ext?.toLowerCase()
-      const format = lower === 'png' ? 'png' : 'jpg'
-  
-      const res = await http.post('/ocr', {
-        imageType: 'COLLEGE_TIMETABLE',
-        image: {
-          format,
-          name: `timetable.${format}`,
-          data: cleanBase64,
-        },
-      })
-  
-      console.log('OCR 성공:', res.data)
-      Alert.alert('OCR 결과', JSON.stringify(res.data))
-    } catch (err: any) {
-      console.log('OCR 실패:', err.response?.data ?? err)
-      Alert.alert('오류', 'OCR 처리 실패')
+const sendToOCR = async (base64: string, ext?: string) => {
+  try {
+    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+
+    const lower = ext?.toLowerCase()
+    const format = lower === 'png' ? 'png' : 'jpg'
+
+    const res = await http.post('/ocr', {
+      imageType: 'COLLEGE_TIMETABLE',
+      image: {
+        format,
+        name: `timetable.${format}`,
+        data: cleanBase64,
+      },
+    })
+
+    console.log("OCR 성공:", res.data)
+
+    const rows = res.data?.data?.events ?? []
+    if (!rows.length) {
+      Alert.alert("결과 없음", "인식된 일정이 없습니다.")
+      return
     }
+
+    const mapped = rows.map((r: any, idx: number) => ({
+      id: String(idx),
+      title: r.title ?? '',
+      content: r.content ?? '',
+      weekDay: r.weekDay ?? '',
+      date: getDateOfWeek(r.weekDay),
+      startTime: r.startTime ?? '',
+      endTime: r.endTime ?? '',
+    }))
+
+    setOcrEvents(mapped)
+    setOcrModalVisible(true)
+
+  } catch (err: any) {
+    console.log("OCR 실패:", err.response?.data ?? err)
+    Alert.alert("오류", "OCR 처리 실패")
   }
+}
 
   useEffect(() => {
   const handler = (payload?: { source?: string }) => {
@@ -1983,6 +2042,13 @@ export default function WeekView() {
   onClose={() => setImagePopupVisible(false)}
   onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
   onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+/>
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+  onAddEvent={(ev) => {
+  }}
 />
       </ScreenWithSidebar>
     </GestureHandlerRootView>

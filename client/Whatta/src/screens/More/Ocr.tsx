@@ -12,6 +12,7 @@ import CameraIcon from '@/assets/icons/camera.svg'
 import PicIcon from '@/assets/icons/pic.svg'
 
 import * as ImagePicker from 'expo-image-picker'
+import { Alert, Linking } from 'react-native'
 
 interface Props {
   visible: boolean
@@ -27,12 +28,28 @@ export default function AddImageSheet({
   onTakePhoto,
   onPickImage,
 }: Props) {
-
-  // 📸 촬영하기
-  const handleTakePhoto = async () => {
+  
+  /** 📌 공통: 권한 없으면 설정으로 이동시키는 Alert */
+function showPermissionAlert(message: string) {
+  Alert.alert(
+    '권한이 꺼져 있어요',
+    message,
+    [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '설정 열기',
+        onPress: () => Linking.openSettings(),
+      },
+    ],
+    { cancelable: true }
+  )
+}
+/** 📸 카메라 */
+const handleTakePhoto = async () => {
   const { status } = await ImagePicker.requestCameraPermissionsAsync()
+
   if (status !== 'granted') {
-    alert('카메라 권한이 필요합니다!')
+    showPermissionAlert('설정 > Whatta > 카메라에서 권한을 허용해야 촬영할 수 있어요.')
     return
   }
 
@@ -44,23 +61,22 @@ export default function AddImageSheet({
 
   if (!result.canceled) {
     const asset = result.assets[0]
-
-    // ★ 확장자 안전 추출
-    let ext = asset.uri.split('.').pop()?.split('?')[0].toLowerCase()
+    let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
     if (ext === 'heic') ext = 'jpg'
 
-    // ★ base64 prefix 제거
     const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
-
     onTakePhoto?.(asset.uri, cleanBase64!, ext)
   }
 }
 
-  // 🖼 갤러리에서 선택
-  const handlePickImage = async () => {
+/** 🖼 갤러리 */
+const handlePickImage = async () => {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+
   if (status !== 'granted') {
-    alert('사진 접근 권한이 필요합니다!')
+    showPermissionAlert(
+      '설정 > Whatta > 사진에서 권한을 허용해야 갤러리에서 이미지를 불러올 수 있어요.'
+    )
     return
   }
 
@@ -72,12 +88,10 @@ export default function AddImageSheet({
 
   if (!result.canceled) {
     const asset = result.assets[0]
-
-    let ext = asset.uri.split('.').pop()?.split('?')[0].toLowerCase()
+    let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
     if (ext === 'heic') ext = 'jpg'
 
     const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
-
     onPickImage?.(asset.uri, cleanBase64!, ext)
   }
 }

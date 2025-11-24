@@ -116,6 +116,37 @@ function FullBleed({
   )
 }
 
+function getDateOfWeek(weekDay: string): string {
+  if (!weekDay) return today()
+
+  const key = weekDay.trim().toUpperCase()   // ⭐ 중요
+
+  const map: any = {
+    MON: 1,
+    TUE: 2,
+    WED: 3,
+    THU: 4,
+    FRI: 5,
+    SAT: 6,
+    SUN: 0,
+  }
+
+  const target = map[key]
+  if (target === undefined) {
+    console.log("❌ Unknown weekDay:", weekDay)
+    return today()
+  }
+
+  const now = new Date()
+  const todayIdx = now.getDay()
+
+  const diff = target - todayIdx
+  const d = new Date()
+  d.setDate(now.getDate() + diff)
+
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
 const INITIAL_CHECKS: any[] = []
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -136,38 +167,7 @@ const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
   // 📌 이미지 추가 모달 열기
 const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
-const sendToOCR = async (base64: string, ext?: string) => {
-  const MOCK_MODE = false
-
-  if (MOCK_MODE) {
-    const mock = [
-      {
-        id: "temp1",
-        title: "기초 프로그래밍",
-        date: anchorDateRef.current,
-        startTime: "09:00",
-        endTime: "10:15",
-      },
-      {
-        id: "temp2",
-        title: "캠퍼스 영어",
-        date: anchorDateRef.current,
-        startTime: "11:00",
-        endTime: "12:15",
-      },
-      {
-        id: "temp3",
-        title: "창의 설계",
-        date: anchorDateRef.current,
-        startTime: "14:00",
-        endTime: "15:30",
-      },
-    ];
-
-    setOcrEvents(mock);
-    setOcrModalVisible(true);
-    return;
-  }
+const sendToOCR = async (base64: string, ext?: string) => { 
 
   try {
     const cleanBase64 = base64.includes(',')
@@ -195,21 +195,33 @@ const format =
 
     console.log('OCR 성공:', res.data)
 
-    const parsed = res.data?.data?.events?.map((ev: any, idx: number) => ({
-      id: ev.id ?? String(idx),
-      title: ev.title ?? '제목 없음',
-      date: ev.date ?? anchorDateRef.current,
-      startTime: ev.startTime ?? null,
-      endTime: ev.endTime ?? null,
-    }))
+const events = res.data?.data?.events ?? []
+
+const parsed = events
+  .map((ev: any, idx: number) => {
+    console.log("🔎 OCR raw weekDay:", ev.weekDay)
+    console.log("🔎 Converted date:", getDateOfWeek(ev.weekDay))
+
+    return {
+      id: String(idx),
+      title: ev.title ?? '',
+      content: ev.content ?? '',
+      weekDay: ev.weekDay ?? '',
+      date: getDateOfWeek(ev.weekDay),
+      startTime: ev.startTime ?? '',
+      endTime: ev.endTime ?? '',
+    }
+  })
+  .sort((a: OCREvent, b: OCREvent) => a.date.localeCompare(b.date))
 
     setOcrEvents(parsed)
     setOcrModalVisible(true)
+    
 
   } catch (err: any) {
-  console.log('🔍 OCR 실패 Raw Error:', err)              // ★ 중요
-  console.log('🔍 OCR 실패 response:', err.response)      // ★ 중요
-  console.log('🔍 OCR 실패 data:', err.response?.data)    // ★ 중요
+  console.log('🔍 OCR 실패 Raw Error:', err)            
+  console.log('🔍 OCR 실패 response:', err.response) 
+  console.log('🔍 OCR 실패 data:', err.response?.data)  
   console.log('🔑 token.getAccess():', token.getAccess())
   Alert.alert('오류', 'OCR 처리 실패')
 }
@@ -1118,9 +1130,6 @@ useEffect(() => {
   events={ocrEvents}
   onClose={() => setOcrModalVisible(false)}
   onAddEvent={(ev) => {
-    console.log('추가 클릭됨:', ev)
-    // 여기서 실제 일정 생성 API 호출해도 되고,
-    // EventDetailPopup 띄워서 수정 후 저장도 가능해!
   }}
 />
       </ScreenWithSidebar>
