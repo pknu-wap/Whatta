@@ -823,9 +823,9 @@ function TaskGroupBox({
             <View
               style={[
                 S.groupHeaderArrow,
-                expanded && {
+                !expanded && {
                   transform: [{ rotate: '180deg' }],
-                  marginTop: 10, // 펼쳤을 때만 10px 아래로
+                  marginTop: 0, // 펼쳤을 때만 10px 아래로
                 },
               ]}
             />
@@ -836,7 +836,7 @@ function TaskGroupBox({
                 expanded && { paddingTop: 10 }, // 펼쳤을 때만 10px 아래로
               ]}
             >
-              할일
+              할 일
             </Text>
           </Pressable>
 
@@ -1910,7 +1910,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                       top: 0,
                       left: TIME_COL_W,
                       width: weekDates.length * dayColWidth,
-                      height: 150,
+                      height: 185,
                       flexDirection: 'row',
                     }}
                   >
@@ -2610,6 +2610,7 @@ const S = StyleSheet.create({
   groupHeaderArrow: {
     width: 0,
     height: 0,
+    marginTop: 10,
     marginRight: 6,
     borderLeftWidth: 4,
     borderRightWidth: 4,
