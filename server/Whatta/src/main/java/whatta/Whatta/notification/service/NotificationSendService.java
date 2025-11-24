@@ -38,6 +38,15 @@ public class NotificationSendService {
         ));
     }
 
+    public void sendTrafficAlarm(String userId, String title, String body) {
+        FcmToken token = fcmTokenRepository.findByUserId(userId);
+
+        send(token.getFcmToken(), title, body, Map.of(
+                "type", "TRAFFIC",
+                "userId", userId
+        ));
+    }
+
     private void send(String token, String title, String body, Map<String, String> data) {
         Notification notification = Notification.builder()
                 .setTitle(title)
