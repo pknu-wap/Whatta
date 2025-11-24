@@ -25,7 +25,7 @@ public class TaskResponse {
     private final LocalDate placementDate;
     private final LocalTime placementTime;
     private final LocalDateTime dueDateTime;
-    private final RepeatResponse repeat;
+    //private final RepeatResponse repeat;
     private final Long sortNumber;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;

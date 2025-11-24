@@ -1,6 +1,7 @@
 package whatta.Whatta.calendar.repository.dto;
 
 import lombok.Builder;
+import whatta.Whatta.global.repeat.Repeat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -16,6 +17,6 @@ public record CalendarAllDayEventItem(
         LocalDate startDate,
         LocalDate endDate,
 
-        Boolean isRepeat
+        Repeat repeat
 ) {
 }

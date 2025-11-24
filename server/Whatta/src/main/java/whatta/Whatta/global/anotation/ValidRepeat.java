@@ -2,7 +2,7 @@ package whatta.Whatta.global.anotation;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
-import whatta.Whatta.global.validator.RepeatValidator;
+import whatta.Whatta.global.util.RepeatValidator;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

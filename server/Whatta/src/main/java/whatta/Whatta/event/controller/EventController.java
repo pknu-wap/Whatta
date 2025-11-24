@@ -38,7 +38,7 @@ public class EventController {
         return Response.ok("success get event", eventService.getEventDetails(userId, eventId));
     }
 
-    @PutMapping("/{eventId}")
+    @PatchMapping("/{eventId}")
     @Operation(summary = "일정 수정",
             description = "해당 일정을 수정합니다."
                     + "<br><br> <b>fieldsToClear 사용 안내</b>"
