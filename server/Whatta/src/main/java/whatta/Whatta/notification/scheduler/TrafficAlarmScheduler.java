@@ -2,11 +2,12 @@ package whatta.Whatta.notification.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import whatta.Whatta.notification.service.TrafficAlarmNotificationService;
 import whatta.Whatta.traffic.entity.TrafficAlarm;
 import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
-import whatta.Whatta.traffic.service.TrafficAlarmService;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -20,7 +21,7 @@ import java.util.List;
 public class TrafficAlarmScheduler {
 
     private final TrafficAlarmRepository alarmRepository;
-    private final TrafficAlarmService alarmService;
+    private final TrafficAlarmNotificationService notificationService;
 
     //매분 0초마다 조건 체크
     @Scheduled(cron = "0 * * * * *")
@@ -40,7 +41,8 @@ public class TrafficAlarmScheduler {
         targets.forEach(this::processAlarm);
     }
 
+    @Async
     private void processAlarm(TrafficAlarm alarm) {
-        //alarmService.
+        notificationService.CheckAndNotify(alarm);
     }
 }
