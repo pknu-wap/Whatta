@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Pressable,
   Alert,
-  Switch, // ✅ 스위치 import
+  Switch,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'

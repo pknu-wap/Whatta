@@ -1,4 +1,4 @@
-import messaging from '@react-native-firebase/messaging'
+import messaging, { AuthorizationStatus } from '@react-native-firebase/messaging'
 import { http } from '@/lib/http'
 import { Alert, Linking } from 'react-native'
 import { getInstallationId } from '@/lib/uuid'
@@ -7,8 +7,8 @@ import { getInstallationId } from '@/lib/uuid'
 export async function registerFcmToken(installationId: string) {
   const authStatus = await messaging().requestPermission();
   const enabled =
-    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    authStatus === AuthorizationStatus.AUTHORIZED ||
+    authStatus === AuthorizationStatus.PROVISIONAL;
 
   if (!enabled) {
     console.log('푸시 알림 권한이 허용되지 않았습니다. :', authStatus);
@@ -68,6 +68,16 @@ export async function registerFcmToken(installationId: string) {
   })
 
   return true
+}
+
+export async function hasNotificationPermission(): Promise<boolean> {
+
+  const authStatus = await messaging().requestPermission();
+  const enabled =
+    authStatus === AuthorizationStatus.AUTHORIZED ||
+    authStatus === AuthorizationStatus.PROVISIONAL;
+
+    return enabled
 }
 
 

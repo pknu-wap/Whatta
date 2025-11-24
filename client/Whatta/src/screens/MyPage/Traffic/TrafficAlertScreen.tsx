@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { TrafficAlertStackList } from '@/navigation/TrafficAlertStack'
 import { http } from '@/lib/http'
+import { ensureNotificationPermissionForToggle, hasNotificationPermission } from '@/lib/fcm'
 
 type TransitAlertItem = {
   id: string
@@ -187,6 +188,21 @@ export default function TrafficAlertsScreen() {
             }
           })
 
+          const permitted = await hasNotificationPermission()
+          if(!permitted) {
+            // 서버에서 ON이었던 애들만 추려서 OFF patch
+            const enabledIds = mapped.filter((m) => m.enabled).map((m) => m.id)
+            mapped.forEach((m) => (m.enabled = false))
+
+            if (enabledIds.length > 0) {
+            await Promise.all(
+              enabledIds.map((id) =>
+                http.patch(`/traffic/alarms/${id}`, { isEnabled: false }),
+              ),
+            )
+          }
+        }
+
           setItems(mapped)
         } catch (err: any) {
           console.log('교통 알림 불러오기 실패:', err.response?.data)
@@ -210,7 +226,24 @@ export default function TrafficAlertsScreen() {
     })
   }
 
-  const toggleEnabled = (id: string) => {
+  const toggleEnabled = async (id: string) => {
+
+     const target = items.find((it) => it.id === id)
+    if (!target) return
+
+    const nextEnabled = !target.enabled
+
+    if (nextEnabled) {
+      try {
+        const ok = await ensureNotificationPermissionForToggle()
+        if (ok === false) { 
+          return
+        }
+      } catch (e) { 
+        Alert.alert('알림 권한 필요', '교통 알림을 켜려면 알림 권한이 필요해요.')
+        return
+      }
+    }
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, enabled: !it.enabled } : it)),
     )
