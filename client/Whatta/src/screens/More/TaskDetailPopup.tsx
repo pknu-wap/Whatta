@@ -589,6 +589,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                         }
 
                         setRemindOn(true)
+                        setRemindOpen(true)
                       }}
                       trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
                       thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}

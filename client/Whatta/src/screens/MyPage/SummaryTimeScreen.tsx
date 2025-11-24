@@ -5,14 +5,14 @@ import {
   StyleSheet,
   Pressable,
   Alert,
-  Switch, // ✅ 스위치 import
+  Switch,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
 import colors from '@/styles/colors'
 import { http } from '@/lib/http'
 import { Picker } from '@react-native-picker/picker' 
-import { ensureNotificationPermissionForToggle } from '@/lib/fcm';
+import { ensureNotificationPermissionForToggle, hasNotificationPermission } from '@/lib/fcm';
 
 
 type NotifyDay = 'TODAY' | 'TOMORROW' | string
@@ -62,6 +62,9 @@ export default function CalendarNotifScreen() {
       try {
         const res = await http.get('/user/setting/summary')
         const data = res.data?.data
+
+        const permitted = await hasNotificationPermission()
+
         if (!data) {
          setSetting({
             enabled: false,
@@ -77,12 +80,36 @@ export default function CalendarNotifScreen() {
           }
           const [hh, mm] = time.split(':')
 
-          setSetting({
-            enabled,
-            notifyDay: notifyDay ?? 'TODAY',
-            hour: Number(hh ?? 9),
-            minute: Number(mm ?? 0),
-          })
+          // ✅ 권한이 없는데 서버값이 enabled=true면 → 화면 OFF + 서버 OFF patch
+          if (!permitted && enabled) {
+            const next: SummarySetting = {
+              enabled: false,
+              notifyDay: notifyDay ?? 'TODAY',
+              hour: Number(hh ?? 9),
+              minute: Number(mm ?? 0),
+            }
+
+            setSetting(next)
+
+            // 서버에도 enabled=false 반영
+            await http.patch('/user/setting/summary', {
+              enabled: false,
+              notifyDay: next.notifyDay,
+              time: `${String(next.hour).padStart(2, '0')}:${String(next.minute).padStart(
+                2,
+                '0',
+              )}:00`,
+            })
+
+          } else {
+            // ✅ 권한 문제 없으면 서버값 그대로 반영
+            setSetting({
+              enabled,
+              notifyDay: notifyDay ?? 'TODAY',
+              hour: Number(hh ?? 9),
+              minute: Number(mm ?? 0),
+            })
+          }
         }
       } catch (e) {
         console.warn('summary get error', e)
@@ -196,13 +223,13 @@ export default function CalendarNotifScreen() {
           <View style={S.rowHeader}>
             <Pressable
               style={S.rowTitleArea}
-              onPress={() => setPickerOpen((prev) => !prev)} // ✅ 제목 눌러도 접기/펼치기
+              onPress={() => setPickerOpen((prev) => !prev)} // 제목 눌러도 접기/펼치기
             >
               <Text style={S.rowTitleText}>{formatLabel(setting)}</Text>
             </Pressable>
 
             <Pressable onPress={() => setPickerOpen((prev) => !prev)}>
-              <Text style={S.rowRightText}>편집</Text>
+              <Text style={S.rowRightText}>{pickerOpen ? '완료' : '편집'}</Text>
             </Pressable>
           </View>
 
