@@ -225,8 +225,8 @@ export default function EventDetailPopup({
       labels: selectedLabelIds.length ? selectedLabelIds : [],
       startDate: ymdLocal(start),
       endDate: ymdLocal(end),
-      startTime: timeOn ? hms(start) : undefined,
-      endTime: timeOn ? hms(end) : undefined,
+      startTime: timeOn ? hms(start) : null,
+      endTime: timeOn ? hms(end) : null,
       colorKey: hex,
     }
 
@@ -422,15 +422,27 @@ export default function EventDetailPopup({
     try {
       const { payload, colorHex } = buildBasePayload()
 
+      // 시간 없을 때 서버에 시간 제거 요청해야 함
+      const fieldsToClear: string[] = []
+      if (!timeOn) {
+        fieldsToClear.push('startTime', 'endTime')
+        payload.startTime = null
+        payload.endTime = null
+      }
+
       let saved: any
 
       if (mode === 'edit' && eventId) {
-        // 수정(PATCH)
-        const res = await http.patch(`/event/${eventId}`, payload)
+        const res = await http.patch(`/event/${eventId}`, {
+          ...payload,
+          fieldsToClear,
+        })
         saved = res?.data
       } else {
-        // 생성(POST)
-        const res = await http.post('/event', payload)
+        const res = await http.post('/event', {
+          ...payload,
+          fieldsToClear,
+        })
         saved = res?.data
       }
 
@@ -1664,21 +1676,22 @@ export default function EventDetailPopup({
                             <Toggle
                               value={remindOn}
                               onChange={async (v) => {
-                          if (!v) {
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
+                                if (!v) {
+                                  setRemindOn(false)
+                                  setRemindOpen(false)
+                                  return
+                                }
 
-                          const ok = await ensureNotificationPermissionForToggle()
-                          if (!ok) { // 여전히 권한 없음 → 토글 되돌리기
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
+                                const ok = await ensureNotificationPermissionForToggle()
+                                if (!ok) {
+                                  // 여전히 권한 없음 → 토글 되돌리기
+                                  setRemindOn(false)
+                                  setRemindOpen(false)
+                                  return
+                                }
 
-                          setRemindOn(true) // 권한 ok
-                        }}
+                                setRemindOn(true) // 권한 ok
+                              }}
                             />
                           </View>
                         </View>

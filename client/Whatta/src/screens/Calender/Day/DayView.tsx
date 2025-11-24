@@ -119,6 +119,11 @@ const PIXELS_PER_HOUR = ROW_H
 const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 
 let draggingEventId: string | null = null
+const SCREEN_WIDTH = Dimensions.get('window').width
+const TIME_COL_WIDTH = 50 // 시간 텍스트 공간
+const PADDING_LEFT = 18 // 왼쪽 여백
+const PADDING_RIGHT = 18 // 오른쪽 여백
+const GHOST_WIDTH = SCREEN_WIDTH - (TIME_COL_WIDTH + PADDING_LEFT) - PADDING_RIGHT
 
 export default function DayView() {
   const [anchorDate, setAnchorDate] = useState<string>(today())
@@ -169,6 +174,7 @@ export default function DayView() {
   const [gridScrollY, setGridScrollY] = useState(0)
   const draggingTaskIdRef = useRef<string | null>(null)
   const dragReadyRef = useRef(false)
+  const draggingKindRef = useRef<'task' | 'event' | null>(null)
 
   const [taskBoxRect, setTaskBoxRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
@@ -207,6 +213,7 @@ export default function DayView() {
   useEffect(() => {
     const onReady = () => (dragReadyRef.current = true)
     const onCancel = () => {
+      draggingKindRef.current = null
       draggingTaskIdRef.current = null // 드래그 취소
       dragReadyRef.current = false
     }
@@ -221,7 +228,6 @@ export default function DayView() {
   // ✅ 라이브바 위치 계산
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
-  const ROW_H = 48
 
   // 라벨
   const [labelList, setLabelList] = useState([])
@@ -395,13 +401,13 @@ export default function DayView() {
           ...allDay.map((t: any) => ({
             id: t.id,
             title: t.title,
-            done: t.completed ?? false,
+            completed: t.completed ?? false,
             labels: t.labels ?? [],
           })),
           ...floating.map((t: any) => ({
             id: t.id,
             title: t.title,
-            done: t.completed ?? false,
+            completed: t.completed ?? false,
             labels: t.labels ?? [],
           })),
         ]
@@ -434,13 +440,22 @@ export default function DayView() {
   }, [enabledLabelIds])
 
   const measureLayouts = useCallback(() => {
-    taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
-      setTaskBoxTop(py) // 기존 코드 유지
-      setTaskBoxRect({ left: px, top: py, right: px + w, bottom: py + h })
+    taskBoxRef.current?.measureInWindow((px, py, w, h) => {
+      setTaskBoxRect({
+        left: px,
+        top: py,
+        right: px + w,
+        bottom: py + h,
+      })
     })
-    gridWrapRef.current?.measure?.((x, y, w, h, px, py) => {
-      setGridTop(py) // 기존 코드 유지
-      setGridRect({ left: px, top: py, right: px + w, bottom: py + h })
+
+    gridWrapRef.current?.measureInWindow((px, py, w, h) => {
+      setGridRect({
+        left: px,
+        top: py,
+        right: px + w,
+        bottom: py + h,
+      })
     })
   }, [])
 
@@ -498,6 +513,17 @@ export default function DayView() {
   const [thumbTop, setThumbTop] = useState(0)
   const boxScrollRef = useRef<ScrollView>(null)
   const gridScrollRef = useRef<ScrollView>(null)
+  const checksRef = useRef(checks)
+  /* 스크롤바 길이 계산 */
+  function thumbH(visibleH: number, contentH: number) {
+    const minH = 18
+    const h = (visibleH * visibleH) / Math.max(contentH, 1)
+    return Math.max(minH, Math.min(h, visibleH))
+  }
+
+  useEffect(() => {
+    checksRef.current = checks
+  }, [checks])
 
   const onLayoutWrap = (e: any) => setWrapH(e.nativeEvent.layout.height)
   const onContentSizeChange = (_: number, h: number) => setContentH(h)
@@ -515,123 +541,423 @@ export default function DayView() {
   const showScrollbar = contentH > wrapH
 
   const toggleCheck = async (id: string) => {
-  const current = checks.find((c) => c.id === id)
-  if (!current) return
+    const current = checks.find((c) => c.id === id)
+    if (!current) return
 
-  const nextDone = !current.done
+    const nextDone = !current.completed
 
-  // UI 즉시 변경
-  setChecks((prev) =>
-    prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)),
-  )
+    // UI 즉시 변경
+    setChecks((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, completed: nextDone } : c)),
+    )
 
-  // 서버에 보낼 값도 nextDone 사용
-  try {
-    await http.patch(`/task/${id}`, {
-      completed: nextDone,
-    })
+    // 서버에 보낼 값도 nextDone 사용
+    try {
+      await http.patch(`/task/${id}`, {
+        completed: nextDone,
+      })
 
-    bus.emit('calendar:mutated', {
-      op: 'update',
-      item: { id },
-    })
-  } catch (err) {
-    console.error('❌ 테스크 상태 업데이트 실패:', err)
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: { id },
+      })
+    } catch (err) {
+      console.error('❌ 테스크 상태 업데이트 실패:', err)
+    }
   }
-}
 
   useEffect(() => {
-    const onStart = ({ task }: any) => {
-      draggingTaskIdRef.current = task?.id ?? null
+    const onStart = ({ task, event }: any) => {
+      if (task?.id) {
+        draggingTaskIdRef.current = task.id
+        draggingKindRef.current = 'task'
+      } else if (event?.id) {
+        draggingTaskIdRef.current = event.id
+        draggingKindRef.current = 'event'
+      } else {
+        draggingTaskIdRef.current = null
+        draggingKindRef.current = null
+      }
     }
+
     bus.on('xdrag:start', onStart)
     return () => bus.off('xdrag:start', onStart)
   }, [])
 
   useEffect(() => {
-    const within = (r: any, x: number, y: number) =>
-      x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+    const onDrop = async ({ x, y, id: droppedId, kind: droppedKind }: any) => {
+      console.log('DROP EVENT', { x, y, droppedId, droppedKind })
 
-    // 기존 onDrop 핸들러 내부의 gridRect/innerY 계산 직전 로직을 아래처럼 교체
-    const onDrop = async ({ x, y }: any) => {
-      const id = draggingTaskIdRef.current
-      if (!id) return
-      if (!dragReadyRef.current) {
-        draggingTaskIdRef.current = null
+      const id = droppedId as string
+      const kind = droppedKind as 'task' | 'event'
+      console.log('[onDrop] STEP 1 - id/kind', id, kind)
+      console.log('[onDrop] dragReadyRef.current =', dragReadyRef.current)
+
+      if (!id || !kind) {
+        console.log('[onDrop] ❌ no id or kind, return')
         return
       }
 
-      // ✅ 드롭 순간 좌표 기준으로 바로 처리
+      if (!id || !kind) return
       measureLayouts()
       requestAnimationFrame(async () => {
         const dateISO = anchorDateRef.current
         const taskBox = taskBoxRectRef.current
         const gridBox = gridRectRef.current
         const scrollY = gridScrollYRef.current
+        console.log('[onDrop] rects', { taskBox, gridBox, scrollY })
 
         const within = (r: any, px: number, py: number) =>
           px >= r.left && px <= r.right && py >= r.top && py <= r.bottom
 
-        // ① 상단 박스 드롭: 날짜만 배치
+        // ① 상단 박스에 다시 드롭한 경우
         if (within(taskBox, x, y)) {
-          await http.patch(`/task/${id}`, {
-            placementDate: dateISO,
-            placementTime: null,
-            date: dateISO,
-          })
-          bus.emit('sidebar:remove-task', { id })
-          bus.emit('calendar:mutated', {
-            op: 'update',
-            item: { id, isTask: true, date: anchorDateRef.current },
-          })
-          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents(dateISO)
-          draggingTaskIdRef.current = null
+          if (kind === 'task') {
+            await http.patch(`/task/${id}`, {
+              placementDate: dateISO,
+              placementTime: null,
+              date: dateISO,
+            })
+            bus.emit('sidebar:remove-task', { id })
+            bus.emit('calendar:mutated', {
+              op: 'update',
+              item: { id, isTask: true, date: anchorDateRef.current },
+            })
+            bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+            fetchDailyEvents(dateISO)
+          }
           return
         }
-
-        // ② 시간 그리드 드롭: 5분 스냅
+        // ② 시간 그리드로 드롭한 경우
         if (within(gridBox, x, y)) {
-          // ✅ 여기서는 scrollY 더해도 되고 / 안 더해도 되는 건 레이아웃 기준에 따라 선택,
-          // 아까 말한 대로 현재 구조면 scrollY 빼고 하는 게 정확함
-          const innerY = Math.max(0, y - gridBox.top) // ← scrollY 더하지 말기
+          const innerY = y - gridBox.top
 
           const minRaw = innerY / PIXELS_PER_MIN
           const minSnap = Math.round(minRaw / 5) * 5
           const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
           const mm = String(minSnap % 60).padStart(2, '0')
 
-          await http.patch(`/task/${id}`, {
-            placementDate: dateISO,
-            placementTime: `${hh}:${mm}:00`,
-            date: dateISO,
-          })
-
-          bus.emit('sidebar:remove-task', { id })
-          bus.emit('calendar:mutated', {
-            op: 'update',
-            item: {
-              id,
-              isTask: true,
+          if (kind === 'task') {
+            await http.patch(`/task/${id}`, {
               placementDate: dateISO,
               placementTime: `${hh}:${mm}:00`,
               date: dateISO,
-            },
-          })
+            })
+
+            const src = checksRef.current.find((c: any) => c.id === id)
+            const startHour = minSnap / 60
+
+            setChecks((prev) => prev.filter((c: any) => c.id !== id))
+
+            setTasks((prev) => {
+              const base = {
+                id,
+                title: src?.title ?? '',
+                placementDate: dateISO,
+                placementTime: `${hh}:${mm}:00`,
+                completed: src?.completed ?? false,
+                labels: src?.labels ?? [],
+              }
+
+              const exists = prev.some((t: any) => t.id === id)
+              if (exists) {
+                return prev.map((t: any) => (t.id === id ? { ...t, ...base } : t))
+              }
+              return [...prev, base]
+            })
+
+            bus.emit('sidebar:remove-task', { id })
+            bus.emit('calendar:mutated', {
+              op: 'update',
+              item: {
+                id,
+                isTask: true,
+                placementDate: dateISO,
+                placementTime: `${hh}:${mm}:00`,
+                date: dateISO,
+              },
+            })
+          } else if (kind === 'event') {
+            console.log('[onDrop] ▶ EVENT PATCH 준비', id, `${hh}:${mm}:00`)
+            const span = spanEvents.find((e) => e.id === id)
+            const durationMin = (() => {
+              if (span && span.clippedStartTime && span.clippedEndTime) {
+                const [sh, sm] = span.clippedStartTime.split(':').map(Number)
+                const [eh, em] = span.clippedEndTime.split(':').map(Number)
+                return Math.max(5, eh * 60 + em - (sh * 60 + sm))
+              }
+              return 60
+            })()
+
+            // 1. 드롭된 y좌표 → 분(minute) 변환
+            const fmt = (n: number) => String(n).padStart(2, '0')
+
+            const startTotal = minSnap
+            const endTotal = minSnap + durationMin
+
+            const sH = Math.floor(startTotal / 60)
+            const sM = startTotal % 60
+            const eH = Math.floor(endTotal / 60)
+            const eM = endTotal % 60
+
+            const startTimeStr = `${fmt(sH)}:${fmt(sM)}:00`
+            const endTimeStr = `${fmt(eH)}:${fmt(eM)}:00`
+            console.log('[onDrop] 🔥 EVENT PATCH 호출 직전', id, startTimeStr, endTimeStr)
+
+            // 2. UI 즉시 이동 (spanEvents → events)
+            setSpanEvents((prev) => prev.filter((e) => e.id !== id))
+            setEvents((prev) => [
+              ...prev,
+              {
+                ...span,
+                id,
+                clippedStartTime: `${fmt(sH)}:${fmt(sM)}`,
+                clippedEndTime: `${fmt(eH)}:${fmt(eM)}`,
+                isSpan: false,
+              },
+            ])
+
+            // 3. 서버 PATCH (한 번만)
+            try {
+              await http.patch(`/event/${id}`, {
+                startDate: dateISO,
+                endDate: dateISO,
+                startTime: startTimeStr,
+                endTime: endTimeStr,
+              })
+
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: {
+                  id,
+                  isTask: false,
+                  startDate: dateISO,
+                  endDate: dateISO,
+                  startTime: startTimeStr,
+                  endTime: endTimeStr,
+                },
+              })
+
+              // DayView 상단의 calendar:mutated 리스너가 알아서 1번만 호출해 줄 것
+            } catch (err: any) {
+              console.log(
+                '[onDrop] ❌ EVENT PATCH 실패',
+                err?.response?.status,
+                err?.response?.data,
+                err?.message,
+              )
+            }
+            return
+          }
+          console.log('[onDrop] ❌ not in any known area, cancel')
           bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents(dateISO)
-          draggingTaskIdRef.current = null
+          await fetchDailyEvents(dateISO)
           return
         }
 
         // ③ 영역 밖: 취소
         draggingTaskIdRef.current = null
+        draggingKindRef.current = null
       })
     }
 
     bus.on('xdrag:drop', onDrop)
     return () => bus.off('xdrag:drop', onDrop)
-  }, [anchorDate, fetchDailyEvents, gridScrollY, taskBoxRect, gridRect])
+  }, [anchorDate, fetchDailyEvents, gridScrollY, taskBoxRect, gridRect, spanEvents])
+
+  type GhostState = null | {
+    active: boolean
+    kind: 'task' | 'event'
+    id: string
+    title: string
+    completed?: boolean
+    labels?: number[]
+    color?: string
+  }
+
+  const [ghost, setGhost] = useState<GhostState>(null)
+
+  const ghostX = useSharedValue(0)
+  const ghostY = useSharedValue(0)
+  const ghostActive = useSharedValue(0)
+  const updateGhostPosition = useCallback((x: number, y: number) => {
+    'worklet'
+    if (!ghostActive.value) return
+    ghostX.value = x
+    ghostY.value = y
+  }, [])
+
+  // 고스트 시작/이동/삭제 헬퍼
+  const startTaskGhost = (p: any) => {
+    setGhost({
+      active: true,
+      kind: 'task',
+      id: p.id,
+      title: p.title,
+      completed: p.completed,
+      labels: p.labels,
+    })
+    ghostActive.value = 1
+    ghostX.value = p.x
+    ghostY.value = p.y
+  }
+  const startEventGhost = (p: any) => {
+    setGhost({
+      active: true,
+      kind: 'event',
+      id: p.id,
+      title: p.title,
+      color: p.color,
+    })
+    ghostActive.value = 1
+    ghostX.value = p.x
+    ghostY.value = p.y
+  }
+
+  const clearGhost = () => {
+    setGhost(null)
+    ghostActive.value = 0
+  }
+
+  const ghostStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    // 하단 TaskBox / Event 와 동일한 width
+    width: GHOST_WIDTH,
+    left: ghostX.value - GHOST_WIDTH / 2, // 손가락 기준 가운데 정렬
+    top: ghostY.value - (ROW_H - 4) / 2, // 높이 절반만큼 올려서 중앙 정렬
+  }))
+
+  type CheckItem = {
+    id: string
+    title: string
+    completed?: boolean
+    labels?: number[]
+  }
+
+  type DraggableCheckRowProps = {
+    item: CheckItem
+    onStartGhost: (payload: {
+      id: string
+      title: string
+      completed?: boolean
+      labels?: number[]
+      x: number
+      y: number
+    }) => void
+    onMoveGhost: (x: number, y: number) => void
+    onClearGhost: () => void
+  }
+
+  function DraggableCheckRow({
+    item,
+    onStartGhost,
+    onMoveGhost,
+    onClearGhost,
+  }: DraggableCheckRowProps) {
+    const triggerHaptic = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    }
+
+    const dragEnabled = useSharedValue(false)
+
+    const notifyDragStart = (id: string) => {
+      bus.emit('xdrag:start', { task: { id } })
+      bus.emit('xdrag:ready')
+    }
+
+    const notifyDrop = (payload: { x: number; y: number; id: string }) => {
+      bus.emit('xdrag:drop', { ...payload, kind: 'task' })
+    }
+
+    // 롱프레스: 고스트 생성 + 드래그 모드 활성화
+    const hold = Gesture.LongPress()
+      .minDuration(250) // 너무 짧으면 스크롤이랑 자주 충돌하니 250ms 정도로
+      .maxDistance(2) // 롱프레스 중에 손가락이 조금 움직여도 유지되도록
+      .onStart((e) => {
+        dragEnabled.value = true
+        runOnJS(triggerHaptic)()
+        runOnJS(notifyDragStart)(item.id)
+
+        runOnJS(onStartGhost)({
+          id: item.id,
+          title: item.title,
+          completed: item.completed,
+          labels: item.labels ?? [],
+          x: e.absoluteX,
+          y: e.absoluteY,
+        })
+      })
+      .onEnd((_e) => {
+        // 롱프레스가 끝났는데 팬 제스처가 안 따라온 경우 롤백
+        if (dragEnabled.value) {
+          dragEnabled.value = false
+          runOnJS(onClearGhost)()
+        }
+      })
+      .onFinalize(() => {
+        // 어떤 이유로든 제스처가 종료되면 안전하게 초기화
+        dragEnabled.value = false
+        runOnJS(onClearGhost)()
+      })
+
+    // 팬: 롱프레스 이후에만 고스트 이동 + 드롭 처리
+    const drag = Gesture.Pan()
+      .onUpdate((e) => {
+        // 롱프레스가 아직 안 됐으면 아무것도 하지 않음 → 스크롤만 동작
+        if (!dragEnabled.value) return
+        onMoveGhost(e.absoluteX, e.absoluteY)
+      })
+      .onEnd((e) => {
+        if (!dragEnabled.value) return
+        dragEnabled.value = false
+
+        // 드롭 위치 알려주기
+        runOnJS(notifyDrop)({
+          x: e.absoluteX,
+          y: e.absoluteY,
+          id: item.id,
+        })
+        runOnJS(onClearGhost)()
+      })
+      .onFinalize(() => {
+        // 제스처가 취소되었을 때도 고스트 정리
+        dragEnabled.value = false
+        runOnJS(onClearGhost)()
+      })
+
+    // 롱프레스 + 팬 동시 구성
+    const composed = Gesture.Simultaneous(hold, drag)
+
+    return (
+      <GestureDetector gesture={composed}>
+        <Animated.View style={S.checkRow}>
+          <Pressable
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => openTaskPopupFromApi(item.id)} // 상세 팝업 그대로 동작
+          >
+            {/* 체크박스 */}
+            <Pressable
+              onPress={() => toggleCheck(item.id)}
+              style={S.checkboxWrap}
+              hitSlop={10}
+            >
+              <View style={[S.checkbox, item.completed && S.checkboxOn]}>
+                {item.completed && <Text style={S.checkmark}>✓</Text>}
+              </View>
+            </Pressable>
+
+            <Text
+              style={[S.checkText, item.completed && S.checkTextDone]}
+              numberOfLines={1}
+            >
+              {item.title}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      </GestureDetector>
+    )
+  }
+
   const popupTaskMemo = useMemo(() => taskPopupTask, [taskPopupTask])
 
   const handleDeleteTask = async () => {
@@ -695,93 +1021,26 @@ export default function DayView() {
                   contentContainerStyle={S.boxContent}
                   bounces={false}
                 >
-                  {spanEvents.map((t, i) => {
-                    const current = anchorDate
-
-                    let start = ''
-                    let end = ''
-
-                    // 하루짜리 allDayEvents
-                    if (!t.startDate && !t.endDate && !t.startAt && !t.endAt) {
-                      start = current
-                      end = current
-                    }
-                    // allDaySpan (기간 있음)
-                    else if (t.startDate && t.endDate) {
-                      start = t.startDate
-                      end = t.endDate
-                    }
-                    // timed span
-                    else if (t.startAt && t.endAt) {
-                      start = t.startAt.slice(0, 10)
-                      end = t.endAt.slice(0, 10)
-                    }
-
-                    const isStart = current === start
-                    const isEnd = current === end
-
-                    const raw = t.colorKey || t.color
-                    const base = raw ? (raw.startsWith('#') ? raw : `#${raw}`) : '#8B5CF6'
-                    const bg = `${base}26`
-
-                    return (
-                      <Pressable key={t.id ?? i} onPress={() => openEventDetail(t.id)}>
-                        <View
-                          style={[
-                            S.chip,
-                            {
-                              backgroundColor: bg,
-                              borderTopLeftRadius: isStart ? 6 : 0,
-                              borderBottomLeftRadius: isStart ? 6 : 0,
-                              borderTopRightRadius: isEnd ? 6 : 0,
-                              borderBottomRightRadius: isEnd ? 6 : 0,
-                            },
-                          ]}
-                        >
-                          {isStart && (
-                            <View
-                              style={[S.chipBar, { left: 0, backgroundColor: base }]}
-                            />
-                          )}
-                          {isEnd && (
-                            <View
-                              style={[S.chipBar, { right: 0, backgroundColor: base }]}
-                            />
-                          )}
-                          <View style={{ flex: 1, paddingHorizontal: 12 }}>
-                            <Text style={S.chipText} numberOfLines={1}>
-                              {t.title}
-                            </Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    )
-                  })}
+                  {spanEvents.map((t, i) => (
+                    <DraggableEvent
+                      key={t.id ?? i}
+                      item={t}
+                      currentDate={anchorDate}
+                      onPress={() => openEventDetail(t.id)}
+                      onStartGhost={(payload) => startEventGhost(payload)}
+                      onMoveGhost={updateGhostPosition}
+                      onClearGhost={() => clearGhost()}
+                    />
+                  ))}
 
                   {checks.map((c) => (
-                    <Pressable
+                    <DraggableCheckRow
                       key={c.id}
-                      style={S.checkRow}
-                      onPress={() => openTaskPopupFromApi(c.id)}
-                    >
-                      {/* 체크박스만 눌렀을 때 토글 */}
-                      <Pressable
-                        onPress={() => toggleCheck(c.id)}
-                        style={S.checkboxWrap}
-                        hitSlop={10}
-                      >
-                        <View style={[S.checkbox, c.done && S.checkboxOn]}>
-                          {c.done && <Text style={S.checkmark}>✓</Text>}
-                        </View>
-                      </Pressable>
-
-                      <Text
-                        style={[S.checkText, c.done && S.checkTextDone]}
-                        numberOfLines={1}
-                      >
-                        {c.title}
-                      </Text>
-                    </Pressable>
+                      item={c}
+                      onStartGhost={(payload) => startTaskGhost(payload)}
+                      onMoveGhost={updateGhostPosition}
+                      onClearGhost={() => clearGhost()}
+                    />
                   ))}
 
                   <View style={{ height: 8 }} />
@@ -872,7 +1131,7 @@ export default function DayView() {
                   key={evt.id}
                   id={evt.id}
                   title={evt.title}
-                  place={`label ${evt.labels?.[0] ?? ''}`}
+                  place={`label ${evt.labels?.[0] != null ? String(evt.labels[0]) : ''}`}
                   startMin={startMin}
                   endMin={endMin}
                   color={`#${evt.colorKey}`}
@@ -899,13 +1158,74 @@ export default function DayView() {
                   startHour={start}
                   anchorDate={anchorDate}
                   placementDate={task.placementDate}
-                  done={task.completed ?? false}
+                  completed={task.completed ?? false}
                   onPress={() => openTaskPopupFromApi(task.id)}
                 />
               )
             })}
           </ScrollView>
         </View>
+        {ghost?.active && (
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <Animated.View style={ghostStyle}>
+              {ghost.kind === 'task' ? (
+                <View
+                  style={{
+                    height: ROW_H - 4, // 높이 맞춤 (44px)
+                    backgroundColor: '#FFFFFF80', // DraggableTaskBox와 동일한 투명도
+                    borderWidth: 0.4,
+                    borderColor: '#333333',
+                    borderRadius: 10,
+                    paddingHorizontal: 16,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <View style={{ marginRight: 12 }}>
+                    {ghost.completed ? (
+                      <CheckOn width={18} height={18} />
+                    ) : (
+                      <CheckOff width={18} height={18} />
+                    )}
+                  </View>
+                  <Text
+                    style={{
+                      fontWeight: 'bold',
+                      fontSize: 12,
+                      color: ghost.completed ? '#999' : '#000',
+                      textDecorationLine: ghost.completed ? 'line-through' : 'none',
+                    }}
+                    numberOfLines={1}
+                  >
+                    {ghost.title}
+                  </Text>
+                </View>
+              ) : (
+                <View
+                  style={{
+                    height: ROW_H - 2,
+                    backgroundColor: ghost.color ?? '#B04FFF',
+                    borderRadius: 4,
+                    paddingHorizontal: 6,
+                    paddingTop: 10,
+                    justifyContent: 'flex-start',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#000000',
+                      fontWeight: '600',
+                      fontSize: 13,
+                      lineHeight: 15,
+                    }}
+                  >
+                    {ghost.title}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+          </View>
+        )}
         <TaskDetailPopup
           visible={taskPopupVisible}
           mode={taskPopupMode}
@@ -1007,15 +1327,7 @@ export default function DayView() {
   )
 }
 
-/* 스크롤바 길이 계산 */
-function thumbH(visibleH: number, contentH: number) {
-  const minH = 18
-  const h = (visibleH * visibleH) / Math.max(contentH, 1)
-  return Math.max(minH, Math.min(h, visibleH))
-}
-
 function DraggableFixedEvent() {
-  const ROW_H = 48
   const translateY = useSharedValue(7 * ROW_H)
 
   const drag = Gesture.Pan()
@@ -1079,7 +1391,7 @@ type DraggableTaskBoxProps = {
   title: string
   startHour: number
   placementDate?: string
-  done?: boolean
+  completed?: boolean
   anchorDate: string
   onPress?: () => void
 }
@@ -1089,7 +1401,7 @@ function DraggableTaskBox({
   title,
   startHour,
   placementDate,
-  done: initialDone = false,
+  completed: initialDone = false,
   anchorDate,
   onPress,
 }: DraggableTaskBoxProps) {
@@ -1189,15 +1501,15 @@ function DraggableTaskBox({
         {/* ✅ 체크박스 영역 */}
         <Pressable
           onPress={() => {
-  const next = !done
-  setDone(next)
+            const next = !done
+            setDone(next)
 
-  http.patch(`/task/${id}`, {
-    completed: next,
-  }).catch(err =>
-    console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
-  )
-}}
+            http
+              .patch(`/task/${id}`, {
+                completed: next,
+              })
+              .catch((err) => console.error('❌ 테스크 체크 상태 업데이트 실패:', err))
+          }}
           style={{
             width: 18,
             height: 18,
@@ -1234,6 +1546,139 @@ function DraggableTaskBox({
   )
 }
 
+type DraggableEventProps = {
+  item: any
+  currentDate: string
+  onPress: () => void
+  onStartGhost: (payload: {
+    id: string
+    title: string
+    color?: string
+    x: number
+    y: number
+  }) => void
+  onMoveGhost: (x: number, y: number) => void
+  onClearGhost: () => void
+}
+
+function DraggableEvent({
+  item,
+  currentDate,
+  onPress,
+  onStartGhost,
+  onMoveGhost,
+  onClearGhost,
+}: DraggableEventProps) {
+  const triggerHaptic = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  }
+  const notifyEventDragStart = (id: string) => {
+    bus.emit('xdrag:start', { event: { id } })
+    bus.emit('xdrag:ready')
+  }
+  const notifyDrop = (payload: { x: number; y: number; id: string }) => {
+    bus.emit('xdrag:drop', { ...payload, kind: 'event' })
+  }
+  const dragEnabled = useSharedValue(false)
+
+  // 시작/끝 날짜 계산 (기존 로직 유지)
+  let start = ''
+  let end = ''
+
+  if (!item.startDate && !item.endDate && !item.startAt && !item.endAt) {
+    start = currentDate
+    end = currentDate
+  } else if (item.startDate && item.endDate) {
+    start = item.startDate
+    end = item.endDate
+  } else if (item.startAt && item.endAt) {
+    start = item.startAt.slice(0, 10)
+    end = item.endAt.slice(0, 10)
+  }
+
+  const isStart = currentDate === start
+  const isEnd = currentDate === end
+
+  const isMultiDaySpan = !!start && !!end && start !== end
+
+  const raw = item.colorKey || item.color
+  const base = raw ? (raw.startsWith('#') ? raw : `#${raw}`) : '#8B5CF6'
+  const bg = `${base}26`
+
+  // 기간 일정(여러 날 걸친 span)은 드래그 불가 → 그냥 칩만
+  if (isMultiDaySpan) {
+    return (
+      <View style={[S.chip, { backgroundColor: bg }]}>
+        {isStart && <View style={[S.chipBar, { left: 0, backgroundColor: base }]} />}
+        {isEnd && <View style={[S.chipBar, { right: 0, backgroundColor: base }]} />}
+        <Pressable onPress={onPress} style={{ flex: 1, paddingHorizontal: 12 }}>
+          <Text style={S.chipText} numberOfLines={1}>
+            {item.title}
+          </Text>
+        </Pressable>
+      </View>
+    )
+  }
+
+  // 단일 날짜 span만 드래그 허용
+  const hold = Gesture.LongPress()
+    .minDuration(200)
+    .onStart((e) => {
+      dragEnabled.value = true
+      runOnJS(triggerHaptic)()
+      runOnJS(notifyEventDragStart)(item.id)
+
+      // 고스트 생성
+      runOnJS(onStartGhost)({
+        id: item.id,
+        title: item.title,
+        color: base,
+        x: e.absoluteX,
+        y: e.absoluteY,
+      })
+    })
+
+  const drag = Gesture.Pan()
+    .onUpdate((e) => {
+      if (!dragEnabled.value) return
+      // 고스트 위치 업데이트
+      onMoveGhost(e.absoluteX, e.absoluteY)
+      // runOnJS(onMoveGhost)(e.absoluteX, e.absoluteY)
+      console.log('update - event Ghost', e.absoluteX, e.absoluteY)
+    })
+    .onEnd((e) => {
+      if (dragEnabled.value) {
+        dragEnabled.value = false // 드래그 종료
+        runOnJS(notifyDrop)({
+          x: e.absoluteX,
+          y: e.absoluteY,
+          id: item.id,
+        })
+        runOnJS(onClearGhost)()
+      }
+    })
+    .onFinalize(() => {
+      dragEnabled.value = false
+      runOnJS(onClearGhost)()
+    })
+
+  const composed = Gesture.Simultaneous(hold, drag)
+
+  return (
+    <GestureDetector gesture={composed}>
+      <Animated.View style={[S.chip, { backgroundColor: bg }]}>
+        {isStart && <View style={[S.chipBar, { left: 0, backgroundColor: base }]} />}
+        {isEnd && <View style={[S.chipBar, { right: 0, backgroundColor: base }]} />}
+        <Pressable onPress={onPress} style={{ flex: 1, paddingHorizontal: 12 }}>
+          <Text style={S.chipText} numberOfLines={1}>
+            {item.title}
+          </Text>
+        </Pressable>
+      </Animated.View>
+    </GestureDetector>
+  )
+}
+
 type DraggableFlexalbeEventProps = {
   id: string
   title: string
@@ -1255,55 +1700,60 @@ function DraggableFlexalbeEvent({
   anchorDate,
   onPress,
 }: DraggableFlexalbeEventProps) {
-  const translateY = useSharedValue(0)
-  const dragEnabled = useSharedValue(false)
-  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const durationMin = endMin - startMin
+  const totalHeight = 24 * 60 * PIXELS_PER_MIN
+  const rawHeight = durationMin * PIXELS_PER_MIN
   const height = rawHeight - 2
   const offsetY = 1
+
+  // 절대 위치 기반 (테스크와 동일한 방식)
+  const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
+  const translateX = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
+
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
   }
 
-  const handleDrop = useCallback(async (movedY: number) => {
-    draggingEventId = id
-    try {
-      const SNAP_UNIT = 5 * PIXELS_PER_MIN
-      const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
-      translateY.value = withSpring(snappedY)
+  const handleDrop = useCallback(
+    async (snappedY: number) => {
+      draggingEventId = id
+      try {
+        // snappedY(픽셀) -> 분 단위로 변환
+        const newStartMin = snappedY / PIXELS_PER_MIN
+        const newEndMin = newStartMin + durationMin
 
-      const deltaMin = snappedY / PIXELS_PER_MIN
-      const newStart = startMin + deltaMin
-      const newEnd = endMin + deltaMin
+        const fmt = (min: number) =>
+          `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(
+            2,
+            '0',
+          )}:00`
+        const dateISO = anchorDate
 
-      const fmt = (min: number) =>
-        `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(
-          2,
-          '0',
-        )}:00`
-      const dateISO = anchorDate
-
-      await http.patch(`/event/${id}`, {
-        startDate: anchorDate,
-        endDate: anchorDate,
-        startTime: fmt(newStart),
-        endTime: fmt(newEnd),
-      })
-
-      bus.emit('calendar:mutated', {
-        op: 'update',
-        item: {
-          id,
-          isTask: false,
+        await http.patch(`/event/${id}`, {
           startDate: dateISO,
           endDate: dateISO,
-          startTime: fmt(newStart),
-          endTime: fmt(newEnd),
-        },
-      })
-    } catch (err: any) {
-      console.error('❌ 요청 설정 오류:', err.message)
-    }
-  }, [])
+          startTime: fmt(newStartMin),
+          endTime: fmt(newEndMin),
+        })
+
+        bus.emit('calendar:mutated', {
+          op: 'update',
+          item: {
+            id,
+            isTask: false,
+            startDate: dateISO,
+            endDate: dateISO,
+            startTime: fmt(newStartMin),
+            endTime: fmt(newEndMin),
+          },
+        })
+      } catch (err: any) {
+        console.error('❌ 이벤트 시간 이동 실패:', err.message)
+      }
+    },
+    [id, durationMin, anchorDate],
+  )
 
   const hold = Gesture.LongPress()
     .minDuration(250)
@@ -1315,35 +1765,39 @@ function DraggableFlexalbeEvent({
   const drag = Gesture.Pan()
     .onChange((e) => {
       if (!dragEnabled.value) return
-      const totalHeight = 24 * 60 * PIXELS_PER_MIN
-      const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
+
+      // 손가락 따라 자유롭게 이동 (수평 살짝 움직이는 것도 허용)
+      const nextY = translateY.value + e.changeY
       const minTop = 0
       const maxTop = totalHeight - rawHeight
-      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
-      translateY.value = clampedTop - startMin * PIXELS_PER_MIN
+
+      translateY.value = Math.max(minTop, Math.min(maxTop, nextY))
+      translateX.value += e.changeX
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
 
-      const totalHeight = 24 * 60 * PIXELS_PER_MIN
-
-      const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+      const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const minTop = 0
       const maxTop = totalHeight - rawHeight
 
-      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
-      const boundedDelta = clampedTop - startMin * PIXELS_PER_MIN
+      // 스냅 + 영역 클램프
+      let snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      snappedY = Math.max(minTop, Math.min(maxTop, snappedY))
 
-      translateY.value = boundedDelta
+      translateY.value = withSpring(snappedY)
+      translateX.value = withSpring(0)
 
-      runOnJS(handleDrop)(boundedDelta)
+      // 서버에 최종 시간 반영
+      runOnJS(handleDrop)(snappedY)
     })
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
 
   const style = useAnimatedStyle(() => ({
-    top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
+    top: translateY.value + offsetY,
+    transform: [{ translateX: translateX.value }],
   }))
 
   const backgroundColor = color.startsWith('#') ? color : `#${color}`
