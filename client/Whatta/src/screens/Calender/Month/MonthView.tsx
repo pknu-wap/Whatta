@@ -11,6 +11,9 @@ import {
   Alert,
 } from 'react-native'
 
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { runOnJS } from 'react-native-reanimated'
+
 import { useRoute } from '@react-navigation/native'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { MonthlyDay } from '@/api/calendar'
@@ -506,6 +509,15 @@ function isTaskSummaryItem(item: DisplayItem): item is TaskSummaryItem {
 }
 type UISchedule = ScheduleData & { colorKey?: string }
 
+
+function addMonthsFromYm(ym: string, diff: number): string {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1 + diff, 1)
+  const yy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${yy}-${mm}`
+}
+
 // --------------------------------------------------------------------
 // 3. Custom UI Components (ScheduleItem, TaskSummaryBox)
 // --------------------------------------------------------------------
@@ -809,6 +821,28 @@ export default function MonthView() {
     const t = new Date()
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`
   })
+
+
+const goMonth = useCallback(
+  (diff: number) => {
+    setYm((prevYm) => addMonthsFromYm(prevYm, diff))
+  },
+  [],
+)
+
+const swipeGesture = useMemo(
+  () =>
+    Gesture.Pan().onEnd((e) => {
+      'worklet'
+      const dx = e.translationX
+      if (dx > 80) {
+        runOnJS(goMonth)(-1)
+      } else if (dx < -80) {
+        runOnJS(goMonth)(+1)
+      }
+    }),
+  [goMonth],
+)
 
   // (1) 외부가 날짜를 바꾸면 해당 달로 이동
   useEffect(() => {
@@ -1210,7 +1244,8 @@ export default function MonthView() {
   }, [year, monthIndex, focusedDateISO, filteredSchedules])
 
   return (
-    <ScreenWithSidebar mode="overlay">
+    <GestureDetector gesture={swipeGesture}>
+      <ScreenWithSidebar mode="overlay">
       <View style={S.contentContainerWrapper}>
         {/* 요일 헤더 */}
         <View style={S.dayHeader}>
@@ -1501,7 +1536,8 @@ export default function MonthView() {
             : undefined
         }
       />
-    </ScreenWithSidebar>
+      </ScreenWithSidebar>
+    </GestureDetector>
   )
 }
 

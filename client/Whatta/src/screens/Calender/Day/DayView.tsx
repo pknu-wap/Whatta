@@ -17,6 +17,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useFocusEffect } from '@react-navigation/native'
@@ -82,6 +83,15 @@ const today = () => {
   const t = new Date()
   return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
 }
+
+const addDays = (iso: string, d: number) => {
+  const [y, m, dd] = iso.split('-').map(Number)
+  const b = new Date(y, m - 1, dd + d)
+  return `${b.getFullYear()}-${pad2(b.getMonth() + 1)}-${pad2(b.getDate())}`
+}
+
+const { width: SCREEN_W } = Dimensions.get('window')
+
 
 function FullBleed({
   children,
@@ -160,6 +170,50 @@ export default function DayView() {
   }, [])
 
   const [tasks, setTasks] = useState<any[]>([])
+
+  // ✅ DayView 좌우 스와이프 애니메이션 (WeekView와 동일한 구조)
+  const swipeTranslateX = useSharedValue(0)
+
+  const handleSwipe = useCallback(
+    (dir: 'prev' | 'next') => {
+      setAnchorDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
+    },
+    [],
+  )
+
+  const swipeGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      'worklet'
+      let nx = e.translationX
+      const max = SCREEN_W * 0.15
+      if (nx > max) nx = max
+      if (nx < -max) nx = -max
+      swipeTranslateX.value = nx
+    })
+    .onEnd(() => {
+      'worklet'
+      const cur = swipeTranslateX.value
+      const th = SCREEN_W * 0.06
+
+      if (cur > th) {
+        swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
+          runOnJS(handleSwipe)('prev')
+          swipeTranslateX.value = withTiming(0, { duration: 160 })
+        })
+      } else if (cur < -th) {
+        swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
+          runOnJS(handleSwipe)('next')
+          swipeTranslateX.value = withTiming(0, { duration: 160 })
+        })
+      } else {
+        swipeTranslateX.value = withTiming(0, { duration: 150 })
+      }
+    })
+
+  const swipeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipeTranslateX.value }],
+  }))
+
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
 
   const taskBoxRef = useRef<View>(null)
@@ -675,7 +729,8 @@ export default function DayView() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScreenWithSidebar mode="overlay">
-        <View style={S.screen}>
+        <GestureDetector gesture={swipeGesture}>
+          <Animated.View style={[S.screen, swipeStyle]}>
           {/* ✅ 상단 테스크 박스 */}
           <FullBleed padH={12}>
             <View style={S.taskBoxWrap} ref={taskBoxRef} onLayout={measureLayouts}>
@@ -905,7 +960,8 @@ export default function DayView() {
               )
             })}
           </ScrollView>
-        </View>
+          </Animated.View>
+        </GestureDetector>
         <TaskDetailPopup
           visible={taskPopupVisible}
           mode={taskPopupMode}
