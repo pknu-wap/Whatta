@@ -1941,7 +1941,6 @@ export default function EventDetailPopup({
                       </>
                     )}
                     {/* 일정/알림 */}
-                    {!isMultiDaySpan && (
                       <>
                         <View style={styles.row}>
                           <Text style={styles.label}>알림</Text>
@@ -1973,6 +1972,7 @@ export default function EventDetailPopup({
 
                             <Switch
                               value={remindOn}
+                              disabled={!timeOn}
                               onValueChange={async (v) => {
                                 if (!v) {
                                   setRemindOn(false)
@@ -1988,11 +1988,13 @@ export default function EventDetailPopup({
                                 }
 
                                 setRemindOn(true) // 권한 ok
+                                setRemindOpen(true)
                               }}
                               trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
                               thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}
                               style={{
                                 transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+                                opacity: timeOn ? 1 : 0.5,
                               }}
                             />
                           </View>
@@ -2095,7 +2097,6 @@ export default function EventDetailPopup({
 
                         <View style={styles.sep} />
                       </>
-                    )}
 
                     {/* 라벨 */}
                     <View style={[styles.row, { alignItems: 'center' }]}>
