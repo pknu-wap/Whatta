@@ -1485,7 +1485,8 @@ export default function WeekView() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ScreenWithSidebar mode="overlay">
         <GestureDetector gesture={pinchGesture}>
-          <Animated.View style={[S.screen, animatedStyle]}>
+          <View collapsable={false} style={{ flex: 1 }}>
+            <Animated.View style={[S.screen, animatedStyle]}>
             <FullBleed padH={0}>
               <View style={S.weekHeaderRow}>
                 <View style={S.weekHeaderTimeCol} />
@@ -1844,6 +1845,7 @@ export default function WeekView() {
               </View>
             </ScrollView>
           </Animated.View>
+          </View>
         </GestureDetector>
         <TaskDetailPopup
           visible={taskPopupVisible}
