@@ -377,18 +377,17 @@ export default function EventDetailPopup({
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>('schedule')
 
   useEffect(() => {
-    if (!visible) return
+  if (!visible) return
 
-    const isRepeatInitial = initial?.repeat != null
+  const isRepeatInitial = initial?.repeat != null
+  const isRepeatFetched = eventData?.repeat != null
 
-    const isRepeatFetched = eventData?.repeat != null
-
-    if (isRepeatInitial || isRepeatFetched) {
-      setActiveTab('repeat')
-    } else {
-      setActiveTab('schedule')
-    }
-  }, [visible, initial, eventData])
+  if (isRepeatInitial || isRepeatFetched) {
+    setActiveTab('repeat')
+  } else {
+    setActiveTab('schedule')
+  }
+}, [visible, initial, eventData])
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
