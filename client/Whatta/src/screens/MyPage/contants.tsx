@@ -3,7 +3,6 @@ import type { MyPageStackList } from '@/navigation/MyPageStack'
 export type MyItem = {
   key: string
   route: keyof MyPageStackList
-  desc?: string
 }
 
 export type MySection = {
@@ -27,7 +26,7 @@ export const MY_SECTIONS: MySection[] = [
   {
     title: '교통 알림 설정',
     data: [
-      { key: '알림 시간 수정', route: 'TransitAlerts' },
+      { key: '알림 시간 수정', route: 'TrafficAlertsRoot' },
       { key: '소리 및 진동', route: 'Transitvibration' },
     ],
   },

@@ -1,4 +1,3 @@
-// src/lib/eventBus.ts
 type Handler<T = any> = (payload: T) => void
 
 class TinyBus {

@@ -262,9 +262,7 @@ function getEventsForDate(
     }
     // 반복
     if (it.isRecurring) {
-      const [y, m, d] = it.date.split('-').map(Number)
-      const base = new Date(y, m - 1, d)
-      if (base.getDay() === dow && iso >= it.date) {
+      if (it.date === iso) { 
         ;(it.isTask ? tasks : singles).push(it as WithLane)
       }
       return
@@ -867,6 +865,14 @@ useEffect(() => {
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
+  const { items: filterLabels } = useLabelFilter()
+
+  // "할 일" 라벨 id 찾기 (없으면 null)
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    return found ? Number(found.id) : null
+  }, [filterLabels])
+
   const openCreateTaskPopup = useCallback((source?: string) => {
     setTaskPopupMode('create')
     setTaskPopupId(null)
@@ -878,7 +884,7 @@ useEffect(() => {
       id: null,
       title: '',
       content: '',
-      labels: [],
+      labels: todoLabelId ? [todoLabelId] : [],
       completed: false,
       placementDate,
       placementTime,
@@ -886,7 +892,7 @@ useEffect(() => {
     })
 
     setTaskPopupVisible(true)
-  }, [])
+  }, [todoLabelId])
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -1269,8 +1275,6 @@ useEffect(() => {
     setFocusedDateISO(`${year}-${pad(monthIndex + 1)}-01`)
   }, [year, monthIndex])
 
-  const { items: filterLabels } = useLabelFilter()
-
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
     // 필터 라벨이 아직 없으면 그대로
@@ -1479,6 +1483,7 @@ useEffect(() => {
         visible={eventPopupVisible}
         eventId={eventPopupData?.id ?? null}
         mode={eventPopupMode}
+        initial={eventPopupData ?? undefined}
         onClose={() => {
           setEventPopupVisible(false)
           setEventPopupData(null)
@@ -1514,12 +1519,13 @@ useEffect(() => {
           // 시간
           if (form.hasTime && form.time) {
             const t = form.time
-            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
-              t.getSeconds(),
-            )}`
+            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:00`
           } else {
             fieldsToClear.push('placementTime')
           }
+          //reminderNoti
+          const reminderNoti = form.reminderNoti ?? null
+          if (!reminderNoti) fieldsToClear.push('reminderNoti')
 
           // 이 Task가 속하는 날짜 (없으면 현재 포커스된 날짜 기준)
           const targetDate = placementDate ?? focusedDateISO
@@ -1534,6 +1540,7 @@ useEffect(() => {
                 labels: form.labels,
                 placementDate,
                 placementTime,
+                reminderNoti,
                 fieldsToClear,
               })
 
@@ -1549,6 +1556,7 @@ useEffect(() => {
                 labels: form.labels,
                 placementDate,
                 placementTime,
+                reminderNoti,
                 date: targetDate,
               })
 

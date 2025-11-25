@@ -29,9 +29,14 @@ export async function guestLogin(installationId: string) {
 export async function refreshTokens() {
   const rt = token.getRefresh()
   if (!rt) throw new Error('NO_REFRESH')
-  const { data } = await axios.post<RefreshResp>(`${BASE}${REFRESH_PATH}`, {
-    refreshToken: rt,
-  })
+  const { data } = await axios.post<RefreshResp>(`${BASE}${REFRESH_PATH}`, 
+{},
+{
+      headers: {
+        Authorization: `Bearer ${rt}`,
+      },
+    }
+)
   await token.setBoth(data.data.accessToken, data.data.refreshToken)
   logToken('refreshTokens', token.getAccess(), token.getRefresh())
 }

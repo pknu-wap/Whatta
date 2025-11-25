@@ -7,7 +7,7 @@ import {
   Animated,
   PanResponder,
   TouchableWithoutFeedback,
-  Pressable,
+  Switch,
 } from 'react-native'
 import AnimatedRe, {
   interpolateColor,
@@ -120,6 +120,10 @@ export default function Header() {
   const maxSlide = 38
   const [mode, setMode] = useState<ViewMode>('month')
 
+  const [days, setDays] = useState<number>(7)
+  const [rangeStart, setRangeStart] = useState<string | null>(null)
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
+
   /* ✅ 현재 활성 탭 감지 */
   const currentRouteName = useNavigationState((state) => {
     const route = state.routes[state.index]
@@ -166,10 +170,15 @@ export default function Header() {
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: { date: string; mode: ViewMode }) => {
+    const onState = (st: { date: string; mode: ViewMode; days?: number; rangeStart?: string; rangeEnd?: string}) => {
       setAnchorDate(st.date)
       setMode(st.mode)
+
+      if (st.days) setDays(st.days)
+      if (st.rangeStart) setRangeStart(st.rangeStart)
+      if (st.rangeEnd) setRangeEnd(st.rangeEnd)
     }
+    
     bus.on('calendar:state', onState)
     bus.emit('calendar:request-sync', null)
     return () => bus.off('calendar:state', onState)
@@ -180,7 +189,7 @@ export default function Header() {
       mode === 'month'
         ? addMonths(anchorDate, -1)
         : mode === 'week'
-          ? addDays(anchorDate, -7)
+          ? addDays(anchorDate, -days)
           : addDays(anchorDate, -1)
     bus.emit('calendar:set-date', iso)
   }
@@ -189,7 +198,7 @@ export default function Header() {
       mode === 'month'
         ? addMonths(anchorDate, +1)
         : mode === 'week'
-          ? addDays(anchorDate, +7)
+          ? addDays(anchorDate, +days)
           : addDays(anchorDate, +1)
     bus.emit('calendar:set-date', iso)
   }
@@ -409,11 +418,17 @@ export default function Header() {
             <View style={{ height: 16 }} />
             <View style={styles.row}>
               <Text style={styles.allText}>전체</Text>
-              <CustomSwitch
+              <Switch
                 value={allOn}
-                onToggle={() => {
+                onValueChange={() => {
                   toggleAll()
                   bus.emit('filter:changed', filterLabels)
+                }}
+                trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                thumbColor={allOn ? '#B04FFF' : '#FFFFFF'}
+                style={{
+                  transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }],
+                  marginRight: 8,
                 }}
               />
             </View>
@@ -424,14 +439,19 @@ export default function Header() {
             {filterLabels.map((l) => (
               <View key={l.id} style={styles.row}>
                 <View style={styles.labelRow}>
-                  <View style={[styles.colorDot, { backgroundColor: '#B04FFF' }]} />
                   <Text style={styles.labelText}>{l.title}</Text>
                 </View>
-                <CustomSwitch
+                <Switch
                   value={l.enabled}
-                  onToggle={() => {
+                  onValueChange={() => {
                     toggleLabel(l.id)
                     bus.emit('filter:changed', filterLabels)
+                  }}
+                  trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                  thumbColor={l.enabled ? '#B04FFF' : '#FFFFFF'}
+                  style={{
+                    transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }],
+                    marginRight: 8,
                   }}
                 />
               </View>

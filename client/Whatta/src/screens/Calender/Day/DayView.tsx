@@ -257,9 +257,34 @@ useEffect(() => {
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
 
-  async function openEventDetail(id: string) {
-    const res = await http.get(`/event/${id}`)
-    setEventPopupData(res.data.data)
+  function getInstanceDates(ev: any, currentDateISO: string) {
+  // 1) 기간/종일 span: startDate/endDate가 내려오는 케이스
+  if (ev.startDate && ev.endDate) {
+    return { startDate: ev.startDate, endDate: ev.endDate }
+  }
+
+  // 2) 시간지정 일정(반복 포함): startAt/endAt이 내려오는 케이스
+  if (ev.startAt && ev.endAt) {
+    return {
+      startDate: ev.startAt.slice(0, 10),
+      endDate: ev.endAt.slice(0, 10),
+    }
+  }
+
+  // 3) 시간지정 없는 단일 종일(allDayEvents): 날짜 필드가 아예 없는 케이스
+  return { startDate: currentDateISO, endDate: currentDateISO }
+}
+  
+  async function openEventDetail(ev: any) { //객체로 받음
+    const res = await http.get(`/event/${ev.id}`)
+
+    const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current) 
+
+    setEventPopupData({
+    ...res.data.data,
+    startDate,
+    endDate,
+  } )
     setEventPopupMode('edit')
     setEventPopupVisible(true)
   }
@@ -397,6 +422,7 @@ useEffect(() => {
         placementDate: data.placementDate,
         placementTime: data.placementTime,
         dueDateTime: data.dueDateTime ?? null,
+        reminderNoti: data.reminderNoti ?? null,
       })
 
       setTaskPopupVisible(true)
@@ -405,6 +431,13 @@ useEffect(() => {
       Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
     }
   }
+
+   const { items: filterLabels } = useLabelFilter()
+
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    return found ? Number(found.id) : null
+  }, [filterLabels])
 
   // FAB에서 사용하는 '할 일 생성' 팝업 열기
   const openCreateTaskPopup = useCallback((source?: string) => {
@@ -418,7 +451,7 @@ useEffect(() => {
       id: null,
       title: '',
       content: '',
-      labels: [],
+      labels: todoLabelId ? [todoLabelId] : [],
       completed: false,
       placementDate,
       placementTime,
@@ -474,7 +507,6 @@ useEffect(() => {
   )
 
   // 라벨 필터링
-  const { items: filterLabels } = useLabelFilter()
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
   const fetchDailyEvents = useCallback(
@@ -841,7 +873,7 @@ useEffect(() => {
                     const bg = `${base}26`
 
                     return (
-                      <Pressable key={t.id ?? i} onPress={() => openEventDetail(t.id)}>
+                      <Pressable key={t.id ?? i} onPress={() => openEventDetail(t)}>
                         <View
                           style={[
                             S.chip,
@@ -993,7 +1025,8 @@ useEffect(() => {
                   endMin={endMin}
                   color={`#${evt.colorKey}`}
                   anchorDate={anchorDate}
-                  onPress={() => openEventDetail(evt.id)}
+                  isRepeat={!!evt.isRepeat}
+                  onPress={() => openEventDetail(evt)}
                 />
               )
             })}
@@ -1026,7 +1059,7 @@ useEffect(() => {
           visible={taskPopupVisible}
           mode={taskPopupMode}
           taskId={taskPopupId ?? undefined}
-          initialTask={popupTaskMemo}
+          initialTask={taskPopupTask}
           onClose={() => {
             setTaskPopupVisible(false)
             setTaskPopupId(null)
@@ -1050,16 +1083,18 @@ useEffect(() => {
             // 시간
             if (form.hasTime && form.time) {
               const t = form.time
-              placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
-                t.getSeconds(),
-              )}`
+              placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:00`
             } else {
               fieldsToClear.push('placementTime')
             }
 
+            const reminderNoti = form.reminderNoti ?? null
+            if (!reminderNoti) fieldsToClear.push('reminderNoti')
+
+            const targetDate = placementDate ?? anchorDate
+
             try {
               if (taskPopupMode === 'edit') {
-                // ✅ 기존 수정 로직
                 if (!taskPopupId) return
 
                 await http.patch(`/task/${taskPopupId}`, {
@@ -1068,12 +1103,13 @@ useEffect(() => {
                   labels: form.labels,
                   placementDate,
                   placementTime,
+                  reminderNoti,
                   fieldsToClear,
                 })
 
                 bus.emit('calendar:mutated', {
                   op: 'update',
-                  item: { id: taskPopupId, date: anchorDate },
+                  item: { id: taskPopupId, date: targetDate },
                 })
               } else {
                 // 새 테스크 생성 로직
@@ -1083,14 +1119,17 @@ useEffect(() => {
                   labels: form.labels,
                   placementDate,
                   placementTime,
-                  date: placementDate ?? anchorDate,
+                  reminderNoti,
+                  date: targetDate,
                 })
+
+                console.log('task: '+ form.time + placementDate + placementTime + reminderNoti?.hour + reminderNoti?.hour + reminderNoti?.minute)
 
                 const newId = res.data?.data?.id
 
                 bus.emit('calendar:mutated', {
                   op: 'create',
-                  item: { id: newId, date: anchorDate },
+                  item: { id: newId, date: targetDate },
                 })
               }
 
@@ -1108,11 +1147,13 @@ useEffect(() => {
           }}
           onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
         />
+
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
           initial={eventPopupData ?? undefined}
           mode={eventPopupMode}
+          initial={eventPopupData ?? undefined}
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
@@ -1372,6 +1413,7 @@ type DraggableFlexalbeEventProps = {
   endMin: number
   color: string
   anchorDate: string
+  isRepeat?: boolean
   onPress?: () => void
 }
 
@@ -1383,6 +1425,7 @@ function DraggableFlexalbeEvent({
   endMin,
   color,
   anchorDate,
+  isRepeat = false, //기본값
   onPress,
 }: DraggableFlexalbeEventProps) {
   const translateY = useSharedValue(0)
@@ -1411,6 +1454,118 @@ function DraggableFlexalbeEvent({
           '0',
         )}:00`
       const dateISO = anchorDate
+      const newStartTime = fmt(newStart)
+      const newEndTime = fmt(newEnd)
+
+      // ✅ 수정 시작: 반복 일정이면 경고 후 분기
+      if (isRepeat) {
+        // 1) 상세 조회해서 repeat 데이터 확보
+        const detailRes = await http.get(`/event/${id}`)
+        const ev = detailRes.data.data
+        if (!ev?.repeat) {
+          // repeat 데이터가 없으면 그냥 일반 PATCH로 fallback
+          await http.patch(`/event/${id}`, {
+            startDate: dateISO,
+            endDate: dateISO,
+            startTime: newStartTime,
+            endTime: newEndTime,
+          })
+          return
+        }
+
+        const basePayload = {
+          title: ev.title,
+          content: ev.content ?? '',
+          labels: ev.labels ?? [],
+          startDate: dateISO,
+          endDate: dateISO,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          colorKey: ev.colorKey,
+        }
+
+        const ymdLocal = (iso: string) => iso // 이미 ISO라 그대로 사용
+        const prevDay = (iso: string) => {
+          const d = new Date(
+            Number(iso.slice(0, 4)),
+            Number(iso.slice(5, 7)) - 1,
+            Number(iso.slice(8, 10)),
+          )
+          d.setDate(d.getDate() - 1)
+          const pad = (n: number) => String(n).padStart(2, '0')
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        }
+
+        Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+          { text: '취소', style: 'cancel' },
+
+          {
+            text: '이 일정만',
+            onPress: async () => {
+              try {
+                const occDate = ymdLocal(dateISO)
+                const prev = ev.repeat.exceptionDates ?? []
+                const next = prev.includes(occDate) ? prev : [...prev, occDate]
+
+                // 1) 기존 반복 일정에 exceptionDates 패치
+                await http.patch(`/event/${id}`, {
+                  repeat: {
+                    ...ev.repeat,
+                    exceptionDates: next,
+                  },
+                })
+
+                // 2) 단일 일정 생성
+                await http.post('/event', {
+                  ...basePayload,
+                  repeat: null,
+                })
+
+                bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+                bus.emit('calendar:mutated', {
+                  op: 'update',
+                  item: { id, startDate: dateISO, endDate: dateISO },
+                })
+              } catch (e) {
+                console.error('❌ 반복 단일 수정(드래그) 실패:', e)
+              }
+            },
+          },
+
+          {
+            text: '이후 일정 모두',
+            onPress: async () => {
+              try {
+                const cutEnd = prevDay(dateISO)
+
+                // 1) 기존 반복 일정 끝을 전날로 자름
+                await http.patch(`/event/${id}`, {
+                  repeat: {
+                    ...ev.repeat,
+                    endDate: cutEnd,
+                  },
+                })
+
+                // 2) 이후 구간 새 반복 일정 생성
+                await http.post('/event', {
+                  ...basePayload,
+                  repeat: ev.repeat,
+                })
+
+                bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+                bus.emit('calendar:mutated', {
+                  op: 'update',
+                  item: { id, startDate: dateISO, endDate: dateISO },
+                })
+              } catch (e) {
+                console.error('❌ 반복 전체 수정(드래그) 실패:', e)
+              }
+            },
+          },
+        ])
+
+        return
+      }
 
       await http.patch(`/event/${id}`, {
         startDate: anchorDate,

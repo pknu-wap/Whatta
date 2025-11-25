@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   TouchableOpacity,
+  Switch,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -72,6 +73,7 @@ export default function EventDetailPopup({
   const [openStartTime, setOpenStartTime] = useState(false)
   const [openEndTime, setOpenEndTime] = useState(false)
   const titleRef = useRef<TextInput>(null)
+  const [saving, setSaving] = useState(false)
 
   const insets = useSafeAreaInsets()
   const MARGIN = 10
@@ -227,15 +229,57 @@ export default function EventDetailPopup({
       labels: selectedLabelIds.length ? selectedLabelIds : [],
       startDate: ymdLocal(start),
       endDate: ymdLocal(end),
-      startTime: timeOn ? hms(start) : undefined,
-      endTime: timeOn ? hms(end) : undefined,
+      startTime: timeOn ? hms(start) : null,
+      endTime: timeOn ? hms(end) : null,
       colorKey: hex,
+      reminderNoti: reminderNoti,
     }
 
     return {
       payload: stripNil(base),
       colorHex: hex,
     }
+  }
+
+  const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
+
+  const buildRepeatPayload = () => {
+    // repeat 탭에서만 사용할 repeat payload 생성 함수
+
+    // repeatMode가 'custom'이면 unit/interval을 custom 피커값으로 결정
+    const interval = repeatMode === 'custom' ? repeatEvery : 1
+    const unit =
+      repeatMode === 'daily'
+        ? 'DAY'
+        : repeatMode === 'weekly'
+          ? 'WEEK'
+          : repeatMode === 'monthly'
+            ? 'MONTH'
+            : repeatUnit === 'day'
+              ? 'DAY'
+              : repeatUnit === 'week'
+                ? 'WEEK'
+                : 'MONTH'
+
+    // WEEK/MONTH일 때 on 값 계산
+    const on =
+      unit === 'WEEK'
+        ? [WEEKDAY_ENUM[start.getDay()]]
+        : unit === 'MONTH'
+          ? monthlyOpt === 'byDate'
+            ? null
+            : monthlyOpt === 'byNthWeekday'
+              ? [`${nth}${WEEKDAY_ENUM[start.getDay()]}`]
+              : [`LAST_${WEEKDAY_ENUM[start.getDay()]}`]
+          : null
+
+    return stripNil({
+      interval,
+      unit,
+      on,
+      endDate: endMode === 'date' && repeatEndDate ? ymdLocal(repeatEndDate) : null,
+      exceptionDates: eventData?.repeat?.exceptionDates ?? undefined,
+    })
   }
 
   const closeAll = () => {
@@ -297,60 +341,6 @@ export default function EventDetailPopup({
   }
 
   const pickingEndRef = React.useRef(false) // 종료 선택 대기 플래그
-  const onCalendarSelect = (d: Date) => {
-    // 00:00 정규화
-    const picked = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-
-    const s0 = startOfDay(start)
-    const e0 = startOfDay(end)
-
-    // 1. 종료 선택 대기 중 (pickingEndRef.current === true)
-    if (pickingEndRef.current) {
-      if (picked.getTime() >= s0.getTime()) {
-        // 선택 날짜가 시작일보다 같거나 늦으면 종료일로 확정
-        setEnd(picked)
-        setStart(start) // 하이라이트 즉시 적용을 위해 start 상태도 명시적으로 호출
-        setWhichDate('end')
-      } else {
-        // 선택 날짜가 시작일보다 빠르면: 새 시작일로 리셋 (단일)
-        setStart(picked)
-        setEnd(picked)
-        setWhichDate('start')
-      }
-      pickingEndRef.current = false // 대기 해제
-      return
-    }
-
-    // 2. 일반 선택/단일 상태
-    const isSingle = s0.getTime() === e0.getTime()
-
-    if (isSingle) {
-      // 단일 상태에서 탭:
-      if (picked.getTime() > s0.getTime()) {
-        // 더 늦으면 즉시 범위 완성
-        setEnd(picked)
-        setStart(start) // 💡 하이라이트 즉시 적용을 위해 start 상태도 명시적으로 호출
-        setWhichDate('end')
-      } else if (picked.getTime() < s0.getTime()) {
-        // 더 이르면 시작일만 리셋, 다음 탭 대기 진입
-        setStart(picked)
-        setEnd(picked)
-        setWhichDate('start')
-        pickingEndRef.current = true
-      } else {
-        // 같은 날을 다시 탭 (단일 상태 유지)
-        pickingEndRef.current = true // 다음 탭에서 종료 선택하도록 대기 진입
-      }
-      return
-    }
-
-    // 3. 범위가 있는 상태에서 탭:
-    // → "그 날로 단일 리셋" + 다음 탭에서 종료 선택 대기
-    setStart(picked)
-    setEnd(picked)
-    setWhichDate('start')
-    pickingEndRef.current = true
-  }
 
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
@@ -387,6 +377,19 @@ export default function EventDetailPopup({
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
   initial ? 'repeat' : 'schedule'
 )
+
+  useEffect(() => {
+  if (!visible) return
+
+  const isRepeatInitial = initial?.repeat != null
+  const isRepeatFetched = eventData?.repeat != null
+
+  if (isRepeatInitial || isRepeatFetched) {
+    setActiveTab('repeat')
+  } else {
+    setActiveTab('schedule')
+  }
+}, [visible, initial, eventData])
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
@@ -425,17 +428,27 @@ export default function EventDetailPopup({
   const saveNormal = async () => {
     try {
       const { payload, colorHex } = buildBasePayload()
+      const fieldsToClear: string[] = []
+      if (!timeOn) {
+        fieldsToClear.push('startTime', 'endTime')
+        payload.startTime = null
+        payload.endTime = null
+      }
 
       let saved: any
 
       if (mode === 'edit' && eventId) {
         // 수정(PATCH)
-        const res = await http.patch(`/event/${eventId}`, payload)
-        saved = res?.data
+        const res = await http.patch(`/event/${eventId}`, {
+          ...payload,
+          fieldsToClear,
+        })
       } else {
         // 생성(POST)
-        const res = await http.post('/event', payload)
-        saved = res?.data
+        const res = await http.post('/event', {
+          ...payload,
+          fieldsToClear,
+        })
       }
 
       if (saved) {
@@ -569,28 +582,130 @@ export default function EventDetailPopup({
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
-    // 편집 모드 + 반복 일정인 경우만 분기
-    if (mode === 'edit' && eventData?.repeat != null) {
-      Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '이 일정만',
-          onPress: () => {
-            void saveRepeatOnlyThis()
+    //반복모드 저장
+    if (activeTab === 'repeat') {
+      // 편집 모드 + 반복 일정인 경우만 분기
+      if (mode === 'edit' && eventData?.repeat != null) {
+        Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '이 일정만',
+            onPress: () => {
+              void saveRepeatOnlyThis()
+            },
           },
-        },
-        {
-          text: '이후 일정 모두',
-          onPress: () => {
-            void saveRepeatApplyAll()
+          {
+            text: '이후 일정 모두',
+            onPress: () => {
+              void saveRepeatApplyAll()
+            },
           },
-        },
-      ])
+        ])
+        return
+      }
+
+      const { payload, colorHex } = buildBasePayload()
+      const repeatPayload = buildRepeatPayload()
+
+      const finalPayload = {
+        ...payload,
+        repeat: repeatPayload,
+      }
+
+      try {
+        let saved: any
+        if (mode === 'edit' && eventId) {
+          const res = await http.patch(`/event/${eventId}`, finalPayload)
+          saved = res?.data
+        } else {
+          const res = await http.post('/event', finalPayload)
+          saved = res?.data
+        }
+
+        if (saved) {
+          const enriched = {
+            ...(saved ?? {}),
+            colorKey: colorHex,
+            startDate: saved?.startDate ?? finalPayload.startDate,
+            endDate: saved?.endDate ?? finalPayload.endDate,
+          }
+
+          bus.emit('calendar:mutated', { op: 'create', item: enriched })
+          const ym = enriched.startDate?.slice(0, 7)
+          if (ym) bus.emit('calendar:invalidate', { ym })
+        }
+
+        onClose()
+      } catch (err) {
+        console.log('반복 일정 저장 실패:', err)
+        console.log('requestBody: ', finalPayload)
+        alert('저장 실패')
+      }
       return
     }
 
     // 일반 일정 / 생성 모드 → 기존 로직
     await saveNormal()
+  }
+
+  const onCalendarSelect = (d: Date) => {
+    if (activeTab === 'repeat' && endMode === 'none') {
+      setStart(new Date(d.getFullYear(), d.getMonth(), d.getDate()))
+      setEnd(new Date(d.getFullYear(), d.getMonth(), d.getDate()))
+      return
+    }
+    // 00:00 정규화
+    const picked = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+
+    const s0 = startOfDay(start)
+    const e0 = startOfDay(end)
+
+    // 1. 종료 선택 대기 중 (pickingEndRef.current === true)
+    if (pickingEndRef.current) {
+      if (picked.getTime() >= s0.getTime()) {
+        // 선택 날짜가 시작일보다 같거나 늦으면 종료일로 확정
+        setEnd(picked)
+        setStart(start) // 하이라이트 즉시 적용을 위해 start 상태도 명시적으로 호출
+        setWhichDate('end')
+      } else {
+        // 선택 날짜가 시작일보다 빠르면: 새 시작일로 리셋 (단일)
+        setStart(picked)
+        setEnd(picked)
+        setWhichDate('start')
+      }
+      pickingEndRef.current = false // 대기 해제
+      return
+    }
+
+    // 2. 일반 선택/단일 상태
+    const isSingle = s0.getTime() === e0.getTime()
+
+    if (isSingle) {
+      // 단일 상태에서 탭:
+      if (picked.getTime() > s0.getTime()) {
+        // 더 늦으면 즉시 범위 완성
+        setEnd(picked)
+        setStart(start)
+        setWhichDate('end')
+      } else if (picked.getTime() < s0.getTime()) {
+        // 더 이르면 시작일만 리셋, 다음 탭 대기 진입
+        setStart(picked)
+        setEnd(picked)
+        setWhichDate('start')
+        pickingEndRef.current = true
+      } else {
+        // 같은 날을 다시 탭 (단일 상태 유지)
+        pickingEndRef.current = true // 다음 탭에서 종료 선택하도록 대기 진입
+      }
+      return
+    }
+
+    // 3. 범위가 있는 상태에서 탭: 그 날로 단일 리셋 + 다음 탭에서 종료 선택 대기
+    // → "그 날로 단일 리셋" + 다음 탭에서 종료 선택 대기
+    setStart(picked)
+    setEnd(picked)
+    setWhichDate('start')
+    pickingEndRef.current = true
   }
 
   // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
@@ -625,22 +740,84 @@ export default function EventDetailPopup({
   const [openTime, setOpenTime] = useState(false)
 
   // 알림 드롭다운
-  const REMIND_OPTIONS = [
-    '10분 전',
-    '30분 전',
-    '1시간 전',
-    '하루 전',
-    '일주일 전',
-    '맞춤 설정',
-  ] as const
-  type RemindOpt = (typeof REMIND_OPTIONS)[number]
+  type ReminderPreset = {
+    id: string
+    day: number
+    hour: number
+    minute: number
+    label: string
+  }
+  const [reminderPresets, setReminderPresets] = useState<
+    { id: string; day: number; hour: number; minute: number }[]
+  >([])
+  const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null)
 
-  const [remindValue, setRemindValue] = useState<RemindOpt>('하루 전')
+  useEffect(() => {
+    if (!visible) return
+
+    const fetchPresets = async () => {
+      try {
+        const res = await http.get('/user/setting/reminder')
+        setReminderPresets(res.data.data)
+      } catch (err) {
+        console.log('❌ 리마인드 preset 불러오기 실패:', err)
+      }
+    }
+
+    fetchPresets()
+  }, [visible])
+  // 프리셋 + '맞춤 설정'
+  const presetOptions = reminderPresets.map((p) => ({
+    type: 'preset' as const,
+    ...p,
+    label: formatCustomLabel(p.hour, p.minute),
+  }))
+
+  const remindOptions = [
+    ...presetOptions,
+    { type: 'custom' as const, label: '맞춤 설정' },
+  ]
   const [remindOpen, setRemindOpen] = useState(false)
+
+  function buildReminderNoti() {
+    // 알림 토글 꺼져 있거나, 선택된 값이 없으면 null
+    if (!remindOn || !remindValue) return null
+
+    // 맞춤 설정
+    if (remindValue === 'custom') {
+      return {
+        day: 0,
+        hour: customHour,
+        minute: customMinute,
+      }
+    }
+
+    // remindValue는 preset 객체라고 확정
+    return {
+      day: remindValue.day,
+      hour: remindValue.hour,
+      minute: remindValue.minute,
+    }
+  }
+
+  const { payload, colorHex } = buildBasePayload()
+  const reminderNoti = buildReminderNoti()
+
   // 현재 h,m 포맷
   const customLabel = formatCustomLabel(customHour, customMinute)
   // 버튼에 보여줄 텍스트: 맞춤 설정이면 항상 실시간 표시
-  const displayRemind = remindValue === '맞춤 설정' ? customLabel : remindValue
+  const displayRemind = React.useMemo(() => {
+    // 알림이 꺼져 있거나, 아직 선택 안 했으면 빈 문자열
+    if (!remindOn || !remindValue) return ''
+
+    // 커스텀 알림이면 항상 커스텀 라벨
+    if (remindValue === 'custom') {
+      return customLabel
+    }
+
+    // preset이면 label 사용 (없으면 시간으로 만들어서 반환)
+    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+  }, [remindOn, remindValue, customLabel])
 
   // 반복 모드: monthly 세부 옵션 펼침 여부
   const [monthlyOpen, setMonthlyOpen] = useState(false)
@@ -704,9 +881,13 @@ export default function EventDetailPopup({
         const ev = res.data.data
         if (!ev) return
 
+        //인스턴스 start/endDate가 있으면 그걸 우선 사용함
+        const startIso = initial?.startDate ?? ev.startDate
+        const endIso = initial?.endDate ?? ev.endDate
+
         // 날짜
-        const s = new Date(ev.startDate)
-        const e = new Date(ev.endDate)
+        const s = new Date(startIso)
+        const e = new Date(endIso)
 
         // input 값 상태 세팅
         setScheduleTitle(ev.title ?? '')
@@ -735,13 +916,44 @@ export default function EventDetailPopup({
           setEnd(ee)
         }
         setEventData(ev)
+        if (ev?.isRepeat || ev?.repeat != null) {
+          setActiveTab('repeat')
+          const r = ev.repeat
+
+          // 1) endDate 세팅
+          if (r.endDate) {
+            setEndMode('date')
+            setRepeatEndDate(new Date(r.endDate))
+          } else {
+            setEndMode('none')
+            setRepeatEndDate(null)
+          }
+
+          // 2) repeatMode 결정
+          // - interval=1 이고 unit이 DAY/WEEK/MONTH에 딱 맞으면 daily/weekly/monthly
+          // - 그 외는 custom으로 보내고 repeatEvery/repeatUnit 세팅
+          const unit = r.unit
+          const interval = r.interval ?? 1
+
+          if (unit === 'DAY' && interval === 1) {
+            setRepeatMode('daily')
+          } else if (unit === 'WEEK' && interval === 1) {
+            setRepeatMode('weekly')
+          } else if (unit === 'MONTH' && interval === 1) {
+            setRepeatMode('monthly')
+          } else {
+            setRepeatMode('custom')
+            setRepeatEvery(interval)
+            setRepeatUnit(unit === 'DAY' ? 'day' : unit === 'WEEK' ? 'week' : 'month')
+          }
+        }
       } catch (err) {
         console.error('❌ 일정 상세 불러오기 실패:', err)
       }
     }
 
     fetchEventDetail()
-  }, [mode, eventId])
+  }, [mode, eventId, initial])
 
   const isMultiDaySpan = React.useMemo(() => {
     if (!start || !end) return false
@@ -765,6 +977,7 @@ export default function EventDetailPopup({
       setEnd(today)
       setTimeOn(false)
       setRemindOn(false)
+      setActiveTab('schedule')
     }
   }, [visible, mode])
 
@@ -778,44 +991,92 @@ export default function EventDetailPopup({
       const defaultLabel = labels.find((l) => l.title === '일정')
       return defaultLabel ? [defaultLabel.id] : prev
     })
+
+    // 알림 드롭다운 + 맞춤 피커
+    setRemindOpen(false)
+    setCustomOpen(false)
   }, [visible, mode, labels])
 
-  // 🔥 초기값 적용 (OCR로 들어온 경우)
-useEffect(() => {
-  if (!visible || !initial) return
-  if (!initial) return
+  useEffect(() => {
+    if (!visible) return
 
-  if (initial.title) setScheduleTitle(initial.title)
+    // 반복
+    setRepeatOpen(false)
+    setMonthlyOpen(false)
+    setRepeatCustomOpen(false)
+    setEndOpen(false)
+    setEndDateCustomOpen(false)
+    // 날짜/시간 패널
+    setOpenCalendar(false)
+    setOpenTime(false)
+    setOpenStartTime(false)
+    setOpenEndTime(false)
+    // 알림 섹션만 닫기
+    setRemindOpen(false)
+    setCustomOpen(false)
+  }, [visible])
 
-  if (initial.startDate) {
-    const [y, m, d] = initial.startDate.split('-').map(Number)
-    const dd = new Date(y, m - 1, d)
-    setStart(dd)
-    setEnd(dd)
-  }
+  useEffect(() => {
+    async function fetchEventDetail() {
+      // 팝업이 안 보일 때는 굳이 요청 안 함
+      if (!visible) return
+      if (mode !== 'edit' || !eventId) return
 
-  if (initial.startTime && initial.endTime) {
-    setTimeOn(true)
+      try {
+        const res = await http.get(`/event/${eventId}`)
+        const ev = res.data.data
+        if (!ev) return
 
-    const [sh, sm] = initial.startTime.split(':').map(Number)
-    const [eh, em] = initial.endTime.split(':').map(Number)
+        // 날짜 세팅
+        const s = new Date(ev.startDate)
+        const e = new Date(ev.endDate)
 
-    const s = new Date(start)
-    s.setHours(sh)
-    s.setMinutes(sm)
-    setStart(s)
+        setScheduleTitle(ev.title ?? '')
+        setMemo(ev.content ?? '')
+        setSelectedLabelIds(ev.labels ?? [])
+        setSelectedColor('#' + ev.colorKey)
 
-    const e = new Date(end)
-    e.setHours(eh)
-    e.setMinutes(em)
-    setEnd(e)
-  } else {
-    setTimeOn(false)
-  }
+        setStart(s)
+        setEnd(e)
 
-  setRepeatMode('weekly')
-  
-}, [visible, initial])
+        if (ev.startTime) {
+          setTimeOn(true)
+          const [h, m] = ev.startTime.split(':').map(Number)
+          const ss = new Date(s)
+          ss.setHours(h)
+          ss.setMinutes(m)
+          setStart(ss)
+        }
+
+        if (ev.endTime) {
+          setTimeOn(true)
+          const [h, m] = ev.endTime.split(':').map(Number)
+          const ee = new Date(e)
+          ee.setHours(h)
+          ee.setMinutes(m)
+          setEnd(ee)
+        }
+
+        setEventData(ev)
+
+        // repeat 여부로 탭 초기화
+        // repeat가 null/undefined면 일반 일정 → 'schedule'
+        // repeat 객체가 있으면 반복 일정 → 'repeat'
+        setActiveTab(ev.repeat ? 'repeat' : 'schedule')
+      } catch (err) {
+        console.error('❌ 일정 상세 불러오기 실패:', err)
+      }
+    }
+
+    fetchEventDetail()
+  }, [mode, eventId, visible])
+
+  // 일정 종료일(end) 변경 → 반복 종료일도 따라가도록 동기화
+  useEffect(() => {
+    if (activeTab === 'repeat' && endMode === 'date') {
+      setRepeatEndDate(end)
+    }
+  }, [end, activeTab, endMode])
 
   const deleteNormal = async () => {
     try {
@@ -949,7 +1210,6 @@ useEffect(() => {
                 onResponderRelease={() => {
                   if (!customOpen) return
                   if (pickerTouchingRef.current) return
-                  setCustomOpen(false)
                 }}
               >
                 {/* HEADER */}
@@ -957,7 +1217,14 @@ useEffect(() => {
                   <TouchableOpacity onPress={close} hitSlop={20}>
                     <Xbutton width={12} height={12} color={'#808080'} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={handleSave} hitSlop={20}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (saving) return
+                      setSaving(true)
+                      handleSave().finally(() => setSaving(false))
+                    }}
+                    hitSlop={20}
+                  >
                     <Check width={12} height={12} color={'#808080'} />
                   </TouchableOpacity>
                 </View>
@@ -1216,6 +1483,7 @@ useEffect(() => {
 
                           return (
                             <View style={{ flexDirection: 'row', gap: 5 }}>
+                              {/* 시간 피커 */}
                               {/* HOUR */}
                               <Picker
                                 style={styles.timePicker}
@@ -1285,13 +1553,12 @@ useEffect(() => {
                     {/* 시간 */}
                     <View style={[styles.row, { marginTop: 18 }]}>
                       <Text style={styles.label}>시간</Text>
-                      <Toggle
+                      <Switch
                         value={timeOn}
-                        onChange={(v) => {
+                        onValueChange={(v) => {
                           setTimeOn(v)
                           if (v) {
                             const now = new Date()
-
                             // 가장 가까운 5분으로 스냅
                             const min = now.getMinutes()
                             const snap = min % 5 === 0 ? min : min + (5 - (min % 5))
@@ -1307,6 +1574,11 @@ useEffect(() => {
                           } else {
                             setOpenTime(false)
                           }
+                        }}
+                        trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                        thumbColor={timeOn ? '#B04FFF' : '#FFFFFF'}
+                        style={{
+                          transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                         }}
                       />
                     </View>
@@ -1606,6 +1878,7 @@ useEffect(() => {
                               onPress={() => {
                                 setEndMode('none')
                                 setRepeatEndDate(null)
+                                setEnd(start)
                                 setEndOpen(false)
                                 setEndDateCustomOpen(false)
                               }}
@@ -1665,7 +1938,15 @@ useEffect(() => {
                                 <InlineCalendar
                                   open
                                   value={repeatEndDate ?? start}
-                                  onSelect={(d) => setRepeatEndDate(d)}
+                                  onSelect={(d) => {
+                                    if (d.getTime() < start.getTime()) {
+                                      setRepeatEndDate(start)
+                                      setEnd(start)
+                                    } else {
+                                      setRepeatEndDate(d)
+                                      setEnd(d)
+                                    }
+                                  }}
                                 />
                               </View>
                             )}
@@ -1674,180 +1955,162 @@ useEffect(() => {
                       </>
                     )}
                     {/* 일정/알림 */}
-                    {!isMultiDaySpan && (
-                      <>
-                        <View style={styles.row}>
-                          <Text style={styles.label}>알림</Text>
+                    <>
+                      <View style={styles.row}>
+                        <Text style={styles.label}>알림</Text>
 
-                          {/* 오른쪽 영역 */}
-                          <View style={styles.rowRight}>
-                            {(() => {
-                              const baseColor = remindOn ? '#333333' : '#B3B3B3'
-                              const arrowColor = remindOpen ? '#B04FFF' : baseColor
-                              return (
-                                <Pressable
-                                  style={styles.remindButton}
-                                  onPress={() => {
-                                    if (!remindOn) return
-                                    setRemindOpen((v) => !v)
-                                  }}
-                                  hitSlop={8}
+                        {/* 오른쪽 영역 */}
+                        <View style={styles.rowRight}>
+                          {(() => {
+                            const baseColor = remindOn ? '#333333' : '#B3B3B3'
+                            const arrowColor = remindOpen ? '#B04FFF' : baseColor
+                            return (
+                              <Pressable
+                                style={styles.remindButton}
+                                onPress={() => {
+                                  if (!remindOn) return
+                                  setRemindOpen((v) => !v)
+                                }}
+                                hitSlop={8}
+                              >
+                                <Text
+                                  style={[styles.remindTextBtn, { color: baseColor }]}
                                 >
+                                  {displayRemind}
+                                </Text>
+
+                                <Down width={10} height={10} color={arrowColor} />
+                              </Pressable>
+                            )
+                          })()}
+
+                          <Switch
+                            value={remindOn}
+                            disabled={!timeOn}
+                            onValueChange={async (v) => {
+                              if (!v) {
+                                setRemindOn(false)
+                                setRemindOpen(false)
+                                return
+                              }
+
+                              const ok = await ensureNotificationPermissionForToggle()
+                              if (!ok) {
+                                setRemindOn(false)
+                                setRemindOpen(false)
+                                return
+                              }
+
+                              setRemindOn(true) // 권한 ok
+                              setRemindOpen(true)
+                            }}
+                            trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
+                            thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}
+                            style={{
+                              transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+                              opacity: timeOn ? 1 : 0.5,
+                            }}
+                          />
+                        </View>
+                      </View>
+                      {/* 드롭다운 리스트 */}
+                      {remindOn && remindOpen && (
+                        <View style={styles.remindDropdown}>
+                          {remindOptions.map((opt, idx) => {
+                            const isLast = idx === remindOptions.length - 1
+                            const selected =
+                              opt.type === 'preset'
+                                ? (remindValue as any)?.id === opt.id
+                                : remindValue === 'custom'
+
+                            return (
+                              <View key={opt.type === 'preset' ? opt.id : 'custom'}>
+                                <Pressable
+                                  style={[
+                                    styles.remindItem,
+                                    !isLast && styles.remindItemDivider,
+                                  ]}
+                                  onPress={() => {
+                                    if (opt.type === 'custom') {
+                                      setRemindValue('custom')
+                                      setCustomOpen((v) => !v)
+                                      return
+                                    }
+
+                                    // preset 선택 → 바로 값 세팅
+                                    setRemindValue(opt) // 전체 preset 객체 저장
+                                    setCustomOpen(false)
+                                    setRemindOpen(false)
+                                  }}
+                                >
+                                  {selected && (
+                                    <View
+                                      pointerEvents="none"
+                                      style={styles.remindSelectedBg}
+                                    />
+                                  )}
+
                                   <Text
-                                    style={[styles.remindTextBtn, { color: baseColor }]}
+                                    style={[
+                                      styles.remindItemText,
+                                      selected && {
+                                        color: '#A84FF0',
+                                        fontWeight: '700',
+                                      },
+                                    ]}
                                   >
-                                    {displayRemind}
+                                    {opt.label}
                                   </Text>
-
-                                  <Down width={10} height={10} color={arrowColor} />
                                 </Pressable>
-                              )
-                            })()}
+                              </View>
+                            )
+                          })}
+                        </View>
+                      )}
+                      {/* 맞춤 설정 인라인 피커 */}
+                      {customOpen && remindOn && (
+                        <View style={styles.remindPickerWrap}>
+                          <View style={styles.remindPickerInner}>
+                            {/* HOUR */}
+                            <View style={styles.remindPickerBox}>
+                              <Picker
+                                selectedValue={customHour}
+                                onValueChange={(v) => setCustomHour(v)}
+                                style={styles.remindPicker}
+                                itemStyle={styles.remindPickerItem}
+                              >
+                                {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                                  <Picker.Item key={h} label={`${h}`} value={h} />
+                                ))}
+                              </Picker>
+                            </View>
+                            <Text style={styles.remindPickerColon}>:</Text>
 
-                            <Toggle
-                              value={remindOn}
-                              onChange={async (v) => {
-                          if (!v) {
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
+                            {/* MINUTE */}
+                            <View style={styles.remindPickerBox}>
+                              <Picker
+                                selectedValue={customMinute}
+                                onValueChange={(v) => setCustomMinute(v)}
+                                style={styles.remindPicker}
+                                itemStyle={styles.remindPickerItem}
+                              >
+                                {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                                  <Picker.Item
+                                    key={m}
+                                    label={String(m).padStart(2, '0')}
+                                    value={m}
+                                  />
+                                ))}
+                              </Picker>
+                            </View>
 
-                          const ok = await ensureNotificationPermissionForToggle()
-                          if (!ok) { // 여전히 권한 없음 → 토글 되돌리기
-                            setRemindOn(false)
-                            setRemindOpen(false)
-                            return
-                          }
-
-                          setRemindOn(true) // 권한 ok
-                        }}
-                            />
+                            <Text style={styles.remindPickerSuffix}>전</Text>
                           </View>
                         </View>
-                        {/* 드롭다운 리스트 */}
-                        {remindOn && remindOpen && (
-                          <View style={styles.remindDropdown}>
-                            {REMIND_OPTIONS.map((opt, idx) => {
-                              const selected = opt === remindValue
-                              const isLast = idx === REMIND_OPTIONS.length - 1
-                              const isCustom = opt === '맞춤 설정'
+                      )}
 
-                              return (
-                                <View key={opt}>
-                                  <Pressable
-                                    style={[
-                                      styles.remindItem,
-                                      !isLast && styles.remindItemDivider,
-                                    ]}
-                                    onStartShouldSetResponderCapture={() => true}
-                                    onPress={() => {
-                                      if (isCustom) {
-                                        setRemindValue('맞춤 설정') // 버튼 텍스트는 실시간 표시에 맡김
-                                        setCustomOpen((prev) => !prev) // 열려 있으면 닫기, 닫혀 있으면 열기
-                                        return
-                                      }
-                                      // 일반 옵션
-                                      setRemindValue(opt)
-                                      setCustomOpen(false) // 인라인 피커 닫기
-                                      setRemindOpen(false) // 드롭다운 닫기
-                                    }}
-                                  >
-                                    {selected && (
-                                      <View
-                                        pointerEvents="none"
-                                        style={styles.remindSelectedBg}
-                                      />
-                                    )}
-                                    <Text
-                                      style={[
-                                        styles.remindItemText,
-                                        selected && {
-                                          color: '#A84FF0',
-                                          fontWeight: '700',
-                                        },
-                                      ]}
-                                    >
-                                      {isCustom ? '맞춤 설정' : opt}
-                                    </Text>
-                                  </Pressable>
-
-                                  {/* '맞춤 설정' 항목 바로 밑에 인라인 피커 */}
-                                  {isCustom && customOpen && (
-                                    <View
-                                      style={styles.inlinePickerInList}
-                                      onStartShouldSetResponder={() => true}
-                                      onMoveShouldSetResponder={() => true}
-                                      onStartShouldSetResponderCapture={() => true}
-                                      onTouchStart={() => {
-                                        pickerTouchingRef.current = true
-                                      }}
-                                      onTouchEnd={() => {
-                                        setTimeout(
-                                          () => (pickerTouchingRef.current = false),
-                                          0,
-                                        )
-                                      }}
-                                    >
-                                      <View
-                                        style={{ height: 8, pointerEvents: 'none' }}
-                                      />
-                                      <View style={styles.inlinePickerRow}>
-                                        {/* 시간 */}
-                                        <View style={styles.inlinePickerBox}>
-                                          <Picker
-                                            selectedValue={customHour}
-                                            onValueChange={(v) => {
-                                              setCustomHour(v)
-                                              setRemindValue('맞춤 설정') // 실시간 표시 유지
-                                            }}
-                                            style={styles.inlinePicker}
-                                            itemStyle={styles.inlinePickerItem}
-                                          >
-                                            {HOURS.map((h) => (
-                                              <Picker.Item
-                                                key={h}
-                                                label={`${h}시간`}
-                                                value={h}
-                                              />
-                                            ))}
-                                          </Picker>
-                                        </View>
-
-                                        {/* 분(5분 단위) */}
-                                        <View style={styles.inlinePickerBox}>
-                                          <Picker
-                                            selectedValue={customMinute}
-                                            onValueChange={(v) => {
-                                              setCustomMinute(v)
-                                              setRemindValue('맞춤 설정') // 실시간 표시 유지
-                                            }}
-                                            style={styles.inlinePicker}
-                                            itemStyle={styles.inlinePickerItem}
-                                          >
-                                            {MINUTES.map((m) => (
-                                              <Picker.Item
-                                                key={m}
-                                                label={`${m}분`}
-                                                value={m}
-                                              />
-                                            ))}
-                                          </Picker>
-                                        </View>
-
-                                        {/* '전' */}
-                                        <Text style={styles.inlineSuffix}>전</Text>
-                                      </View>
-                                    </View>
-                                  )}
-                                </View>
-                              )
-                            })}
-                          </View>
-                        )}
-                        <View style={styles.sep} />
-                      </>
-                    )}
+                      <View style={styles.sep} />
+                    </>
 
                     {/* 라벨 */}
                     <View style={[styles.row, { alignItems: 'center' }]}>
@@ -2483,5 +2746,48 @@ const styles = StyleSheet.create({
   timePickerItem: {
     fontSize: 16, // ← 글자 크기
     fontWeight: '500', // 굵기 조절하고 싶으면
+  },
+  remindPickerWrap: {
+    paddingVertical: 6,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+  },
+
+  remindPickerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: 150,
+  },
+
+  remindPickerBox: {
+    width: 100,
+    height: 210,
+    justifyContent: 'center',
+  },
+
+  remindPicker: {
+    width: 100,
+    height: 210,
+  },
+
+  remindPickerItem: {
+    fontSize: 16,
+    color: '#333',
+  },
+
+  remindPickerColon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginHorizontal: 6,
+  },
+
+  remindPickerSuffix: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginLeft: 6,
   },
 })
