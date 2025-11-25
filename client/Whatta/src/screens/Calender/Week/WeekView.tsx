@@ -106,7 +106,7 @@ const today = () => {
 function getDateOfWeek(weekDay: string): string {
   if (!weekDay) return today()
 
-  const key = weekDay.trim().toUpperCase()   // ⭐ 중요
+  const key = weekDay.trim().toUpperCase() // ⭐ 중요
 
   const map: any = {
     MON: 1,
@@ -120,7 +120,7 @@ function getDateOfWeek(weekDay: string): string {
 
   const target = map[key]
   if (target === undefined) {
-    console.log("❌ Unknown weekDay:", weekDay)
+    console.log('❌ Unknown weekDay:', weekDay)
     return today()
   }
 
@@ -1165,6 +1165,30 @@ function DraggableTaskBox({
 /* -------------------------------------------------------------------------- */
 /* 드래그 가능한 일정 박스 */
 /* -------------------------------------------------------------------------- */
+const askRepeatAction = (): Promise<'single' | 'future' | 'cancel'> => {
+  return new Promise((resolve) => {
+    Alert.alert(
+      '반복 일정 이동',
+      '이 일정을 어떻게 적용할까요?',
+      [
+        {
+          text: '이번 일정만 변경',
+          onPress: () => resolve('single'),
+        },
+        {
+          text: '이후 모든 일정 변경',
+          onPress: () => resolve('future'),
+        },
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => resolve('cancel'),
+        },
+      ],
+      { cancelable: true },
+    )
+  })
+}
 
 type DraggableFlexalbeEventProps = {
   id: string
@@ -1274,11 +1298,21 @@ function DraggableFlexalbeEvent({
         const full = await http.get(`/event/${id}`)
         const eventData = full.data.data
 
+        let applyMode: 'single' | 'future' = 'single'
+
+        // 이벤트가 반복일 경우에만 선택창 띄우기
+        if (eventData.isRepeat || eventData.repeat) {
+          const choice = await askRepeatAction()
+          if (choice === 'cancel') return // 취소 시 아무것도 안 함
+          applyMode = choice
+        }
+
         await http.patch(`/event/${id}`, {
           startDate: newDateISO,
           endDate: newDateISO,
           startTime: nextStartTime,
           endTime: nextEndTime,
+          applyMode, // 서버가 이걸 보고 이후 반복 포함 여부 결정
         })
 
         bus.emit('calendar:mutated', {
@@ -1433,65 +1467,63 @@ function DraggableFlexalbeEvent({
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView() {
-
   // OCR 카드 팝업
-const [ocrModalVisible, setOcrModalVisible] = useState(false)
-const [ocrEvents, setOcrEvents] = useState<any[]>([])
+  const [ocrModalVisible, setOcrModalVisible] = useState(false)
+  const [ocrEvents, setOcrEvents] = useState<any[]>([])
 
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
-  
-const sendToOCR = async (base64: string, ext?: string) => {
-  try {
-    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
 
-    const lower = ext?.toLowerCase()
-    const format = lower === 'png' ? 'png' : 'jpg'
+  const sendToOCR = async (base64: string, ext?: string) => {
+    try {
+      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
 
-    const res = await http.post('/ocr', {
-      imageType: 'COLLEGE_TIMETABLE',
-      image: {
-        format,
-        name: `timetable.${format}`,
-        data: cleanBase64,
-      },
-    })
+      const lower = ext?.toLowerCase()
+      const format = lower === 'png' ? 'png' : 'jpg'
 
-    console.log("OCR 성공:", res.data)
+      const res = await http.post('/ocr', {
+        imageType: 'COLLEGE_TIMETABLE',
+        image: {
+          format,
+          name: `timetable.${format}`,
+          data: cleanBase64,
+        },
+      })
 
-    const rows = res.data?.data?.events ?? []
-    if (!rows.length) {
-      Alert.alert("결과 없음", "인식된 일정이 없습니다.")
-      return
+      console.log('OCR 성공:', res.data)
+
+      const rows = res.data?.data?.events ?? []
+      if (!rows.length) {
+        Alert.alert('결과 없음', '인식된 일정이 없습니다.')
+        return
+      }
+
+      const mapped = rows.map((r: any, idx: number) => ({
+        id: String(idx),
+        title: r.title ?? '',
+        content: r.content ?? '',
+        weekDay: r.weekDay ?? '',
+        date: getDateOfWeek(r.weekDay),
+        startTime: r.startTime ?? '',
+        endTime: r.endTime ?? '',
+      }))
+
+      setOcrEvents(mapped)
+      setOcrModalVisible(true)
+    } catch (err: any) {
+      console.log('OCR 실패:', err.response?.data ?? err)
+      Alert.alert('오류', 'OCR 처리 실패')
     }
-
-    const mapped = rows.map((r: any, idx: number) => ({
-      id: String(idx),
-      title: r.title ?? '',
-      content: r.content ?? '',
-      weekDay: r.weekDay ?? '',
-      date: getDateOfWeek(r.weekDay),
-      startTime: r.startTime ?? '',
-      endTime: r.endTime ?? '',
-    }))
-
-    setOcrEvents(mapped)
-    setOcrModalVisible(true)
-
-  } catch (err: any) {
-    console.log("OCR 실패:", err.response?.data ?? err)
-    Alert.alert("오류", "OCR 처리 실패")
   }
-}
 
   useEffect(() => {
-  const handler = (payload?: { source?: string }) => {
-    if (payload?.source !== 'Week') return
-    setImagePopupVisible(true)
-  }
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Week') return
+      setImagePopupVisible(true)
+    }
 
-  bus.on('popup:image:create', handler)
-  return () => bus.off('popup:image:create', handler)
-}, [])
+    bus.on('popup:image:create', handler)
+    return () => bus.off('popup:image:create', handler)
+  }, [])
 
   const [anchorDate, setAnchorDate] = useState(todayISO())
   const [isZoomed, setIsZoomed] = useState(false)
@@ -1581,15 +1613,30 @@ const sendToOCR = async (base64: string, ext?: string) => {
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
   const [eventPopupData, setEventPopupData] = useState<any | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
-  const openEventDetail = async (eventId: string) => {
-    const res = await http.get(`/event/${eventId}`)
-    const ev = res.data.data
-    if (!ev) return
+  async function openEventDetail(eventId: string, occDate?: string) {
+    setSelectedEventId(eventId)
 
-    setEventPopupMode('edit')
-    setEventPopupData(ev)
-    setEventPopupVisible(true)
+    try {
+      const res = await http.get(`/event/${eventId}`)
+      const data = res.data.data
+      if (!data) return
+
+      setEventPopupMode('edit')
+      setEventPopupData(
+        occDate
+          ? {
+              ...data,
+              // 발생일을 startDate로 덮어서 Popup의 initial에 실어 보냄
+              startDate: occDate,
+            }
+          : data,
+      )
+      setEventPopupVisible(true)
+    } catch (e) {
+      console.log('일정 상세 불러오기 실패:', e)
+    }
   }
 
   useEffect(() => {
@@ -2585,7 +2632,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
                       return (
                         <Pressable
                           key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
-                          onPress={() => openEventDetail(String(s.id))}
+                          onPress={() => openEventDetail(String(s.id), s.startISO)}
                         >
                           <View style={baseStyle}>
                             {weekDates.includes(s.startISO) &&
@@ -2964,18 +3011,17 @@ const sendToOCR = async (base64: string, ext?: string) => {
           }}
         />
         <AddImageSheet
-  visible={imagePopupVisible}
-  onClose={() => setImagePopupVisible(false)}
-  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
-  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
-/>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-  onAddEvent={(ev) => {
-  }}
-/>
+          visible={imagePopupVisible}
+          onClose={() => setImagePopupVisible(false)}
+          onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+          onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+        />
+        <OCREventCardSlider
+          visible={ocrModalVisible}
+          events={ocrEvents}
+          onClose={() => setOcrModalVisible(false)}
+          onAddEvent={(ev) => {}}
+        />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
