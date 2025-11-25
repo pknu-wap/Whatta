@@ -251,7 +251,9 @@ export default function MainTabs() {
             onPressTop1={() => {
               bus.emit('task:create', { source: activeTab })
             }}
-            onPressTop2={() => {}}
+            onPressTop2={() => {
+              bus.emit('popup:image:create', { source: activeTab })
+            }}
             onPressPrimaryWhenOpen={() => {
               bus.emit('popup:schedule:create', { source: activeTab })
             }}

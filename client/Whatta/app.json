@@ -16,10 +16,16 @@
       "buildNumber": "6",
       "supportsTablet": true,
       "googleServicesFile": "./GoogleService-Info.plist",
+
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+
+        "NSCameraUsageDescription": "사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
+        "NSPhotoLibraryUsageDescription": "사진을 불러오기 위해 사진 앨범 접근 권한이 필요합니다.",
+        "NSPhotoLibraryAddUsageDescription": "사진을 저장하기 위해 앨범 접근 권한이 필요합니다."
       }
     },
+
     "android": {
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -30,9 +36,11 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.whatta.whatta"
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
+
     "plugins": [
       "expo-font",
       "expo-secure-store",
@@ -47,13 +55,13 @@
           }
         }
       ],
-
       "@react-native-firebase/app",
       "@react-native-firebase/messaging"
     ],
+
     "extra": {
       "eas": {
-        "projectId": "b895d0bb-969a-4bd e-bb79-27d84e2c27a7"
+        "projectId": "b895d0bb-969a-4bbe-bb79-27d84e2c27a7"
       }
     }
   }

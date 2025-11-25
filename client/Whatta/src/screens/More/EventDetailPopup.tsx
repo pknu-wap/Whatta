@@ -374,7 +374,9 @@ export default function EventDetailPopup({
   const btnText: string | undefined = hasLabels ? undefined : '없음'
 
   const [labels, setLabels] = useState<Label[]>([])
-  const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>('schedule')
+  const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
+  initial ? 'repeat' : 'schedule'
+)
 
   useEffect(() => {
   if (!visible) return
@@ -708,6 +710,8 @@ export default function EventDetailPopup({
 
   // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
   useEffect(() => {
+    if (initial) return
+    
     const applyAnchor = (iso: string) => {
       const [y, m, d] = iso.split('-').map(Number)
       const anchor = new Date(y, m - 1, d)
@@ -962,7 +966,7 @@ export default function EventDetailPopup({
   }, [start, end])
 
   useEffect(() => {
-    if (visible && mode === 'create') {
+    if (visible && mode === 'create' && !initial) {
       setScheduleTitle('')
       setMemo('')
       setSelectedLabelIds([])
