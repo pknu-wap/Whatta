@@ -104,9 +104,7 @@ const todayISO = () => {
 const addDays = (iso: string, d: number) => {
   const [y, m, dd] = iso.split('-').map(Number)
   const base = new Date(y, m - 1, dd + d)
-  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}-${pad2(
-    base.getDate(),
-  )}`
+  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}-${pad2(base.getDate())}`
 }
 
 const startOfWeek = (iso: string) => {
@@ -170,6 +168,29 @@ function FullBleed({
   )
 }
 
+function mixWhite(hex: string, whitePercent: number) {
+  const clean = hex.replace('#', '')
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+
+  const w = whitePercent / 100
+  const base = 1 - w
+
+  const mix = (c: number) => Math.round(c * base + 255 * w)
+
+  const newR = mix(r)
+  const newG = mix(g)
+  const newB = mix(b)
+
+  return (
+    '#' +
+    newR.toString(16).padStart(2, '0') +
+    newG.toString(16).padStart(2, '0') +
+    newB.toString(16).padStart(2, '0')
+  ).toUpperCase()
+}
+
 /* -------------------------------------------------------------------------- */
 /* 타입 */
 /* -------------------------------------------------------------------------- */
@@ -187,6 +208,7 @@ type DayTimelineEvent = {
   startMin: number
   endMin: number
   color: string
+  isRepeat?: boolean
 }
 
 type LayoutedEvent = DayTimelineEvent & {
@@ -218,6 +240,7 @@ type WeekSpanEvent = {
   isTask?: boolean
   done?: boolean
   completed?: boolean
+  isRepeat?: boolean
 }
 
 /* -------------------------------------------------------------------------- */
@@ -260,9 +283,7 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
 
     const overlappingGroup = sorted.filter(
       (other) =>
-        other.id !== ev.id &&
-        other.startMin < ev.endMin &&
-        other.endMin > ev.startMin,
+        other.id !== ev.id && other.startMin < ev.endMin && other.endMin > ev.startMin,
     )
 
     const hasOverlap = overlappingGroup.length > 0
@@ -273,9 +294,7 @@ function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
     let isPartialOverlap = false
 
     if (hasOverlap) {
-      const group = [...overlappingGroup, ev].sort(
-        (a, b) => a.startMin - b.startMin,
-      )
+      const group = [...overlappingGroup, ev].sort((a, b) => a.startMin - b.startMin)
       group.forEach((e, idx) => {
         const depth = idx
         layout.push({
@@ -317,10 +336,7 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
     const bucket = data[dateISO]
     if (!bucket) return
 
-    const list = [
-      ...(bucket.spanEvents || []),
-      ...(bucket.checks || []),
-    ]
+    const list = [...(bucket.spanEvents || []), ...(bucket.checks || [])]
 
     list.forEach((e: any) => {
       const id = String(e.id)
@@ -383,8 +399,7 @@ function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
     while (
       lanes[row] &&
       lanes[row].some(
-        (other) =>
-          !(ev.endIdx < other.startIdx || ev.startIdx > other.endIdx),
+        (other) => !(ev.endIdx < other.startIdx || ev.startIdx > other.endIdx),
       )
     ) {
       row++
@@ -420,12 +435,9 @@ function getTaskTime(t: any): string {
 function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) {
   if (!task) return overrides
 
-  const labels =
-    Array.isArray(task.labels)
-      ? task.labels.map((l: any) =>
-          typeof l === 'number' ? l : l.id ?? l.labelId ?? l,
-        )
-      : undefined
+  const labels = Array.isArray(task.labels)
+    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
+    : undefined
 
   const base: any = {
     title: task.title,
@@ -483,7 +495,7 @@ function TaskGroupBox({
   const [expanded, setExpanded] = useState(false)
   const isActiveDrag = useSharedValue(false)
   const [extraLeft, setExtraLeft] = useState(0)
-   const [lastShift, setLastShift] = useState(0)
+  const [lastShift, setLastShift] = useState(0)
 
   useEffect(() => {
     setLocalTasks(tasks)
@@ -501,15 +513,9 @@ function TaskGroupBox({
   // ✅ 펼쳤을 때: title 길이 기반 기본 최소/최대 폭
   const expandedMin = Math.max(collapsedWidth, 150)
   const expandedMax = 320
-  const longestTitle = localTasks.reduce(
-    (m, t) => Math.max(m, (t.title?.length ?? 0)),
-    0,
-  )
+  const longestTitle = localTasks.reduce((m, t) => Math.max(m, t.title?.length ?? 0), 0)
   const textWidth = longestTitle * 8 + 40
-  const estimatedExpandedWidth = Math.min(
-    Math.max(textWidth, expandedMin),
-    expandedMax,
-  )
+  const estimatedExpandedWidth = Math.min(Math.max(textWidth, expandedMin), expandedMax)
 
   // 실제 내용(width) + 14px 여백을 기준으로 폭 결정
   const rawExpandedWidth =
@@ -599,9 +605,7 @@ function TaskGroupBox({
     .shouldCancelWhenOutside(false)
     .onStart(() => {
       isActiveDrag.value = true
-       runOnJS(Haptics.impactAsync)(
-      Haptics.ImpactFeedbackStyle.Heavy
-    )
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
   const drag = Gesture.Pan()
@@ -650,13 +654,12 @@ function TaskGroupBox({
       runOnJS(handleDropGroup)(snappedY, dayOffset)
     })
 
-    const composedGesture = Gesture.Simultaneous(longPress, drag)
+  const composedGesture = Gesture.Simultaneous(longPress, drag)
 
-    const style = useAnimatedStyle(() => ({
+  const style = useAnimatedStyle(() => ({
     top: topBase + translateY.value,
     transform: [{ translateX: translateX.value }],
   }))
-
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
@@ -670,7 +673,6 @@ function TaskGroupBox({
     })
   }
 
-  
   const onToggleGroupTask = async (task: any) => {
     const taskId = String(task.id)
     const newCompleted = !task.completed
@@ -689,20 +691,19 @@ function TaskGroupBox({
       await http.patch(`/task/${taskId}`, payload)
 
       // 서버 반영 후에만 로컬 업데이트 (깜빡임 제거)
-      setLocalTasks(prev =>
-        prev.map(t =>
+      setLocalTasks((prev) =>
+        prev.map((t) =>
           String(t.id) === taskId ? { ...t, completed: newCompleted } : t,
         ),
       )
 
       onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: newCompleted })
-
     } catch (err: any) {
       console.error(
         '❌ TaskGroup PATCH 실패:',
         err && (err as any).response && (err as any).response.data
           ? (err as any).response.data
-          : (err as any).message ?? String(err),
+          : ((err as any).message ?? String(err)),
       )
     }
   }
@@ -776,8 +777,7 @@ function TaskGroupBox({
           const GRID_LEFT = TIME_COL_W
           const GRID_RIGHT = TIME_COL_W + weekCount * dayColWidth
 
-          const currentLeftGlobal =
-            TIME_COL_W + dayIndex * dayColWidth + baseLeftInCol
+          const currentLeftGlobal = TIME_COL_W + dayIndex * dayColWidth + baseLeftInCol
           const currentRightGlobal = currentLeftGlobal + w
 
           let shift = 0
@@ -813,7 +813,10 @@ function TaskGroupBox({
       >
         <View style={S.taskGroupInner}>
           <Pressable
-            onPress={(e) => { e.stopPropagation?.(); toggleExpand(); }}
+            onPress={(e) => {
+              e.stopPropagation?.()
+              toggleExpand()
+            }}
             style={[
               S.groupHeaderRow,
               expanded ? { paddingLeft: 14 } : { paddingLeft: 5 },
@@ -842,24 +845,24 @@ function TaskGroupBox({
           {expanded && (
             <View style={S.groupList}>
               {localTasks.map((t: any) => (
-                <View
-                  key={String(t.id)}
-                  style={S.groupTaskRow}
-                >
-                  <Pressable onPress={(e) => { e.stopPropagation?.(); onToggleGroupTask(t); }}>
+                <View key={String(t.id)} style={S.groupTaskRow}>
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation?.()
+                      onToggleGroupTask(t)
+                    }}
+                  >
                     <View
-                      style={[
-                        S.groupTaskCheckbox,
-                        t.completed && S.groupTaskCheckboxOn,
-                      ]}
+                      style={[S.groupTaskCheckbox, t.completed && S.groupTaskCheckboxOn]}
                     >
-                      {t.completed && (
-                        <Text style={S.groupTaskCheckmark}>✓</Text>
-                      )}
+                      {t.completed && <Text style={S.groupTaskCheckmark}>✓</Text>}
                     </View>
                   </Pressable>
                   <Pressable
-                    onPress={(e) => { e.stopPropagation?.(); onToggleGroupTask(t); }}
+                    onPress={(e) => {
+                      e.stopPropagation?.()
+                      onToggleGroupTask(t)
+                    }}
                     style={{ flex: 1 }}
                   >
                     <Text
@@ -898,6 +901,8 @@ type DraggableTaskBoxProps = {
   dayColWidth: number
   dayIndex: number
   weekCount: number
+  openDetail: (id: string) => void
+  isRepeat?: boolean
   onLocalChange?: (payload: {
     id: string
     dateISO: string
@@ -916,6 +921,8 @@ function DraggableTaskBox({
   dayIndex,
   weekCount,
   onLocalChange,
+  openDetail,
+  isRepeat,
 }: DraggableTaskBoxProps) {
   const startMin = startHour * 60
   const topBase = startMin * PIXELS_PER_MIN
@@ -1028,9 +1035,7 @@ function DraggableTaskBox({
     .shouldCancelWhenOutside(false)
     .onStart(() => {
       isActiveDrag.value = true
-       runOnJS(Haptics.impactAsync)(
-      Haptics.ImpactFeedbackStyle.Heavy
-    )
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
   const drag = Gesture.Pan()
@@ -1089,21 +1094,29 @@ function DraggableTaskBox({
       <Animated.View style={[S.taskBox, style]}>
         <View style={S.taskInnerBox}>
           <Pressable
-            onPress={toggleDone}
+            onPress={() => {
+              if (!isActiveDrag.value) runOnJS(openDetail)(id)
+            }}
+            hitSlop={12}
             style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
           >
-            <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
-              {done && <Text style={S.taskCheckmark}>✓</Text>}
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                style={[S.taskTitle, done && S.taskTitleDone]}
-                numberOfLines={3}
-                ellipsizeMode="clip"
-              >
-                {title}
-              </Text>
-            </View>
+            {/* 체크박스 */}
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation() // 상세 팝업 방지
+                toggleDone()
+              }}
+              hitSlop={12}
+            >
+              <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
+                {done && <Text style={S.taskCheckmark}>✓</Text>}
+              </View>
+            </Pressable>
+
+            {/* 타이틀 */}
+            <Text style={[S.taskTitle, done && S.taskTitleDone]} numberOfLines={3}>
+              {title}
+            </Text>
           </Pressable>
         </View>
       </Animated.View>
@@ -1130,6 +1143,8 @@ type DraggableFlexalbeEventProps = {
   dayColWidth: number
   weekDates: string[]
   dayIndex: number
+  openEventDetail: (id: string) => void
+  isRepeat?: boolean
 }
 
 function DraggableFlexalbeEvent({
@@ -1147,6 +1162,8 @@ function DraggableFlexalbeEvent({
   dayColWidth,
   weekDates,
   dayIndex,
+  openEventDetail,
+  isRepeat,
 }: DraggableFlexalbeEventProps) {
   const durationMin = endMin - startMin
   const height = (durationMin / 60) * ROW_H
@@ -1208,10 +1225,7 @@ function DraggableFlexalbeEvent({
           if (min < 0) min = 0
           const h = Math.floor(min / 60)
           const m = Math.floor(min % 60)
-          return `${String(h).padStart(2, '0')}:${String(m).padStart(
-            2,
-            '0',
-          )}:00`
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`
         }
 
         const nextStartTime = fmtTime(newStart, false)
@@ -1252,12 +1266,11 @@ function DraggableFlexalbeEvent({
       isActiveDrag.value = true
       isDragging.value = 1
       dragStartTop.value = topBase + translateY.value
-       runOnJS(Haptics.impactAsync)(
-      Haptics.ImpactFeedbackStyle.Heavy
-    )
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
+  const displayColor = isRepeat ? mixWhite(safeColor, 60) : safeColor
   const colGap = 0.5
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
@@ -1340,8 +1353,8 @@ function DraggableFlexalbeEvent({
   const style = useAnimatedStyle(() => ({
     top: topBase + translateY.value,
     transform: [{ translateX: translateX.value }],
-    zIndex: (isDragging.value || dropBoost.value) ? 9999 : overlapDepth,
-    elevation: (isDragging.value || dropBoost.value) ? 50 : 0,
+    zIndex: isDragging.value || dropBoost.value ? 9999 : overlapDepth,
+    elevation: isDragging.value || dropBoost.value ? 50 : 0,
   }))
 
   return (
@@ -1353,16 +1366,25 @@ function DraggableFlexalbeEvent({
             left,
             width: width,
             height,
-            backgroundColor: safeColor,
+            backgroundColor: displayColor,
             ...overlapStyle,
           },
           style,
         ]}
       >
-        <Text style={S.eventTitle} numberOfLines={2}>
-          {title}
-        </Text>
-        {!!place && <Text style={S.eventPlace}>{place}</Text>}
+        <Pressable
+          style={{ flex: 1 }}
+          onPress={() => {
+            if (!isActiveDrag.value) {
+              runOnJS(openEventDetail)(id)
+            }
+          }}
+        >
+          <Text style={S.eventTitle} numberOfLines={2}>
+            {title}
+          </Text>
+          {!!place && <Text style={S.eventPlace}>{place}</Text>}
+        </Pressable>
       </Animated.View>
     </GestureDetector>
   )
@@ -1379,12 +1401,12 @@ export default function WeekView() {
   // inserted handleSwipe
   const handleSwipe = useCallback(
     (direction: string) => {
-      const step = isZoomed ? 5 : 7;
-      const offset = direction === 'next' ? step : -step;
-      setAnchorDate(prev => addDays(prev, offset));
+      const step = isZoomed ? 5 : 7
+      const offset = direction === 'next' ? step : -step
+      setAnchorDate((prev) => addDays(prev, offset))
     },
     [isZoomed],
-  );
+  )
   const [weekDates, setWeekDates] = useState<string[]>([])
 
   // 🧹 주(weekDates)가 완전히 바뀔 때는 겹침 레이아웃 메모리를 초기화해서
@@ -1405,6 +1427,7 @@ export default function WeekView() {
   const spanScrollRef = useRef<ScrollView>(null)
 
   const gridScrollRef = useRef<ScrollView>(null)
+  const gridOffsetRef = useRef({ x: 0, y: 0 })
   const scrollOffsetRef = useRef(0)
 
   const SINGLE_HEIGHT = 22
@@ -1414,7 +1437,7 @@ export default function WeekView() {
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
   const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
   const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
-  
+
   const { items: filterLabels } = useLabelFilter()
 
   const todoLabelId = useMemo(() => {
@@ -1422,7 +1445,7 @@ export default function WeekView() {
     return found ? Number(found.id) : null
   }, [filterLabels])
 
-const openTaskPopupFromApi = async (taskId: string) => {
+  const openTaskPopupFromApi = async (taskId: string) => {
     const res = await http.get(`/task/${taskId}`)
     const data = res.data.data
     if (!data) return
@@ -1580,9 +1603,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
       setLoading(true)
       const resList = await Promise.all(
         dates.map((d) =>
-          http
-            .get('/calendar/daily', { params: { date: d } })
-            .catch(() => null),
+          http.get('/calendar/daily', { params: { date: d } }).catch(() => null),
         ),
       )
 
@@ -1614,6 +1635,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
               startMin: sh * 60 + sm,
               endMin: eh * 60 + em,
               color: `#${(e.colorKey ?? 'B04FFF').replace('#', '')}`,
+              isRepeat: e.isRepeat ?? false,
             }
           })
           .filter(Boolean) as DayTimelineEvent[]
@@ -1626,7 +1648,10 @@ const openTaskPopupFromApi = async (taskId: string) => {
           }),
           ...allDaySpan,
           ...allDayEvents,
-        ]
+        ].map((e: any) => ({
+          ...e,
+          isRepeat: e.isRepeat ?? false,
+        }))
 
         const checks: CheckItem[] = [
           ...allDay.map((t: any) => ({
@@ -1721,31 +1746,30 @@ const openTaskPopupFromApi = async (taskId: string) => {
 
       const onReq = () => emit()
       const onSet = (iso: string) => {
-  // iso는 "이동하려는 주의 첫날"이 아니라
-  // 단순히 Header가 보내는 기준값일 뿐이므로
-  // 우리가 원하는 이동폭으로 재계산해야 한다.
+        // iso는 "이동하려는 주의 첫날"이 아니라
+        // 단순히 Header가 보내는 기준값일 뿐이므로
+        // 우리가 원하는 이동폭으로 재계산해야 한다.
 
-  if (isZoomed) {
-    // ⭐ 5일뷰 → +5 / -5 이동
-    const diff = 5
-    // iso는 이동 방향을 알 수 없으므로
-    // iso가 현재 anchorDate보다 크면 +5, 아니면 -5
-    if (iso > anchorDate) {
-      setAnchorDate(addDays(anchorDate, +diff))
-    } else {
-      setAnchorDate(addDays(anchorDate, -diff))
-    }
-  } else {
-    // ⭐ 7일뷰 → +7 / -7 이동
-    const diff = 7
-    if (iso > anchorDate) {
-      setAnchorDate(addDays(anchorDate, +diff))
-    } else {
-      setAnchorDate(addDays(anchorDate, -diff))
-    }
-  }
-}
-
+        if (isZoomed) {
+          // ⭐ 5일뷰 → +5 / -5 이동
+          const diff = 5
+          // iso는 이동 방향을 알 수 없으므로
+          // iso가 현재 anchorDate보다 크면 +5, 아니면 -5
+          if (iso > anchorDate) {
+            setAnchorDate(addDays(anchorDate, +diff))
+          } else {
+            setAnchorDate(addDays(anchorDate, -diff))
+          }
+        } else {
+          // ⭐ 7일뷰 → +7 / -7 이동
+          const diff = 7
+          if (iso > anchorDate) {
+            setAnchorDate(addDays(anchorDate, +diff))
+          } else {
+            setAnchorDate(addDays(anchorDate, -diff))
+          }
+        }
+      }
 
       emit()
       bus.on('calendar:request-sync', onReq)
@@ -1760,15 +1784,12 @@ const openTaskPopupFromApi = async (taskId: string) => {
 
   useFocusEffect(
     useCallback(() => {
-      setHasScrolledOnce(false)   // ← 요거 하나로 DayView와 동일한 동작 완성
-    }, [])
+      setHasScrolledOnce(false)
+    }, []),
   )
 
   useEffect(() => {
-    const onMutated = (payload: {
-      op: 'create' | 'update' | 'delete'
-      item: any
-    }) => {
+    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
       if (!payload?.item) return
       const item = payload.item
 
@@ -1782,7 +1803,7 @@ const openTaskPopupFromApi = async (taskId: string) => {
       const itemDateISO = String(rawDate).slice(0, 10)
 
       if (weekDates.includes(itemDateISO)) {
-        fetchWeek(weekDates)
+        setTimeout(() => fetchWeek(weekDates), 250)
       }
     }
 
@@ -1793,12 +1814,263 @@ const openTaskPopupFromApi = async (taskId: string) => {
   const today = todayISO()
   const spanBars = buildWeekSpanEvents(weekDates, weekData)
   const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight =
-    maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
   const dayColWidth = getDayColWidth(weekDates.length)
-  const showSpanScrollbar = spanContentH > spanWrapH -10
+  const showSpanScrollbar = spanContentH > spanWrapH - 10
+  useEffect(() => {
+    bus.emit('calendar:meta', {
+      mode: 'week',
+      dayColWidth,
+      rowH: ROW_H,
+    })
+  }, [dayColWidth])
 
+  const gridWrapRef = useRef<View>(null)
+
+  type GridRect = {
+    left: number
+    top: number
+    right: number
+    bottom: number
+    width: number
+    height: number
+  }
+
+  type DragDropPayload = {
+    task: any
+    x: number
+    y: number
+  }
+  const [gridRect, setGridRect] = useState<GridRect | null>(null)
+
+  const measureWeekLayouts = () => {
+    if (!gridWrapRef.current) return
+
+    gridWrapRef.current.measure((x, y, w, h, px, py) => {
+      setGridRect({
+        left: px,
+        top: py,
+        right: px + w,
+        bottom: py + h,
+        width: w,
+        height: h,
+      })
+    })
+  }
+
+  useEffect(() => {
+    const handler = () => requestAnimationFrame(measureWeekLayouts)
+    bus.on('calendar:force-measure', handler)
+    return () => bus.off('calendar:force-measure', handler)
+  }, [])
+
+  // 사이드바 → WeekView 드롭 처리 (좌표 기반)
+  useEffect(() => {
+    const onReady = () => {
+      console.log('[xdrag:ready] WeekView ready, gridRect=', gridRect)
+    }
+
+    const onMove = ({ x, y }: DragDropPayload) => {
+      // console.log('[xdrag:move]', { x, y })
+    }
+
+    const onDrop = async ({ task, x, y }: DragDropPayload) => {
+      console.log('---------------- [xdrag:drop] ----------------')
+      console.log('[DROP] raw payload:', { taskId: task?.id, x, y })
+
+      if (!task) {
+        console.log('[DROP] ❌ task 없음, return')
+        return
+      }
+      if (!gridRect) {
+        console.log('[DROP] ❌ gridRect 없음, 아직 measure 안됨')
+        return
+      }
+
+      console.log('[DROP] gridRect:', gridRect)
+
+      // 1) X좌표 → 요일 인덱스 계산
+      const relX = x - gridRect.left
+      const relY = y - gridRect.top
+
+      console.log('[DROP] rel coords (grid 기준):', {
+        relX,
+        relY,
+        scrollY: scrollOffsetRef.current,
+      })
+
+      const insideX = relX - TIME_COL_W
+
+      const rawIndex = insideX / dayColWidth
+      let dayIndex = Math.floor(rawIndex + 0.0001)
+
+      console.log('[DROP] day index 계산 전:', {
+        TIME_COL_W,
+        dayColWidth,
+        insideX,
+        rawIndex,
+        dayIndexBeforeClamp: dayIndex,
+        weekDates,
+      })
+
+      // 클램프
+      if (dayIndex < 0) dayIndex = 0
+      if (dayIndex >= weekDates.length) dayIndex = weekDates.length - 1
+
+      const targetDate = weekDates[dayIndex]
+
+      console.log('[DROP] dayIndex after clamp:', {
+        dayIndex,
+        targetDate,
+      })
+
+      // 2) 시간(y) 계산
+      const innerY_raw = y - gridRect.top
+      let placementTime: string | null = null
+
+      if (innerY_raw < 0) {
+        console.log('[DROP] 상단바 드랍 → placementTime = null')
+        placementTime = null
+      } else {
+        const innerY = innerY_raw + scrollOffsetRef.current
+        let min = innerY / PIXELS_PER_MIN
+        if (min < 0) min = 0
+        if (min > 1439) min = 1439
+
+        let snapped = Math.round(min / 5) * 5
+        if (snapped >= 1440) snapped = 1435
+
+        const h = Math.floor(snapped / 60)
+        const m = snapped % 60
+        const hh = String(h).padStart(2, '0')
+        const mm = String(m).padStart(2, '0')
+        placementTime = `${hh}:${mm}:00`
+
+        console.log('[DROP] time calc:', { innerY, min, snapped, hh, mm, placementTime })
+      }
+
+      // 3) 새 Task 생성 + 원본 삭제 + 로컬 반영
+      try {
+        // 3-1) 원본 Task 전체 정보 조회
+        const full = await http.get(`/task/${task.id}`)
+        const baseTask = full.data.data
+
+        // label id 배열 추출 (숫자만)
+        const labelIds = Array.isArray(baseTask.labels)
+          ? baseTask.labels.map((l: any) =>
+              typeof l === 'number' ? l : (l.id ?? l.labelId ?? l),
+            )
+          : null
+
+        const createPayload: any = {
+          title: baseTask.title ?? task.title ?? '(제목 없음)',
+          content: baseTask.content ?? '',
+          labels: labelIds && labelIds.length ? labelIds : null,
+          placementDate: targetDate,
+          placementTime: placementTime,
+          dueDateTime: baseTask.dueDateTime ?? null,
+          repeat: baseTask.repeat ?? null,
+          reminderNoti: baseTask.reminderNoti ?? null,
+        }
+
+        console.log('🟣 [DROP DEBUG] ===== CREATE 직전 전체 정보 =====')
+        console.log('originTaskId:', task.id)
+        console.log('targetDate:', targetDate)
+        console.log('placementTime:', placementTime)
+        console.log('baseTask (GET /task):', baseTask)
+        console.log('createPayload (POST /task):', createPayload)
+
+        // 3-2) 새 Task 생성
+        const createRes = await http.post('/task', createPayload)
+        const created = createRes.data?.data
+
+        console.log('🟢 [DROP DEBUG] CREATE 성공')
+        console.log('status:', createRes.status)
+        console.log('created:', created)
+
+        // 3-3) 원래 사이드바 Task 삭제 (실패해도 치명적이지 않으므로 try-catch 분리)
+        try {
+          await http.delete(`/task/${task.id}`)
+          console.log('🟢 [DROP DEBUG] 원본 Task 삭제 성공:', task.id)
+        } catch (delErr: any) {
+          console.warn(
+            '🟡 [DROP DEBUG] 원본 Task 삭제 실패 (무시 가능):',
+            delErr?.message ?? String(delErr),
+          )
+        }
+
+        // 사이드바에 바로 반영
+        bus.emit('sidebar:remove-task', { id: task.id })
+
+        // 3-4) 로컬 weekData에 새 Task 추가
+        setWeekData((prev) => {
+          const next = { ...prev }
+
+          const targetBucket: DayBucket =
+            next[targetDate] ??
+            ({
+              spanEvents: [],
+              timelineEvents: [],
+              checks: [],
+              timedTasks: [],
+            } as DayBucket)
+
+          // 혹시 같은 id가 이미 있으면 제거
+          targetBucket.timedTasks = (targetBucket.timedTasks || []).filter(
+            (t: any) => String(t.id) !== String(created?.id),
+          )
+
+          targetBucket.timedTasks = [
+            ...(targetBucket.timedTasks || []),
+            {
+              ...created,
+              placementDate: targetDate,
+              placementTime: placementTime,
+            },
+          ]
+
+          next[targetDate] = targetBucket
+
+          console.log(
+            `[DROP]   targetDate=${targetDate} 에 새 task 추가 후 timedTasks len=`,
+            targetBucket.timedTasks.length,
+          )
+
+          return next
+        })
+
+        // 3-5) 다른 뷰들에 생성 알림
+        bus.emit('calendar:mutated', {
+          op: 'create',
+          item: {
+            id: created?.id,
+            placementDate: targetDate,
+            placementTime: placementTime,
+            date: targetDate,
+            startDate: targetDate,
+          },
+        })
+
+        console.log('---------------- [/xdrag:drop] ----------------')
+      } catch (err: any) {
+        console.log('🔴 [DROP DEBUG] 드롭 처리 실패')
+        console.log('message:', err?.message)
+        console.log('status:', err?.response?.status)
+        console.log('response:', err?.response?.data)
+        console.log('---------------- [/xdrag:drop] ----------------')
+      }
+    }
+
+    bus.on('xdrag:ready', onReady)
+    bus.on('xdrag:move', onMove)
+    bus.on('xdrag:drop', onDrop)
+    return () => {
+      bus.off('xdrag:ready', onReady)
+      bus.off('xdrag:move', onMove)
+      bus.off('xdrag:drop', onDrop)
+    }
+  }, [weekDates, gridRect, dayColWidth])
 
   const toggleSpanTaskCheck = async (
     taskId: string,
@@ -1852,40 +2124,56 @@ const openTaskPopupFromApi = async (taskId: string) => {
     }
   }
 
-    const scale = useSharedValue(1)
+  useEffect(() => {
+    if (!gridWrapRef.current) return
+
+    gridWrapRef.current.measure((x, y, w, h, px, py) => {
+      console.log('[measure] gridWrapRef:', { x, y, w, h, px, py })
+      setGridRect({
+        left: px,
+        top: py,
+        right: px + w,
+        bottom: py + h,
+        width: w,
+        height: h,
+      })
+    })
+  }, [weekDates])
+
+  const scale = useSharedValue(1)
   const swipeTranslateX = useSharedValue(0)
-  
-  const SWIPE_THRESHOLD = SCREEN_W * 0.25;
+
+  const SWIPE_THRESHOLD = SCREEN_W * 0.25
 
   const swipeGesture = Gesture.Pan()
     .onUpdate((e) => {
-      'worklet';
-      let next = e.translationX;
-      const maxOffset = SCREEN_W * 0.15;
-      if (next > maxOffset) next = maxOffset;
-      if (next < -maxOffset) next = -maxOffset;
-      swipeTranslateX.value = next;
+      'worklet'
+      let next = e.translationX
+      const maxOffset = SCREEN_W * 0.15
+      if (next > maxOffset) next = maxOffset
+      if (next < -maxOffset) next = -maxOffset
+      swipeTranslateX.value = next
     })
     .onEnd(() => {
-      'worklet';
-      const current = swipeTranslateX.value;
-      const trigger = SCREEN_W * 0.06;
+      'worklet'
+      const current = swipeTranslateX.value
+      const trigger = SCREEN_W * 0.06
 
       if (current > trigger) {
         swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('prev');
-          swipeTranslateX.value = withTiming(0, { duration: 160 });
-        });
+          runOnJS(handleSwipe)('prev')
+          swipeTranslateX.value = withTiming(0, { duration: 160 })
+        })
       } else if (current < -trigger) {
         swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('next');
-          swipeTranslateX.value = withTiming(0, { duration: 160 });
-        });
+          runOnJS(handleSwipe)('next')
+          swipeTranslateX.value = withTiming(0, { duration: 160 })
+        })
       } else {
-        swipeTranslateX.value = withTiming(0, { duration: 150 });
+        swipeTranslateX.value = withTiming(0, { duration: 150 })
       }
-    });
-const pinchGesture = Gesture.Pinch()
+    })
+  const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
       scale.value = e.scale
     })
@@ -1899,19 +2187,53 @@ const pinchGesture = Gesture.Pinch()
       scale.value = withTiming(1, { duration: 150 })
     })
 
-  
   const composedGesture = Gesture.Simultaneous(pinchGesture, swipeGesture)
-
 
   const swipeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: swipeTranslateX.value }],
   }))
-const animatedStyle = useAnimatedStyle(() => ({
+  const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }))
+  const handleDeleteTask = () => {
+    if (!taskPopupId) return
+
+    Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // 서버에서 삭제
+            await http.delete(`/task/${taskPopupId}`)
+
+            // 캘린더 쪽에 변경 알리기 (Day/Month/Week 모두)
+            bus.emit('calendar:mutated', {
+              op: 'delete',
+              item: { id: taskPopupId },
+            })
+            bus.emit('calendar:invalidate', {
+              ym: anchorDate.slice(0, 7),
+            })
+
+            // 주간 데이터 새로고침
+            await fetchWeek(weekDates)
+
+            // 팝업 닫기 + 상태 초기화
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          } catch (err) {
+            console.error('❌ 테스크 삭제 실패:', err)
+            Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+          }
+        },
+      },
+    ])
+  }
 
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
-
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1932,7 +2254,13 @@ const animatedStyle = useAnimatedStyle(() => ({
             {/* 헤더 - 기존 WeekView 스타일 유지 */}
             <FullBleed padH={16}>
               <View style={S.weekHeaderRow}>
-                <View style={S.weekHeaderTimeCol} />
+                <View
+                  style={S.weekHeaderTimeCol}
+                  onLayout={(e) => {
+                    const { x, y } = e.nativeEvent.layout
+                    gridOffsetRef.current = { x, y }
+                  }}
+                />
                 {weekDates.map((d, colIdx) => {
                   const dt = parseDate(d)
                   const dow = dt.getDay()
@@ -2006,33 +2334,36 @@ const animatedStyle = useAnimatedStyle(() => ({
                     showsVerticalScrollIndicator={false}
                     scrollEventThrottle={16}
                     onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-  const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
+                      const { contentOffset, contentSize, layoutMeasurement } =
+                        e.nativeEvent
 
-  const ratio =
-    contentSize.height <= layoutMeasurement.height
-      ? 0
-      : contentOffset.y /
-        (contentSize.height - layoutMeasurement.height)
+                      const ratio =
+                        contentSize.height <= layoutMeasurement.height
+                          ? 0
+                          : contentOffset.y /
+                            (contentSize.height - layoutMeasurement.height)
 
-  // 기본 top 계산
-  const rawTop =
-    ratio *
-    (layoutMeasurement.height -
-      thumbH(layoutMeasurement.height, contentSize.height))
+                      // 기본 top 계산
+                      const rawTop =
+                        ratio *
+                        (layoutMeasurement.height -
+                          thumbH(layoutMeasurement.height, contentSize.height))
 
-  // thumb 높이 (진한색 부분)
-  const thumbHeight = thumbH(layoutMeasurement.height, contentSize.height)
+                      // thumb 높이 (진한색 부분)
+                      const thumbHeight = thumbH(
+                        layoutMeasurement.height,
+                        contentSize.height,
+                      )
 
-  // track의 실제 높이 (지금 너는 top:0, bottom:6 → trackHeight = layoutMeasurement.height - 6)
-  const trackHeight = layoutMeasurement.height - 6
+                      // track의 실제 높이 (지금 너는 top:0, bottom:6 → trackHeight = layoutMeasurement.height - 6)
+                      const trackHeight = layoutMeasurement.height - 6
 
-  // clamp: thumb이 트랙 밖으로 절대 못 나가게 제한
-  const maxTop = trackHeight - thumbHeight
-  const clampedTop = Math.max(0, Math.min(rawTop, maxTop))
+                      // clamp: thumb이 트랙 밖으로 절대 못 나가게 제한
+                      const maxTop = trackHeight - thumbHeight
+                      const clampedTop = Math.max(0, Math.min(rawTop, maxTop))
 
-  setSpanThumbTop(clampedTop)
-}}
-
+                      setSpanThumbTop(clampedTop)
+                    }}
                     onContentSizeChange={(_, h) => setSpanContentH(h)}
                     contentContainerStyle={{
                       height: spanAreaHeight,
@@ -2042,11 +2373,9 @@ const animatedStyle = useAnimatedStyle(() => ({
                     }}
                   >
                     {spanBars.map((s, i) => {
-                      const left =
-                        TIME_COL_W + s.startIdx * dayColWidth
+                      const left = TIME_COL_W + s.startIdx * dayColWidth
 
-                      const width =
-                        (s.endIdx - s.startIdx + 1) * dayColWidth
+                      const width = (s.endIdx - s.startIdx + 1) * dayColWidth
 
                       const isSingleDay = s.startISO === s.endISO
                       const isTask = s.color === '#000000'
@@ -2067,9 +2396,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                               top: s.row * (SINGLE_HEIGHT + 4),
                               left: Math.min(
                                 Math.max(left + 2, TIME_COL_W + 2),
-                                TIME_COL_W +
-                                  weekDates.length * dayColWidth -
-                                  (width - 4),
+                                TIME_COL_W + weekDates.length * dayColWidth - (width - 4),
                               ),
                               width: width - 4,
                               height: SINGLE_HEIGHT,
@@ -2083,20 +2410,12 @@ const animatedStyle = useAnimatedStyle(() => ({
                               overflow: 'hidden',
                             }}
                           >
-                            <View
-                              style={[
-                                S.taskCheckbox,
-                                s.done && S.taskCheckboxOn,
-                              ]}
-                            >
+                            <View style={[S.taskCheckbox, s.done && S.taskCheckboxOn]}>
                               {s.done && <Text style={S.taskCheckmark}>✓</Text>}
                             </View>
 
                             <Text
-                              style={[
-                                S.taskTitle,
-                                s.done && S.taskTitleDone,
-                              ]}
+                              style={[S.taskTitle, s.done && S.taskTitleDone]}
                               numberOfLines={1}
                               ellipsizeMode="clip"
                             >
@@ -2106,107 +2425,87 @@ const animatedStyle = useAnimatedStyle(() => ({
                         )
                       }
 
-                      function mixWhite(hex: string, whitePercent: number) {
-                      const clean = hex.replace('#', '')
-                      const r = parseInt(clean.slice(0, 2), 16)
-                      const g = parseInt(clean.slice(2, 4), 16)
-                      const b = parseInt(clean.slice(4, 6), 16)
-
-                      const w = whitePercent / 100
-                      const base = 1 - w
-
-                      const mix = (c: number) => Math.round(c * base + 255 * w)
-
-                      const newR = mix(r)
-                      const newG = mix(g)
-                      const newB = mix(b)
-
-                      return (
-                        '#' +
-                        newR.toString(16).padStart(2, '0') +
-                        newG.toString(16).padStart(2, '0') +
-                        newB.toString(16).padStart(2, '0')
-                      ).toUpperCase()
-                    }
-
-
                       const mainColor = s.color?.startsWith('#')
                         ? s.color
                         : `#${s.color || 'B04FFF'}`
                       const lightColor = mixWhite(mainColor, 70)
+                      const displayColor = s.isRepeat
+                        ? mixWhite(mainColor, 70)
+                        : isSingleDay
+                          ? mainColor
+                          : mixWhite(mainColor, 70)
 
                       const baseStyle: any = {
                         position: 'absolute',
                         top: s.row * (SINGLE_HEIGHT + 4),
                         left: Math.min(
                           Math.max(left + 2, TIME_COL_W + 2),
-                          TIME_COL_W +
-                            weekDates.length * dayColWidth -
-                            (width - 4),
+                          TIME_COL_W + weekDates.length * dayColWidth - (width - 4),
                         ),
                         width: width - 4,
                         height: SINGLE_HEIGHT,
                         justifyContent: 'center',
                         alignItems: isSingleDay ? 'flex-start' : 'center',
                         paddingHorizontal: 6,
-                        backgroundColor: isSingleDay ? mainColor : lightColor,
+                        backgroundColor: displayColor,
                         borderRadius: isSingleDay ? 3 : 0,
                       }
 
                       return (
-                        <View
+                        <Pressable
                           key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
-                          style={baseStyle}
+                          onPress={() => openEventDetail(String(s.id))}
                         >
-                          {weekDates.includes(s.startISO) &&
-                            weekDates[s.startIdx] === s.startISO && (
-                              <View
-                                style={{
-                                  position: 'absolute',
-                                  left: 0,
-                                  top: 0,
-                                  bottom: 0,
-                                  width: 5,
-                                  backgroundColor: mainColor,
-                                  borderTopLeftRadius: isSingleDay ? 3 : 0,
-                                  borderBottomLeftRadius: isSingleDay ? 3 : 0,
-                                }}
-                              />
-                            )}
+                          <View style={baseStyle}>
+                            {weekDates.includes(s.startISO) &&
+                              weekDates[s.startIdx] === s.startISO && (
+                                <View
+                                  style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: 5,
+                                    backgroundColor: mainColor,
+                                    borderTopLeftRadius: isSingleDay ? 3 : 0,
+                                    borderBottomLeftRadius: isSingleDay ? 3 : 0,
+                                  }}
+                                />
+                              )}
 
-                          {weekDates.includes(s.endISO) &&
-                            weekDates[s.endIdx] === s.endISO && (
-                              <View
-                                style={{
-                                  position: 'absolute',
-                                  right: 0,
-                                  top: 0,
-                                  bottom: 0,
-                                  width: 5,
-                                  backgroundColor: mainColor,
-                                  borderTopRightRadius: isSingleDay ? 3 : 0,
-                                  borderBottomRightRadius: isSingleDay ? 3 : 0,
-                                }}
-                              />
-                            )}
+                            {weekDates.includes(s.endISO) &&
+                              weekDates[s.endIdx] === s.endISO && (
+                                <View
+                                  style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    width: 5,
+                                    backgroundColor: mainColor,
+                                    borderTopRightRadius: isSingleDay ? 3 : 0,
+                                    borderBottomRightRadius: isSingleDay ? 3 : 0,
+                                  }}
+                                />
+                              )}
 
-                          <Text
-                            style={{
-                              color: isSingleDay ? '#FFFFFF' : '#000000',
-                              fontWeight: '700',
-                              fontSize: 12,
-                              maxWidth: '90%',
-                              includeFontPadding: false,
-                            }}
-                            numberOfLines={1}
-                            ellipsizeMode="clip"
-                          >
-                            {s.title}
-                          </Text>
-                        </View>
+                            <Text
+                              style={{
+                                color: isSingleDay ? '#FFFFFF' : '#000000',
+                                fontWeight: '700',
+                                fontSize: 12,
+                                maxWidth: '90%',
+                                includeFontPadding: false,
+                              }}
+                              numberOfLines={1}
+                              ellipsizeMode="clip"
+                            >
+                              {s.title}
+                            </Text>
+                          </View>
+                        </Pressable>
                       )
                     })}
-
                   </ScrollView>
                   {showSpanScrollbar && (
                     <View
@@ -2214,7 +2513,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                       style={[
                         S.spanScrollTrack,
                         {
-                          right : -10,
+                          right: -10,
                         },
                       ]}
                     >
@@ -2234,11 +2533,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                 <View pointerEvents="none" style={S.boxBottomLine} />
                 <LinearGradient
                   pointerEvents="none"
-                  colors={[
-                    'rgba(0,0,0,0.10)',
-                    'rgba(0,0,0,0.04)',
-                    'rgba(0,0,0,0)',
-                  ]}
+                  colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.04)', 'rgba(0,0,0,0)']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 0, y: 1 }}
                   style={S.fadeBelow}
@@ -2258,7 +2553,7 @@ const animatedStyle = useAnimatedStyle(() => ({
               contentContainerStyle={S.timelineContent}
               showsVerticalScrollIndicator={false}
             >
-              <View style={S.timelineInner}>
+              <View ref={gridWrapRef} style={S.timelineInner}>
                 <View pointerEvents="none" style={S.hourLinesOverlay}>
                   <View style={S.mainVerticalLine} />
 
@@ -2281,10 +2576,10 @@ const animatedStyle = useAnimatedStyle(() => ({
                           {h === 0
                             ? '오전 12시'
                             : h < 12
-                            ? `오전 ${h}시`
-                            : h === 12
-                            ? '오후 12시'
-                            : `오후 ${h - 12}시`}
+                              ? `오전 ${h}시`
+                              : h === 12
+                                ? '오후 12시'
+                                : `오후 ${h - 12}시`}
                         </Text>
                       </View>
                     ))}
@@ -2296,9 +2591,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                       timedTasks: [],
                     }
                     const isTodayCol = d === today
-                    const layoutEvents = layoutDayEvents(
-                      bucket.timelineEvents || [],
-                    )
+                    const layoutEvents = layoutDayEvents(bucket.timelineEvents || [])
                     // timedTasks 라벨 필터링
                     const timedTasks = (bucket.timedTasks || []).filter((t: any) =>
                       (t.labels ?? []).some((lid: number) =>
@@ -2309,9 +2602,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                     const groupedTasks = timedTasks.reduce(
                       (acc: Record<string, any[]>, t: any) => {
                         const timeKey = getTaskTime(t)
-                        acc[timeKey] = acc[timeKey]
-                          ? [...acc[timeKey], t]
-                          : [t]
+                        acc[timeKey] = acc[timeKey] ? [...acc[timeKey], t] : [t]
                         return acc
                       },
                       {},
@@ -2336,7 +2627,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                             <View style={[S.liveDot, { top: nowTop - 3 }]} />
                           </>
                         )}
-                        {layoutEvents.map((ev,i) => (
+                        {layoutEvents.map((ev, i) => (
                           <DraggableFlexalbeEvent
                             key={`ev-${ev.id}-${i}`}
                             id={ev.id}
@@ -2353,6 +2644,8 @@ const animatedStyle = useAnimatedStyle(() => ({
                             dayColWidth={dayColWidth}
                             weekDates={weekDates}
                             dayIndex={colIdx}
+                            openEventDetail={openEventDetail}
+                            isRepeat={ev.isRepeat}
                           />
                         ))}
 
@@ -2361,9 +2654,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                           if (!list.length) return null
 
                           const timeStr = getTaskTime(list[0])
-                          const [h, m] = timeStr
-                            .split(':')
-                            .map((n) => Number(n) || 0)
+                          const [h, m] = timeStr.split(':').map((n) => Number(n) || 0)
                           const start = h + m / 60
 
                           if (list.length > 1) {
@@ -2376,11 +2667,7 @@ const animatedStyle = useAnimatedStyle(() => ({
                                 dateISO={d}
                                 dayIndex={colIdx}
                                 weekCount={weekDates.length}
-                                onLocalChange={({
-                                  id,
-                                  dateISO,
-                                  completed,
-                                }) => {
+                                onLocalChange={({ id, dateISO, completed }) => {
                                   if (typeof completed === 'boolean') {
                                     setWeekData((prev: WeekData) => {
                                       const copy = { ...prev }
@@ -2388,12 +2675,12 @@ const animatedStyle = useAnimatedStyle(() => ({
                                       if (!bucket) return copy
 
                                       if (bucket.timedTasks) {
-                                        bucket.timedTasks =
-                                          bucket.timedTasks.map((t: any) =>
+                                        bucket.timedTasks = bucket.timedTasks.map(
+                                          (t: any) =>
                                             String(t.id) === String(id)
                                               ? { ...t, completed }
                                               : t,
-                                          )
+                                        )
                                       }
 
                                       return copy
@@ -2415,14 +2702,15 @@ const animatedStyle = useAnimatedStyle(() => ({
                               dayColWidth={dayColWidth}
                               dayIndex={colIdx}
                               weekCount={weekDates.length}
+                              openDetail={openTaskPopupFromApi}
                               onLocalChange={({ id, dateISO, completed }) => {
                                 if (typeof completed === 'boolean') {
                                   setWeekData((prev: WeekData) => {
                                     const copy = { ...prev }
                                     const bucket = copy[dateISO]
                                     if (!bucket) return copy
-                                    bucket.timedTasks =
-                                      bucket.timedTasks.map((t: any) => {
+                                    bucket.timedTasks = bucket.timedTasks.map(
+                                      (t: any) => {
                                         if (String(t.id) !== String(id)) {
                                           return t
                                         }
@@ -2430,7 +2718,8 @@ const animatedStyle = useAnimatedStyle(() => ({
                                           ...t,
                                           completed,
                                         }
-                                      })
+                                      },
+                                    )
                                     return copy
                                   })
                                 }
@@ -2530,6 +2819,7 @@ const animatedStyle = useAnimatedStyle(() => ({
               Alert.alert('오류', '테스크를 저장하지 못했습니다.')
             }
           }}
+          onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
         />
 
         {/* ✅ (merge) EventDetailPopup 그대로 유지 */}

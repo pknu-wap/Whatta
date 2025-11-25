@@ -16,6 +16,8 @@ import { ts } from '@/styles/typography'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
 import { http } from '@/lib/http'
+import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import * as Haptics from 'expo-haptics'
 
 // type 정의
 export type Task = {
@@ -101,7 +103,30 @@ function isTimelessTask(t: Task) {
 }
 
 async function putSidebarTask(taskId: string, payload: SidebarPutBody) {
-  return http.patch(`/task/${taskId}`, payload)
+  // console.log('🔵 [PATCH 요청 시작]', {
+  //   taskId,
+  //   payload,
+  // })
+
+  try {
+    const res = await http.patch(`/task/${taskId}`, payload)
+
+    // console.log('🟢 [PATCH 성공 응답]', {
+    //   status: res.status,
+    //   data: res.data,
+    // })
+
+    return res
+  } catch (err: any) {
+    // console.log('🔴 [PATCH 실패]', {
+    //   taskId,
+    //   payload,
+    //   errorMessage: err?.message,
+    //   responseStatus: err?.response?.status,
+    //   responseData: err?.response?.data,
+    // })
+    throw err
+  }
 }
 
 // 서버 스펙: GET /task/sidebar
@@ -112,11 +137,11 @@ async function fetchTasksFromServer(): Promise<Task[]> {
 }
 
 // ✅ 서버 스펙: POS /task (생성)
-async function createTaskAPI(title: string) {
+async function createTaskAPI(title: string, labelIds?: number[] | null) {
   const payload = {
     title,
-    content: '', // 요구: content는 비움
-    labels: null,
+    content: '',
+    labels: labelIds ?? null, // 기본 '할 일' 라벨 세팅
     placementDate: null,
     placementTime: null,
     dueDateTime: null,
@@ -124,7 +149,6 @@ async function createTaskAPI(title: string) {
   }
   return http.post('/task', payload)
 }
-
 const TOP_GAP = 1024 // 최상단/최하단 배치 시 충분히 큰 간격 확보용
 function getTopSortNumber(list: Task[], excludeId?: string) {
   const arr = list.filter((t) => t.id !== excludeId)
@@ -145,6 +169,12 @@ const SECTION_HEIGHT = 260
 export default function Sidebar() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [newTitle, setNewTitle] = useState('')
+  const { items: filterLabels } = useLabelFilter()
+
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일')
+    return found ? Number(found.id) : null
+  }, [filterLabels])
 
   const safeTitle = (v: any) =>
     typeof v === 'string' && v.trim().length > 0 ? v : '(제목 없음)'
@@ -196,13 +226,17 @@ export default function Sidebar() {
     const baseUpcoming = snapshot.filter((t) => !t.completed && isTimelessTask(t))
     const optimisticSort = getTopSortNumber(baseUpcoming)
     const tempId = `temp-${Date.now()}`
+
+    // ‘할 일’ 라벨을 기본으로 넣기
+    const defaultLabels = todoLabelId ? [todoLabelId] : []
+
     const tempTask: Task = {
       id: tempId,
       title,
       content: '',
       completed: false,
       sortNumber: optimisticSort,
-      labels: [],
+      labels: defaultLabels,
       placementDate: null,
       placementTime: null,
       dueDateTime: null,
@@ -213,29 +247,28 @@ export default function Sidebar() {
     setNewTitle('')
 
     try {
-      // 서버 생성
-      const res = await createTaskAPI(title)
+      // 서버 생성 시에도 같은 라벨 전달
+      const res = await createTaskAPI(title, defaultLabels)
       const created = mapTask(res?.data?.data ?? {})
 
-      // 생성 직후, ‘예정’ 최상단 sortNumber로 강제 세팅
       const current = ((prev) => prev)(tasks)
       const upcomingNow = current.filter((t) => !t.completed && isTimelessTask(t))
       const topSort = getTopSortNumber(upcomingNow, created.id)
 
-      await putSidebarTask(created.id, {
-        title: created.title || '(제목 없음)',
-        completed: false,
-        sortNumber: topSort,
-      })
+      // console.log('🟡 [handleCreate → PATCH 직전]', {
+      //   createdId: created.id,
+      //   title: created.title,
+      //   topSort,
+      //   safeTitle: created.title || '(제목 없음)',
+      // })
 
-      // 3. 최종 동기화
       await refresh()
     } catch (e) {
       console.warn('Task create failed:', e)
-      setTasks(snapshot) // 롤백
-      setNewTitle(title) // 입력 복구
+      setTasks(snapshot)
+      setNewTitle(title)
     }
-  }, [newTitle, tasks, refresh])
+  }, [newTitle, tasks, refresh, todoLabelId])
 
   // 토글 - 리스트 이동 시 항상 목표 섹션의 최상단으로 배치
   const toggleDone = async (id: string) => {
@@ -266,6 +299,12 @@ export default function Sidebar() {
         ? prevSnapshot.filter((t) => t.completed)
         : prevSnapshot.filter((t) => !t.completed)
       const newSort = getTopSortNumber(base, id)
+      // console.log('🟡 [toggleDone → PATCH 직전]', {
+      //   id,
+      //   nextCompleted,
+      //   newSort,
+      //   safeTitle: safeTitle(cur.title),
+      // })
 
       await putSidebarTask(id, {
         title: safeTitle(cur.title),
@@ -465,13 +504,19 @@ const TaskCard = memo(function TaskCard({
     [id, title],
   )
 
-  const move = useCallback((x: number, y: number) => {
-    bus.emit('xdrag:move', { x, y })
-  }, [])
+  const move = useCallback(
+    (x: number, y: number) => {
+      bus.emit('xdrag:move', { task: { id, title }, x, y })
+    },
+    [id, title],
+  )
 
-  const drop = useCallback((x: number, y: number) => {
-    bus.emit('xdrag:drop', { x, y })
-  }, [])
+  const drop = useCallback(
+    (x: number, y: number) => {
+      bus.emit('xdrag:drop', { task: { id, title }, x, y })
+    },
+    [id, title],
+  )
   const midPanRef = React.useRef<any>(null)
   // Pan 제스처: 롱프레스 후 활성 + 바깥으로 나가도 유지
   const pan = useMemo(
@@ -482,6 +527,7 @@ const TaskCard = memo(function TaskCard({
         .minDistance(10)
         .shouldCancelWhenOutside(false)
         .onStart((e) => {
+          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
           runOnJS(start)(e.absoluteX, e.absoluteY)
         })
         .onChange((e) => {

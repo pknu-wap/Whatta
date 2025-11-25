@@ -142,33 +142,34 @@ export default function DayView() {
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
 
   function getInstanceDates(ev: any, currentDateISO: string) {
-  // 1) 기간/종일 span: startDate/endDate가 내려오는 케이스
-  if (ev.startDate && ev.endDate) {
-    return { startDate: ev.startDate, endDate: ev.endDate }
-  }
-
-  // 2) 시간지정 일정(반복 포함): startAt/endAt이 내려오는 케이스
-  if (ev.startAt && ev.endAt) {
-    return {
-      startDate: ev.startAt.slice(0, 10),
-      endDate: ev.endAt.slice(0, 10),
+    // 1) 기간/종일 span: startDate/endDate가 내려오는 케이스
+    if (ev.startDate && ev.endDate) {
+      return { startDate: ev.startDate, endDate: ev.endDate }
     }
+
+    // 2) 시간지정 일정(반복 포함): startAt/endAt이 내려오는 케이스
+    if (ev.startAt && ev.endAt) {
+      return {
+        startDate: ev.startAt.slice(0, 10),
+        endDate: ev.endAt.slice(0, 10),
+      }
+    }
+
+    // 3) 시간지정 없는 단일 종일(allDayEvents): 날짜 필드가 아예 없는 케이스
+    return { startDate: currentDateISO, endDate: currentDateISO }
   }
 
-  // 3) 시간지정 없는 단일 종일(allDayEvents): 날짜 필드가 아예 없는 케이스
-  return { startDate: currentDateISO, endDate: currentDateISO }
-}
-  
-  async function openEventDetail(ev: any) { //객체로 받음
+  async function openEventDetail(ev: any) {
+    //객체로 받음
     const res = await http.get(`/event/${ev.id}`)
 
-    const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current) 
+    const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current)
 
     setEventPopupData({
-    ...res.data.data,
-    startDate,
-    endDate,
-  } )
+      ...res.data.data,
+      startDate,
+      endDate,
+    })
     setEventPopupMode('edit')
     setEventPopupVisible(true)
   }
@@ -197,6 +198,12 @@ export default function DayView() {
 
   const [taskBoxRect, setTaskBoxRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
+
+  useFocusEffect(
+    React.useCallback(() => {
+      bus.emit('calendar:meta', { mode: 'day' })
+    }, []),
+  )
   useEffect(() => {
     const onReq = () =>
       bus.emit('calendar:state', { date: anchorDateRef.current, mode: 'day' })
@@ -316,7 +323,7 @@ export default function DayView() {
     }
   }
 
-   const { items: filterLabels } = useLabelFilter()
+  const { items: filterLabels } = useLabelFilter()
 
   const todoLabelId = useMemo(() => {
     const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
@@ -547,30 +554,28 @@ export default function DayView() {
   const showScrollbar = contentH > wrapH
 
   const toggleCheck = async (id: string) => {
-  const current = checks.find((c) => c.id === id)
-  if (!current) return
+    const current = checks.find((c) => c.id === id)
+    if (!current) return
 
-  const nextDone = !current.done
+    const nextDone = !current.done
 
-  // UI 즉시 변경
-  setChecks((prev) =>
-    prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)),
-  )
+    // UI 즉시 변경
+    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)))
 
-  // 서버에 보낼 값도 nextDone 사용
-  try {
-    await http.patch(`/task/${id}`, {
-      completed: nextDone,
-    })
+    // 서버에 보낼 값도 nextDone 사용
+    try {
+      await http.patch(`/task/${id}`, {
+        completed: nextDone,
+      })
 
-    bus.emit('calendar:mutated', {
-      op: 'update',
-      item: { id },
-    })
-  } catch (err) {
-    console.error('❌ 테스크 상태 업데이트 실패:', err)
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: { id },
+      })
+    } catch (err) {
+      console.error('❌ 테스크 상태 업데이트 실패:', err)
+    }
   }
-}
 
   useEffect(() => {
     const onStart = ({ task }: any) => {
@@ -579,13 +584,11 @@ export default function DayView() {
     bus.on('xdrag:start', onStart)
     return () => bus.off('xdrag:start', onStart)
   }, [])
-
   useEffect(() => {
     const within = (r: any, x: number, y: number) =>
       x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
 
-    // 기존 onDrop 핸들러 내부의 gridRect/innerY 계산 직전 로직을 아래처럼 교체
-    const onDrop = async ({ x, y }: any) => {
+    const onDrop = ({ x, y }: any) => {
       const id = draggingTaskIdRef.current
       if (!id) return
       if (!dragReadyRef.current) {
@@ -593,77 +596,114 @@ export default function DayView() {
         return
       }
 
-      // ✅ 드롭 순간 좌표 기준으로 바로 처리
+      // 드롭 순간 레이아웃 최신화
       measureLayouts()
+
       requestAnimationFrame(async () => {
         const dateISO = anchorDateRef.current
         const taskBox = taskBoxRectRef.current
         const gridBox = gridRectRef.current
-        const scrollY = gridScrollYRef.current
 
-        const within = (r: any, px: number, py: number) =>
-          px >= r.left && px <= r.right && py >= r.top && py <= r.bottom
+        const inTop = within(taskBox, x, y)
+        const inGrid = within(gridBox, x, y)
 
-        // ① 상단 박스 드롭: 날짜만 배치
-        if (within(taskBox, x, y)) {
-          await http.patch(`/task/${id}`, {
+        // 어디에도 안 떨어졌으면 취소
+        if (!inTop && !inGrid) {
+          draggingTaskIdRef.current = null
+          dragReadyRef.current = false
+          return
+        }
+
+        try {
+          // 1 원본 Task 조회
+          const baseRes = await http.get(`/task/${id}`)
+          const base = baseRes.data?.data
+
+          if (!base) {
+            console.warn('[DayView DROP] base task 없음:', id)
+            draggingTaskIdRef.current = null
+            dragReadyRef.current = false
+            return
+          }
+
+          // 2 공통 payload (제목/내용/라벨/리마인더 등)
+          const basePayload: any = {
+            title: base.title ?? '',
+            content: base.content ?? '',
+            labels: base.labels ?? [],
+            dueDateTime: base.dueDateTime ?? null,
+            reminderNoti: base.reminderNoti ?? null,
+            repeat: null,
+          }
+
+          let placementTime: string | null = null
+
+          // 상단 박스 드롭: 날짜만 배치 (시간 없음)
+          if (inTop) {
+            placementTime = null
+          }
+
+          const createPayload = {
+            ...basePayload,
             placementDate: dateISO,
             placementTime: null,
-            date: dateISO,
-          })
+          }
+          const createRes = await http.post('/task', createPayload)
+          const created = createRes.data?.data
+          const newId = created?.id
+
+          console.log('[DayView DROP] CREATE 성공:', createPayload)
+
+          // 원본 Task 삭제
+          await http.delete(`/task/${id}`)
+          console.log('[DayView DROP] 원본 Task 삭제 성공:', id)
+
+          // 사이드바에서 제거
           bus.emit('sidebar:remove-task', { id })
-          bus.emit('calendar:mutated', {
-            op: 'update',
-            item: { id, isTask: true, date: anchorDateRef.current },
+          // 시간 그리드 드롭: 5분 단위 스냅
+          if (inGrid) {
+            const innerY = Math.max(0, y - gridBox.top) // scrollY 더하지 않음
+
+            const minRaw = innerY / PIXELS_PER_MIN
+            const minSnap = Math.round(minRaw / 5) * 5
+            const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
+            const mm = String(minSnap % 60).padStart(2, '0')
+            placementTime = `${hh}:${mm}:00`
+          }
+
+          // 캘린더에게 변경 알리기
+          if (newId) {
+            bus.emit('calendar:mutated', {
+              op: 'create',
+              item: {
+                id: newId,
+                isTask: true,
+                placementDate: dateISO,
+                placementTime,
+                date: dateISO,
+              },
+            })
+          }
+
+          bus.emit('calendar:invalidate', {
+            ym: dateISO.slice(0, 7),
           })
-          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents(dateISO)
+
+          // 일간뷰 즉시 재조회
+          await fetchDailyEvents(dateISO)
+        } catch (err) {
+          console.error('❌ [DayView DROP] 드롭 처리 실패:', err)
+        } finally {
           draggingTaskIdRef.current = null
-          return
+          dragReadyRef.current = false
         }
-
-        // ② 시간 그리드 드롭: 5분 스냅
-        if (within(gridBox, x, y)) {
-          // ✅ 여기서는 scrollY 더해도 되고 / 안 더해도 되는 건 레이아웃 기준에 따라 선택,
-          // 아까 말한 대로 현재 구조면 scrollY 빼고 하는 게 정확함
-          const innerY = Math.max(0, y - gridBox.top) // ← scrollY 더하지 말기
-
-          const minRaw = innerY / PIXELS_PER_MIN
-          const minSnap = Math.round(minRaw / 5) * 5
-          const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
-          const mm = String(minSnap % 60).padStart(2, '0')
-
-          await http.patch(`/task/${id}`, {
-            placementDate: dateISO,
-            placementTime: `${hh}:${mm}:00`,
-            date: dateISO,
-          })
-
-          bus.emit('sidebar:remove-task', { id })
-          bus.emit('calendar:mutated', {
-            op: 'update',
-            item: {
-              id,
-              isTask: true,
-              placementDate: dateISO,
-              placementTime: `${hh}:${mm}:00`,
-              date: dateISO,
-            },
-          })
-          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents(dateISO)
-          draggingTaskIdRef.current = null
-          return
-        }
-
-        // ③ 영역 밖: 취소
-        draggingTaskIdRef.current = null
       })
     }
 
     bus.on('xdrag:drop', onDrop)
     return () => bus.off('xdrag:drop', onDrop)
-  }, [anchorDate, fetchDailyEvents, gridScrollY, taskBoxRect, gridRect])
+  }, [fetchDailyEvents, measureLayouts])
+
   const popupTaskMemo = useMemo(() => taskPopupTask, [taskPopupTask])
 
   const handleDeleteTask = async () => {
@@ -1007,7 +1047,15 @@ export default function DayView() {
                   date: targetDate,
                 })
 
-                console.log('task: '+ form.time + placementDate + placementTime + reminderNoti?.hour + reminderNoti?.hour + reminderNoti?.minute)
+                // console.log(
+                //   'task: ' +
+                //     form.time +
+                //     placementDate +
+                //     placementTime +
+                //     reminderNoti?.hour +
+                //     reminderNoti?.hour +
+                //     reminderNoti?.minute,
+                // )
 
                 const newId = res.data?.data?.id
 
@@ -1230,15 +1278,15 @@ function DraggableTaskBox({
         {/* ✅ 체크박스 영역 */}
         <Pressable
           onPress={() => {
-  const next = !done
-  setDone(next)
+            const next = !done
+            setDone(next)
 
-  http.patch(`/task/${id}`, {
-    completed: next,
-  }).catch(err =>
-    console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
-  )
-}}
+            http
+              .patch(`/task/${id}`, {
+                completed: next,
+              })
+              .catch((err) => console.error('❌ 테스크 체크 상태 업데이트 실패:', err))
+          }}
           style={{
             width: 18,
             height: 18,
