@@ -175,12 +175,9 @@ export default function DayView() {
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
-      const cleanBase64 = base64.includes(',')
-        ? base64.split(',')[1]
-        : base64
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
       const lower = (ext ?? 'jpg').toLowerCase()
-      const format =
-        lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
+      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
 
       const res = await http.post(
         '/ocr',
@@ -306,12 +303,9 @@ export default function DayView() {
   // ✅ DayView 좌우 스와이프 애니메이션 (WeekView와 비슷한 구조, ±1일 이동)
   const swipeTranslateX = useSharedValue(0)
 
-  const handleSwipe = useCallback(
-    (dir: 'prev' | 'next') => {
-      setAnchorDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
-    },
-    [],
-  )
+  const handleSwipe = useCallback((dir: 'prev' | 'next') => {
+    setAnchorDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
+  }, [])
 
   const swipeGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
@@ -623,15 +617,27 @@ export default function DayView() {
         setTasks(timedTasks.filter(filterTask))
         setChecks(checksAll.filter(filterTask))
       } catch (err) {
+        if (axios.isAxiosError(err)) {
+          console.log('code:', err.code)
+          console.log('message:', err.message)
+          console.log('toJSON:', err.toJSON?.())
+
+          // 네트워크/타임아웃 계열은 조용히 무시
+          if (err.message === 'Network Error' || err.code === 'ECONNABORTED') {
+            console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
+            return
+          }
+        }
+
         console.error('❌ 일간 일정 불러오기 실패:', err)
-        alert('일간 일정 불러오기 실패')
+        alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
       }
     },
     [enabledLabelIds],
   )
   useEffect(() => {
     fetchDailyEvents(anchorDate)
-  }, [enabledLabelIds])
+  }, [anchorDate, enabledLabelIds, fetchDailyEvents])
 
   const measureLayouts = useCallback(() => {
     taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
@@ -674,24 +680,6 @@ export default function DayView() {
     return () => bus.off('calendar:mutated', onMutated)
   }, [anchorDate, fetchDailyEvents])
 
-  useEffect(() => {
-    fetchDailyEvents(anchorDate)
-  }, [anchorDate, fetchDailyEvents])
-
-  useFocusEffect(
-    React.useCallback(() => {
-      const onReq = () => bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
-      const onSet = (iso: string) => setAnchorDate(iso)
-      bus.on('calendar:request-sync', onReq)
-      bus.on('calendar:set-date', onSet)
-      bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
-      return () => {
-        bus.off('calendar:request-sync', onReq)
-        bus.off('calendar:set-date', onSet)
-      }
-    }, [anchorDate]),
-  )
-
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150)
   const [contentH, setContentH] = useState(150)
@@ -721,9 +709,7 @@ export default function DayView() {
     const nextDone = !current.done
 
     // UI 즉시 변경
-    setChecks((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)),
-    )
+    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)))
 
     // 서버에 보낼 값도 nextDone 사용
     try {
@@ -922,7 +908,11 @@ export default function DayView() {
                       const isEnd = current === end
 
                       const raw = t.colorKey || t.color
-                      const base = raw ? (raw.startsWith('#') ? raw : `#${raw}`) : '#8B5CF6'
+                      const base = raw
+                        ? raw.startsWith('#')
+                          ? raw
+                          : `#${raw}`
+                        : '#8B5CF6'
                       const bg = `${base}26`
 
                       return (
@@ -1233,9 +1223,7 @@ export default function DayView() {
           visible={ocrModalVisible}
           events={ocrEvents}
           onClose={() => setOcrModalVisible(false)}
-          onAddEvent={(ev) => {
-            // 필요 시 구현
-          }}
+          onAddEvent={(ev) => {}}
         />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
@@ -1247,66 +1235,6 @@ function thumbH(visibleH: number, contentH: number) {
   const minH = 18
   const h = (visibleH * visibleH) / Math.max(contentH, 1)
   return Math.max(minH, Math.min(h, visibleH))
-}
-
-function DraggableFixedEvent() {
-  const ROW_H = 48
-  const translateY = useSharedValue(7 * ROW_H)
-
-  const drag = Gesture.Pan()
-    .onChange((e) => {
-      translateY.value += e.changeY
-    })
-    .onEnd(() => {
-      const snapped = Math.round(translateY.value / ROW_H) * ROW_H
-      translateY.value = withSpring(snapped)
-    })
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }))
-
-  return (
-    <GestureDetector gesture={drag}>
-      <Animated.View
-        style={[
-          {
-            position: 'absolute',
-            left: 50 + 16,
-            right: 16,
-            height: ROW_H * 3,
-            backgroundColor: '#B04FFF26',
-            paddingHorizontal: 4,
-            paddingTop: 10,
-            justifyContent: 'flex-start',
-            zIndex: 10,
-          },
-          style,
-        ]}
-      >
-        <Text
-          style={{
-            color: '#000000',
-            fontWeight: '600',
-            fontSize: 11,
-            lineHeight: 10,
-          }}
-        >
-          name(fixed)
-        </Text>
-        <Text
-          style={{
-            color: '#6B6B6B',
-            fontSize: 10,
-            marginTop: 10,
-            lineHeight: 10,
-          }}
-        >
-          place
-        </Text>
-      </Animated.View>
-    </GestureDetector>
-  )
 }
 
 type DraggableTaskBoxProps = {
@@ -1431,9 +1359,7 @@ function DraggableTaskBox({
               .patch(`/task/${id}`, {
                 completed: next,
               })
-              .catch((err) =>
-                console.error('❌ 테스크 체크 상태 업데이트 실패:', err),
-              )
+              .catch((err) => console.error('❌ 테스크 체크 상태 업데이트 실패:', err))
           }}
           style={{
             width: 18,
@@ -1491,169 +1417,186 @@ function DraggableFlexalbeEvent({
   endMin,
   color,
   anchorDate,
-  isRepeat = false, //기본값
+  isRepeat = false,
   onPress,
 }: DraggableFlexalbeEventProps) {
-  const translateY = useSharedValue(0)
-  const dragEnabled = useSharedValue(false)
-  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const durationMin = endMin - startMin
+  const totalHeight = 24 * 60 * PIXELS_PER_MIN
+  const rawHeight = durationMin * PIXELS_PER_MIN
   const height = rawHeight - 2
   const offsetY = 1
+
+  // 절대 Y(위에서부터의 픽셀)로 관리
+  const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
+  const translateX = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
+
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
   }
 
-  const handleDrop = useCallback(async (movedY: number) => {
-    draggingEventId = id
-    try {
-      const SNAP_UNIT = 5 * PIXELS_PER_MIN
-      const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
-      translateY.value = withSpring(snappedY)
+  const handleDrop = useCallback(
+    async (snappedY: number) => {
+      draggingEventId = id
+      try {
+        const fmt = (min: number) =>
+          `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(
+            2,
+            '0',
+          )}:00`
 
-      const deltaMin = snappedY / PIXELS_PER_MIN
-      const newStart = startMin + deltaMin
-      const newEnd = endMin + deltaMin
+        // snappedY(절대 Y) → 분으로
+        const newStartMin = snappedY / PIXELS_PER_MIN
+        const newEndMin = newStartMin + durationMin
 
-      const fmt = (min: number) =>
-        `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(
-          min % 60,
-        ).padStart(2, '0')}:00`
-      const dateISO = anchorDate
-      const newStartTime = fmt(newStart)
-      const newEndTime = fmt(newEnd)
+        const newStartTime = fmt(newStartMin)
+        const newEndTime = fmt(newEndMin)
+        const dateISO = anchorDate
 
-      // ✅ 수정 시작: 반복 일정이면 경고 후 분기
-      if (isRepeat) {
-        // 1) 상세 조회해서 repeat 데이터 확보
-        const detailRes = await http.get(`/event/${id}`)
-        const ev = detailRes.data.data
-        if (!ev?.repeat) {
-          // repeat 데이터가 없으면 그냥 일반 PATCH로 fallback
-          await http.patch(`/event/${id}`, {
+        // 반복 일정 처리
+        if (isRepeat) {
+          const detailRes = await http.get(`/event/${id}`)
+          const ev = detailRes.data.data
+          if (!ev?.repeat) {
+            // repeat 데이터가 없으면 그냥 일반 PATCH로 fallback
+            await http.patch(`/event/${id}`, {
+              startDate: dateISO,
+              endDate: dateISO,
+              startTime: newStartTime,
+              endTime: newEndTime,
+            })
+            bus.emit('calendar:mutated', {
+              op: 'update',
+              item: {
+                id,
+                isTask: false,
+                startDate: dateISO,
+                endDate: dateISO,
+                startTime: newStartTime,
+                endTime: newEndTime,
+              },
+            })
+            return
+          }
+
+          const basePayload = {
+            title: ev.title,
+            content: ev.content ?? '',
+            labels: ev.labels ?? [],
             startDate: dateISO,
             endDate: dateISO,
             startTime: newStartTime,
             endTime: newEndTime,
-          })
+            colorKey: ev.colorKey,
+          }
+
+          const ymdLocal = (iso: string) => iso // 이미 ISO라 그대로 사용
+          const prevDay = (iso: string) => {
+            const d = new Date(
+              Number(iso.slice(0, 4)),
+              Number(iso.slice(5, 7)) - 1,
+              Number(iso.slice(8, 10)),
+            )
+            d.setDate(d.getDate() - 1)
+            const pad = (n: number) => String(n).padStart(2, '0')
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+          }
+
+          Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+            { text: '취소', style: 'cancel' },
+
+            {
+              text: '이 일정만',
+              onPress: async () => {
+                try {
+                  const occDate = ymdLocal(dateISO)
+                  const prev = ev.repeat.exceptionDates ?? []
+                  const next = prev.includes(occDate) ? prev : [...prev, occDate]
+
+                  // 1) 기존 반복 일정에 exceptionDates 패치
+                  await http.patch(`/event/${id}`, {
+                    repeat: {
+                      ...ev.repeat,
+                      exceptionDates: next,
+                    },
+                  })
+
+                  // 2) 단일 일정 생성
+                  await http.post('/event', {
+                    ...basePayload,
+                    repeat: null,
+                  })
+
+                  bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+                  bus.emit('calendar:mutated', {
+                    op: 'update',
+                    item: { id, startDate: dateISO, endDate: dateISO },
+                  })
+                } catch (e) {
+                  console.error('❌ 반복 단일 수정(드래그) 실패:', e)
+                }
+              },
+            },
+
+            {
+              text: '이후 일정 모두',
+              onPress: async () => {
+                try {
+                  const cutEnd = prevDay(dateISO)
+
+                  // 1) 기존 반복 일정 끝을 전날로 자름
+                  await http.patch(`/event/${id}`, {
+                    repeat: {
+                      ...ev.repeat,
+                      endDate: cutEnd,
+                    },
+                  })
+
+                  // 2) 이후 구간 새 반복 일정 생성
+                  await http.post('/event', {
+                    ...basePayload,
+                    repeat: ev.repeat,
+                  })
+
+                  bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+                  bus.emit('calendar:mutated', {
+                    op: 'update',
+                    item: { id, startDate: dateISO, endDate: dateISO },
+                  })
+                } catch (e) {
+                  console.error('❌ 반복 전체 수정(드래그) 실패:', e)
+                }
+              },
+            },
+          ])
+
           return
         }
 
-        const basePayload = {
-          title: ev.title,
-          content: ev.content ?? '',
-          labels: ev.labels ?? [],
+        await http.patch(`/event/${id}`, {
           startDate: dateISO,
           endDate: dateISO,
           startTime: newStartTime,
           endTime: newEndTime,
-          colorKey: ev.colorKey,
-        }
+        })
 
-        const ymdLocal = (iso: string) => iso // 이미 ISO라 그대로 사용
-        const prevDay = (iso: string) => {
-          const d = new Date(
-            Number(iso.slice(0, 4)),
-            Number(iso.slice(5, 7)) - 1,
-            Number(iso.slice(8, 10)),
-          )
-          d.setDate(d.getDate() - 1)
-          const pad = (n: number) => String(n).padStart(2, '0')
-          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-        }
-
-        Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
-          { text: '취소', style: 'cancel' },
-
-          {
-            text: '이 일정만',
-            onPress: async () => {
-              try {
-                const occDate = ymdLocal(dateISO)
-                const prev = ev.repeat.exceptionDates ?? []
-                const next = prev.includes(occDate) ? prev : [...prev, occDate]
-
-                // 1) 기존 반복 일정에 exceptionDates 패치
-                await http.patch(`/event/${id}`, {
-                  repeat: {
-                    ...ev.repeat,
-                    exceptionDates: next,
-                  },
-                })
-
-                // 2) 단일 일정 생성
-                await http.post('/event', {
-                  ...basePayload,
-                  repeat: null,
-                })
-
-                bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-                bus.emit('calendar:mutated', {
-                  op: 'update',
-                  item: { id, startDate: dateISO, endDate: dateISO },
-                })
-              } catch (e) {
-                console.error('❌ 반복 단일 수정(드래그) 실패:', e)
-              }
-            },
+        bus.emit('calendar:mutated', {
+          op: 'update',
+          item: {
+            id,
+            isTask: false,
+            startDate: dateISO,
+            endDate: dateISO,
+            startTime: newStartTime,
+            endTime: newEndTime,
           },
-
-          {
-            text: '이후 일정 모두',
-            onPress: async () => {
-              try {
-                const cutEnd = prevDay(dateISO)
-
-                // 1) 기존 반복 일정 끝을 전날로 자름
-                await http.patch(`/event/${id}`, {
-                  repeat: {
-                    ...ev.repeat,
-                    endDate: cutEnd,
-                  },
-                })
-
-                // 2) 이후 구간 새 반복 일정 생성
-                await http.post('/event', {
-                  ...basePayload,
-                  repeat: ev.repeat,
-                })
-
-                bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-                bus.emit('calendar:mutated', {
-                  op: 'update',
-                  item: { id, startDate: dateISO, endDate: dateISO },
-                })
-              } catch (e) {
-                console.error('❌ 반복 전체 수정(드래그) 실패:', e)
-              }
-            },
-          },
-        ])
-
-        return
+        })
+      } catch (err: any) {
+        console.error('❌ 이벤트 시간 이동 실패:', err.message)
       }
-
-      await http.patch(`/event/${id}`, {
-        startDate: anchorDate,
-        endDate: anchorDate,
-        startTime: fmt(newStart),
-        endTime: fmt(newEnd),
-      })
-
-      bus.emit('calendar:mutated', {
-        op: 'update',
-        item: {
-          id,
-          isTask: false,
-          startDate: dateISO,
-          endDate: dateISO,
-          startTime: fmt(newStart),
-          endTime: fmt(newEnd),
-        },
-      })
-    } catch (err: any) {
-      console.error('❌ 요청 설정 오류:', err.message)
-    }
-  }, [])
+    },
+    [id, durationMin, anchorDate, isRepeat],
+  )
 
   const hold = Gesture.LongPress()
     .minDuration(250)
@@ -1665,35 +1608,37 @@ function DraggableFlexalbeEvent({
   const drag = Gesture.Pan()
     .onChange((e) => {
       if (!dragEnabled.value) return
-      const totalHeight = 24 * 60 * PIXELS_PER_MIN
-      const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
+
       const minTop = 0
       const maxTop = totalHeight - rawHeight
-      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
-      translateY.value = clampedTop - startMin * PIXELS_PER_MIN
+
+      const nextY = translateY.value + e.changeY
+
+      translateY.value = Math.max(minTop, Math.min(maxTop, nextY))
+      translateX.value += e.changeX
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
 
-      const totalHeight = 24 * 60 * PIXELS_PER_MIN
-
-      const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+      const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const minTop = 0
       const maxTop = totalHeight - rawHeight
 
-      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
-      const boundedDelta = clampedTop - startMin * PIXELS_PER_MIN
+      let snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      snappedY = Math.max(minTop, Math.min(maxTop, snappedY))
 
-      translateY.value = boundedDelta
+      translateY.value = withSpring(snappedY)
+      translateX.value = withSpring(0)
 
-      runOnJS(handleDrop)(boundedDelta)
+      runOnJS(handleDrop)(snappedY)
     })
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
 
   const style = useAnimatedStyle(() => ({
-    top: startMin * PIXELS_PER_MIN + offsetY + translateY.value,
+    top: translateY.value + offsetY,
+    transform: [{ translateX: translateX.value }],
   }))
 
   const backgroundColor = color.startsWith('#') ? color : `#${color}`
@@ -1756,7 +1701,7 @@ const S = StyleSheet.create({
 
   taskBox: {
     width: '100%',
-    height: 176,
+    height: 150,
     backgroundColor: colors.neutral.surface,
     overflow: 'hidden',
     borderColor: BORDER,
