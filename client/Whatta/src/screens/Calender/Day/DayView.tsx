@@ -38,10 +38,16 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import AddImageSheet from '@/screens/More/Ocr'
+import type { OCREvent } from '@/screens/More/OcrEventCardSlider'
+import EventPopupSlider from '@/screens/More/EventPopupSlider'
+import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
   timeout: 8000,
+  withCredentials: false,
+  
 })
 
 // 요청 인터셉터
@@ -111,6 +117,37 @@ function FullBleed({
   )
 }
 
+function getDateOfWeek(weekDay: string): string {
+  if (!weekDay) return today()
+
+  const key = weekDay.trim().toUpperCase()   // ⭐ 중요
+
+  const map: any = {
+    MON: 1,
+    TUE: 2,
+    WED: 3,
+    THU: 4,
+    FRI: 5,
+    SAT: 6,
+    SUN: 0,
+  }
+
+  const target = map[key]
+  if (target === undefined) {
+    console.log("❌ Unknown weekDay:", weekDay)
+    return today()
+  }
+
+  const now = new Date()
+  const todayIdx = now.getDay()
+
+  const diff = target - todayIdx
+  const d = new Date()
+  d.setDate(now.getDate() + diff)
+
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
 const INITIAL_CHECKS: any[] = []
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -122,6 +159,85 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 let draggingEventId: string | null = null
 
 export default function DayView() {
+  
+
+  // OCR 카드
+const [ocrModalVisible, setOcrModalVisible] = useState(false)
+const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+
+  // 📌 이미지 추가 모달 열기
+const [imagePopupVisible, setImagePopupVisible] = useState(false)
+
+const sendToOCR = async (base64: string, ext?: string) => { 
+
+  try {
+    const cleanBase64 = base64.includes(',')
+  ? base64.split(',')[1]
+  : base64
+    const lower = (ext ?? 'jpg').toLowerCase()
+const format =
+  lower === 'png' ? 'png' :
+  lower === 'jpeg' ? 'jpeg' :
+  'jpg'
+
+    const res = await http.post(
+  '/ocr',
+  {
+    imageType: 'COLLEGE_TIMETABLE',
+    image: {
+      format,
+      name: `timetable.${format}`,
+      data: cleanBase64,
+    },
+  },
+  { timeout: 20000 }   // ⬅ 20초
+  
+)
+
+    console.log('OCR 성공:', res.data)
+
+const events = res.data?.data?.events ?? []
+
+const parsed = events
+  .map((ev: any, idx: number) => {
+    console.log("🔎 OCR raw weekDay:", ev.weekDay)
+    console.log("🔎 Converted date:", getDateOfWeek(ev.weekDay))
+
+    return {
+      id: String(idx),
+      title: ev.title ?? '',
+      content: ev.content ?? '',
+      weekDay: ev.weekDay ?? '',
+      date: getDateOfWeek(ev.weekDay),
+      startTime: ev.startTime ?? '',
+      endTime: ev.endTime ?? '',
+    }
+  })
+  .sort((a: OCREvent, b: OCREvent) => a.date.localeCompare(b.date))
+
+    setOcrEvents(parsed)
+    setOcrModalVisible(true)
+    
+
+  } catch (err: any) {
+  console.log('🔍 OCR 실패 Raw Error:', err)            
+  console.log('🔍 OCR 실패 response:', err.response) 
+  console.log('🔍 OCR 실패 data:', err.response?.data)  
+  console.log('🔑 token.getAccess():', token.getAccess())
+  Alert.alert('오류', 'OCR 처리 실패')
+}
+}
+
+useEffect(() => {
+  const handler = (payload?: { source?: string }) => {
+    if (payload?.source !== 'Day') return
+    setImagePopupVisible(true)
+  }
+
+  bus.on('popup:image:create', handler)
+  return () => bus.off('popup:image:create', handler)
+}, [])
+
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
@@ -463,8 +579,20 @@ export default function DayView() {
         setTasks(timedTasks.filter(filterTask))
         setChecks(checksAll.filter(filterTask))
       } catch (err) {
-        console.error('❌ 일간 일정 불러오기 실패:', err)
-        alert('일간 일정 불러오기 실패')
+        if (axios.isAxiosError(err)) {
+            console.log('code:', err.code)
+            console.log('message:', err.message)
+            console.log('toJSON:', err.toJSON?.())
+
+          // 네트워크/타임아웃 계열은 조용히 무시
+          if (err.message === 'Network Error' || err.code === 'ECONNABORTED') {
+            console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
+          return
+        }
+      }
+
+      console.error('❌ 일간 일정 불러오기 실패:', err)
+      alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
       }
     },
     [enabledLabelIds],
@@ -532,10 +660,6 @@ export default function DayView() {
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [anchorDate, fetchDailyEvents])
-
-  useEffect(() => {
-    fetchDailyEvents(anchorDate)
   }, [anchorDate, fetchDailyEvents])
 
   useFocusEffect(
@@ -1141,14 +1265,27 @@ export default function DayView() {
         <EventDetailPopup
           visible={eventPopupVisible}
           eventId={eventPopupData?.id ?? null}
-          mode={eventPopupMode}
           initial={eventPopupData ?? undefined}
+          mode={eventPopupMode}
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
             fetchDailyEvents(anchorDate) // 일정 새로 반영
           }}
         />
+        <AddImageSheet
+  visible={imagePopupVisible}
+  onClose={() => setImagePopupVisible(false)}
+  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+/>
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+  onAddEvent={(ev) => {
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
