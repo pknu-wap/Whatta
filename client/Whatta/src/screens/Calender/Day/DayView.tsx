@@ -622,10 +622,6 @@ useEffect(() => {
     return () => bus.off('calendar:mutated', onMutated)
   }, [anchorDate, fetchDailyEvents])
 
-  useEffect(() => {
-    fetchDailyEvents(anchorDate)
-  }, [anchorDate, fetchDailyEvents])
-
   useFocusEffect(
     React.useCallback(() => {
       const onReq = () => bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
@@ -1153,7 +1149,6 @@ useEffect(() => {
           eventId={eventPopupData?.id ?? null}
           initial={eventPopupData ?? undefined}
           mode={eventPopupMode}
-          initial={eventPopupData ?? undefined}
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
