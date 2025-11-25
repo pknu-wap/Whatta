@@ -384,7 +384,7 @@ export default function Sidebar() {
           value={newTitle}
           onChangeText={setNewTitle}
           placeholder="할 일을 입력하세요"
-          placeholderTextColor="#B9A7EA"
+          placeholderTextColor="#D199FF"
           onSubmitEditing={handleCreate}
           returnKeyType="done"
           style={S.newInput}
@@ -604,21 +604,22 @@ const TaskCard = memo(function TaskCard({
 const S = StyleSheet.create({
   board: {
     flex: 1,
-    backgroundColor: colors.task.sideBar,
-    borderTopRightRadius: 10,
+    backgroundColor: '#E6E6E6',
+    borderTopRightRadius: 22,
     padding: 16,
-    borderRadius: 10,
   },
   card: {
     width: '100%',
     minHeight: 48,
     flexDirection: 'row',
+    borderWidth: 0.4,
+    borderColor: '#B3B3B3',
     alignItems: 'center',
     borderRadius: 10,
     backgroundColor: colors.neutral.surface,
     paddingHorizontal: 12,
-    marginTop: 4,
-    marginBottom: -5,
+    // marginTop: 4,
+    // marginBottom: -5,
   },
   sectionTitle: {
     fontSize: 18,
@@ -627,7 +628,7 @@ const S = StyleSheet.create({
     color: colors.task.taskName,
   },
   divider: {
-    height: 1,
+    height: 1.2,
     backgroundColor: colors.task.taskName,
     opacity: 0.1,
     marginVertical: 10,
@@ -649,9 +650,9 @@ const S = StyleSheet.create({
   // ✅ 입력창 스타일 (피그마 느낌의 보더/라운드)
   newInput: {
     height: 48,
-    borderWidth: 1.5,
-    borderColor: '#B9A7EA', // 연보라
-    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: '#B04FFF', // 연보라
+    borderRadius: 10,
     paddingHorizontal: 14,
     backgroundColor: 'transparent',
     color: colors.task.taskName,

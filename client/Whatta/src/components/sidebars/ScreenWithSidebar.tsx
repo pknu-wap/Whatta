@@ -267,7 +267,10 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   }))
   return (
     <View
-      style={{ flex: 1, backgroundColor: colors.neutral.surface }}
+      style={{
+        flex: 1,
+        backgroundColor: colors.neutral.surface,
+      }}
       pointerEvents="box-none"
     >
       {/* ✅ 메인 콘텐츠 */}
@@ -367,7 +370,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
         style={[
           S.sidebarWrap,
           sidebarStyle,
-          { top: headerTotalH, bottom: 0, zIndex: 40, borderTopRightRadius: 10 },
+          { top: headerTotalH, bottom: 0, zIndex: 40, borderTopRightRadius: 25 },
         ]}
         pointerEvents={ghostFold ? 'none' : 'auto'}
       >
