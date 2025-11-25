@@ -411,7 +411,15 @@ export default function DayView() {
   const ROW_H_LOCAL = 48
 
   // 라벨
-  const [labelList, setLabelList] = useState([])
+
+  interface LabelItem {
+  id: number
+  title: string
+  color?: string
+  colorKey?: string
+}
+
+  const [labelList, setLabelList] = useState<LabelItem[]>([])
   const fetchLabels = async () => {
     try {
       const res = await http.get('/user/setting/label')
