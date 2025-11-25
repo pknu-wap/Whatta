@@ -48,6 +48,7 @@ import * as Haptics from 'expo-haptics'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREvent } from '@/screens/More/OcrEventCardSlider'
 
@@ -205,6 +206,29 @@ function FullBleed({
   )
 }
 
+function mixWhite(hex: string, whitePercent: number) {
+  const clean = hex.replace('#', '')
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+
+  const w = whitePercent / 100
+  const base = 1 - w
+
+  const mix = (c: number) => Math.round(c * base + 255 * w)
+
+  const newR = mix(r)
+  const newG = mix(g)
+  const newB = mix(b)
+
+  return (
+    '#' +
+    newR.toString(16).padStart(2, '0') +
+    newG.toString(16).padStart(2, '0') +
+    newB.toString(16).padStart(2, '0')
+  ).toUpperCase()
+}
+
 /* -------------------------------------------------------------------------- */
 /* 타입 */
 /* -------------------------------------------------------------------------- */
@@ -222,6 +246,7 @@ type DayTimelineEvent = {
   startMin: number
   endMin: number
   color: string
+  isRepeat?: boolean
 }
 
 type LayoutedEvent = DayTimelineEvent & {
@@ -253,6 +278,7 @@ type WeekSpanEvent = {
   isTask?: boolean
   done?: boolean
   completed?: boolean
+  isRepeat?: boolean
 }
 
 /* -------------------------------------------------------------------------- */
@@ -914,6 +940,7 @@ type DraggableTaskBoxProps = {
   dayIndex: number
   weekCount: number
   openDetail: (id: string) => void
+  isRepeat?: boolean
   onLocalChange?: (payload: {
     id: string
     dateISO: string
@@ -933,6 +960,7 @@ function DraggableTaskBox({
   weekCount,
   onLocalChange,
   openDetail,
+  isRepeat,
 }: DraggableTaskBoxProps) {
   const startMin = startHour * 60
   const topBase = startMin * PIXELS_PER_MIN
@@ -1104,28 +1132,29 @@ function DraggableTaskBox({
       <Animated.View style={[S.taskBox, style]}>
         <View style={S.taskInnerBox}>
           <Pressable
-            onPress={toggleDone}
+            onPress={() => {
+              if (!isActiveDrag.value) runOnJS(openDetail)(id)
+            }}
+            hitSlop={12}
             style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
           >
-            <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
-              {done && <Text style={S.taskCheckmark}>✓</Text>}
-            </View>
+            {/* 체크박스 */}
             <Pressable
-              style={{ flex: 1 }}
-              onPress={() => {
-                if (!isActiveDrag.value) {
-                  runOnJS(openDetail)(id) // 👈 여기서 상세 팝업 열림
-                }
+              onPress={(e) => {
+                e.stopPropagation() // 상세 팝업 방지
+                toggleDone()
               }}
+              hitSlop={12}
             >
-              <Text
-                style={[S.taskTitle, done && S.taskTitleDone]}
-                numberOfLines={3}
-                ellipsizeMode="clip"
-              >
-                {title}
-              </Text>
+              <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
+                {done && <Text style={S.taskCheckmark}>✓</Text>}
+              </View>
             </Pressable>
+
+            {/* 타이틀 */}
+            <Text style={[S.taskTitle, done && S.taskTitleDone]} numberOfLines={3}>
+              {title}
+            </Text>
           </Pressable>
         </View>
       </Animated.View>
@@ -1153,6 +1182,7 @@ type DraggableFlexalbeEventProps = {
   weekDates: string[]
   dayIndex: number
   openEventDetail: (id: string) => void
+  isRepeat?: boolean
 }
 
 function DraggableFlexalbeEvent({
@@ -1171,6 +1201,7 @@ function DraggableFlexalbeEvent({
   weekDates,
   dayIndex,
   openEventDetail,
+  isRepeat,
 }: DraggableFlexalbeEventProps) {
   const durationMin = endMin - startMin
   const height = (durationMin / 60) * ROW_H
@@ -1277,6 +1308,7 @@ function DraggableFlexalbeEvent({
     })
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
+  const displayColor = isRepeat ? mixWhite(safeColor, 60) : safeColor
   const colGap = 0.5
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
@@ -1372,7 +1404,7 @@ function DraggableFlexalbeEvent({
             left,
             width: width,
             height,
-            backgroundColor: safeColor,
+            backgroundColor: displayColor,
             ...overlapStyle,
           },
           style,
@@ -1493,6 +1525,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
   const spanScrollRef = useRef<ScrollView>(null)
 
   const gridScrollRef = useRef<ScrollView>(null)
+  const gridOffsetRef = useRef({ x: 0, y: 0 })
   const scrollOffsetRef = useRef(0)
 
   const SINGLE_HEIGHT = 22
@@ -1662,6 +1695,12 @@ const sendToOCR = async (base64: string, ext?: string) => {
     }
   }, [nowTop, weekData, hasScrolledOnce])
 
+  useFocusEffect(
+    useCallback(() => {
+      currentCalendarView.set('week')
+    }, []),
+  )
+
   const fetchWeek = useCallback(async (dates: string[]) => {
     if (!dates.length) return
     try {
@@ -1700,6 +1739,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
               startMin: sh * 60 + sm,
               endMin: eh * 60 + em,
               color: `#${(e.colorKey ?? 'B04FFF').replace('#', '')}`,
+              isRepeat: e.isRepeat ?? false,
             }
           })
           .filter(Boolean) as DayTimelineEvent[]
@@ -1712,7 +1752,10 @@ const sendToOCR = async (base64: string, ext?: string) => {
           }),
           ...allDaySpan,
           ...allDayEvents,
-        ]
+        ].map((e: any) => ({
+          ...e,
+          isRepeat: e.isRepeat ?? false,
+        }))
 
         const checks: CheckItem[] = [
           ...allDay.map((t: any) => ({
@@ -1864,7 +1907,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
       const itemDateISO = String(rawDate).slice(0, 10)
 
       if (weekDates.includes(itemDateISO)) {
-        fetchWeek(weekDates)
+        setTimeout(() => fetchWeek(weekDates), 250)
       }
     }
 
@@ -1879,6 +1922,263 @@ const sendToOCR = async (base64: string, ext?: string) => {
 
   const dayColWidth = getDayColWidth(weekDates.length)
   const showSpanScrollbar = spanContentH > spanWrapH - 10
+  useEffect(() => {
+    bus.emit('calendar:meta', {
+      mode: 'week',
+      dayColWidth,
+      rowH: ROW_H,
+    })
+  }, [dayColWidth])
+
+  const gridWrapRef = useRef<View>(null)
+
+  type GridRect = {
+    left: number
+    top: number
+    right: number
+    bottom: number
+    width: number
+    height: number
+  }
+
+  type DragDropPayload = {
+    task: any
+    x: number
+    y: number
+  }
+  const [gridRect, setGridRect] = useState<GridRect | null>(null)
+
+  const measureWeekLayouts = () => {
+    if (!gridWrapRef.current) return
+
+    gridWrapRef.current.measure((x, y, w, h, px, py) => {
+      setGridRect({
+        left: px,
+        top: py,
+        right: px + w,
+        bottom: py + h,
+        width: w,
+        height: h,
+      })
+    })
+  }
+
+  useEffect(() => {
+    const handler = () => requestAnimationFrame(measureWeekLayouts)
+    bus.on('calendar:force-measure', handler)
+    return () => bus.off('calendar:force-measure', handler)
+  }, [])
+
+  // 사이드바 → WeekView 드롭 처리 (좌표 기반)
+  useEffect(() => {
+    const onReady = () => {
+      console.log('[xdrag:ready] WeekView ready, gridRect=', gridRect)
+    }
+
+    const onMove = ({ x, y }: DragDropPayload) => {
+      // console.log('[xdrag:move]', { x, y })
+    }
+
+    const onDrop = async ({ task, x, y }: DragDropPayload) => {
+      if (currentCalendarView.get() !== 'week') {
+        // console.log('[DROP] WeekView 아님 → 드롭 무시')
+        return
+      }
+      console.log('---------------- [xdrag:drop] ----------------')
+      console.log('[DROP] raw payload:', { taskId: task?.id, x, y })
+
+      if (!task) {
+        console.log('[DROP] ❌ task 없음, return')
+        return
+      }
+      if (!gridRect) {
+        console.log('[DROP] ❌ gridRect 없음, 아직 measure 안됨')
+        return
+      }
+
+      console.log('[DROP] gridRect:', gridRect)
+
+      // 1) X좌표 → 요일 인덱스 계산
+      const relX = x - gridRect.left
+      const relY = y - gridRect.top
+
+      console.log('[DROP] rel coords (grid 기준):', {
+        relX,
+        relY,
+        scrollY: scrollOffsetRef.current,
+      })
+
+      const insideX = relX - TIME_COL_W
+
+      const rawIndex = insideX / dayColWidth
+      let dayIndex = Math.floor(rawIndex + 0.0001)
+
+      console.log('[DROP] day index 계산 전:', {
+        TIME_COL_W,
+        dayColWidth,
+        insideX,
+        rawIndex,
+        dayIndexBeforeClamp: dayIndex,
+        weekDates,
+      })
+
+      // 클램프
+      if (dayIndex < 0) dayIndex = 0
+      if (dayIndex >= weekDates.length) dayIndex = weekDates.length - 1
+
+      const targetDate = weekDates[dayIndex]
+
+      console.log('[DROP] dayIndex after clamp:', {
+        dayIndex,
+        targetDate,
+      })
+
+      // 2) 시간(y) 계산
+      const innerY_raw = y - gridRect.top
+      let placementTime: string | null = null
+
+      if (innerY_raw < 0) {
+        console.log('[DROP] 상단바 드랍 → placementTime = null')
+        placementTime = null
+      } else {
+        const innerY = innerY_raw + scrollOffsetRef.current
+        let min = innerY / PIXELS_PER_MIN
+        if (min < 0) min = 0
+        if (min > 1439) min = 1439
+
+        let snapped = Math.round(min / 5) * 5
+        if (snapped >= 1440) snapped = 1435
+
+        const h = Math.floor(snapped / 60)
+        const m = snapped % 60
+        const hh = String(h).padStart(2, '0')
+        const mm = String(m).padStart(2, '0')
+        placementTime = `${hh}:${mm}:00`
+
+        console.log('[DROP] time calc:', { innerY, min, snapped, hh, mm, placementTime })
+      }
+
+      // 3) 새 Task 생성 + 원본 삭제 + 로컬 반영
+      try {
+        // 3-1) 원본 Task 전체 정보 조회
+        const full = await http.get(`/task/${task.id}`)
+        const baseTask = full.data.data
+
+        // label id 배열 추출 (숫자만)
+        const labelIds = Array.isArray(baseTask.labels)
+          ? baseTask.labels.map((l: any) =>
+              typeof l === 'number' ? l : (l.id ?? l.labelId ?? l),
+            )
+          : null
+
+        const createPayload: any = {
+          title: baseTask.title ?? task.title ?? '(제목 없음)',
+          content: baseTask.content ?? '',
+          labels: labelIds && labelIds.length ? labelIds : null,
+          placementDate: targetDate,
+          placementTime: placementTime,
+          dueDateTime: baseTask.dueDateTime ?? null,
+          repeat: baseTask.repeat ?? null,
+          reminderNoti: baseTask.reminderNoti ?? null,
+        }
+
+        console.log('🟣 [DROP DEBUG] ===== CREATE 직전 전체 정보 =====')
+        console.log('originTaskId:', task.id)
+        console.log('targetDate:', targetDate)
+        console.log('placementTime:', placementTime)
+        console.log('baseTask (GET /task):', baseTask)
+        console.log('createPayload (POST /task):', createPayload)
+
+        // 3-2) 새 Task 생성
+        const createRes = await http.post('/task', createPayload)
+        const created = createRes.data?.data
+
+        console.log('🟢 [DROP DEBUG] CREATE 성공')
+        console.log('status:', createRes.status)
+        console.log('created:', created)
+
+        // 3-3) 원래 사이드바 Task 삭제 (실패해도 치명적이지 않으므로 try-catch 분리)
+        try {
+          await http.delete(`/task/${task.id}`)
+          console.log('🟢 [DROP DEBUG] 원본 Task 삭제 성공:', task.id)
+        } catch (delErr: any) {
+          console.warn(
+            '🟡 [DROP DEBUG] 원본 Task 삭제 실패 (무시 가능):',
+            delErr?.message ?? String(delErr),
+          )
+        }
+
+        // 사이드바에 바로 반영
+        bus.emit('sidebar:remove-task', { id: task.id })
+
+        // 3-4) 로컬 weekData에 새 Task 추가
+        setWeekData((prev) => {
+          const next = { ...prev }
+
+          const targetBucket: DayBucket =
+            next[targetDate] ??
+            ({
+              spanEvents: [],
+              timelineEvents: [],
+              checks: [],
+              timedTasks: [],
+            } as DayBucket)
+
+          // 혹시 같은 id가 이미 있으면 제거
+          targetBucket.timedTasks = (targetBucket.timedTasks || []).filter(
+            (t: any) => String(t.id) !== String(created?.id),
+          )
+
+          targetBucket.timedTasks = [
+            ...(targetBucket.timedTasks || []),
+            {
+              ...created,
+              placementDate: targetDate,
+              placementTime: placementTime,
+            },
+          ]
+
+          next[targetDate] = targetBucket
+
+          console.log(
+            `[DROP]   targetDate=${targetDate} 에 새 task 추가 후 timedTasks len=`,
+            targetBucket.timedTasks.length,
+          )
+
+          return next
+        })
+
+        // 3-5) 다른 뷰들에 생성 알림
+        bus.emit('calendar:mutated', {
+          op: 'create',
+          item: {
+            id: created?.id,
+            placementDate: targetDate,
+            placementTime: placementTime,
+            date: targetDate,
+            startDate: targetDate,
+          },
+        })
+
+        console.log('---------------- [/xdrag:drop] ----------------')
+      } catch (err: any) {
+        console.log('🔴 [DROP DEBUG] 드롭 처리 실패')
+        console.log('message:', err?.message)
+        console.log('status:', err?.response?.status)
+        console.log('response:', err?.response?.data)
+        console.log('---------------- [/xdrag:drop] ----------------')
+      }
+    }
+
+    bus.on('xdrag:ready', onReady)
+    bus.on('xdrag:move', onMove)
+    bus.on('xdrag:drop', onDrop)
+    return () => {
+      bus.off('xdrag:ready', onReady)
+      bus.off('xdrag:move', onMove)
+      bus.off('xdrag:drop', onDrop)
+    }
+  }, [weekDates, gridRect, dayColWidth])
 
   const toggleSpanTaskCheck = async (
     taskId: string,
@@ -1931,6 +2231,22 @@ const sendToOCR = async (base64: string, ext?: string) => {
       console.error('❌ spanBar Task 체크 실패:', err)
     }
   }
+
+  useEffect(() => {
+    if (!gridWrapRef.current) return
+
+    gridWrapRef.current.measure((x, y, w, h, px, py) => {
+      console.log('[measure] gridWrapRef:', { x, y, w, h, px, py })
+      setGridRect({
+        left: px,
+        top: py,
+        right: px + w,
+        bottom: py + h,
+        width: w,
+        height: h,
+      })
+    })
+  }, [weekDates])
 
   const scale = useSharedValue(1)
   const swipeTranslateX = useSharedValue(0)
@@ -1987,9 +2303,45 @@ const sendToOCR = async (base64: string, ext?: string) => {
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }))
+  const handleDeleteTask = () => {
+    if (!taskPopupId) return
+
+    Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // 서버에서 삭제
+            await http.delete(`/task/${taskPopupId}`)
+
+            // 캘린더 쪽에 변경 알리기 (Day/Month/Week 모두)
+            bus.emit('calendar:mutated', {
+              op: 'delete',
+              item: { id: taskPopupId },
+            })
+            bus.emit('calendar:invalidate', {
+              ym: anchorDate.slice(0, 7),
+            })
+
+            // 주간 데이터 새로고침
+            await fetchWeek(weekDates)
+
+            // 팝업 닫기 + 상태 초기화
+            setTaskPopupVisible(false)
+            setTaskPopupId(null)
+            setTaskPopupTask(null)
+          } catch (err) {
+            console.error('❌ 테스크 삭제 실패:', err)
+            Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+          }
+        },
+      },
+    ])
+  }
 
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
-
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -2010,7 +2362,13 @@ const sendToOCR = async (base64: string, ext?: string) => {
             {/* 헤더 - 기존 WeekView 스타일 유지 */}
             <FullBleed padH={16}>
               <View style={S.weekHeaderRow}>
-                <View style={S.weekHeaderTimeCol} />
+                <View
+                  style={S.weekHeaderTimeCol}
+                  onLayout={(e) => {
+                    const { x, y } = e.nativeEvent.layout
+                    gridOffsetRef.current = { x, y }
+                  }}
+                />
                 {weekDates.map((d, colIdx) => {
                   const dt = parseDate(d)
                   const dow = dt.getDay()
@@ -2202,6 +2560,11 @@ const sendToOCR = async (base64: string, ext?: string) => {
                         ? s.color
                         : `#${s.color || 'B04FFF'}`
                       const lightColor = mixWhite(mainColor, 70)
+                      const displayColor = s.isRepeat
+                        ? mixWhite(mainColor, 70)
+                        : isSingleDay
+                          ? mainColor
+                          : mixWhite(mainColor, 70)
 
                       const baseStyle: any = {
                         position: 'absolute',
@@ -2215,7 +2578,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
                         justifyContent: 'center',
                         alignItems: isSingleDay ? 'flex-start' : 'center',
                         paddingHorizontal: 6,
-                        backgroundColor: isSingleDay ? mainColor : lightColor,
+                        backgroundColor: displayColor,
                         borderRadius: isSingleDay ? 3 : 0,
                       }
 
@@ -2321,7 +2684,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
               contentContainerStyle={S.timelineContent}
               showsVerticalScrollIndicator={false}
             >
-              <View style={S.timelineInner}>
+              <View ref={gridWrapRef} style={S.timelineInner}>
                 <View pointerEvents="none" style={S.hourLinesOverlay}>
                   <View style={S.mainVerticalLine} />
 
@@ -2413,6 +2776,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
                             weekDates={weekDates}
                             dayIndex={colIdx}
                             openEventDetail={openEventDetail}
+                            isRepeat={ev.isRepeat}
                           />
                         ))}
 
@@ -2586,6 +2950,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
               Alert.alert('오류', '테스크를 저장하지 못했습니다.')
             }
           }}
+          onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
         />
         <EventDetailPopup
           visible={eventPopupVisible}

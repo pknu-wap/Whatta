@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { PanResponder } from 'react-native'
 import colors from '@/styles/colors'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
@@ -36,6 +37,8 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   const dragVisible = useSharedValue(0)
   const [ghostFold, setGhostFold] = useState(false)
   const [closing, setClosing] = useState(false)
+  const ghostMode = useSharedValue<'day' | 'week'>('day')
+  const [ghostMeta, setGhostMeta] = useState({ mode: 'day', w: 320, h: 44 })
 
   // 사이드바 외부 드래그 신호 수신
   useEffect(() => {
@@ -48,7 +51,9 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
 
       if (isOpen) {
         setGhostFold(true)
-        bus.emit('xdrag:ready') // DayView에 “드롭 받을 준비” 신호 즉시 전달
+        if (currentCalendarView.get() === 'day') {
+          bus.emit('xdrag:ready')
+        }
       }
     }
     bus.on('xdrag:start', onStart)
@@ -94,13 +99,17 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     }
   }, [isOpen, sbWidth, ghostFold, close])
 
-  const ghostStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: (dragX.value ?? 0) - 160 }, // 카드 중앙 맞추기용 오프셋
-      { translateY: (dragY.value ?? 0) - 22 },
-    ],
-    opacity: withTiming(dragVisible.value, { duration: 80 }),
-  }))
+  const ghostStyle = useAnimatedStyle(() => {
+    const isWeek = ghostMode.value === 'week'
+
+    const dx = isWeek ? -ghostMeta.w * 0.8 : -ghostMeta.w / 2
+    const dy = isWeek ? -ghostMeta.h * 0.6 : -ghostMeta.h / 2
+
+    return {
+      transform: [{ translateX: dragX.value + dx }, { translateY: dragY.value + dy }],
+      opacity: withTiming(dragVisible.value, { duration: 80 }),
+    }
+  })
 
   const ABS_FULL = {
     position: 'absolute' as const,
@@ -111,17 +120,60 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     zIndex: 200,
   }
 
-  const ghostCardStyle = {
+  useEffect(() => {
+    const handler = () => {
+      // WeekView/DayView 둘 다: 레이아웃 재측정을 강제 실행
+      bus.emit('calendar:force-measure')
+    }
+    bus.on('calendar:meta', handler)
+    return () => bus.off('calendar:meta', handler)
+  }, [])
+
+  useEffect(() => {
+    const handler = (meta: any) => {
+      if (meta.mode === 'week') {
+        setGhostMeta({
+          mode: 'week',
+          w: meta.dayColWidth - 2,
+          h: meta.rowH - 6,
+        })
+        ghostMode.value = 'week'
+      } else {
+        setGhostMeta({
+          mode: 'day',
+          w: 320,
+          h: 44,
+        })
+        ghostMode.value = 'day'
+      }
+    }
+
+    bus.on('calendar:meta', handler)
+    return () => bus.off('calendar:meta', handler)
+  }, [])
+
+  const ghostCardStyleDay = {
     position: 'absolute' as const,
-    width: 320,
-    height: 44,
+    width: ghostMeta.w,
+    height: ghostMeta.h,
     borderRadius: 10,
     borderWidth: 0.4,
     borderColor: '#333333',
     backgroundColor: '#FFFFFFCC',
-    alignItems: 'center' as const,
     flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 16,
+    left: 10,
+  }
+
+  const ghostCardStyleWeek = {
+    position: 'absolute' as const,
+    width: ghostMeta.w + 8,
+    height: ghostMeta.h,
+    backgroundColor: '#FFFFFF80',
+    paddingHorizontal: 4,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
   }
 
   // close() 호출 전에 항상 drawer:close 이벤트 발생
@@ -218,7 +270,10 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   }))
   return (
     <View
-      style={{ flex: 1, backgroundColor: colors.neutral.surface }}
+      style={{
+        flex: 1,
+        backgroundColor: colors.neutral.surface,
+      }}
       pointerEvents="box-none"
     >
       {/* ✅ 메인 콘텐츠 */}
@@ -241,20 +296,75 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       {dragActive && (
         // 오버레이 자체가 PanResponder를 “직접” 받습니다.
         <View style={ABS_FULL} pointerEvents="none">
-          <Animated.View style={[ghostCardStyle, ghostStyle]}>
-            <View
-              style={{
-                width: 17,
-                height: 17,
-                borderWidth: 2,
-                borderColor: '#333',
-                borderRadius: 3,
-                marginRight: 12,
-              }}
-            />
-            <Text style={{ fontWeight: 'bold', fontSize: 12 }} numberOfLines={1}>
-              {dragTitle ?? ''}
-            </Text>
+          <Animated.View
+            style={[
+              ghostMeta.mode === 'day' ? ghostCardStyleDay : ghostCardStyleWeek,
+              ghostStyle,
+            ]}
+          >
+            {/* DayView 고스트 */}
+            {ghostMeta.mode === 'day' && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 16,
+                  height: '100%',
+                }}
+              >
+                <View
+                  style={{
+                    width: 17,
+                    height: 17,
+                    borderWidth: 2,
+                    borderColor: '#333',
+                    borderRadius: 3,
+                    marginRight: 12,
+                  }}
+                />
+                <Text style={{ fontWeight: 'bold', fontSize: 12 }} numberOfLines={1}>
+                  {dragTitle}
+                </Text>
+              </View>
+            )}
+
+            {/* WeekView 고스트 */}
+            {ghostMeta.mode === 'week' && (
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: '#FFFFFF80',
+                  borderRadius: 3,
+                  borderWidth: 0.4,
+                  borderColor: '#333',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 4,
+                  height: '100%',
+                }}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    borderWidth: 1,
+                    borderColor: '#333',
+                    marginHorizontal: 3,
+                  }}
+                />
+                <Text
+                  style={{
+                    color: '#000',
+                    fontSize: 10,
+                    fontWeight: '600',
+                    flexShrink: 1,
+                  }}
+                >
+                  {dragTitle}
+                </Text>
+              </View>
+            )}
           </Animated.View>
         </View>
       )}
@@ -263,7 +373,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
         style={[
           S.sidebarWrap,
           sidebarStyle,
-          { top: headerTotalH, bottom: 0, zIndex: 40 },
+          { top: headerTotalH, bottom: 0, zIndex: 40, borderTopRightRadius: 25 },
         ]}
         pointerEvents={ghostFold ? 'none' : 'auto'}
       >
