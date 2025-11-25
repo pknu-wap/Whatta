@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { PanResponder } from 'react-native'
 import colors from '@/styles/colors'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
@@ -50,7 +51,9 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
 
       if (isOpen) {
         setGhostFold(true)
-        bus.emit('xdrag:ready') // DayView에 “드롭 받을 준비” 신호 즉시 전달
+        if (currentCalendarView.get() === 'day') {
+          bus.emit('xdrag:ready')
+        }
       }
     }
     bus.on('xdrag:start', onStart)

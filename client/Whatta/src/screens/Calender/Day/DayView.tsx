@@ -491,15 +491,15 @@ export default function DayView() {
 
     // 시간 그리드
     if (gridWrapRef.current) {
-      gridWrapRef.current.measure((x, y, w, h, px, py) => {
+      gridWrapRef.current.measureInWindow((x, y, w, h) => {
         const rect = {
-          left: px,
-          top: py,
-          right: px + w,
-          bottom: py + h,
+          left: x,
+          top: y,
+          right: x + w,
+          bottom: y + h,
         }
         gridRectRef.current = rect
-        console.log('[measure] gridWrapRef:', rect)
+        console.log('[measureInWindow] gridRect:', rect)
       })
     }
   }, [])
@@ -626,8 +626,11 @@ export default function DayView() {
         const taskBox = taskBoxRectRef.current
         const gridBox = gridRectRef.current
 
-        const inTop = within(taskBox, x, y)
-        const inGrid = within(gridBox, x, y)
+        const buffer = 40
+        const realGridTop = taskBox.bottom + buffer
+
+        const inTop = y >= taskBox.top && y <= taskBox.bottom + buffer
+        const inGrid = y >= realGridTop && y <= gridBox.bottom
 
         // console.log('🔥 DROP LOG')
         // console.log('x,y =', x, y)
@@ -680,18 +683,18 @@ export default function DayView() {
           }
 
           // 그리드 영역 → 시간 계산
+          // ✅ 고친 버전
           if (inGrid) {
-            const scrollOffset = gridScrollYRef.current || 0
+            // ❌ const scrollOffset = gridScrollYRef.current || 0
 
-            // 스크롤 포함한 실제 콘텐츠 기준 Y
-            const innerY = innerY_raw + scrollOffset
+            // ✅ gridWrapRef.measure 에서 이미 스크롤 반영된 top 을 쓰고 있으므로
+            //    innerY_raw 자체가 콘텐츠 기준 Y 입니다.
+            const innerY = innerY_raw
 
-            // px → 분
             const TOTAL_MIN = 24 * 60 // 하루 1440분
             const minRaw = innerY / PIXELS_PER_MIN
             let minSnap = Math.round(minRaw / 5) * 5 // 5분 단위 스냅
 
-            // 분을 0 ~ 1435(=23:55) 사이로 클램프
             if (minSnap < 0) minSnap = 0
             if (minSnap >= TOTAL_MIN) minSnap = TOTAL_MIN - 5
 
