@@ -48,13 +48,13 @@ public class TrafficAlarmNotificationService {
                 boolean isTarget = stationItems.stream()
                         .anyMatch(item -> item.getBusRouteNo().equals(arrival.busRouteNo()));
 
-
+                //[대한의원] 131-1번 : 15분 뒤 도착 예정 (남은 정류장 11
                 if (isTarget) {
                     notificationBody.append(
-                            String.format("%s번 버스: %d분 뒤 %s 에 도착 예정 ( %d 정류장 전) \n",
+                            String.format("[%s] %s번 버스 : %d분 뒤 도착 예정 (남은 정류장 %d)\n",
+                                    arrival.busStationName(),
                                     arrival.busRouteNo(),
                                     arrival.etaSeconds() / 60,
-                                    arrival.busStationName(),
                                     arrival.remainingBusStops()
                             )
                     );
