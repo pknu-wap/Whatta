@@ -854,9 +854,12 @@ useEffect(() => {
   })
 
   // 페이드 값
-  const fade = useRef(new RNAnimated.Value(1)).current
-
+  const fade = useSharedValue(1)
+  const fadeStyle = useAnimatedStyle(() => ({
+  opacity: fade.value,
+}))
   const pad = (n: number) => String(n).padStart(2, '0')
+
 
   const toYM = (src: string | Date): string => {
     const d = typeof src === 'string' ? new Date(src) : src
@@ -1270,13 +1273,13 @@ useEffect(() => {
 
   // ym 바뀌면 살짝 어둡게
   useEffect(() => {
-    RNAnimated.timing(fade, { toValue: 0.4, duration: 120, useNativeDriver: true }).start()
+    fade.value = withTiming(0.4, { duration: 120 })
   }, [ym])
 
   // 로딩 끝나면 다시 밝게
   useEffect(() => {
     if (!loading) {
-      RNAnimated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
+      fade.value = withTiming(1, { duration: 180 })
     }
   }, [loading])
 
@@ -1398,7 +1401,7 @@ useEffect(() => {
           style={S.contentArea}
           contentContainerStyle={S.scrollContentContainer}
         >
-          <Animated.View style={[S.calendarGrid, { opacity: fade }]}>
+          <Animated.View style={[S.calendarGrid, fadeStyle]}>
             {renderWeeks(calendarDates).map((week, weekIndex) => (
               <View key={`week-${weekIndex}`} style={S.weekRow}>
                 {week.map((dateItem: CalendarDateItem, i: number) => {
