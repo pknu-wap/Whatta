@@ -244,9 +244,16 @@ export default function TrafficAlertsScreen() {
         return
       }
     }
+
+    try {
+    await http.patch(`/traffic/alarms/${id}`, { isEnabled: nextEnabled })
+
     setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, enabled: !it.enabled } : it)),
+      prev.map((it) => (it.id === id ? { ...it, enabled: nextEnabled } : it)),
     )
+  } catch (err: any) {
+    console.log('교통 알림 on/off 실패:', err.response?.data)
+  }
   }
 
   const handleBulkDelete = () => {
