@@ -1,6 +1,7 @@
 package whatta.Whatta.task.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
@@ -20,8 +21,10 @@ import whatta.Whatta.user.repository.UserSettingRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -31,6 +34,9 @@ public class TaskService {
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
     private final ScheduledNotificationService scheduledNotiService;
+
+    //정렬 간격 상수
+    private static final long SORT_GAP = 10000L;
 
     //task 생성
     public TaskResponse createTask(String userId, TaskCreateRequest request) {
@@ -44,11 +50,25 @@ public class TaskService {
 
         //정렬 로직 구현
         Long newSortNumber;
-        if(topTask != null){
-            newSortNumber = topTask.getSortNumber() / 2;
+
+        if(topTask == null){
+            newSortNumber = SORT_GAP;
         }
         else {
-            newSortNumber = 10000L;
+            long calculatedSortNumber = topTask.getSortNumber() / 2;
+
+            if (calculatedSortNumber < 1) {
+                log.info("Task 정렬 간격 재조정 실행 - userId: {}", userId);
+
+                //전체 재정렬 수행
+                rebalanceTasks(userId);
+
+                topTask = taskRepository.findTopByUserIdOrderBySortNumberAsc(userId).orElseThrow();
+                newSortNumber = topTask.getSortNumber() / 2;
+            }
+            else {
+                newSortNumber = calculatedSortNumber;
+            }
         }
 
         LabelUtil.validateLabelsInUserSettings(userSetting, request.getLabels());
@@ -112,8 +132,7 @@ public class TaskService {
         if(request.getPlacementTime() != null) builder.placementTime(request.getPlacementTime());
         if(request.getDueDateTime() != null) builder.dueDateTime(request.getDueDateTime());
         //if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
-        if(request.getSortNumber() != null) builder.sortNumber(
-                (Boolean.TRUE.equals(request.getCompleted())? 0L : request.getSortNumber()));
+        if(request.getSortNumber() != null) builder.sortNumber(request.getSortNumber());
         if(request.getReminderNoti() != null) builder.reminderNotiAt(request.getReminderNoti());
 
         //명시된 field를 null로 초기화
@@ -195,6 +214,29 @@ public class TaskService {
         return tasks.stream()
                 .map(taskMapper :: toSidebarResponse)
                 .collect(Collectors.toList());
+    }
+
+    //재정렬
+    private void rebalanceTasks(String userId) {
+        List<Task> tasks = taskRepository.findByUserIdOrderBySortNumberAsc(userId);
+
+        if(tasks.isEmpty()) return;
+
+        List<Task> updatedTasks = new ArrayList<>();
+        AtomicLong counter = new AtomicLong(0);
+
+        for(Task task : tasks) {
+            long newSort = counter.addAndGet(SORT_GAP);
+
+            if(task.getSortNumber() != newSort) {
+                updatedTasks.add(
+                        task.toBuilder().sortNumber(newSort).build()
+                );
+            }
+        }
+        if (!updatedTasks.isEmpty()) {
+            taskRepository.saveAll(updatedTasks);
+        }
     }
 
 }

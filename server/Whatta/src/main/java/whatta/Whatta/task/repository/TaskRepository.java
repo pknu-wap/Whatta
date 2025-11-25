@@ -27,14 +27,17 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     boolean existsByIdAndUserId(String id, String userId);
 
     /*
-    userId로 조회된 Task들을 orderByNumber 오름차순으로 정렬한 뒤, 가장 첫 번째(Top) 결과를 가져옴
+    userId로 조회된 Task들을 sortNumber 오름차순으로 정렬한 뒤, 가장 첫 번째(Top) 결과를 가져옴
      */
     Optional<Task> findTopByUserIdOrderBySortNumberAsc(String userId);
 
-    // userId로 찾고, placementDate가 null인 것들만, orderByNumber 오름차순으로 정렬
+    // userId로 찾고, placementDate가 null인 것들만, sortNumber 오름차순으로 정렬
     List<Task> findByUserIdAndPlacementDateIsNullOrderBySortNumberAsc(String userId);
 
     @Query("{ 'userId': ?0 }")
     @Update("{ '$pull': { 'labels': { '$in': ?1 } } }") //labels 배열에서 ?1에 있는 값들 전부 제거
     void pullLabelsByUserId(String userId, List<Long> labelIds);
+
+    //해당 유저의 모든 Task를 sortNumber 오름차순으로 조회
+    List<Task> findByUserIdOrderBySortNumberAsc(String userId);
 }
