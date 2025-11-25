@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.notification.service.NotificationSendService;
 import whatta.Whatta.traffic.entity.BusItem;
 import whatta.Whatta.traffic.entity.TrafficAlarm;
 import whatta.Whatta.traffic.payload.request.BusItemCreateRequest;
@@ -15,6 +16,7 @@ import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
 import whatta.Whatta.traffic.repository.BusItemRepository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
