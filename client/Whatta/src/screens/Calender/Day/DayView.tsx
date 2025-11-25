@@ -47,7 +47,6 @@ const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
   timeout: 8000,
   withCredentials: false,
-  
 })
 
 // 요청 인터셉터
@@ -120,7 +119,7 @@ function FullBleed({
 function getDateOfWeek(weekDay: string): string {
   if (!weekDay) return today()
 
-  const key = weekDay.trim().toUpperCase()   // ⭐ 중요
+  const key = weekDay.trim().toUpperCase() // ⭐ 중요
 
   const map: any = {
     MON: 1,
@@ -134,7 +133,7 @@ function getDateOfWeek(weekDay: string): string {
 
   const target = map[key]
   if (target === undefined) {
-    console.log("❌ Unknown weekDay:", weekDay)
+    console.log('❌ Unknown weekDay:', weekDay)
     return today()
   }
 
@@ -159,84 +158,73 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 let draggingEventId: string | null = null
 
 export default function DayView() {
-  
-
   // OCR 카드
-const [ocrModalVisible, setOcrModalVisible] = useState(false)
-const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+  const [ocrModalVisible, setOcrModalVisible] = useState(false)
+  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
 
   // 📌 이미지 추가 모달 열기
-const [imagePopupVisible, setImagePopupVisible] = useState(false)
+  const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
-const sendToOCR = async (base64: string, ext?: string) => { 
+  const sendToOCR = async (base64: string, ext?: string) => {
+    try {
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
+      const lower = (ext ?? 'jpg').toLowerCase()
+      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
 
-  try {
-    const cleanBase64 = base64.includes(',')
-  ? base64.split(',')[1]
-  : base64
-    const lower = (ext ?? 'jpg').toLowerCase()
-const format =
-  lower === 'png' ? 'png' :
-  lower === 'jpeg' ? 'jpeg' :
-  'jpg'
+      const res = await http.post(
+        '/ocr',
+        {
+          imageType: 'COLLEGE_TIMETABLE',
+          image: {
+            format,
+            name: `timetable.${format}`,
+            data: cleanBase64,
+          },
+        },
+        { timeout: 20000 }, // ⬅ 20초
+      )
 
-    const res = await http.post(
-  '/ocr',
-  {
-    imageType: 'COLLEGE_TIMETABLE',
-    image: {
-      format,
-      name: `timetable.${format}`,
-      data: cleanBase64,
-    },
-  },
-  { timeout: 20000 }   // ⬅ 20초
-  
-)
+      console.log('OCR 성공:', res.data)
 
-    console.log('OCR 성공:', res.data)
+      const events = res.data?.data?.events ?? []
 
-const events = res.data?.data?.events ?? []
+      const parsed = events
+        .map((ev: any, idx: number) => {
+          console.log('🔎 OCR raw weekDay:', ev.weekDay)
+          console.log('🔎 Converted date:', getDateOfWeek(ev.weekDay))
 
-const parsed = events
-  .map((ev: any, idx: number) => {
-    console.log("🔎 OCR raw weekDay:", ev.weekDay)
-    console.log("🔎 Converted date:", getDateOfWeek(ev.weekDay))
+          return {
+            id: String(idx),
+            title: ev.title ?? '',
+            content: ev.content ?? '',
+            weekDay: ev.weekDay ?? '',
+            date: getDateOfWeek(ev.weekDay),
+            startTime: ev.startTime ?? '',
+            endTime: ev.endTime ?? '',
+          }
+        })
+        .sort((a: OCREvent, b: OCREvent) => a.date.localeCompare(b.date))
 
-    return {
-      id: String(idx),
-      title: ev.title ?? '',
-      content: ev.content ?? '',
-      weekDay: ev.weekDay ?? '',
-      date: getDateOfWeek(ev.weekDay),
-      startTime: ev.startTime ?? '',
-      endTime: ev.endTime ?? '',
+      setOcrEvents(parsed)
+      setOcrModalVisible(true)
+    } catch (err: any) {
+      console.log('🔍 OCR 실패 Raw Error:', err)
+      console.log('🔍 OCR 실패 response:', err.response)
+      console.log('🔍 OCR 실패 data:', err.response?.data)
+      console.log('🔑 token.getAccess():', token.getAccess())
+      Alert.alert('오류', 'OCR 처리 실패')
     }
-  })
-  .sort((a: OCREvent, b: OCREvent) => a.date.localeCompare(b.date))
-
-    setOcrEvents(parsed)
-    setOcrModalVisible(true)
-    
-
-  } catch (err: any) {
-  console.log('🔍 OCR 실패 Raw Error:', err)            
-  console.log('🔍 OCR 실패 response:', err.response) 
-  console.log('🔍 OCR 실패 data:', err.response?.data)  
-  console.log('🔑 token.getAccess():', token.getAccess())
-  Alert.alert('오류', 'OCR 처리 실패')
-}
-}
-
-useEffect(() => {
-  const handler = (payload?: { source?: string }) => {
-    if (payload?.source !== 'Day') return
-    setImagePopupVisible(true)
   }
 
-  bus.on('popup:image:create', handler)
-  return () => bus.off('popup:image:create', handler)
-}, [])
+  useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Day') return
+      setImagePopupVisible(true)
+    }
+
+    bus.on('popup:image:create', handler)
+    return () => bus.off('popup:image:create', handler)
+  }, [])
 
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const anchorDateRef = useRef(anchorDate)
@@ -580,26 +568,26 @@ useEffect(() => {
         setChecks(checksAll.filter(filterTask))
       } catch (err) {
         if (axios.isAxiosError(err)) {
-            console.log('code:', err.code)
-            console.log('message:', err.message)
-            console.log('toJSON:', err.toJSON?.())
+          console.log('code:', err.code)
+          console.log('message:', err.message)
+          console.log('toJSON:', err.toJSON?.())
 
           // 네트워크/타임아웃 계열은 조용히 무시
           if (err.message === 'Network Error' || err.code === 'ECONNABORTED') {
             console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
-          return
+            return
+          }
         }
-      }
 
-      console.error('❌ 일간 일정 불러오기 실패:', err)
-      alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
+        console.error('❌ 일간 일정 불러오기 실패:', err)
+        alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
       }
     },
     [enabledLabelIds],
   )
   useEffect(() => {
     fetchDailyEvents(anchorDate)
-  }, [enabledLabelIds])
+  }, [anchorDate, enabledLabelIds, fetchDailyEvents])
 
   const measureLayouts = useCallback(() => {
     // 상단 박스
@@ -661,20 +649,6 @@ useEffect(() => {
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
   }, [anchorDate, fetchDailyEvents])
-
-  useFocusEffect(
-    React.useCallback(() => {
-      const onReq = () => bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
-      const onSet = (iso: string) => setAnchorDate(iso)
-      bus.on('calendar:request-sync', onReq)
-      bus.on('calendar:set-date', onSet)
-      bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
-      return () => {
-        bus.off('calendar:request-sync', onReq)
-        bus.off('calendar:set-date', onSet)
-      }
-    }, [anchorDate]),
-  )
 
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150)
@@ -1274,18 +1248,17 @@ useEffect(() => {
           }}
         />
         <AddImageSheet
-  visible={imagePopupVisible}
-  onClose={() => setImagePopupVisible(false)}
-  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
-  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
-/>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-  onAddEvent={(ev) => {
-  }}
-/>
+          visible={imagePopupVisible}
+          onClose={() => setImagePopupVisible(false)}
+          onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+          onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+        />
+        <OCREventCardSlider
+          visible={ocrModalVisible}
+          events={ocrEvents}
+          onClose={() => setOcrModalVisible(false)}
+          onAddEvent={(ev) => {}}
+        />
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

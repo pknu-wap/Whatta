@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Alert,
   TouchableOpacity,
-  Switch,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -109,6 +108,43 @@ export default function EventDetailPopup({
 
   const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0~23
   const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5) // 0,5,10,...55
+
+  /** Custom Toggle */
+  const CustomToggle = ({
+    value,
+    onChange,
+    disabled = false,
+  }: {
+    value: boolean
+    onChange: (v: boolean) => void
+    disabled?: boolean
+  }) => {
+    return (
+      <Pressable
+        onPress={() => !disabled && onChange(!value)}
+        style={{
+          width: 51,
+          height: 31,
+          borderRadius: 26,
+          padding: 3, // ← thumb가 중앙에 위치하도록 여백 부여
+          justifyContent: 'center',
+          backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
+          opacity: disabled ? 0.4 : 1,
+        }}
+      >
+        <View
+          style={{
+            width: 25,
+            height: 25,
+            borderRadius: 25,
+            backgroundColor: '#fff',
+            transform: [{ translateX: value ? 20 : 0 }], // ← thumb 좌우 이동 거리 조정
+          }}
+        />
+      </Pressable>
+    )
+  }
+
   // h, m을 사람이 읽는 "h시간 m분 전"으로 (0인 항목은 생략)
   const formatCustomLabel = (h: number, m: number) => {
     const hh = h > 0 ? `${h}시간` : ''
@@ -222,6 +258,7 @@ export default function EventDetailPopup({
 
   const buildBasePayload = () => {
     const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+    const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
 
     const base = {
       title: scheduleTitle,
@@ -232,9 +269,8 @@ export default function EventDetailPopup({
       startTime: timeOn ? hms(start) : null,
       endTime: timeOn ? hms(end) : null,
       colorKey: hex,
-      reminderNoti: reminderNoti,
+      reminderNoti,
     }
-
     return {
       payload: stripNil(base),
       colorHex: hex,
@@ -375,21 +411,21 @@ export default function EventDetailPopup({
 
   const [labels, setLabels] = useState<Label[]>([])
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
-  initial ? 'repeat' : 'schedule'
-)
+    initial ? 'repeat' : 'schedule',
+  )
 
   useEffect(() => {
-  if (!visible) return
+    if (!visible) return
 
-  const isRepeatInitial = initial?.repeat != null
-  const isRepeatFetched = eventData?.repeat != null
+    const isRepeatInitial = initial?.repeat != null
+    const isRepeatFetched = eventData?.repeat != null
 
-  if (isRepeatInitial || isRepeatFetched) {
-    setActiveTab('repeat')
-  } else {
-    setActiveTab('schedule')
-  }
-}, [visible, initial, eventData])
+    if (isRepeatInitial || isRepeatFetched) {
+      setActiveTab('repeat')
+    } else {
+      setActiveTab('schedule')
+    }
+  }, [visible, initial, eventData])
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
@@ -405,14 +441,6 @@ export default function EventDetailPopup({
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
   const [remindOn, setRemindOn] = useState(false)
-
-  // 시작/토글 변경을 감시해서 항상 end 동기화
-  useEffect(() => {
-    if (!timeOn) return
-    if (end.getTime() < start.getTime()) {
-      setEnd(new Date(start.getTime() + 60 * 60 * 1000)) // 최소 제약만
-    }
-  }, [start, end, timeOn])
 
   /* Toggle 컴포넌트 */
   const Toggle = ({ value, onChange }: ToggleProps) => (
@@ -649,11 +677,6 @@ export default function EventDetailPopup({
   }
 
   const onCalendarSelect = (d: Date) => {
-    if (activeTab === 'repeat' && endMode === 'none') {
-      setStart(new Date(d.getFullYear(), d.getMonth(), d.getDate()))
-      setEnd(new Date(d.getFullYear(), d.getMonth(), d.getDate()))
-      return
-    }
     // 00:00 정규화
     const picked = new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
@@ -710,32 +733,32 @@ export default function EventDetailPopup({
 
   // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
   useEffect(() => {
-    if (initial) return
-    
+    if (!visible) return
+    if (mode !== 'create') return // edit 모드에서는 절대 날짜 덮으면 안 됨
+    if (initial) return // initial 있으면 기존 일정 기반 → anchor 금지
+
     const applyAnchor = (iso: string) => {
       const [y, m, d] = iso.split('-').map(Number)
       const anchor = new Date(y, m - 1, d)
       setStart(anchor)
-      // setEnd((prev) => prev ?? anchor)
-
-      setRangeStart(anchor) // ★ 추가
-      // setRangeEnd((prev) => prev ?? anchor)
-      setRangePhase('start') // ★ 다음 탭은 '새 사이클 시작' 상태
+      setEnd(anchor)
+      setRangeStart(anchor)
+      setRangePhase('start')
     }
 
-    const onState = (st: { date: string; mode: 'day' | 'week' | 'month' }) => {
-      // 일간뷰일 때만 사용 (요구사항에 맞춤)
-      if (st?.mode === 'day' && typeof st?.date === 'string') {
+    const onState = (st: { date?: string; mode?: string }) => {
+      if (st?.mode === 'day' && typeof st.date === 'string') {
+        // 반드시 day일 때만 anchor 적용
         applyAnchor(st.date)
       }
     }
 
-    // 현재 헤더 상태 요청 → 응답으로 start/end 세팅
     bus.on('calendar:state', onState)
     bus.emit('calendar:request-sync', null)
 
     return () => bus.off('calendar:state', onState)
-  }, [])
+  }, [visible, mode])
+
   const marked = React.useMemo(() => buildMarked(start, end), [start, end])
   const [openTime, setOpenTime] = useState(false)
 
@@ -767,16 +790,16 @@ export default function EventDetailPopup({
     fetchPresets()
   }, [visible])
   // 프리셋 + '맞춤 설정'
-const presetOptions = (reminderPresets ?? []).map((p) => ({
-  type: 'preset' as const,
-  ...p,
-  label: formatCustomLabel(p.hour, p.minute),
-}))
+  const presetOptions = (reminderPresets ?? []).map((p) => ({
+    type: 'preset' as const,
+    ...p,
+    label: formatCustomLabel(p.hour, p.minute),
+  }))
 
-const remindOptions = [
-  ...((presetOptions ?? []) as any[]),
-  { type: 'custom' as const, label: '맞춤 설정' },
-]
+  const remindOptions = [
+    ...((presetOptions ?? []) as any[]),
+    { type: 'custom' as const, label: '맞춤 설정' },
+  ]
   const [remindOpen, setRemindOpen] = useState(false)
 
   function buildReminderNoti() {
@@ -799,9 +822,6 @@ const remindOptions = [
       minute: remindValue.minute,
     }
   }
-
-  const { payload, colorHex } = buildBasePayload()
-  const reminderNoti = buildReminderNoti()
 
   // 현재 h,m 포맷
   const customLabel = formatCustomLabel(customHour, customMinute)
@@ -875,85 +895,63 @@ const remindOptions = [
   useEffect(() => {
     async function fetchEventDetail() {
       if (mode !== 'edit' || !eventId) return
-
       try {
         const res = await http.get(`/event/${eventId}`)
         const ev = res.data.data
         if (!ev) return
 
-        //인스턴스 start/endDate가 있으면 그걸 우선 사용함
-        const startIso = initial?.startDate ?? ev.startDate
-        const endIso = initial?.endDate ?? ev.endDate
+        // 날짜만 있는 ISO는 Date 생성 없이 value만 들고 있음
+        const rawStartDate = ev.startDate
+        const rawEndDate = ev.endDate
 
-        // 날짜
-        const s = new Date(startIso)
-        const e = new Date(endIso)
+        let hasTime = Boolean(ev.startTime || ev.endTime)
 
-        // input 값 상태 세팅
+        if (!hasTime) {
+          // 시간 없는 일정 → UI에서 시간 관련 전체 비노출
+          setTimeOn(false)
+
+          // 날짜만 세팅 (Date 객체로 만들 필요도 없음)
+          const [y1, m1, d1] = rawStartDate.split('-').map(Number)
+          const [y2, m2, d2] = rawEndDate.split('-').map(Number)
+
+          setStart(new Date(y1, m1 - 1, d1))
+          setEnd(new Date(y2, m2 - 1, d2))
+        } else {
+          // 시간 있는 일정 → 날짜 + 시간 반영
+          const [y1, m1, d1] = rawStartDate.split('-').map(Number)
+          const startDate = new Date(y1, m1 - 1, d1)
+
+          const [y2, m2, d2] = rawEndDate.split('-').map(Number)
+          const endDate = new Date(y2, m2 - 1, d2)
+
+          if (ev.startTime) {
+            const [h, mm] = ev.startTime.split(':').map(Number)
+            startDate.setHours(h)
+            startDate.setMinutes(mm)
+          }
+          if (ev.endTime) {
+            const [h, mm] = ev.endTime.split(':').map(Number)
+            endDate.setHours(h)
+            endDate.setMinutes(mm)
+          }
+
+          setTimeOn(true)
+          setStart(startDate)
+          setEnd(endDate)
+        }
+
         setScheduleTitle(ev.title ?? '')
         setMemo(ev.content ?? '')
         setSelectedLabelIds(ev.labels ?? [])
         setSelectedColor('#' + ev.colorKey)
-
-        setStart(s)
-        setEnd(e)
-
-        if (ev.startTime) {
-          setTimeOn(true)
-          const [h, m] = ev.startTime.split(':').map(Number)
-          const ss = new Date(s)
-          ss.setHours(h)
-          ss.setMinutes(m)
-          setStart(ss)
-        }
-
-        if (ev.endTime) {
-          setTimeOn(true)
-          const [h, m] = ev.endTime.split(':').map(Number)
-          const ee = new Date(e)
-          ee.setHours(h)
-          ee.setMinutes(m)
-          setEnd(ee)
-        }
         setEventData(ev)
-        if (ev?.isRepeat || ev?.repeat != null) {
-          setActiveTab('repeat')
-          const r = ev.repeat
-
-          // 1) endDate 세팅
-          if (r.endDate) {
-            setEndMode('date')
-            setRepeatEndDate(new Date(r.endDate))
-          } else {
-            setEndMode('none')
-            setRepeatEndDate(null)
-          }
-
-          // 2) repeatMode 결정
-          // - interval=1 이고 unit이 DAY/WEEK/MONTH에 딱 맞으면 daily/weekly/monthly
-          // - 그 외는 custom으로 보내고 repeatEvery/repeatUnit 세팅
-          const unit = r.unit
-          const interval = r.interval ?? 1
-
-          if (unit === 'DAY' && interval === 1) {
-            setRepeatMode('daily')
-          } else if (unit === 'WEEK' && interval === 1) {
-            setRepeatMode('weekly')
-          } else if (unit === 'MONTH' && interval === 1) {
-            setRepeatMode('monthly')
-          } else {
-            setRepeatMode('custom')
-            setRepeatEvery(interval)
-            setRepeatUnit(unit === 'DAY' ? 'day' : unit === 'WEEK' ? 'week' : 'month')
-          }
-        }
       } catch (err) {
         console.error('❌ 일정 상세 불러오기 실패:', err)
       }
     }
 
     fetchEventDetail()
-  }, [mode, eventId, initial])
+  }, [mode, eventId])
 
   const isMultiDaySpan = React.useMemo(() => {
     if (!start || !end) return false
@@ -984,18 +982,31 @@ const remindOptions = [
   useEffect(() => {
     if (!visible) return
     if (mode !== 'create') return
-    if (!labels.length) return // 라벨 아직 로딩 전이면 패스
+    if (initial) return
 
-    setSelectedLabelIds((prev) => {
-      if (prev.length) return prev // 이미 사용자가 고른 게 있으면 건드리지 않기
-      const defaultLabel = labels.find((l) => l.title === '일정')
-      return defaultLabel ? [defaultLabel.id] : prev
-    })
+    const applyAnchor = (iso: string) => {
+      const [y, m, d] = iso.split('-').map(Number)
+      const anchor = new Date(y, m - 1, d)
 
-    // 알림 드롭다운 + 맞춤 피커
-    setRemindOpen(false)
-    setCustomOpen(false)
-  }, [visible, mode, labels])
+      // DayView 헤더 날짜로 start/end 초기화
+      setStart(anchor)
+      setEnd(anchor)
+      setRangeStart(anchor)
+      setRangePhase('start')
+    }
+
+    // DayView가 calendar:state 를 보낼 때만 동작
+    const onState = (st: { date?: string; mode?: string }) => {
+      if (st?.mode === 'day' && typeof st.date === 'string') {
+        applyAnchor(st.date)
+      }
+    }
+
+    bus.on('calendar:state', onState)
+    bus.emit('calendar:request-sync', null) // DayView에게 현재 날짜 요청
+
+    return () => bus.off('calendar:state', onState)
+  }, [visible, mode, initial])
 
   useEffect(() => {
     if (!visible) return
@@ -1015,68 +1026,6 @@ const remindOptions = [
     setRemindOpen(false)
     setCustomOpen(false)
   }, [visible])
-
-  useEffect(() => {
-    async function fetchEventDetail() {
-      // 팝업이 안 보일 때는 굳이 요청 안 함
-      if (!visible) return
-      if (mode !== 'edit' || !eventId) return
-
-      try {
-        const res = await http.get(`/event/${eventId}`)
-        const ev = res.data.data
-        if (!ev) return
-
-        // 날짜 세팅
-        const s = new Date(ev.startDate)
-        const e = new Date(ev.endDate)
-
-        setScheduleTitle(ev.title ?? '')
-        setMemo(ev.content ?? '')
-        setSelectedLabelIds(ev.labels ?? [])
-        setSelectedColor('#' + ev.colorKey)
-
-        setStart(s)
-        setEnd(e)
-
-        if (ev.startTime) {
-          setTimeOn(true)
-          const [h, m] = ev.startTime.split(':').map(Number)
-          const ss = new Date(s)
-          ss.setHours(h)
-          ss.setMinutes(m)
-          setStart(ss)
-        }
-
-        if (ev.endTime) {
-          setTimeOn(true)
-          const [h, m] = ev.endTime.split(':').map(Number)
-          const ee = new Date(e)
-          ee.setHours(h)
-          ee.setMinutes(m)
-          setEnd(ee)
-        }
-
-        setEventData(ev)
-
-        // repeat 여부로 탭 초기화
-        // repeat가 null/undefined면 일반 일정 → 'schedule'
-        // repeat 객체가 있으면 반복 일정 → 'repeat'
-        setActiveTab(ev.repeat ? 'repeat' : 'schedule')
-      } catch (err) {
-        console.error('❌ 일정 상세 불러오기 실패:', err)
-      }
-    }
-
-    fetchEventDetail()
-  }, [mode, eventId, visible])
-
-  // 일정 종료일(end) 변경 → 반복 종료일도 따라가도록 동기화
-  useEffect(() => {
-    if (activeTab === 'repeat' && endMode === 'date') {
-      setRepeatEndDate(end)
-    }
-  }, [end, activeTab, endMode])
 
   const deleteNormal = async () => {
     try {
@@ -1553,32 +1502,27 @@ const remindOptions = [
                     {/* 시간 */}
                     <View style={[styles.row, { marginTop: 18 }]}>
                       <Text style={styles.label}>시간</Text>
-                      <Switch
+                      <CustomToggle
                         value={timeOn}
-                        onValueChange={(v) => {
+                        onChange={(v) => {
                           setTimeOn(v)
                           if (v) {
                             const now = new Date()
-                            // 가장 가까운 5분으로 스냅
-                            const min = now.getMinutes()
-                            const snap = min % 5 === 0 ? min : min + (5 - (min % 5))
+                            const snapMin = now.getMinutes() - (now.getMinutes() % 5)
 
-                            const s = new Date(start)
-                            s.setHours(now.getHours())
-                            s.setMinutes(snap)
-                            setStart(s)
+                            // 날짜 유지 → 기존 start의 날짜 사용
+                            const newStart = new Date(start)
+                            newStart.setHours(now.getHours())
+                            newStart.setMinutes(snapMin)
+                            setStart(newStart)
 
-                            const e = new Date(s)
-                            e.setHours(s.getHours() + 1)
-                            setEnd(e)
+                            const newEnd = new Date(end)
+                            newEnd.setHours(newStart.getHours() + 1)
+                            newEnd.setMinutes(newStart.getMinutes())
+                            setEnd(newEnd)
                           } else {
                             setOpenTime(false)
                           }
-                        }}
-                        trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                        thumbColor={timeOn ? '#B04FFF' : '#FFFFFF'}
-                        style={{
-                          transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                         }}
                       />
                     </View>
@@ -1679,7 +1623,7 @@ const remindOptions = [
                                       style={[
                                         styles.remindItemText,
                                         selected && {
-                                          color: '#A84FF0',
+                                          color: '#B04FFF',
                                           fontWeight: '700',
                                         },
                                       ]}
@@ -1878,7 +1822,6 @@ const remindOptions = [
                               onPress={() => {
                                 setEndMode('none')
                                 setRepeatEndDate(null)
-                                setEnd(start)
                                 setEndOpen(false)
                                 setEndDateCustomOpen(false)
                               }}
@@ -1893,7 +1836,7 @@ const remindOptions = [
                                 style={[
                                   styles.remindItemText,
                                   endMode === 'none' && {
-                                    color: '#A84FF0',
+                                    color: '#B04FFF',
                                     fontWeight: '700',
                                   },
                                 ]}
@@ -1924,7 +1867,7 @@ const remindOptions = [
                                 style={[
                                   styles.remindItemText,
                                   endMode === 'date' && {
-                                    color: '#A84FF0',
+                                    color: '#B04FFF',
                                     fontWeight: '700',
                                   },
                                 ]}
@@ -1941,10 +1884,8 @@ const remindOptions = [
                                   onSelect={(d) => {
                                     if (d.getTime() < start.getTime()) {
                                       setRepeatEndDate(start)
-                                      setEnd(start)
                                     } else {
                                       setRepeatEndDate(d)
-                                      setEnd(d)
                                     }
                                   }}
                                 />
@@ -1984,10 +1925,10 @@ const remindOptions = [
                             )
                           })()}
 
-                          <Switch
+                          <CustomToggle
                             value={remindOn}
                             disabled={!timeOn}
-                            onValueChange={async (v) => {
+                            onChange={async (v) => {
                               if (!v) {
                                 setRemindOn(false)
                                 setRemindOpen(false)
@@ -2001,14 +1942,8 @@ const remindOptions = [
                                 return
                               }
 
-                              setRemindOn(true) // 권한 ok
+                              setRemindOn(true)
                               setRemindOpen(true)
-                            }}
-                            trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                            thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}
-                            style={{
-                              transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
-                              opacity: timeOn ? 1 : 0.5,
                             }}
                           />
                         </View>
@@ -2054,7 +1989,7 @@ const remindOptions = [
                                     style={[
                                       styles.remindItemText,
                                       selected && {
-                                        color: '#A84FF0',
+                                        color: '#B04FFF',
                                         fontWeight: '700',
                                       },
                                     ]}
@@ -2310,7 +2245,7 @@ const styles = StyleSheet.create({
   },
   cancel: { color: '#555', fontSize: 16 },
   hTitle: { fontSize: 18, fontWeight: 'bold' },
-  saveBtn: { color: '#7A4CFF', fontSize: 16, fontWeight: 'bold' },
+  saveBtn: { color: '#B04FFF', fontSize: 16, fontWeight: 'bold' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2410,7 +2345,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#eee',
   },
-  selectedLabel: { backgroundColor: '#9D7BFF', color: '#fff' },
+  selectedLabel: { backgroundColor: '#B04FFF', color: '#fff' },
   tabRow: {
     flexDirection: 'row',
     borderBottomWidth: 0.3,
@@ -2427,7 +2362,7 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 0.9,
-    borderColor: '#9D7BFF',
+    borderColor: '#B04FFF',
     marginTop: 1,
   },
   tabText: {
@@ -2436,7 +2371,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   activeTabText: {
-    color: '#9D7BFF',
+    color: '#B04FFF',
     fontWeight: '700',
   },
   dropdownText: {
@@ -2457,7 +2392,7 @@ const styles = StyleSheet.create({
   },
   selectedDropdown: {
     backgroundColor: '#EEE6FF',
-    color: '#9D7BFF',
+    color: '#B04FFF',
   },
 
   palettePopover: {
@@ -2505,7 +2440,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   cardTextActive: {
-    color: '#9D7BFF',
+    color: '#B04FFF',
     fontWeight: '700',
   },
   endDate: {
@@ -2540,7 +2475,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   deleteTxt: {
-    color: '#9D7BFF', // 피그마 기준 보라
+    color: '#B04FFF', // 피그마 기준 보라
     fontSize: 15,
     fontWeight: '700',
   },
