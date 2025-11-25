@@ -113,17 +113,17 @@ const handlePickImage = async () => {
 
         <Text style={styles.title}>이미지로 추가</Text>
 
-        {/* 촬영하기 */}
-        <Pressable
-          style={styles.itemRow}
-          onPress={() => {
-            handleTakePhoto()
-            onClose()
-          }}
-        >
-          <CameraIcon width={24} height={24} style={styles.icon} />
-          <Text style={styles.label}>촬영하기</Text>
-        </Pressable>
+{/* 촬영하기 */}
+<Pressable
+  style={styles.itemRow}
+  onPress={() => {
+    Alert.alert("준비중입니다", "해당 기능은 곧 업데이트될 예정이에요!")
+    onClose()
+  }}
+>
+  <CameraIcon width={24} height={24} style={styles.icon} />
+  <Text style={styles.label}>촬영하기</Text>
+</Pressable>
 
         {/* 사진 불러오기 */}
         <Pressable
