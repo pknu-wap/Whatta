@@ -767,16 +767,16 @@ export default function EventDetailPopup({
     fetchPresets()
   }, [visible])
   // 프리셋 + '맞춤 설정'
-  const presetOptions = reminderPresets.map((p) => ({
-    type: 'preset' as const,
-    ...p,
-    label: formatCustomLabel(p.hour, p.minute),
-  }))
+const presetOptions = (reminderPresets ?? []).map((p) => ({
+  type: 'preset' as const,
+  ...p,
+  label: formatCustomLabel(p.hour, p.minute),
+}))
 
-  const remindOptions = [
-    ...presetOptions,
-    { type: 'custom' as const, label: '맞춤 설정' },
-  ]
+const remindOptions = [
+  ...((presetOptions ?? []) as any[]),
+  { type: 'custom' as const, label: '맞춤 설정' },
+]
   const [remindOpen, setRemindOpen] = useState(false)
 
   function buildReminderNoti() {
