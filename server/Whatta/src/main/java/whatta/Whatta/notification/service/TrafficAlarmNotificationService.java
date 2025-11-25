@@ -71,5 +71,12 @@ public class TrafficAlarmNotificationService {
                     notificationBody.toString().trim()
             );
         }
+        if (busesNotifiedCount == 0) {
+            notificationSendService.sendTrafficAlarm(
+                    alarm.getUserId(),
+                    "🚨 현재 운행 중인 버스가 없습니다.",
+                    "선택하신 교통수단이 회차 대기 지연 혹은 운행시간이 종료되어 현재 운행정보가 없습니다."
+            );
+        }
     }
 }
