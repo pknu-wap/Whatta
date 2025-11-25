@@ -11,16 +11,7 @@ import {
   Alert,
 } from 'react-native'
 
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
-} from 'react-native-reanimated'
-
 import { useRoute } from '@react-navigation/native'
-
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { MonthlyDay } from '@/api/calendar'
 import { adaptMonthlyToSchedules, ScheduleData } from '@/api/adapter'
@@ -35,6 +26,15 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREvent } from '@/screens/More/OcrEventCardSlider'
+
+// ✅ 스와이프 제스처 + 애니메이션용
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -168,7 +168,9 @@ const ts = (styleName: string): any => {
 
 const today = (): string => {
   const t = new Date()
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
+    t.getDate(),
+  ).padStart(2, '0')}`
 }
 const TODAY_ISO = today()
 
@@ -271,7 +273,7 @@ function getEventsForDate(
     }
     // 반복
     if (it.isRecurring) {
-      if (it.date === iso) { 
+      if (it.date === iso) {
         ;(it.isTask ? tasks : singles).push(it as WithLane)
       }
       return
@@ -424,7 +426,9 @@ function getCalendarDates(
       date = dayNum
     }
 
-    const itemDateISO = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`
+    const itemDateISO = `${itemDate.getFullYear()}-${String(
+      itemDate.getMonth() + 1,
+    ).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`
     const isToday = itemDateISO === systemTodayISO
 
     const isFocused = currentFocusedDate.toDateString() === itemDate.toDateString()
@@ -475,7 +479,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 function getDateOfWeek(weekDay: string): string {
   if (!weekDay) return today()
 
-  const key = weekDay.trim().toUpperCase()   
+  const key = weekDay.trim().toUpperCase()
 
   const map: any = {
     MON: 1,
@@ -489,7 +493,7 @@ function getDateOfWeek(weekDay: string): string {
 
   const target = map[key]
   if (target === undefined) {
-    console.log("❌ Unknown weekDay:", weekDay)
+    console.log('❌ Unknown weekDay:', weekDay)
     return today()
   }
 
@@ -532,13 +536,16 @@ const textColorFor = (hex?: string) => {
 const colorsFromKey = (hex?: string) => {
   const base = (hex && `#${hex.replace('#', '')}`) || '#8B5CF6' // 기본 보라
   const light = base.startsWith('#')
-    ? `rgba(${parseInt(base.slice(1, 3), 16)},${parseInt(base.slice(3, 5), 16)},${parseInt(base.slice(5, 7), 16)},0.2)`
+    ? `rgba(${parseInt(base.slice(1, 3), 16)},${parseInt(
+        base.slice(3, 5),
+        16,
+      )},${parseInt(base.slice(5, 7), 16)},0.2)`
     : 'rgba(139,92,246,0.2)'
   return { primary: base, light }
 }
 
 // --------------------------------------------------------------------
-// 🔐 타입가드 (여기가 핵심 수정)
+// 🔐 타입가드
 // --------------------------------------------------------------------
 function isTaskSummaryItem(item: DisplayItem): item is TaskSummaryItem {
   return (
@@ -628,7 +635,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
     const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
     const reachWeekEnd = colSpan === spanToWeekEnd
 
-    const { primary: baseColor, light: lightColor } = colorsFromKey(schedule.colorKey)
+    const { primary: baseColor2, light: lightColor2 } = colorsFromKey(schedule.colorKey)
 
     const isRealStart = dayISO === schedule.multiDayStart
     const isRealEndInThisRow = colSpan === daysDiff // 이번 행에서 종료에 닿는지
@@ -642,8 +649,6 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
       ? { left: -1, right: 0 } // 토요일까지 꽉 채움
       : { left: -EVENT_HPAD, width: width }
 
-    // 이 행(주) 안에서 덮을 칸 수 계산
-    // 오늘 요일 인덱스: 일(0)~토(6)
     return (
       <View style={[S.multiDayContainer, !isCurrentMonth ? S.dimmedItem : null]}>
         <View
@@ -652,11 +657,11 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
             segPosStyle,
             {
               width,
-              backgroundColor: lightColor,
+              backgroundColor: lightColor2,
               // 시작/종료 캡과 패딩
               borderLeftWidth: isRealStart ? SINGLE_SCHEDULE_BORDER_WIDTH : 0,
               borderRightWidth: isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0,
-              borderColor: baseColor,
+              borderColor: baseColor2,
               borderTopLeftRadius: isRealStart ? 3 : 0,
               borderBottomLeftRadius: isRealStart ? 3 : 0,
               borderTopRightRadius: isRealEndInThisRow ? 3 : 0,
@@ -715,72 +720,70 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 }
 
 // --------------------------------------------------------------------
-// 4. 메인 컴포넌트: MonthView (필터 반영 + 오류 수정)
+// 4. 메인 컴포넌트: MonthView (필터 반영 + 스와이프 추가)
 // --------------------------------------------------------------------
 export default function MonthView() {
-
-const [ocrModalVisible, setOcrModalVisible] = useState(false)
-const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+  const [ocrModalVisible, setOcrModalVisible] = useState(false)
+  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
 
   // 📌 OCR 이미지 추가 이벤트
-const [imagePopupVisible, setImagePopupVisible] = useState(false)
+  const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
-const sendToOCR = async (base64: string, ext?: string) => {
-  try {
-    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
-    const lower = ext?.toLowerCase()
-    const format = lower === 'png' ? 'png' : 'jpg'
+  const sendToOCR = async (base64: string, ext?: string) => {
+    try {
+      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+      const lower = ext?.toLowerCase()
+      const format = lower === 'png' ? 'png' : 'jpg'
 
-    const res = await http.post('/ocr', {
-      imageType: 'COLLEGE_TIMETABLE',
-      image: {
-        format,
-        name: `timetable.${format}`,
-        data: cleanBase64,
-      },
-    })
+      const res = await http.post('/ocr', {
+        imageType: 'COLLEGE_TIMETABLE',
+        image: {
+          format,
+          name: `timetable.${format}`,
+          data: cleanBase64,
+        },
+      })
 
-    console.log("OCR 성공:", res.data)
+      console.log('OCR 성공:', res.data)
 
-    const rows = res.data?.data?.events ?? []
-    if (!rows.length) {
-      Alert.alert("결과 없음", "인식된 일정이 없습니다.")
-      return
+      const rows = res.data?.data?.events ?? []
+      if (!rows.length) {
+        Alert.alert('결과 없음', '인식된 일정이 없습니다.')
+        return
+      }
+
+      const mapped = rows.map((r: any, idx: number) => ({
+        id: String(idx),
+        title: r.title ?? '',
+        content: r.content ?? '',
+        weekDay: r.weekDay ?? '',
+        date: getDateOfWeek(r.weekDay),
+        startTime: r.startTime ?? '',
+        endTime: r.endTime ?? '',
+      }))
+
+      setOcrEvents(mapped)
+      setOcrModalVisible(true)
+    } catch (err: any) {
+      console.log('OCR 실패:', err.response?.data ?? err)
+      Alert.alert('오류', 'OCR 처리 실패')
+    }
+  }
+
+  useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      setImagePopupVisible(true)
     }
 
-    const mapped = rows.map((r: any, idx: number) => ({
-      id: String(idx),
-      title: r.title ?? '',
-      content: r.content ?? '',
-      weekDay: r.weekDay ?? '',
-      date: getDateOfWeek(r.weekDay),
-      startTime: r.startTime ?? '',
-      endTime: r.endTime ?? '',
-    }))
-
-    setOcrEvents(mapped)
-    setOcrModalVisible(true)
-
-  } catch (err: any) {
-    console.log("OCR 실패:", err.response?.data ?? err)
-    Alert.alert("오류", "OCR 처리 실패")
-  }
-}
-
-useEffect(() => {
-  const handler = (payload?: { source?: string }) => {
-    if (payload?.source !== 'Month') return
-    setImagePopupVisible(true)
-  }
-
-  bus.on('popup:image:create', handler)
-  return () => bus.off('popup:image:create', handler)
-}, [])
+    bus.on('popup:image:create', handler)
+    return () => bus.off('popup:image:create', handler)
+  }, [])
 
   // 월별 캐시 (ym -> days/schedules)
-  const cacheRef = useRef<Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>>(
-    new Map(),
-  )
+  const cacheRef = useRef<
+    Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>
+  >(new Map())
   const laneMapRef = useRef<Map<string, number>>(new Map())
 
   // 일정 상세 팝업
@@ -853,13 +856,10 @@ useEffect(() => {
       : {}),
   })
 
-  // 페이드 값
-  const fade = useSharedValue(1)
-  const fadeStyle = useAnimatedStyle(() => ({
-  opacity: fade.value,
-}))
-  const pad = (n: number) => String(n).padStart(2, '0')
+  // 페이드 값 (월 바뀔 때 살짝 어두워졌다가 밝아지는 효과)
+  const fade = useRef(new RNAnimated.Value(1)).current
 
+  const pad = (n: number) => String(n).padStart(2, '0')
 
   const toYM = (src: string | Date): string => {
     const d = typeof src === 'string' ? new Date(src) : src
@@ -881,30 +881,33 @@ useEffect(() => {
 
   // "할 일" 라벨 id 찾기 (없으면 null)
   const todoLabelId = useMemo(() => {
-    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일')
     return found ? Number(found.id) : null
   }, [filterLabels])
 
-  const openCreateTaskPopup = useCallback((source?: string) => {
-    setTaskPopupMode('create')
-    setTaskPopupId(null)
+  const openCreateTaskPopup = useCallback(
+    (source?: string) => {
+      setTaskPopupMode('create')
+      setTaskPopupId(null)
 
-    const placementDate = source === 'Month' ? today() : null
-    const placementTime = null
+      const placementDate = source === 'Month' ? today() : null
+      const placementTime = null
 
-    setTaskPopupTask({
-      id: null,
-      title: '',
-      content: '',
-      labels: todoLabelId ? [todoLabelId] : [],
-      completed: false,
-      placementDate,
-      placementTime,
-      dueDateTime: null,
-    })
+      setTaskPopupTask({
+        id: null,
+        title: '',
+        content: '',
+        labels: todoLabelId ? [todoLabelId] : [],
+        completed: false,
+        placementDate,
+        placementTime,
+        dueDateTime: null,
+      })
 
-    setTaskPopupVisible(true)
-  }, [todoLabelId])
+      setTaskPopupVisible(true)
+    },
+    [todoLabelId],
+  )
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -922,13 +925,56 @@ useEffect(() => {
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`
   })
 
+  // ✅ 월간 스와이프 애니메이션 (좌/우 스와이프해서 ±1달 이동)
+  const swipeTranslateX = useSharedValue(0)
+
+  const moveMonthBySwipe = useCallback(
+    (delta: number) => {
+      const [y, m] = ym.split('-').map(Number)
+      const base = new Date(y, m - 1, 1)
+      base.setMonth(base.getMonth() + delta)
+      const iso = `${base.getFullYear()}-${pad(base.getMonth() + 1)}-01`
+      // MonthView 기존 구조와 동일하게 bus로 날짜 이동 방송
+      bus.emit('calendar:set-date', iso)
+    },
+    [ym],
+  )
+
+  const swipeGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      swipeTranslateX.value = e.translationX
+    })
+    .onEnd((e) => {
+      const threshold = screenWidth * 0.25
+      const movedX = e.translationX
+
+      if (movedX > threshold) {
+        // 👉 오른쪽으로 크게 스와이프 → 이전 달
+        swipeTranslateX.value = withSpring(screenWidth, {}, () => {
+          swipeTranslateX.value = 0
+        })
+        runOnJS(moveMonthBySwipe)(-1)
+      } else if (movedX < -threshold) {
+        // 👉 왼쪽으로 크게 스와이프 → 다음 달
+        swipeTranslateX.value = withSpring(-screenWidth, {}, () => {
+          swipeTranslateX.value = 0
+        })
+        runOnJS(moveMonthBySwipe)(+1)
+      } else {
+        // 임계값보다 작으면 원위치
+        swipeTranslateX.value = withSpring(0)
+      }
+    })
+
+  const swipeAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipeTranslateX.value }],
+  }))
+
   // (1) 외부가 날짜를 바꾸면 해당 달로 이동
   useEffect(() => {
     const onSetDate = (iso: string) => {
       const nextYM = toYM(iso)
       setYm((prev) => (prev === nextYM ? prev : nextYM))
-      // 캘린더 라이브러리 스크롤/이동이 필요하면 여기서 호출
-      // calendarRef.current?.scrollToMonth(monthStart(nextYM))
     }
     bus.on('calendar:set-date', onSetDate)
     return () => bus.off('calendar:set-date', onSetDate)
@@ -937,7 +983,6 @@ useEffect(() => {
   // (2) ym이 확정되면 → 모두에게 현재 상태 방송 + API 조회
   useEffect(() => {
     if (!ym) return
-    // 방송만 유지: 헤더/모달 동기화
     bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
   }, [ym])
 
@@ -983,7 +1028,8 @@ useEffect(() => {
         const merged: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map(
           (it) => ({
             ...it,
-            colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
+            colorKey:
+              (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
           }),
         )
 
@@ -1085,7 +1131,9 @@ useEffect(() => {
 
     const d = dateItem.fullDate
     setFocusedDateISO(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+        d.getDate(),
+      ).padStart(2, '0')}`,
     )
 
     setSelectedDayData({
@@ -1131,8 +1179,8 @@ useEffect(() => {
           title: t.name,
           place: t.place ?? '',
           time: t.time ?? '',
-          color: baseColor, // ← 원래 색 유지
-          borderColor: baseColor, // ← 보더도 같은 색 계열로
+          color: baseColor,
+          borderColor: baseColor,
         }
       }),
     })
@@ -1177,8 +1225,6 @@ useEffect(() => {
       const arr = Array.isArray(raw?.labels) ? raw.labels : []
       if (arr.length === 0) return ''
       const first = arr[0]
-      // labels가 [1] 이런 숫자 배열일 수도 있고,
-      // [{ id: 1, ... }] 이런 객체 배열일 수도 있으니 둘 다 처리
       if (typeof first === 'object' && first !== null) {
         return String(first.id ?? first.labelId ?? '')
       }
@@ -1195,9 +1241,9 @@ useEffect(() => {
           name: ev.title ?? ev.name ?? '',
           date: dateISO,
           isRecurring: !!ev.isRepeat,
-          isTask: !!ev.isTask, // 월간 응답은 항상 false/undefined라서 그냥 두면 됩니다
+          isTask: !!ev.isTask,
           isCompleted: !!ev.isCompleted,
-          labelId: pickLabelId(ev), // ✅ 여기 수정
+          labelId: pickLabelId(ev),
           colorKey:
             typeof ev.colorKey === 'string'
               ? ev.colorKey.replace(/^#/, '').toUpperCase()
@@ -1218,7 +1264,7 @@ useEffect(() => {
         isRecurring: !!ev.isRepeat,
         isTask: false,
         isCompleted: false,
-        labelId: pickLabelId(ev), // ✅ 여기도 수정
+        labelId: pickLabelId(ev),
         colorKey:
           typeof ev.colorKey === 'string'
             ? ev.colorKey.replace(/^#/, '').toUpperCase()
@@ -1237,11 +1283,9 @@ useEffect(() => {
     ;(async () => {
       setLoading(true)
       try {
-        // 1) 월간 일정은 반드시 가져온다
         const fresh = await fetchMonthlyApi(ym)
         const monthlySchedules = flattenMonthly(fresh)
 
-        // 2) Task는 실패해도 월간 일정은 살린다
         let tasksThisMonth: UISchedule[] = []
         try {
           tasksThisMonth = await fetchTasksForMonth(ym)
@@ -1273,13 +1317,21 @@ useEffect(() => {
 
   // ym 바뀌면 살짝 어둡게
   useEffect(() => {
-    fade.value = withTiming(0.4, { duration: 120 })
+    RNAnimated.timing(fade, {
+      toValue: 0.4,
+      duration: 120,
+      useNativeDriver: true,
+    }).start()
   }, [ym])
 
   // 로딩 끝나면 다시 밝게
   useEffect(() => {
     if (!loading) {
-      fade.value = withTiming(1, { duration: 180 })
+      RNAnimated.timing(fade, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start()
     }
   }, [loading])
 
@@ -1289,18 +1341,14 @@ useEffect(() => {
 
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
-    // 필터 라벨이 아직 없으면 그대로
     if (!filterLabels || filterLabels.length === 0) return serverSchedules
 
     const enabledIds = filterLabels.filter((x) => x.enabled).map((x) => String(x.id))
 
-    // 전부 켜져 있으면 -> 필터 OFF와 동일
     if (enabledIds.length === filterLabels.length) {
       return serverSchedules
     }
 
-    // labelId 가 없으면 항상 보이게 할지, 숨길지 선택 가능
-    // 지금은 "라벨 없는 일정/테스크는 항상 보이게" 로 구현
     return serverSchedules.filter((s) => {
       if (!s.labelId || s.labelId === '') return true
       return enabledIds.includes(String(s.labelId))
@@ -1310,71 +1358,20 @@ useEffect(() => {
   useEffect(() => {
     setCalendarDates(
       getCalendarDates(
-        year, // ym의 연도
-        monthIndex, // ym의 월(0-index)
-        new Date(focusedDateISO), // 포커스 표시만 이 값 사용
+        year,
+        monthIndex,
+        new Date(focusedDateISO),
         filteredSchedules,
         laneMapRef.current,
       ),
     )
   }, [year, monthIndex, focusedDateISO, filteredSchedules])
 
-    const swipeTranslateX = useSharedValue(0)
-
-  const handleSwipe = useCallback(
-    (dir: 'prev' | 'next') => {
-      setYm((prevYM) => {
-        const { year: y, monthIndex: m } = parseYM(prevYM)
-        const base = new Date(y, m + (dir === 'next' ? 1 : -1), 1)
-        return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`
-      })
-    },
-    [],
-  )
-
-  const swipeGesture = Gesture.Pan()
-    .activeOffsetX([-10, 10])
-    .failOffsetY([-10, 10])
-    .onUpdate((e) => {
-      'worklet'
-      let nx = e.translationX
-      const max = screenWidth * 0.15
-      if (nx > max) nx = max
-      if (nx < -max) nx = -max
-      swipeTranslateX.value = nx
-    })
-    .onEnd(() => {
-      'worklet'
-      const cur = swipeTranslateX.value
-      const th = screenWidth * 0.06
-
-      if (cur > th) {
-        swipeTranslateX.value = withTiming(screenWidth * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('prev') // ← 이전 달
-          swipeTranslateX.value = withTiming(0, { duration: 160 })
-        })
-      } else if (cur < -th) {
-        swipeTranslateX.value = withTiming(-screenWidth * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('next') // ← 다음 달
-          swipeTranslateX.value = withTiming(0, { duration: 160 })
-        })
-      } else {
-        swipeTranslateX.value = withTiming(0, { duration: 150 })
-      }
-    })
-
-  const swipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: swipeTranslateX.value }],
-  }))
-
-
   return (
-    <GestureDetector gesture={swipeGesture}>
-      <Animated.View style={swipeStyle}>
-        <ScreenWithSidebar mode="overlay">
-          <View style={S.contentContainerWrapper}>
-            {/* 요일 헤더 */}
-            <View style={S.dayHeader}>
+    <ScreenWithSidebar mode="overlay">
+      <View style={S.contentContainerWrapper}>
+        {/* 요일 헤더 */}
+        <View style={S.dayHeader}>
           {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
             <View key={`dow-${index}`} style={S.dayCellFixed}>
               <Text
@@ -1396,149 +1393,157 @@ useEffect(() => {
           )}
         </View>
 
-        {/* 달력 그리드 */}
+        {/* 달력 그리드 (스와이프 + 페이드 애니메이션 적용) */}
         <ScrollView
           style={S.contentArea}
           contentContainerStyle={S.scrollContentContainer}
         >
-          <Animated.View style={[S.calendarGrid, fadeStyle]}>
-            {renderWeeks(calendarDates).map((week, weekIndex) => (
-              <View key={`week-${weekIndex}`} style={S.weekRow}>
-                {week.map((dateItem: CalendarDateItem, i: number) => {
-                  const weekMaxLane = Math.max(
-                    -1,
-                    ...week.flatMap((d) =>
-                      d.schedules.map((it) => (it as any).__lane ?? -1),
-                    ),
-                  )
-                  const itemsToRender: DisplayItem[] = getDisplayItems(
-                    dateItem.schedules,
-                    dateItem.tasks,
-                  )
+          <GestureDetector gesture={swipeGesture}>
+            <Reanimated.View style={[swipeAnimatedStyle]}>
+              <RNAnimated.View style={[S.calendarGrid, { opacity: fade }]}>
+                {renderWeeks(calendarDates).map((week, weekIndex) => (
+                  <View key={`week-${weekIndex}`} style={S.weekRow}>
+                    {week.map((dateItem: CalendarDateItem, i: number) => {
+                      const weekMaxLane = Math.max(
+                        -1,
+                        ...week.flatMap((d) =>
+                          d.schedules.map((it) => (it as any).__lane ?? -1),
+                        ),
+                      )
+                      const itemsToRender: DisplayItem[] = getDisplayItems(
+                        dateItem.schedules,
+                        dateItem.tasks,
+                      )
 
-                  const isFocusedThis =
-                    dateItem.fullDate.toDateString() === focusedDate.toDateString()
-                  const isTodayButNotFocused = !isFocusedThis && dateItem.isToday
-                  const isCurrentMonth = dateItem.isCurrentMonth
+                      const isFocusedThis =
+                        dateItem.fullDate.toDateString() ===
+                        focusedDate.toDateString()
+                      const isTodayButNotFocused = !isFocusedThis && dateItem.isToday
+                      const isCurrentMonth = dateItem.isCurrentMonth
 
-                  const dayOfWeekStyle = isCurrentMonth
-                    ? i % 7 === 0
-                      ? S.sunDate
-                      : (i + 1) % 7 === 0
-                        ? S.satDate
+                      const dayOfWeekStyle = isCurrentMonth
+                        ? i % 7 === 0
+                          ? S.sunDate
+                          : (i + 1) % 7 === 0
+                            ? S.satDate
+                            : null
                         : null
-                    : null
 
-                  const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(dateItem.fullDate.getMonth() + 1).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(2, '0')}`
+                      const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(
+                        dateItem.fullDate.getMonth() + 1,
+                      ).padStart(2, '0')}-${String(
+                        dateItem.fullDate.getDate(),
+                      ).padStart(2, '0')}`
 
-                  return (
-                    <TouchableOpacity
-                      key={dateItem.fullDate.toISOString()}
-                      style={[S.dateCell]}
-                      hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
-                      onPress={() => handleDatePress(dateItem)}
-                      activeOpacity={isCurrentMonth ? 0.7 : 1}
-                      disabled={!isCurrentMonth}
-                    >
-                      {/* 날짜 번호 및 스타일 */}
-                      <View style={S.dateNumberWrapper}>
-                        {dateItem.isToday ? <View style={S.todayRoundedSquare} /> : null}
-                        <Text
-                          style={[
-                            ts('monthDate'),
-                            S.dateNumberBase,
-                            isCurrentMonth
-                              ? dayOfWeekStyle
-                              : i % 7 === 0
-                                ? S.otherMonthSunDate
-                                : (i + 1) % 7 === 0
-                                  ? S.otherMonthSatDate
-                                  : S.otherMonthDateText,
-                            isCurrentMonth && dateItem.isHoliday
-                              ? S.holidayDateText
-                              : null,
-                          ]}
+                      return (
+                        <TouchableOpacity
+                          key={dateItem.fullDate.toISOString()}
+                          style={[S.dateCell]}
+                          hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
+                          onPress={() => handleDatePress(dateItem)}
+                          activeOpacity={isCurrentMonth ? 0.7 : 1}
+                          disabled={!isCurrentMonth}
                         >
-                          {String(dateItem.day)}
-                        </Text>
+                          {/* 날짜 번호 및 스타일 */}
+                          <View style={S.dateNumberWrapper}>
+                            {dateItem.isToday ? (
+                              <View style={S.todayRoundedSquare} />
+                            ) : null}
+                            <Text
+                              style={[
+                                ts('monthDate'),
+                                S.dateNumberBase,
+                                isCurrentMonth
+                                  ? dayOfWeekStyle
+                                  : i % 7 === 0
+                                    ? S.otherMonthSunDate
+                                    : (i + 1) % 7 === 0
+                                      ? S.otherMonthSatDate
+                                      : S.otherMonthDateText,
+                                isCurrentMonth && dateItem.isHoliday
+                                  ? S.holidayDateText
+                                  : null,
+                              ]}
+                            >
+                              {String(dateItem.day)}
+                            </Text>
 
-                        {dateItem.holidayName ? (
-                          <Text
-                            style={[
-                              S.holidayText,
-                              !isCurrentMonth ? S.otherMonthHolidayText : null,
-                              dateItem.holidayName === '크리스마스'
-                                ? S.smallHolidayText
-                                : null,
-                            ]}
-                          >
-                            {dateItem.holidayName.substring(0, 4)}
-                          </Text>
-                        ) : null}
-                      </View>
+                            {dateItem.holidayName ? (
+                              <Text
+                                style={[
+                                  S.holidayText,
+                                  !isCurrentMonth ? S.otherMonthHolidayText : null,
+                                  dateItem.holidayName === '크리스마스'
+                                    ? S.smallHolidayText
+                                    : null,
+                                ]}
+                              >
+                                {dateItem.holidayName.substring(0, 4)}
+                              </Text>
+                            ) : null}
+                          </View>
 
-                      {/* 일정 및 할 일 영역 */}
-                      <View style={S.eventArea}>
-                        {(() => {
-                          // 1 TaskSummary는 분리
-                          const taskSummary = itemsToRender.find(
-                            (it) => (it as any).isTaskSummary,
-                          )
-                          const onlySchedules = itemsToRender.filter(
-                            (it) => !(it as any).isTaskSummary,
-                          )
+                          {/* 일정 및 할 일 영역 */}
+                          <View style={S.eventArea}>
+                            {(() => {
+                              const taskSummary = itemsToRender.find(
+                                (it) => (it as any).isTaskSummary,
+                              )
+                              const onlySchedules = itemsToRender.filter(
+                                (it) => !(it as any).isTaskSummary,
+                              )
 
-                          // 2 이번 주의 최대 레인 수만큼 슬롯 준비(0..weekMaxLane)
-                          const laneSlots: (ScheduleData | null)[] = Array.from(
-                            { length: Math.max(0, weekMaxLane + 1) },
-                            () => null,
-                          )
+                              const laneSlots: (ScheduleData | null)[] = Array.from(
+                                { length: Math.max(0, weekMaxLane + 1) },
+                                () => null,
+                              )
 
-                          // 3 오늘 표시할 일정들을 각자의 레인 위치에 꽂기
-                          for (const it of onlySchedules) {
-                            const l = (it as any).__lane ?? 0
-                            if (l >= 0 && l < laneSlots.length)
-                              laneSlots[l] = it as ScheduleData
-                          }
+                              for (const it of onlySchedules) {
+                                const l = (it as any).__lane ?? 0
+                                if (l >= 0 && l < laneSlots.length)
+                                  laneSlots[l] = it as ScheduleData
+                              }
 
-                          // 4 레인 순서대로: 없으면 스페이서, 있으면 아이템
-                          return (
-                            <>
-                              {laneSlots.map((slot, idx) =>
-                                slot ? (
-                                  <ScheduleItem
-                                    key={`${slot.id}-${currentDateISO}-lane${idx}`}
-                                    schedule={slot}
-                                    currentDateISO={currentDateISO}
-                                    isCurrentMonth={isCurrentMonth}
-                                  />
-                                ) : (
-                                  <View key={`spacer-${idx}`} style={S.laneSpacer} />
-                                ),
-                              )}
+                              return (
+                                <>
+                                  {laneSlots.map((slot, idx) =>
+                                    slot ? (
+                                      <ScheduleItem
+                                        key={`${slot.id}-${currentDateISO}-lane${idx}`}
+                                        schedule={slot}
+                                        currentDateISO={currentDateISO}
+                                        isCurrentMonth={isCurrentMonth}
+                                      />
+                                    ) : (
+                                      <View
+                                        key={`spacer-${idx}`}
+                                        style={S.laneSpacer}
+                                      />
+                                    ),
+                                  )}
 
-                              {/* 5 태스크 요약은 레인 아래에 고정 */}
-                              {taskSummary ? (
-                                <TaskSummaryBox
-                                  key={(taskSummary as any).id}
-                                  count={(taskSummary as any).count}
-                                  isCurrentMonth={isCurrentMonth}
-                                />
-                              ) : null}
-                            </>
-                          )
-                        })()}
-                      </View>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-            ))}
-          </Animated.View>
+                                  {taskSummary ? (
+                                    <TaskSummaryBox
+                                      key={(taskSummary as any).id}
+                                      count={(taskSummary as any).count}
+                                      isCurrentMonth={isCurrentMonth}
+                                    />
+                                  ) : null}
+                                </>
+                              )
+                            })()}
+                          </View>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                ))}
+              </RNAnimated.View>
+            </Reanimated.View>
+          </GestureDetector>
         </ScrollView>
       </View>
 
-      
       <MonthDetailPopup
         visible={popupVisible}
         onClose={() => setPopupVisible(false)}
@@ -1571,7 +1576,6 @@ useEffect(() => {
           let placementTime: string | null = null
           const fieldsToClear: string[] = []
 
-          // 날짜
           if (form.hasDate && form.date) {
             const d = form.date
             placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
@@ -1581,18 +1585,16 @@ useEffect(() => {
             fieldsToClear.push('placementDate')
           }
 
-          // 시간
           if (form.hasTime && form.time) {
             const t = form.time
             placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:00`
           } else {
             fieldsToClear.push('placementTime')
           }
-          //reminderNoti
+
           const reminderNoti = form.reminderNoti ?? null
           if (!reminderNoti) fieldsToClear.push('reminderNoti')
 
-          // 이 Task가 속하는 날짜 (없으면 현재 포커스된 날짜 기준)
           const targetDate = placementDate ?? focusedDateISO
 
           try {
@@ -1614,7 +1616,6 @@ useEffect(() => {
                 item: { id: taskPopupId, date: targetDate },
               })
             } else {
-              // 새 테스크 생성
               const res = await http.post('/task', {
                 title: form.title,
                 content: form.memo,
@@ -1633,10 +1634,8 @@ useEffect(() => {
               })
             }
 
-            // 월간뷰 다시 조회
             await fetchFresh(ym)
 
-            // 팝업 닫기
             setTaskPopupVisible(false)
             setTaskPopupId(null)
             setTaskPopupTask(null)
@@ -1671,27 +1670,23 @@ useEffect(() => {
         }
       />
       <AddImageSheet
-  visible={imagePopupVisible}
-  onClose={() => setImagePopupVisible(false)}
-  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
-  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
-/>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-  onAddEvent={(ev) => {
-  }}
-/>
-    {/* MonthDetailPopup, EventDetailPopup, TaskDetailPopup, OCR 팝업들... */}
-        </ScreenWithSidebar>
-      </Animated.View>
-    </GestureDetector>
+        visible={imagePopupVisible}
+        onClose={() => setImagePopupVisible(false)}
+        onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+        onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+      />
+      <OCREventCardSlider
+        visible={ocrModalVisible}
+        events={ocrEvents}
+        onClose={() => setOcrModalVisible(false)}
+        onAddEvent={(ev) => {}}
+      />
+    </ScreenWithSidebar>
   )
 }
 
 // --------------------------------------------------------------------
-// 5. 스타일시트 정의 (S) - 기존 스타일 전부 유지
+// 5. 스타일시트 정의 (S)
 // --------------------------------------------------------------------
 const { width: screenWidth } = Dimensions.get('window')
 const horizontalPadding = 12
@@ -1730,13 +1725,13 @@ const S = StyleSheet.create({
     zIndex: 1,
   },
   dateNumberWrapper: {
-    height: 18, // 날짜행 높이 고정
+    height: 18,
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingLeft: 6,
-    paddingTop: 0, // ⬅︎ 위 여백 제거
+    paddingTop: 0,
     position: 'relative',
   },
   eventArea: {
@@ -1749,7 +1744,6 @@ const S = StyleSheet.create({
   todayBorder: { borderWidth: 1.5, borderColor: '#CCCCCC', borderRadius: 4 },
   dateNumberBase: { color: 'black', zIndex: 1 },
 
-  // 오버레이 링
   ringBase: {
     position: 'absolute',
     top: 1,
@@ -1763,7 +1757,6 @@ const S = StyleSheet.create({
   focusRing: { borderWidth: 0.8, borderColor: '#AAAAAA' },
   todayRing: { borderWidth: 1.0, borderColor: '#CCCCCC', zIndex: 0 },
 
-  // 빠진 스타일 전부 복구
   sunDate: { color: 'red' },
   satDate: { color: 'blue' },
   otherMonthDateText: { color: 'gray' },
@@ -1802,13 +1795,11 @@ const S = StyleSheet.create({
     marginBottom: ITEM_MARGIN_VERTICAL,
     overflow: 'hidden',
   },
-  //  반복 일정: 진한 보라색 배경
   recurringSchedule: {
     backgroundColor: SCHEDULE_COLOR,
     paddingLeft: TEXT_HORIZONTAL_PADDING,
     paddingRight: TEXT_HORIZONTAL_PADDING,
   },
-  // 단일 일정: 연한 보라색 배경
   singleSchedule: {
     backgroundColor: SCHEDULE_LIGHT_COLOR,
     paddingLeft: TEXT_HORIZONTAL_PADDING,
@@ -1820,7 +1811,6 @@ const S = StyleSheet.create({
     paddingRight: TEXT_HORIZONTAL_PADDING,
   },
   singleDayTextWhite: { color: '#FFF', fontWeight: '700', marginTop: -1 },
-  // 경계선: 진한 보라색
   singleScheduleBorder: {
     borderLeftWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
     borderRightWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
@@ -1832,14 +1822,12 @@ const S = StyleSheet.create({
     textAlign: 'left',
     lineHeight: SCHEDULE_BOX_HEIGHT,
   },
-  //  반복 일정 텍스트: 흰색
   recurringScheduleText: {
     color: '#FFFFFF',
     marginTop: 0.5,
     fontWeight: '700',
     paddingLeft: 4,
   },
-  // 단일 일정 텍스트: 검정색
   singleScheduleText: { color: '#000', marginTop: -1 },
   endTodayCap: {
     position: 'absolute',
@@ -1895,7 +1883,6 @@ const S = StyleSheet.create({
     paddingLeft: 2,
     paddingRight: TEXT_HORIZONTAL_PADDING,
   },
-  // Task 텍스트 스타일
   taskText: {
     fontSize: 12,
     color: '#333',
@@ -1910,7 +1897,6 @@ const S = StyleSheet.create({
     opacity: 0.3,
   },
 
-  // 멀티데이(기간이 긴 일정)스타일
   multiDayContainer: {
     width: '100%',
     marginBottom: ITEM_MARGIN_VERTICAL,
@@ -1925,7 +1911,6 @@ const S = StyleSheet.create({
     paddingHorizontal: 0,
     justifyContent: 'center',
     borderRadius: 0,
-
     borderTopWidth: 0,
     borderBottomWidth: 0,
     borderColor: 'transparent',
@@ -1970,8 +1955,8 @@ const S = StyleSheet.create({
 
   multiSegAbs: {
     position: 'absolute',
-    left: -EVENT_HPAD, // 셀 좌측 여백 보정
-    top: 0, // 멀티데이 줄의 상단에 맞춤
+    left: -EVENT_HPAD,
+    top: 0,
     height: SCHEDULE_BOX_HEIGHT,
     justifyContent: 'center',
     zIndex: 10,
