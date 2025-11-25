@@ -22,7 +22,7 @@ public class ScheduleSummaryNotiScheduler {
     private final ScheduleSummaryNotiService scheduleSummaryNotiService;
 
     //매분마다 요약알림 보낼 시각인지 체크
-    @Scheduled(fixedRate = 60 * 1000) //1분마다
+    @Scheduled(cron = "0 * * * * *") //1분마다
     public void processDailySummary() {
 
         List<ScheduleSummaryNotiSlim> notis = userSettingRepository.findByScheduleSummaryNotiEnabledTrue();
