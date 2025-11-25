@@ -571,8 +571,20 @@ useEffect(() => {
         setTasks(timedTasks.filter(filterTask))
         setChecks(checksAll.filter(filterTask))
       } catch (err) {
-        console.error('❌ 일간 일정 불러오기 실패:', err)
-        alert('일간 일정 불러오기 실패')
+        if (axios.isAxiosError(err)) {
+            console.log('code:', err.code)
+            console.log('message:', err.message)
+            console.log('toJSON:', err.toJSON?.())
+
+          // 네트워크/타임아웃 계열은 조용히 무시
+          if (err.message === 'Network Error' || err.code === 'ECONNABORTED') {
+            console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
+          return
+        }
+      }
+
+      console.error('❌ 일간 일정 불러오기 실패:', err)
+      alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
       }
     },
     [enabledLabelIds],
