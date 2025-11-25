@@ -48,14 +48,15 @@ public class TrafficAlarmNotificationService {
                 boolean isTarget = stationItems.stream()
                         .anyMatch(item -> item.getBusRouteNo().equals(arrival.busRouteNo()));
 
-
+                //[대한의원] 131-1번 : 15분 뒤 도착 예정 (남은 정류장 11
                 if (isTarget) {
                     notificationBody.append(
-                            String.format("%s정류장에 %s번 버스가 도착까지 %d정거장 남았습니다. %d분 뒤 도착 예정! \n",
+                            String.format("[%s] %s번 버스 : %d분 뒤 도착 예정 (남은 정류장 %d)\n",
                                     arrival.busStationName(),
                                     arrival.busRouteNo(),
-                                    arrival.remainingBusStops(),
-                                    arrival.etaSeconds() / 60)
+                                    arrival.etaSeconds() / 60,
+                                    arrival.remainingBusStops()
+                            )
                     );
                     busesNotifiedCount++;
                 }
@@ -68,6 +69,13 @@ public class TrafficAlarmNotificationService {
                     alarm.getUserId(),
                     title,
                     notificationBody.toString().trim()
+            );
+        }
+        if (busesNotifiedCount == 0) {
+            notificationSendService.sendTrafficAlarm(
+                    alarm.getUserId(),
+                    "🚨 현재 운행 중인 버스가 없습니다.",
+                    "선택하신 교통수단이 회차 대기 지연 혹은 운행시간이 종료되어 현재 운행정보가 없습니다."
             );
         }
     }
