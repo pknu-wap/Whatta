@@ -51,11 +51,12 @@ public class TrafficAlarmNotificationService {
 
                 if (isTarget) {
                     notificationBody.append(
-                            String.format("%s정류장에 %s번 버스가 도착까지 %d정거장 남았습니다. %d분 뒤 도착 예정! \n",
-                                    arrival.busStationName(),
+                            String.format("%s번 버스: %d분 뒤 %s 에 도착 예정 ( %d 정류장 전) \n",
                                     arrival.busRouteNo(),
-                                    arrival.remainingBusStops(),
-                                    arrival.etaSeconds() / 60)
+                                    arrival.etaSeconds() / 60,
+                                    arrival.busStationName(),
+                                    arrival.remainingBusStops()
+                            )
                     );
                     busesNotifiedCount++;
                 }
