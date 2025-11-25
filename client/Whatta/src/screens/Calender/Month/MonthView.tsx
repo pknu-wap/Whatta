@@ -27,6 +27,8 @@ import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import AddImageSheet from '@/screens/More/Ocr'
+import OCREventCardSlider, { OCREvent } from '@/screens/More/OcrEventCardSlider'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -269,9 +271,7 @@ function getEventsForDate(
     }
     // 반복
     if (it.isRecurring) {
-      const [y, m, d] = it.date.split('-').map(Number)
-      const base = new Date(y, m - 1, d)
-      if (base.getDay() === dow && iso >= it.date) {
+      if (it.date === iso) { 
         ;(it.isTask ? tasks : singles).push(it as WithLane)
       }
       return
@@ -470,6 +470,43 @@ function hexToRgb(hex: string) {
   )
   return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+function getDateOfWeek(weekDay: string): string {
+  if (!weekDay) return today()
+
+  const key = weekDay.trim().toUpperCase()   
+
+  const map: any = {
+    MON: 1,
+    TUE: 2,
+    WED: 3,
+    THU: 4,
+    FRI: 5,
+    SAT: 6,
+    SUN: 0,
+  }
+
+  const target = map[key]
+  if (target === undefined) {
+    console.log("❌ Unknown weekDay:", weekDay)
+    return today()
+  }
+
+  const now = new Date()
+  const todayIdx = now.getDay()
+
+  const diff = target - todayIdx
+  const d = new Date()
+  d.setDate(now.getDate() + diff)
+
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+// --------------------------------------------------------------------
+// 컬러키
+// --------------------------------------------------------------------
 
 // 연한색 제조
 function softHex(hex: string, t = 0.7) {
@@ -678,6 +715,66 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 // 4. 메인 컴포넌트: MonthView
 // --------------------------------------------------------------------
 export default function MonthView() {
+
+const [ocrModalVisible, setOcrModalVisible] = useState(false)
+const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+
+  // 📌 OCR 이미지 추가 이벤트
+const [imagePopupVisible, setImagePopupVisible] = useState(false)
+
+const sendToOCR = async (base64: string, ext?: string) => {
+  try {
+    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+    const lower = ext?.toLowerCase()
+    const format = lower === 'png' ? 'png' : 'jpg'
+
+    const res = await http.post('/ocr', {
+      imageType: 'COLLEGE_TIMETABLE',
+      image: {
+        format,
+        name: `timetable.${format}`,
+        data: cleanBase64,
+      },
+    })
+
+    console.log("OCR 성공:", res.data)
+
+    const rows = res.data?.data?.events ?? []
+    if (!rows.length) {
+      Alert.alert("결과 없음", "인식된 일정이 없습니다.")
+      return
+    }
+
+    const mapped = rows.map((r: any, idx: number) => ({
+      id: String(idx),
+      title: r.title ?? '',
+      content: r.content ?? '',
+      weekDay: r.weekDay ?? '',
+      date: getDateOfWeek(r.weekDay),
+      startTime: r.startTime ?? '',
+      endTime: r.endTime ?? '',
+    }))
+
+    setOcrEvents(mapped)
+    setOcrModalVisible(true)
+
+  } catch (err: any) {
+    console.log("OCR 실패:", err.response?.data ?? err)
+    Alert.alert("오류", "OCR 처리 실패")
+  }
+}
+
+useEffect(() => {
+  const handler = (payload?: { source?: string }) => {
+    if (payload?.source !== 'Month') return
+    setImagePopupVisible(true)
+  }
+
+  bus.on('popup:image:create', handler)
+  return () => bus.off('popup:image:create', handler)
+}, [])
+
+  // 월별 캐시 (ym -> days/schedules)
   const cacheRef = useRef<Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>>(
     new Map(),
   )
@@ -766,6 +863,14 @@ export default function MonthView() {
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
+  const { items: filterLabels } = useLabelFilter()
+
+  // "할 일" 라벨 id 찾기 (없으면 null)
+  const todoLabelId = useMemo(() => {
+    const found = (filterLabels ?? []).find((l) => l.title === '할 일') // 수정: "할 일" 라벨 탐색
+    return found ? Number(found.id) : null
+  }, [filterLabels])
+
   const openCreateTaskPopup = useCallback((source?: string) => {
     setTaskPopupMode('create')
     setTaskPopupId(null)
@@ -777,7 +882,7 @@ export default function MonthView() {
       id: null,
       title: '',
       content: '',
-      labels: [],
+      labels: todoLabelId ? [todoLabelId] : [],
       completed: false,
       placementDate,
       placementTime,
@@ -785,7 +890,7 @@ export default function MonthView() {
     })
 
     setTaskPopupVisible(true)
-  }, [])
+  }, [todoLabelId])
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -1163,8 +1268,7 @@ export default function MonthView() {
     setFocusedDateISO(`${year}-${pad(monthIndex + 1)}-01`)
   }, [year, monthIndex])
 
-  const { items: filterLabels } = useLabelFilter()
-
+  // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
     if (!filterLabels || filterLabels.length === 0) return serverSchedules
 
@@ -1374,6 +1478,7 @@ export default function MonthView() {
         visible={eventPopupVisible}
         eventId={eventPopupData?.id ?? null}
         mode={eventPopupMode}
+        initial={eventPopupData ?? undefined}
         onClose={() => {
           setEventPopupVisible(false)
           setEventPopupData(null)
@@ -1411,6 +1516,9 @@ export default function MonthView() {
           } else {
             fieldsToClear.push('placementTime')
           }
+          //reminderNoti
+          const reminderNoti = form.reminderNoti ?? null
+          if (!reminderNoti) fieldsToClear.push('reminderNoti')
 
           const targetDate = placementDate ?? focusedDateISO
 
@@ -1424,6 +1532,7 @@ export default function MonthView() {
                 labels: form.labels,
                 placementDate,
                 placementTime,
+                reminderNoti,
                 fieldsToClear,
               })
 
@@ -1438,6 +1547,7 @@ export default function MonthView() {
                 labels: form.labels,
                 placementDate,
                 placementTime,
+                reminderNoti,
                 date: targetDate,
               })
 
@@ -1484,6 +1594,19 @@ export default function MonthView() {
             : undefined
         }
       />
+      <AddImageSheet
+  visible={imagePopupVisible}
+  onClose={() => setImagePopupVisible(false)}
+  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+/>
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+  onAddEvent={(ev) => {
+  }}
+/>
     </ScreenWithSidebar>
   )
 }
