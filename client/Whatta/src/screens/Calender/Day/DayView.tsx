@@ -37,6 +37,7 @@ import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -473,14 +474,34 @@ export default function DayView() {
   }, [enabledLabelIds])
 
   const measureLayouts = useCallback(() => {
-    taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
-      setTaskBoxTop(py) // 기존 코드 유지
-      setTaskBoxRect({ left: px, top: py, right: px + w, bottom: py + h })
-    })
-    gridWrapRef.current?.measure?.((x, y, w, h, px, py) => {
-      setGridTop(py) // 기존 코드 유지
-      setGridRect({ left: px, top: py, right: px + w, bottom: py + h })
-    })
+    // 상단 박스
+    if (taskBoxRef.current) {
+      taskBoxRef.current.measure((x, y, w, h, px, py) => {
+        const rect = {
+          left: px,
+          top: py,
+          right: px + w,
+          bottom: py + h,
+        }
+        taskBoxRectRef.current = rect
+        // 디버깅 필요하면 로그
+        console.log('[measure] taskBoxRef:', rect)
+      })
+    }
+
+    // 시간 그리드
+    if (gridWrapRef.current) {
+      gridWrapRef.current.measure((x, y, w, h, px, py) => {
+        const rect = {
+          left: px,
+          top: py,
+          right: px + w,
+          bottom: py + h,
+        }
+        gridRectRef.current = rect
+        console.log('[measure] gridWrapRef:', rect)
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -579,6 +600,7 @@ export default function DayView() {
 
   useEffect(() => {
     const onStart = ({ task }: any) => {
+      if (currentCalendarView.get() !== 'day') return
       draggingTaskIdRef.current = task?.id ?? null
     }
     bus.on('xdrag:start', onStart)
@@ -589,6 +611,7 @@ export default function DayView() {
       x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
 
     const onDrop = ({ x, y }: any) => {
+      if (currentCalendarView.get() !== 'day') return
       const id = draggingTaskIdRef.current
       if (!id) return
       if (!dragReadyRef.current) {
@@ -596,7 +619,6 @@ export default function DayView() {
         return
       }
 
-      // 드롭 순간 레이아웃 최신화
       measureLayouts()
 
       requestAnimationFrame(async () => {
@@ -607,6 +629,21 @@ export default function DayView() {
         const inTop = within(taskBox, x, y)
         const inGrid = within(gridBox, x, y)
 
+        // console.log('🔥 DROP LOG')
+        // console.log('x,y =', x, y)
+        // console.log('taskBox =', taskBox)
+        // console.log('gridBox =', gridBox)
+        // console.log('scrollY =', gridScrollYRef.current)
+
+        // 뷰포트 기준 Y (스크롤 미포함)
+        const innerY_raw = y - gridBox.top
+        console.log(
+          'innerY_raw =',
+          innerY_raw,
+          '=> minutes ≈',
+          innerY_raw / PIXELS_PER_MIN,
+        )
+
         // 어디에도 안 떨어졌으면 취소
         if (!inTop && !inGrid) {
           draggingTaskIdRef.current = null
@@ -615,10 +652,9 @@ export default function DayView() {
         }
 
         try {
-          // 1 원본 Task 조회
+          // 1. 원본 Task 조회
           const baseRes = await http.get(`/task/${id}`)
           const base = baseRes.data?.data
-
           if (!base) {
             console.warn('[DayView DROP] base task 없음:', id)
             draggingTaskIdRef.current = null
@@ -626,7 +662,7 @@ export default function DayView() {
             return
           }
 
-          // 2 공통 payload (제목/내용/라벨/리마인더 등)
+          // 2. 공통 payload
           const basePayload: any = {
             title: base.title ?? '',
             content: base.content ?? '',
@@ -638,40 +674,60 @@ export default function DayView() {
 
           let placementTime: string | null = null
 
-          // 상단 박스 드롭: 날짜만 배치 (시간 없음)
+          // 상단 영역 → 날짜만 (시간 없음)
           if (inTop) {
             placementTime = null
+          }
+
+          // 그리드 영역 → 시간 계산
+          if (inGrid) {
+            const scrollOffset = gridScrollYRef.current || 0
+
+            // 스크롤 포함한 실제 콘텐츠 기준 Y
+            const innerY = innerY_raw + scrollOffset
+
+            // px → 분
+            const TOTAL_MIN = 24 * 60 // 하루 1440분
+            const minRaw = innerY / PIXELS_PER_MIN
+            let minSnap = Math.round(minRaw / 5) * 5 // 5분 단위 스냅
+
+            // 분을 0 ~ 1435(=23:55) 사이로 클램프
+            if (minSnap < 0) minSnap = 0
+            if (minSnap >= TOTAL_MIN) minSnap = TOTAL_MIN - 5
+
+            const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
+            const mm = String(minSnap % 60).padStart(2, '0')
+            placementTime = `${hh}:${mm}:00`
+
+            console.log('[DROP] time calc:', {
+              innerY,
+              minRaw,
+              minSnap,
+              hh,
+              mm,
+              placementTime,
+            })
           }
 
           const createPayload = {
             ...basePayload,
             placementDate: dateISO,
-            placementTime: null,
+            placementTime,
           }
+
+          console.log('createPayload =', createPayload)
+
           const createRes = await http.post('/task', createPayload)
           const created = createRes.data?.data
           const newId = created?.id
 
           console.log('[DayView DROP] CREATE 성공:', createPayload)
 
-          // 원본 Task 삭제
           await http.delete(`/task/${id}`)
           console.log('[DayView DROP] 원본 Task 삭제 성공:', id)
 
-          // 사이드바에서 제거
           bus.emit('sidebar:remove-task', { id })
-          // 시간 그리드 드롭: 5분 단위 스냅
-          if (inGrid) {
-            const innerY = Math.max(0, y - gridBox.top) // scrollY 더하지 않음
 
-            const minRaw = innerY / PIXELS_PER_MIN
-            const minSnap = Math.round(minRaw / 5) * 5
-            const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
-            const mm = String(minSnap % 60).padStart(2, '0')
-            placementTime = `${hh}:${mm}:00`
-          }
-
-          // 캘린더에게 변경 알리기
           if (newId) {
             bus.emit('calendar:mutated', {
               op: 'create',
@@ -689,7 +745,6 @@ export default function DayView() {
             ym: dateISO.slice(0, 7),
           })
 
-          // 일간뷰 즉시 재조회
           await fetchDailyEvents(dateISO)
         } catch (err) {
           console.error('❌ [DayView DROP] 드롭 처리 실패:', err)

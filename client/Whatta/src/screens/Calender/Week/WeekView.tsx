@@ -48,6 +48,7 @@ import * as Haptics from 'expo-haptics'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
@@ -1597,6 +1598,12 @@ export default function WeekView() {
     }
   }, [nowTop, weekData, hasScrolledOnce])
 
+  useFocusEffect(
+    useCallback(() => {
+      currentCalendarView.set('week')
+    }, []),
+  )
+
   const fetchWeek = useCallback(async (dates: string[]) => {
     if (!dates.length) return
     try {
@@ -1876,6 +1883,10 @@ export default function WeekView() {
     }
 
     const onDrop = async ({ task, x, y }: DragDropPayload) => {
+      if (currentCalendarView.get() !== 'week') {
+        // console.log('[DROP] WeekView 아님 → 드롭 무시')
+        return
+      }
       console.log('---------------- [xdrag:drop] ----------------')
       console.log('[DROP] raw payload:', { taskId: task?.id, x, y })
 
