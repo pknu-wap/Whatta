@@ -20,6 +20,7 @@ import InlineCalendar from '@/components/lnlineCalendar'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import type { CreateEventPayload } from '@/api/event_api'
+import { getMyLabels } from '@/api/label_api'
 
 
 interface OCREventEditCardProps {
@@ -29,6 +30,7 @@ interface OCREventEditCardProps {
   startTime?: string
   endTime?: string
   onClose: () => void
+  isFromOCR?: boolean
 
 onSubmit: (data: CreateEventPayload) => void
 
@@ -342,6 +344,37 @@ const buildEventPayload = () => {
     reminderNoti,
   }
 }
+
+  // 🔥 OCR 카드 전용: '시간표' 라벨 자동 선택/자동 생성
+// 🔥 라벨 목록 불러오기
+useEffect(() => {
+  const loadLabels = async () => {
+    const list = await getMyLabels()
+    setLabels(list)
+  }
+  loadLabels()
+}, [])
+
+// 🔥 시간표 자동 선택/생성
+useEffect(() => {
+  if (!labels.length) return
+
+  const applyTimetable = async () => {
+    let target = labels.find((l) => l.title === '시간표')
+
+    if (!target) {
+      const newLabel = await createLabel('시간표')
+      setLabels((prev) => [...prev, newLabel])
+      target = newLabel
+    }
+
+    setSelectedLabelIds((prev) =>
+      prev.includes(target.id) ? prev : [...prev, target.id]
+    )
+  }
+
+  applyTimetable()
+}, [labels])
 
 
   return (

@@ -45,6 +45,7 @@ import { refreshTokens } from '@/api/auth'
 import { bus } from '@/lib/eventBus'
 import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
+import { createEvent } from '@/api/event_api'
 
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
@@ -3076,12 +3077,29 @@ export default function WeekView() {
 >
   <OcrSplash />
 </Modal>
-        <OCREventCardSlider
-          visible={ocrModalVisible}
-          events={ocrEvents}
-          onClose={() => setOcrModalVisible(false)}
-          onAddEvent={(ev) => {}}
-        />
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchWeek(weekDates)
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
+  onSaveAll={async () => {
+    await fetchWeek(weekDates)
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    setOcrModalVisible(false)
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

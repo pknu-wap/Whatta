@@ -45,6 +45,7 @@ import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import OcrSplash from '@/screens/More/OcrSplash'
+import { createEvent } from '@/api/event_api'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -1507,16 +1508,29 @@ return (
           onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
           onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
         />
-        <OCREventCardSlider
-          visible={ocrModalVisible}
-          events={ocrEvents}
-          onClose={() => setOcrModalVisible(false)}
-          onAddEvent={(ev) => {}}
-          onSaveAll={async () => {
-    await fetchDailyEvents(anchorDate); 
-    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) });
+       <OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchDailyEvents(anchorDate)
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    } catch (err) {
+      console.error(err)
+    }
   }}
-        />
+
+  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
+  onSaveAll={async () => {
+    await fetchDailyEvents(anchorDate)
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    setOcrModalVisible(false)
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

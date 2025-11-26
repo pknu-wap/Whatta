@@ -30,6 +30,7 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import { createEvent } from '@/api/event_api'
 import OcrSplash from '@/screens/More/OcrSplash'
 
 // --------------------------------------------------------------------
@@ -1631,14 +1632,29 @@ export default function MonthView() {
 >
   <OcrSplash />
 </Modal>
-      <OCREventCardSlider
-        visible={ocrModalVisible}
-        events={ocrEvents}
-        onClose={() => setOcrModalVisible(false)}
-        onAddEvent={(ev) => {
-          // 월간 뷰에서 OCR로 가져온 이벤트를 어떻게 추가할지 필요하면 여기 구현
-        }}
-      />
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchFresh(ym)  // ★ 여기!
+      bus.emit('calendar:invalidate', { ym })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장
+  onSaveAll={async () => {
+    await fetchFresh(ym)    // ★ 여기!
+    bus.emit('calendar:invalidate', { ym })
+    setOcrModalVisible(false)
+  }}
+/>
     </ScreenWithSidebar>
   )
 }
