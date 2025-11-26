@@ -42,6 +42,7 @@ import AddImageSheet from '@/screens/More/Ocr'
 import type { OCREvent } from '@/screens/More/OcrEventCardSlider'
 import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -359,6 +360,20 @@ export default function DayView() {
     bottom: 0,
   })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
+  useFocusEffect(
+    useCallback(() => {
+      // 화면 포커스 등록
+      currentCalendarView.set('day')
+
+      bus.emit('calendar:state', {
+        date: anchorDate,
+        mode: 'day',
+      })
+      bus.emit('calendar:meta', {
+        mode: 'day',
+      })
+    }, [anchorDate]),
+  )
   useFocusEffect(
     useCallback(() => {
       bus.emit('calendar:state', {
