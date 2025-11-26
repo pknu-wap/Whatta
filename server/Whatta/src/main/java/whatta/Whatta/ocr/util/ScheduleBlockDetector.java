@@ -35,6 +35,7 @@ public class ScheduleBlockDetector {
         Mat workBgr = new Mat();
         if (darkMode) {
             bitwise_not(bgrImage, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
+            System.out.println("darkMode");
         } else {
             workBgr = bgrImage.clone();
         }
@@ -83,12 +84,12 @@ public class ScheduleBlockDetector {
 
     private void morphologyRefine(Mat mask) {
         Mat kOpen  = getStructuringElement(MORPH_RECT, new Size(3, 3));
-        Mat kClose = getStructuringElement(MORPH_RECT, new Size(3, 3));
+        //Mat kClose = getStructuringElement(MORPH_RECT, new Size(3, 3));
 
         morphologyEx(mask, mask, Imgproc.MORPH_OPEN,  kOpen);
-        morphologyEx(mask, mask, Imgproc.MORPH_CLOSE, kClose);
+        //morphologyEx(mask, mask, Imgproc.MORPH_CLOSE, kClose);
 
-        kOpen.release(); kClose.release();
+        kOpen.release(); //kClose.release();
     }
 
     private List<DetectedBlock.Block> extractBoxesAsResults(Mat mask, Size originalSize) {
