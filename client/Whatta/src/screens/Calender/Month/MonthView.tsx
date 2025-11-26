@@ -198,10 +198,7 @@ function getHolidayName(date: Date): string | null {
       }
     }
 
-    if (
-      lunarData.부처님오신날.month === month &&
-      lunarData.부처님오신날.day === day
-    ) {
+    if (lunarData.부처님오신날.month === month && lunarData.부처님오신날.day === day) {
       holidayName = holidayName || '부처님 오신 날'
     }
 
@@ -628,9 +625,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
     const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
     const reachWeekEnd = colSpan === spanToWeekEnd
 
-    const { primary: primaryColor, light: softColor } = colorsFromKey(
-      schedule.colorKey,
-    )
+    const { primary: primaryColor, light: softColor } = colorsFromKey(schedule.colorKey)
 
     const isRealStart = dayISO === schedule.multiDayStart
     const isRealEndInThisRow = colSpan === daysDiff
@@ -911,9 +906,26 @@ export default function MonthView() {
   // 월 이동 + 스와이프에서 호출
   const goMonth = useCallback(
     (diff: number) => {
-      setYm((prevYm) => addMonthsFromYm(prevYm, diff))
+      // 1. 현재 잡고 있는 날짜 (예: 2025-10-27)
+      const [y, m, d] = focusedDateISO.split('-').map(Number)
+
+      // 2. 달 이동
+      const targetDate = new Date(y, m - 1 + diff, 1)
+
+      // 3. 월말 보정
+      const targetMonthIndex = (m - 1 + diff + 12) % 12
+      if (targetDate.getMonth() !== targetMonthIndex) {
+        targetDate.setDate(0) // 전달 마지막 날로 설정
+      }
+
+      // 4. ISO 변환
+      const nextISO = `${targetDate.getFullYear()}-${String(
+        targetDate.getMonth() + 1,
+      ).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+
+      bus.emit('calendar:set-date', nextISO)
     },
-    [],
+    [focusedDateISO],
   )
 
   // 좌우 스와이프 제스처 (DayView 구조 참고)
@@ -940,6 +952,7 @@ export default function MonthView() {
   useEffect(() => {
     const onSetDate = (iso: string) => {
       const nextYM = toYM(iso)
+      setFocusedDateISO(iso)
       setYm((prev) => (prev === nextYM ? prev : nextYM))
     }
     bus.on('calendar:set-date', onSetDate)
@@ -963,8 +976,8 @@ export default function MonthView() {
 
   useFocusEffect(
     React.useCallback(() => {
-      bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-    }, [ym]),
+      bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
+    }, [ym, focusedDateISO]),
   )
 
   const fetchFresh = useCallback(
@@ -1197,7 +1210,6 @@ export default function MonthView() {
         })
       })
     })
-
     ;(fresh.spanEvents ?? []).forEach((ev: any) => {
       const start = (ev.startDate ?? '').slice(0, 10)
       const end = (ev.endDate ?? '').slice(0, 10)
@@ -1269,10 +1281,6 @@ export default function MonthView() {
       Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
     }
   }, [loading])
-
-  useEffect(() => {
-    setFocusedDateISO(`${year}-${pad(monthIndex + 1)}-01`)
-  }, [year, monthIndex])
 
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
@@ -1361,9 +1369,10 @@ export default function MonthView() {
 
                       const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(
                         dateItem.fullDate.getMonth() + 1,
-                      ).padStart(2, '0')}-${String(
-                        dateItem.fullDate.getDate(),
-                      ).padStart(2, '0')}`
+                      ).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(
+                        2,
+                        '0',
+                      )}`
 
                       return (
                         <TouchableOpacity
@@ -1445,10 +1454,7 @@ export default function MonthView() {
                                         isCurrentMonth={isCurrentMonth}
                                       />
                                     ) : (
-                                      <View
-                                        key={`spacer-${idx}`}
-                                        style={S.laneSpacer}
-                                      />
+                                      <View key={`spacer-${idx}`} style={S.laneSpacer} />
                                     ),
                                   )}
 

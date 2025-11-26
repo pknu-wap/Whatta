@@ -1930,6 +1930,8 @@ export default function WeekView() {
 
   useEffect(() => {
     const onReq = () => {
+      if (!isFocused) return
+
       bus.emit('calendar:state', {
         date: anchorDateRef.current,
         mode: 'week',
@@ -1961,7 +1963,7 @@ export default function WeekView() {
       bus.off('calendar:state', onState)
       bus.off('calendar:set-date', onSet)
     }
-  }, [weekDates])
+  }, [weekDates, isFocused])
 
   useFocusEffect(
     useCallback(() => {
