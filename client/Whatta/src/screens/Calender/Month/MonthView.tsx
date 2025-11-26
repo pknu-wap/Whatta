@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Animated,
   Alert,
+  Modal,
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -29,6 +30,8 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import { createEvent } from '@/api/event_api'
+import OcrSplash from '@/screens/More/OcrSplash'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -715,6 +718,7 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 // 4. 메인 컴포넌트: MonthView
 // --------------------------------------------------------------------
 export default function MonthView() {
+  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
   const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
 
@@ -723,44 +727,58 @@ export default function MonthView() {
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
-      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
-      const lower = ext?.toLowerCase()
-      const format = lower === 'png' ? 'png' : 'jpg'
+      setOcrSplashVisible(true)
+      
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
+      const lower = (ext ?? 'jpg').toLowerCase()
+      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
 
-      const res = await http.post('/ocr', {
-        imageType: 'COLLEGE_TIMETABLE',
-        image: {
-          format,
-          name: `timetable.${format}`,
-          data: cleanBase64,
+      const res = await http.post(
+        '/ocr',
+        {
+          imageType: 'COLLEGE_TIMETABLE',
+          image: {
+            format,
+            name: `timetable.${format}`,
+            data: cleanBase64,
+          },
         },
-      })
+        
+      )
 
       console.log('OCR 성공:', res.data)
 
-      const rows = res.data?.data?.events ?? []
-      if (!rows.length) {
-        Alert.alert('결과 없음', '인식된 일정이 없습니다.')
-        return
-      }
+      const events = res.data?.data?.events ?? []
 
-      const mapped = rows.map((r: any, idx: number) => ({
-        id: String(idx),
-        title: r.title ?? '',
-        content: r.content ?? '',
-        weekDay: r.weekDay ?? '',
-        date: getDateOfWeek(r.weekDay),
-        startTime: r.startTime ?? '',
-        endTime: r.endTime ?? '',
-      }))
+      const parsed = events
+        .map((ev: any, idx: number) => {
+          console.log('🔎 OCR raw weekDay:', ev.weekDay)
+          console.log('🔎 Converted date:', getDateOfWeek(ev.weekDay))
 
-      setOcrEvents(mapped)
-      setOcrModalVisible(true)
-    } catch (err: any) {
-      console.log('OCR 실패:', err.response?.data ?? err)
-      Alert.alert('오류', 'OCR 처리 실패')
-    }
+          return {
+            id: String(idx),
+            title: ev.title ?? '',
+            content: ev.content ?? '',
+            weekDay: ev.weekDay ?? '',
+            date: getDateOfWeek(ev.weekDay),
+            startTime: ev.startTime ?? '',
+            endTime: ev.endTime ?? '',
+          }
+        })
+        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
+
+      setOcrEvents(parsed)
+      
+        // OCR 성공한 시점에서 스플래쉬 끄기
+  setOcrSplashVisible(false)
+
+  // 바로 카드 켜기
+  setOcrModalVisible(true)
+
+  } catch (err) {
+    Alert.alert('오류', 'OCR 처리 실패')
   }
+}
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -1606,14 +1624,37 @@ export default function MonthView() {
         onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
         onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
       />
-      <OCREventCardSlider
-        visible={ocrModalVisible}
-        events={ocrEvents}
-        onClose={() => setOcrModalVisible(false)}
-        onAddEvent={(ev) => {
-          // 월간 뷰에서 OCR로 가져온 이벤트를 어떻게 추가할지 필요하면 여기 구현
-        }}
-      />
+      <Modal
+  visible={ocrSplashVisible}
+  transparent={true}
+  animationType="fade"
+  statusBarTranslucent={true}
+>
+  <OcrSplash />
+</Modal>
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchFresh(ym)  // ★ 여기!
+      bus.emit('calendar:invalidate', { ym })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장
+  onSaveAll={async () => {
+    await fetchFresh(ym)    // ★ 여기!
+    bus.emit('calendar:invalidate', { ym })
+    setOcrModalVisible(false)
+  }}
+/>
     </ScreenWithSidebar>
   )
 }
