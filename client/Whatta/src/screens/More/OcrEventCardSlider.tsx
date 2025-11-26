@@ -217,16 +217,22 @@ renderItem={({ item, index }) => {
           startTime={item.startTime?.slice(0, 5)}
           endTime={item.endTime?.slice(0, 5)}
 
-          onSubmit={(finalPayload) => {
-            setEditedEvents(prev =>
-              prev.map(ev =>
-                ev.id === item.id
-                  ? { ...ev, ...finalPayload, repeat: ev.repeat }
-                  : ev
-              )
-            )
-            onAddEvent({ ...finalPayload, repeat: item.repeat })
-          }}
+onSubmit={async (finalPayload) => {
+  try {
+
+    await createEvent({
+      ...finalPayload,
+      repeat: item.repeat,
+    })
+
+    onAddEvent({ ...finalPayload, repeat: item.repeat })
+
+    animateRemove()
+
+  } catch (e) {
+    Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
+  }
+}}
 
           onClose={animateRemove}
         />
