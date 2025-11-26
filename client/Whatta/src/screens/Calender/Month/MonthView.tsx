@@ -946,17 +946,20 @@ export default function MonthView() {
     return () => bus.off('calendar:set-date', onSetDate)
   }, [])
 
-  useEffect(() => {
-    if (!ym) return
-    bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  }, [ym])
+  // (2) ym이 확정되면 → 모두에게 현재 상태 방송 + API 조회
+  // useEffect(() => {
+  //   if (!ym) return
+  //   // 방송만 유지: 헤더/모달 동기화
+  //   bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+  // }, [ym])
 
-  useEffect(() => {
-    const reply = () =>
-      bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-    bus.on('calendar:request-sync', reply)
-    return () => bus.off('calendar:request-sync', reply)
-  }, [ym])
+  // // (3) 다른 컴포넌트가 현재 상태를 물으면 즉시 회신
+  // useEffect(() => {
+  //   const reply = () =>
+  //     bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+  //   bus.on('calendar:request-sync', reply)
+  //   return () => bus.off('calendar:request-sync', reply)
+  // }, [ym])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1079,11 +1082,9 @@ export default function MonthView() {
     if (!dateItem.isCurrentMonth) return
 
     const d = dateItem.fullDate
-    setFocusedDateISO(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-        d.getDate(),
-      ).padStart(2, '0')}`,
-    )
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    setFocusedDateISO(isoDate)
+    bus.emit('calendar:set-date', isoDate)
 
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,

@@ -20,7 +20,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { runOnJS } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 
@@ -42,6 +42,7 @@ import AddImageSheet from '@/screens/More/Ocr'
 import type { OCREvent } from '@/screens/More/OcrEventCardSlider'
 import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -234,6 +235,7 @@ export default function DayView() {
     return () => bus.off('popup:image:create', handler)
   }, [])
 
+  const isFocused = useIsFocused()
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
@@ -247,6 +249,18 @@ export default function DayView() {
       lastBroadcastRef.current = anchorDate
     }
   }, [anchorDate])
+
+  useEffect(() => {
+    if (!isFocused) return
+
+    bus.emit('calendar:state', {
+      date: anchorDate,
+      mode: 'day',
+    })
+    bus.emit('calendar:meta', {
+      mode: 'day',
+    })
+  }, [anchorDate, isFocused])
   const [checks, setChecks] = useState(INITIAL_CHECKS)
   const [events, setEvents] = useState<any[]>([])
   const [spanEvents, setSpanEvents] = useState<any[]>([])
@@ -359,6 +373,45 @@ export default function DayView() {
     bottom: 0,
   })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
+  useFocusEffect(
+    useCallback(() => {
+      currentCalendarView.set('day')
+
+      // 헤더나 WeekView에서 현재 상태를 알려줄 때
+      const onState = (payload: any) => {
+        // 날짜 정보가 있고, 내 날짜와 다르면 업데이트
+        if (payload.date && payload.date !== anchorDateRef.current) {
+          setAnchorDate(payload.date)
+        }
+      }
+
+      // 강제 날짜 변경 명령 (달력 팝업 등)
+      const onSet = (iso: string) => {
+        setAnchorDate((prev) => (prev === iso ? prev : iso))
+      }
+
+      bus.on('calendar:state', onState)
+      bus.on('calendar:set-date', onSet)
+      bus.emit('calendar:request-sync')
+
+      return () => {
+        bus.off('calendar:state', onState)
+        bus.off('calendar:set-date', onSet)
+      }
+    }, []), // 의존성 비움 - 스와이프 시 재실행 방지
+  )
+  useFocusEffect(
+    useCallback(() => {
+      bus.emit('calendar:state', {
+        date: anchorDate,
+        mode: 'day',
+      })
+    }, [anchorDate]),
+  )
+
+  useEffect(() => {
+    bus.emit('calendar:set-date', anchorDate)
+  }, [anchorDate])
   useEffect(() => {
     const onReq = () =>
       bus.emit('calendar:state', { date: anchorDateRef.current, mode: 'day' })
