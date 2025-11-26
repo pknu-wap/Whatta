@@ -1063,7 +1063,7 @@ export default function DayView() {
                     key={evt.id}
                     id={evt.id}
                     title={evt.title}
-                    place={`label ${evt.labels?.[0] ?? ''}`}
+                    place=""
                     startMin={startMin}
                     endMin={endMin}
                     color={`#${evt.colorKey}`}
