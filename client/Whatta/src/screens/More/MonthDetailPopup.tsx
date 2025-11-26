@@ -12,6 +12,8 @@ import {
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import { Easing } from 'react-native'
+import { http } from '@/lib/http'
+import { bus } from '@/lib/eventBus'
 
 const { width, height } = Dimensions.get('window')
 
@@ -61,13 +63,34 @@ export default function MonthlyDetailPopup({
       setTasks(
         dayData.timeEvents
           .filter((ev) => !ev.startAt && !ev.endAt)
-          .map((ev) => ({ ...ev, done: false })),
+          .map((ev) => ({ ...ev, done: ev.done ?? false })),
       )
     }
   }, [dayData])
 
-  const toggleTask = (idx: number) => {
-    setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !t.done } : t)))
+  const toggleTask = async (idx: number) => {
+    const task = tasks[idx]
+    if (!task.id) return
+
+    const nextDone = !task.done
+
+    // 1. UI 즉시 반영
+    setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: nextDone } : t)))
+
+    // 2. 서버 요청 & 이벤트 발행
+    try {
+      await http.patch(`/task/${task.id}`, {
+        completed: nextDone,
+      })
+
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: { id: task.id, isTask: true, isCompleted: nextDone },
+      })
+    } catch (e) {
+      console.error('Task toggle failed:', e)
+      setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !nextDone } : t)))
+    }
   }
 
   // ✅ 애니메이션 지속 시간 늘리기

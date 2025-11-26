@@ -29,6 +29,8 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import CheckOff from '@/assets/icons/check_off.svg'
+import CheckOn from '@/assets/icons/check_on.svg'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -574,13 +576,30 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
   const labelColor = textColorFor(schedule.colorKey)
 
   // Task
+  // Task
   if (schedule.isTask) {
     return (
       <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
         <View style={S.checkboxTouchArea}>
-          <View style={[S.checkboxBase, S.checkboxOff]} />
+          {/* 완료 여부에 따라 아이콘 변경 */}
+          {schedule.isCompleted ? (
+            <CheckOn width={10} height={10} />
+          ) : (
+            <CheckOff width={10} height={10} />
+          )}
         </View>
-        <Text style={S.taskText} numberOfLines={1} ellipsizeMode="clip">
+        <Text
+          style={[
+            S.taskText,
+            // 완료된 경우 취소선 스타일 추가
+            schedule.isCompleted && {
+              textDecorationLine: 'line-through',
+              color: '#999',
+            },
+          ]}
+          numberOfLines={1}
+          ellipsizeMode="clip"
+        >
           {schedule.name}
         </Text>
       </View>
@@ -677,7 +696,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
       ]}
     >
       <Text
-        style={[S.scheduleText, { color: labelColor }]}
+        style={[S.scheduleText, { color: '#000' }]}
         numberOfLines={1}
         ellipsizeMode="clip"
       >
@@ -690,16 +709,34 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
 interface TaskSummaryBoxProps {
   count: number
   isCurrentMonth: boolean
+  tasks: ScheduleData[]
 }
 
-const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }) => {
+const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({
+  count,
+  isCurrentMonth,
+  tasks,
+}) => {
   const dimmedStyle = !isCurrentMonth ? S.dimmedItem : null
+  const allCompleted = tasks.length > 0 && tasks.every((t: any) => t.isCompleted)
+
   return (
     <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
       <View style={S.checkboxTouchArea}>
-        <View style={[S.checkboxBase, S.checkboxOff]} />
+        {/* 모두 완료면 On, 아니면 Off */}
+        {allCompleted ? (
+          <CheckOn width={10} height={10} />
+        ) : (
+          <CheckOff width={10} height={10} />
+        )}
       </View>
-      <Text style={S.taskText} numberOfLines={1}>
+      <Text
+        style={[
+          S.taskText,
+          allCompleted && { textDecorationLine: 'line-through', color: '#999' },
+        ]}
+        numberOfLines={1}
+      >
         {`${count}개`}
       </Text>
     </View>
@@ -1029,50 +1066,12 @@ export default function MonthView() {
 
   useEffect(() => {
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
-      if (!payload?.item) return
-
-      const raw = {
-        ...payload.item,
-        colorKey:
-          typeof payload.item?.colorKey === 'string'
-            ? payload.item.colorKey.replace(/^#/, '').toUpperCase()
-            : undefined,
-      }
-
-      const normalized = mapApiToScheduleData(raw)
-
-      const ymOf = (iso?: string) => (iso ? iso.slice(0, 7) : '')
-      const itemYM = normalized.multiDayStart
-        ? ymOf(normalized.multiDayStart)
-        : ymOf(normalized.date)
-      if (itemYM !== ym) return
-
-      setServerSchedules((prev) => {
-        let next: UISchedule[]
-        if (payload.op === 'create') {
-          next = [...prev, normalized]
-        } else if (payload.op === 'update') {
-          next = prev.map((it) =>
-            it.id === normalized.id
-              ? {
-                  ...it,
-                  ...normalized,
-                  colorKey: normalized.colorKey ?? it.colorKey,
-                }
-              : it,
-          )
-        } else {
-          next = prev.filter((it) => it.id !== normalized.id)
-        }
-        laneMapRef.current = buildLaneMap(next.filter(isSpan))
-        return next
-      })
+      fetchFresh(ym)
     }
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [ym])
-
+  }, [ym, fetchFresh])
   const renderWeeks = (dates: CalendarDateItem[]): CalendarDateItem[][] => {
     const weeks: CalendarDateItem[][] = []
     for (let i = 0; i < dates.length; i += 7) {
@@ -1138,6 +1137,8 @@ export default function MonthView() {
             : `#${t.colorKey}`
           : '#FFD966'
         return {
+          id: t.id,
+          done: t.isCompleted,
           title: t.name,
           place: t.place ?? '',
           time: t.time ?? '',
@@ -1194,14 +1195,15 @@ export default function MonthView() {
     ;(fresh.days ?? []).forEach((day: any) => {
       const dateISO = (day.date ?? day.targetDate ?? '').slice(0, 10)
 
+      // 1. 일정(Event) 처리
       ;(day.events ?? []).forEach((ev: any) => {
         list.push({
           id: String(ev.id),
           name: ev.title ?? ev.name ?? '',
           date: dateISO,
           isRecurring: !!ev.isRepeat,
-          isTask: !!ev.isTask,
-          isCompleted: !!ev.isCompleted,
+          isTask: false,
+          isCompleted: false,
           labelId: pickLabelId(ev),
           colorKey:
             typeof ev.colorKey === 'string'
@@ -1209,7 +1211,22 @@ export default function MonthView() {
               : undefined,
         })
       })
+
+      // 할 일(Task) 처리
+      ;(day.tasks ?? []).forEach((t: any) => {
+        list.push({
+          id: String(t.id),
+          name: t.title ?? '',
+          date: dateISO,
+          isRecurring: false,
+          isTask: true, // Task임을 명시
+          isCompleted: !!t.completed,
+          labelId: pickLabelId(t),
+        })
+      })
     })
+
+    // 3. 기간 일정(Span Events) 처리 (기존 코드 유지)
     ;(fresh.spanEvents ?? []).forEach((ev: any) => {
       const start = (ev.startDate ?? '').slice(0, 10)
       const end = (ev.endDate ?? '').slice(0, 10)
@@ -1463,6 +1480,7 @@ export default function MonthView() {
                                       key={(taskSummary as any).id}
                                       count={(taskSummary as any).count}
                                       isCurrentMonth={isCurrentMonth}
+                                      tasks={(taskSummary as any).tasks}
                                     />
                                   ) : null}
                                 </>
@@ -1494,6 +1512,7 @@ export default function MonthView() {
         onClose={() => {
           setEventPopupVisible(false)
           setEventPopupData(null)
+          fetchFresh(ym)
         }}
       />
       <TaskDetailPopup
@@ -1505,6 +1524,7 @@ export default function MonthView() {
           setTaskPopupVisible(false)
           setTaskPopupTask(null)
           setTaskPopupId(null)
+          fetchFresh(ym)
         }}
         onSave={async (form) => {
           const pad = (n: number) => String(n).padStart(2, '0')
@@ -1757,7 +1777,7 @@ const S = StyleSheet.create({
   },
   scheduleText: {
     fontSize: 10.5,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'left',
     lineHeight: SCHEDULE_BOX_HEIGHT,
   },

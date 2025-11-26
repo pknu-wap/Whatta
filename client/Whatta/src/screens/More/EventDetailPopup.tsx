@@ -15,7 +15,8 @@ import {
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
-import { getMyLabels, createLabel, type Label } from '@/api/label_api'
+import { useLabels } from '@/providers/LabelProvider'
+import { createLabel, type Label } from '@/api/label_api'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import Arrow from '@/assets/icons/arrow.svg'
@@ -491,21 +492,19 @@ export default function EventDetailPopup({
   /** 색상 */
   const COLORS = [
     '#B04FFF',
-    '#FF4F4F',
+    '#668CFF',
+    '#FF6464',
     '#FF8A66',
     '#FFD966',
-    '#75FF66',
-    '#4FCAFF',
-    '#584FFF',
-    '#FF4FF0',
+    '#83E957',
+    '#665AE6',
+    '#FF75AE',
   ]
   const [selectedColor, setSelectedColor] = useState('#B04FFF')
   const [showPalette, setShowPalette] = useState(false)
 
   // 라벨
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([])
-  const [labelOpen, setLabelOpen] = useState(false)
-
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
   const labelBtnRef = useRef<View>(null)
@@ -514,8 +513,8 @@ export default function EventDetailPopup({
   const btnBaseColor = hasLabels ? '#333' : '#B3B3B3'
   const arrowColor = labelModalOpen ? '#B04FFF' : btnBaseColor
   const btnText: string | undefined = hasLabels ? undefined : '없음'
-
-  const [labels, setLabels] = useState<Label[]>([])
+  const { labels: globalLabels } = useLabels()
+  const labels = globalLabels ?? []
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
     initial ? 'repeat' : 'schedule',
   )
@@ -571,19 +570,14 @@ export default function EventDetailPopup({
       let saved: any
 
       if (mode === 'edit' && eventId) {
-        // 수정(PATCH)
-        const res = await http.patch(`/event/${eventId}`, {
-          ...payload,
-          fieldsToClear,
-        })
+        const res = await http.patch(`/event/${eventId}`, { ...payload, fieldsToClear })
+        saved = res?.data
       } else {
-        // 생성(POST)
-        const res = await http.post('/event', {
-          ...payload,
-          fieldsToClear,
-        })
+        const res = await http.post('/event', { ...payload, fieldsToClear })
+        saved = res?.data
       }
 
+      // API 성공 후 이벤트 발행
       if (saved) {
         const enriched = {
           ...(saved ?? {}),
@@ -591,7 +585,6 @@ export default function EventDetailPopup({
           startDate: saved?.startDate ?? payload.startDate,
           endDate: saved?.endDate ?? payload.endDate,
         }
-
         bus.emit('calendar:mutated', { op: 'create', item: enriched })
 
         const anchor = enriched.startDate ?? payload.startDate
@@ -603,6 +596,8 @@ export default function EventDetailPopup({
     } catch (err) {
       console.log('일정 저장 실패:', err)
       alert('저장 실패')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1002,21 +997,21 @@ export default function EventDetailPopup({
 
   useEffect(() => {
     if (!visible) return
-    const fetchLabels = async () => {
-      try {
-        const list = await getMyLabels()
-        setLabels(list)
-      } catch (err) {
-        console.log('라벨 불러오기 실패', err)
-      }
+    if (mode !== 'create') return
+    if (initial) return
+
+    if (selectedLabelIds.length > 0) return
+    const defaultLabel = labels.find((l) => l.title === '일정')
+    if (defaultLabel) {
+      setSelectedLabelIds([defaultLabel.id])
     }
-    fetchLabels()
-  }, [visible])
+  }, [visible, mode, labels, initial])
 
   const handleCreateLabel = async (title: string) => {
     try {
       const newLabel = await createLabel(title)
-      setLabels((prev) => [...prev, newLabel])
+      bus.emit('label:mutated')
+
       return newLabel
     } catch (err) {
       console.log('라벨 생성 실패', err)
@@ -1124,7 +1119,9 @@ export default function EventDetailPopup({
     if (visible && mode === 'create' && !initial) {
       setScheduleTitle('')
       setMemo('')
-      setSelectedLabelIds([])
+      const defaultLabel = labels.find((l) => l.title === '일정')
+      setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
+
       setSelectedColor('#B04FFF')
 
       const today = new Date()
@@ -1323,10 +1320,15 @@ export default function EventDetailPopup({
                   <Xbutton width={12} height={12} color={'#808080'} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => {
+                  onPress={async () => {
                     if (saving) return
                     setSaving(true)
-                    handleSave().finally(() => setSaving(false))
+                    try {
+                      await handleSave()
+                    } catch (e) {
+                      console.error(e)
+                      setSaving(false) // 에러 시에만 닫음 (성공 시엔 어차피 unmount됨)
+                    }
                   }}
                   hitSlop={20}
                 >
@@ -2422,7 +2424,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   colorOption: {
     width: 22,
