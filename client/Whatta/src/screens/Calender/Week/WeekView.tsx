@@ -1529,7 +1529,11 @@ export default function WeekView() {
   }, [])
 
   const [anchorDate, setAnchorDate] = useState(todayISO())
+  const anchorDateRef = useRef(anchorDate)
   const [isZoomed, setIsZoomed] = useState(false)
+  useEffect(() => {
+    anchorDateRef.current = anchorDate
+  }, [anchorDate])
 
   // inserted handleSwipe
   const handleSwipe = useCallback(
@@ -1752,7 +1756,25 @@ export default function WeekView() {
   useFocusEffect(
     useCallback(() => {
       currentCalendarView.set('week')
-    }, []),
+
+      // 들어오자마자 내 정보를 헤더에 쏴줌 (헤더 타이틀/모드 갱신용)
+      bus.emit('calendar:state', {
+        date: anchorDateRef.current,
+        mode: 'week',
+        days: weekDates.length,
+        rangeStart: weekDates[0],
+        rangeEnd: weekDates[weekDates.length - 1],
+      })
+
+      bus.emit('calendar:meta', {
+        mode: 'week',
+        dayColWidth: getDayColWidth(weekDates.length),
+        rowH: ROW_H,
+      })
+
+      // 혹시 모르니 최신 날짜 한번 더 요청
+      bus.emit('calendar:request-sync')
+    }, [weekDates.length]),
   )
 
   const fetchWeek = useCallback(async (dates: string[]) => {
@@ -1881,64 +1903,82 @@ export default function WeekView() {
   }, [])
 
   useEffect(() => {
-    if (weekDates.length) {
-      fetchWeek(weekDates)
+    if (!weekDates.length || !isFocused) return // 👈 !isFocused 추가
+
+    bus.emit('calendar:state', {
+      date: weekDates[0],
+      mode: 'week',
+      days: weekDates.length,
+      rangeStart: weekDates[0],
+      rangeEnd: weekDates[weekDates.length - 1],
+    })
+
+    bus.emit('calendar:meta', {
+      mode: 'week',
+      dayColWidth: getDayColWidth(weekDates.length),
+      rowH: ROW_H,
+    })
+  }, [weekDates, isFocused])
+
+  useEffect(() => {
+    const onReq = () => {
+      bus.emit('calendar:state', {
+        date: anchorDateRef.current,
+        mode: 'week',
+        days: weekDates.length,
+        rangeStart: weekDates[0],
+        rangeEnd: weekDates[weekDates.length - 1],
+      })
     }
-  }, [weekDates, fetchWeek])
+
+    // 다른 뷰(DayView)에서 날짜를 바꾸면 나도 조용히 업데이트
+    const onState = (payload: any) => {
+      if (payload.mode !== 'week' && payload.date) {
+        setAnchorDate((prev) => (prev === payload.date ? prev : payload.date))
+      }
+    }
+
+    // 강제 날짜 변경 (헤더 등)
+    const onSet = (iso: string) => {
+      setAnchorDate((prev) => (prev === iso ? prev : iso))
+    }
+
+    bus.on('calendar:request-sync', onReq)
+    bus.on('calendar:state', onState)
+    bus.on('calendar:set-date', onSet)
+
+    return () => {
+      bus.off('calendar:request-sync', onReq)
+      bus.off('calendar:state', onState)
+      bus.off('calendar:set-date', onSet)
+    }
+  }, [weekDates])
 
   useFocusEffect(
     useCallback(() => {
-      // weekDates가 아직 준비 안 되었으면 아무것도 하지 않음
-      if (!weekDates.length) {
-        return () => {}
-      }
-
-      const emit = () =>
-        bus.emit('calendar:state', {
-          date: weekDates[3],
-          mode: 'week',
-          days: weekDates.length, // 5 또는 7
-          rangeStart: weekDates[0],
-          rangeEnd: weekDates[weekDates.length - 1],
-        })
-
-      bus.emit('calendar:meta', {
-        mode: 'week',
-        dayColWidth: getDayColWidth(weekDates.length),
-        rowH: ROW_H,
-      })
-
-      const onReq = () => emit()
-      // 1. '명령'을 받을 때 (헤더 등에서 날짜 강제 변경)
+      // A. 헤더가 날짜를 강제로 바꿨을 때 (달력 팝업 등)
       const onSet = (iso: string) => {
-        if (iso !== anchorDate) {
-          setAnchorDate(iso)
-        }
+        setAnchorDate((prev) => (prev === iso ? prev : iso))
       }
 
-      // 2.'상태'를 들었을 때 (DayView의 대답)
+      // B. 다른 뷰(DayView)에서 날짜를 바꾸고 넘어왔을 때
       const onState = (payload: any) => {
-        if (payload.mode !== 'week' && payload.date && payload.date !== anchorDate) {
-          setAnchorDate(payload.date)
+        // 주간 모드가 아닌 곳에서 날짜 정보가 오면 내 날짜도 맞춤
+        if (payload.mode !== 'week' && payload.date) {
+          setAnchorDate((prev) => (prev === payload.date ? prev : payload.date))
         }
       }
 
-      // 이벤트 리스너 등록
-      bus.on('calendar:request-sync', onReq)
+      // 리스너 등록
       bus.on('calendar:set-date', onSet)
-      bus.on('calendar:state', onState) // DayView의 대답
-
+      bus.on('calendar:state', onState)
       bus.emit('calendar:request-sync')
 
-      // 내 상태도 방송
-      emit()
-
       return () => {
-        bus.off('calendar:request-sync', onReq)
         bus.off('calendar:set-date', onSet)
         bus.off('calendar:state', onState)
       }
-    }, [weekDates.length, weekDates[0]]),
+    }, []), // 의존성 비움: 스와이프 시 재실행 방지 -> 무한루프 방지
   )
 
   useFocusEffect(
