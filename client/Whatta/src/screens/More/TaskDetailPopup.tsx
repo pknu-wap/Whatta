@@ -174,7 +174,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
   const labelBtnRef = useRef<View>(null)
   const { labels: globalLabels } = useLabels()
-  const labels = globalLabels
+  const labels = globalLabels ?? []
   const MAX_LABELS = 10
   const isFull = labels.length >= MAX_LABELS
 
@@ -199,16 +199,16 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }, [visible])
 
   // preset + '맞춤 설정' 옵션 구성
-  const presetOptions = reminderPresets.map((p) => ({
+  const presetOptions = (reminderPresets ?? []).map((p) => ({
     type: 'preset' as const,
     ...p,
     label: formatCustomLabel(p.hour, p.minute),
   }))
 
   const remindOptions = [
-    ...presetOptions,
-    { type: 'custom' as const, label: '맞춤 설정' },
-  ]
+  ...presetOptions,
+  { type: 'custom' as const, label: '맞춤 설정' },
+]
 
   // reminderNoti 빌더
   function buildReminderNoti() {
@@ -711,19 +711,19 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                         flexShrink: 1,
                       }}
                     >
-                      {labelIds.map((id) => {
-                        const item = labels.find((l) => l.id === id)
-                        if (!item) return null
-                        return (
-                          <LabelChip
-                            key={id}
-                            title={item.title}
-                            onRemove={() =>
-                              setLabelIds((prev) => prev.filter((x) => x !== id))
-                            }
-                          />
-                        )
-                      })}
+{labelIds.map((id) => {
+  const item = (labels ?? []).find((l) => l.id === id)
+  if (!item) return null
+  return (
+    <LabelChip
+      key={id}
+      title={item.title}
+      onRemove={() =>
+        setLabelIds((prev) => prev.filter((x) => x !== id))
+      }
+    />
+  )
+})}
                     </View>
 
                     {/* 라벨 선택 버튼 */}
@@ -752,7 +752,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 {labelModalOpen && (
                   <LabelPickerModal
                     visible
-                    all={labels}
+                    all={labels ?? []}
                     selected={labelIds}
                     onChange={(ids) => setLabelIds(ids.slice(0, 3))}
                     onRequestClose={() => setLabelModalOpen(false)}
