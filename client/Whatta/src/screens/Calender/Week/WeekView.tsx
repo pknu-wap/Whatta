@@ -14,6 +14,7 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
+  Modal,
 } from 'react-native'
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -44,6 +45,7 @@ import { refreshTokens } from '@/api/auth'
 import { bus } from '@/lib/eventBus'
 import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
+import { createEvent } from '@/api/event_api'
 
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
@@ -51,6 +53,7 @@ import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import OcrSplash from '@/screens/More/OcrSplash'
 
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
@@ -1467,6 +1470,7 @@ function DraggableFlexalbeEvent({
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView() {
+  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const isFocused = useIsFocused()
   const spanWrapRef = useRef<View>(null)
   const [spanRect, setSpanRect] = useState<GridRect | null>(null)
@@ -1478,45 +1482,58 @@ export default function WeekView() {
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
-      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+      setOcrSplashVisible(true)
+      
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
+      const lower = (ext ?? 'jpg').toLowerCase()
+      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
 
-      const lower = ext?.toLowerCase()
-      const format = lower === 'png' ? 'png' : 'jpg'
-
-      const res = await http.post('/ocr', {
-        imageType: 'COLLEGE_TIMETABLE',
-        image: {
-          format,
-          name: `timetable.${format}`,
-          data: cleanBase64,
+      const res = await http.post(
+        '/ocr',
+        {
+          imageType: 'COLLEGE_TIMETABLE',
+          image: {
+            format,
+            name: `timetable.${format}`,
+            data: cleanBase64,
+          },
         },
-      })
+        
+      )
 
       console.log('OCR 성공:', res.data)
 
-      const rows = res.data?.data?.events ?? []
-      if (!rows.length) {
-        Alert.alert('결과 없음', '인식된 일정이 없습니다.')
-        return
-      }
+      const events = res.data?.data?.events ?? []
 
-      const mapped = rows.map((r: any, idx: number) => ({
-        id: String(idx),
-        title: r.title ?? '',
-        content: r.content ?? '',
-        weekDay: r.weekDay ?? '',
-        date: getDateOfWeek(r.weekDay),
-        startTime: r.startTime ?? '',
-        endTime: r.endTime ?? '',
-      }))
+      const parsed = events
+        .map((ev: any, idx: number) => {
+          console.log('🔎 OCR raw weekDay:', ev.weekDay)
+          console.log('🔎 Converted date:', getDateOfWeek(ev.weekDay))
 
-      setOcrEvents(mapped)
-      setOcrModalVisible(true)
-    } catch (err: any) {
-      console.log('OCR 실패:', err.response?.data ?? err)
-      Alert.alert('오류', 'OCR 처리 실패')
-    }
+          return {
+            id: String(idx),
+            title: ev.title ?? '',
+            content: ev.content ?? '',
+            weekDay: ev.weekDay ?? '',
+            date: getDateOfWeek(ev.weekDay),
+            startTime: ev.startTime ?? '',
+            endTime: ev.endTime ?? '',
+          }
+        })
+        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
+
+      setOcrEvents(parsed)
+      
+        // OCR 성공한 시점에서 스플래쉬 끄기
+  setOcrSplashVisible(false)
+
+  // 바로 카드 켜기
+  setOcrModalVisible(true)
+
+  } catch (err) {
+    Alert.alert('오류', 'OCR 처리 실패')
   }
+}
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -3058,12 +3075,37 @@ export default function WeekView() {
           onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
           onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
         />
-        <OCREventCardSlider
-          visible={ocrModalVisible}
-          events={ocrEvents}
-          onClose={() => setOcrModalVisible(false)}
-          onAddEvent={(ev) => {}}
-        />
+        <Modal
+  visible={ocrSplashVisible}
+  transparent
+  animationType="fade"
+  statusBarTranslucent
+>
+  <OcrSplash />
+</Modal>
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchWeek(weekDates)
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
+  onSaveAll={async () => {
+    await fetchWeek(weekDates)
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    setOcrModalVisible(false)
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

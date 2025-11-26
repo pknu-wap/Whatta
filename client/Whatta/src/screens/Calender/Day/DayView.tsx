@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Modal
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -43,10 +44,12 @@ import type { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import OcrSplash from '@/screens/More/OcrSplash'
+import { createEvent } from '@/api/event_api'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 8000,
+  timeout: 0,
   withCredentials: false,
 })
 
@@ -278,6 +281,7 @@ function groupTasksByOverlap(tasks: DayViewTask[]) {
 }
 
 export default function DayView() {
+  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [isDraggingTask, setIsDraggingTask] = useState(false)
   const [tasks, setTasks] = useState<any[]>([])
   const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
@@ -291,6 +295,8 @@ export default function DayView() {
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
+      setOcrSplashVisible(true)
+      
       const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
       const lower = (ext ?? 'jpg').toLowerCase()
       const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
@@ -305,7 +311,7 @@ export default function DayView() {
             data: cleanBase64,
           },
         },
-        { timeout: 20000 }, // ⬅ 20초
+        
       )
 
       console.log('OCR 성공:', res.data)
@@ -330,15 +336,17 @@ export default function DayView() {
         .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
 
       setOcrEvents(parsed)
-      setOcrModalVisible(true)
-    } catch (err: any) {
-      console.log('🔍 OCR 실패 Raw Error:', err)
-      console.log('🔍 OCR 실패 response:', err.response)
-      console.log('🔍 OCR 실패 data:', err.response?.data)
-      console.log('🔑 token.getAccess():', token.getAccess())
-      Alert.alert('오류', 'OCR 처리 실패')
-    }
+      
+        // OCR 성공한 시점에서 스플래쉬 끄기
+  setOcrSplashVisible(false)
+
+  // 바로 카드 켜기
+  setOcrModalVisible(true)
+
+  } catch (err) {
+    Alert.alert('오류', 'OCR 처리 실패')
   }
+}
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -1033,7 +1041,7 @@ export default function DayView() {
         },
       },
     ])
-  }
+  } 
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1492,22 +1500,43 @@ export default function DayView() {
             fetchDailyEvents(anchorDate) // 일정 새로 반영
           }}
         />
+        <Modal
+  visible={ocrSplashVisible}
+  transparent={true}
+  animationType="fade"
+  statusBarTranslucent={true}
+>
+  <OcrSplash />
+</Modal>
         <AddImageSheet
           visible={imagePopupVisible}
           onClose={() => setImagePopupVisible(false)}
           onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
           onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
         />
-        <OCREventCardSlider
-          visible={ocrModalVisible}
-          events={ocrEvents}
-          onClose={() => setOcrModalVisible(false)}
-          onAddEvent={(ev) => {}}
-          onSaveAll={async () => {
-            await fetchDailyEvents(anchorDate)
-            bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-          }}
-        />
+       <OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchDailyEvents(anchorDate)
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
+  onSaveAll={async () => {
+    await fetchDailyEvents(anchorDate)
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    setOcrModalVisible(false)
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
