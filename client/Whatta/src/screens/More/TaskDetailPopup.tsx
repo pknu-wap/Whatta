@@ -61,15 +61,41 @@ type TaskDetailPopupProps = {
   initialTask?: any
 }
 
-/** 간단 토글 스위치 */
-const Toggle = ({ value, onChange }: ToggleProps) => (
-  <Pressable
-    onPress={() => onChange(!value)}
-    style={[styles.toggle, { backgroundColor: value ? '#9D7BFF' : '#CCCCCC' }]}
-  >
-    <View style={[styles.thumb, { transform: [{ translateX: value ? 22 : 0 }] }]} />
-  </Pressable>
-)
+const CustomToggle = ({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) => {
+  return (
+    <Pressable
+      onPress={() => !disabled && onChange(!value)}
+      hitSlop={20}
+      style={{
+        width: 51,
+        height: 31,
+        borderRadius: 26,
+        padding: 3,
+        justifyContent: 'center',
+        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      <View
+        style={{
+          width: 25,
+          height: 25,
+          borderRadius: 25,
+          backgroundColor: '#fff',
+          transform: [{ translateX: value ? 20 : 0 }],
+        }}
+      />
+    </Pressable>
+  )
+}
 
 // 요일 텍스트 + 날짜 표현용
 const WEEKDAY = [
@@ -152,16 +178,16 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [remindOpen, setRemindOpen] = useState(false)
   const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null) // 추가
 
-  const [customOpen, setCustomOpen] = useState(false) 
-  const [customHour, setCustomHour] = useState(1) 
-  const [customMinute, setCustomMinute] = useState(0) 
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customHour, setCustomHour] = useState(1)
+  const [customMinute, setCustomMinute] = useState(0)
 
   const [reminderPresets, setReminderPresets] = useState<
     { id: string; day: number; hour: number; minute: number }[]
-  >([]) 
+  >([])
 
   // h,m을 사람이 읽는 "h시간 m분 전"
-  const formatCustomLabel = (h: number, m: number) => { 
+  const formatCustomLabel = (h: number, m: number) => {
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
@@ -206,9 +232,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }))
 
   const remindOptions = [
-  ...presetOptions,
-  { type: 'custom' as const, label: '맞춤 설정' },
-]
+    ...presetOptions,
+    { type: 'custom' as const, label: '맞춤 설정' },
+  ]
 
   // reminderNoti 빌더
   function buildReminderNoti() {
@@ -277,7 +303,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
     // 서버에서 받은 reminderNoti 초기 반영
     const rn = initialTask.reminderNoti
-    if (rn && hasDateFlag && hasTimeFlag) { // 날짜+시간 둘다 있어야만 on 가능
+    if (rn && hasDateFlag && hasTimeFlag) {
+      // 날짜+시간 둘다 있어야만 on 가능
       setRemindOn(true)
 
       // preset에서 동일 값 찾기
@@ -317,7 +344,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }, [visible, mode, labels])
 
   // 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
-  const remindEligible = hasDate && hasTime 
+  const remindEligible = hasDate && hasTime
 
   // 날짜/시간이 꺼지면 알림도 강제 off
   useEffect(() => {
@@ -408,20 +435,15 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                   <Text style={styles.label}>날짜</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {hasDate && <Text style={styles.dateBigText}>{kDateText(date)}</Text>}
-                    <Switch
+                    <CustomToggle
                       value={hasDate}
-                      onValueChange={(v) => {
+                      onChange={(v) => {
                         setHasDate(v)
                         if (!v) {
                           setDateOpen(false)
                           setTimeOpen(false)
                           setHasTime(false)
                         }
-                      }}
-                      trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                      thumbColor={hasDate ? '#B04FFF' : '#FFFFFF'}
-                      style={{
-                        transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                       }}
                     />
                   </View>
@@ -450,9 +472,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     {hasTime && (
                       <Text style={styles.dateBigText}>{formatTimeLabel(time)}</Text>
                     )}
-                    <Switch
+                    <CustomToggle
                       value={hasTime}
-                      onValueChange={(v) => {
+                      onChange={(v) => {
                         if (v && !hasDate) setHasDate(true)
                         setHasTime(v)
                         if (!v) setTimeOpen(false)
@@ -462,11 +484,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                           t.setMinutes(0)
                           setTime(t)
                         }
-                      }}
-                      trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                      thumbColor={hasTime ? '#B04FFF' : '#FFFFFF'}
-                      style={{
-                        transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
                       }}
                     />
                   </View>
@@ -537,7 +554,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 <View style={styles.sep} />
                 {/* 알림 */}
-                <View style={styles.row}> 
+                <View style={styles.row}>
                   <Text style={styles.label}>알림</Text>
                   <View style={styles.rowRight}>
                     <Pressable
@@ -563,12 +580,15 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       />
                     </Pressable>
 
-                    <Switch
+                    <CustomToggle
                       value={remindOn}
                       disabled={!remindEligible}
-                      onValueChange={async (v) => {
+                      onChange={async (v) => {
                         if (v && !remindEligible) {
-                          Alert.alert('알림 설정 불가', '날짜와 시간을 먼저 설정해주세요.')
+                          Alert.alert(
+                            '알림 설정 불가',
+                            '날짜와 시간을 먼저 설정해주세요.',
+                          )
                           setRemindOn(false)
                           return
                         }
@@ -590,12 +610,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                         setRemindOn(true)
                         setRemindOpen(true)
-                      }}
-                      trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                      thumbColor={remindOn ? '#B04FFF' : '#FFFFFF'}
-                      style={{
-                        transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
-                        opacity: remindEligible ? 1 : 0.5,
                       }}
                     />
                   </View>
@@ -630,7 +644,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                             }}
                           >
                             {selected && (
-                              <View pointerEvents="none" style={styles.remindSelectedBg} />
+                              <View
+                                pointerEvents="none"
+                                style={styles.remindSelectedBg}
+                              />
                             )}
                             <Text
                               style={[
@@ -711,19 +728,19 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                         flexShrink: 1,
                       }}
                     >
-{labelIds.map((id) => {
-  const item = (labels ?? []).find((l) => l.id === id)
-  if (!item) return null
-  return (
-    <LabelChip
-      key={id}
-      title={item.title}
-      onRemove={() =>
-        setLabelIds((prev) => prev.filter((x) => x !== id))
-      }
-    />
-  )
-})}
+                      {labelIds.map((id) => {
+                        const item = (labels ?? []).find((l) => l.id === id)
+                        if (!item) return null
+                        return (
+                          <LabelChip
+                            key={id}
+                            title={item.title}
+                            onRemove={() =>
+                              setLabelIds((prev) => prev.filter((x) => x !== id))
+                            }
+                          />
+                        )
+                      })}
                     </View>
 
                     {/* 라벨 선택 버튼 */}
