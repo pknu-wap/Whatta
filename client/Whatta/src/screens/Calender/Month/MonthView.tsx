@@ -1,4 +1,3 @@
-// TODO: patched full file
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   View,
@@ -858,39 +857,9 @@ export default function MonthView() {
     return { year: y, monthIndex: m - 1 }
   }
 
-type MonthPopupSpanEvent = {
-  title: string
-  period: string
-  colorKey?: string
-  color: string
-}
-
-type MonthPopupNormalEvent = {
-  title: string
-  memo?: string
-  time?: string
-  color: string
-}
-
-type MonthPopupTimeEvent = {
-  title: string
-  place?: string
-  time?: string
-  color: string
-  borderColor?: string
-}
-
-type SelectedDayData = {
-  date: string
-  dayOfWeek: string
-  spanEvents: MonthPopupSpanEvent[]
-  normalEvents: MonthPopupNormalEvent[]
-  timeEvents: MonthPopupTimeEvent[]
-}
-
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
   const [popupVisible, setPopupVisible] = useState(false)
-  const [selectedDayData, setSelectedDayData] = useState<SelectedDayData | null>(null)
+  const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
   const { items: filterLabels } = useLabelFilter()
 
@@ -1109,26 +1078,8 @@ type SelectedDayData = {
     colorKey?: string
   }
 
-  type MonthDetailEvent = ExtendedScheduleDataWithColor & {
-  startDate?: string
-  endDate?: string
-  startTime?: string
-  endTime?: string
-  startAt?: string
-  endAt?: string
-  time?: string
-}
-  
-function classifyEventForMonthDetail(ev: MonthDetailEvent): "span" | "single" {
-  const startDate = ev.startDate ?? ev.date
-  const endDate = ev.endDate ?? ev.date
-  const isSingleDay = !!startDate && !!endDate && startDate === endDate
-  const hasTime = !!ev.startTime || !!ev.endTime
-
-  if (!isSingleDay) return "span"
-  if (isSingleDay && !hasTime) return "span"
-  return "single"
-}
+  const handleDatePress = (dateItem: CalendarDateItem) => {
+    if (!dateItem.isCurrentMonth) return
 
     const d = dateItem.fullDate
     const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -1183,112 +1134,8 @@ function classifyEventForMonthDetail(ev: MonthDetailEvent): "span" | "single" {
       }),
     })
 
-  // 2) 분류
-  const classified = enriched.map((s) => ({
-    s,
-    type: classifyEventForMonthDetail(s as MonthDetailEvent),
-  }))
-
-  const makeDateLabel = (iso?: string) => {
-    if (!iso) return ''
-    const [y, m, d] = iso.split('-')
-    return `${Number(m)}/${Number(d)}`
+    setPopupVisible(true)
   }
-
-  const toMinutes = (t?: string) => {
-    if (!t) return 24 * 60
-    const [hh, mm] = t.split(':')
-    const h = parseInt(hh ?? '0', 10)
-    const m = parseInt(mm ?? '0', 10)
-    return h * 60 + m
-  }
-
-  // 3) spanEvents (기간 + 종일)
-  const spanEvents = classified
-    .filter(({ type }) => type === 'span')
-    .map(({ s }) => {
-      const baseColor = s.colorKey
-        ? s.colorKey.startsWith('#')
-          ? s.colorKey
-          : `#${s.colorKey}`
-        : '#8B5CF6'
-
-      const startDate = (s as MonthDetailEvent).startDate ?? s.multiDayStart ?? s.date
-      const endDate = (s as MonthDetailEvent).endDate ?? s.multiDayEnd ?? s.date
-
-      return {
-        title: s.name,
-        period: `${startDate ?? ''}~${endDate ?? ''}`,
-        colorKey: s.colorKey,
-        color: baseColor,
-      }
-    })
-
-  // 4) normalEvents (하루짜리 + 시간 있는 일정) - 시작 시간 순 정렬
-  const normalEvents = classified
-    .filter(({ type, s }) => type === 'single' && !s.isTask)
-    .sort(
-      (a, b) =>
-        toMinutes((a.s as MonthDetailEvent).startTime) -
-        toMinutes((b.s as MonthDetailEvent).startTime),
-    )
-    .map(({ s }) => {
-      const baseColor = s.colorKey
-        ? s.colorKey.startsWith('#')
-          ? s.colorKey
-          : `#${s.colorKey}`
-        : '#F4EAFF'
-
-      const md = s as MonthDetailEvent
-      const startDate = md.startDate ?? s.date
-      const endDate = md.endDate ?? s.date
-      const st = md.startTime?.slice(0, 5)
-      const et = md.endTime?.slice(0, 5)
-
-      let timeStr = '시간 미정'
-      if (startDate && endDate && st && et) {
-        timeStr = `${makeDateLabel(startDate)} ${st} ~ ${makeDateLabel(endDate)} ${et}`
-      } else if (startDate && st) {
-        timeStr = `${makeDateLabel(startDate)} ${st}`
-      }
-
-      return {
-        title: s.name,
-        memo: (s as any).memo ?? '',
-        color: baseColor,
-        time: timeStr,
-      }
-    })
-
-  // 5) timeEvents (tasks) - 기존 로직 유지
-  const timeEvents = (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
-    const baseColor = t.colorKey
-      ? t.colorKey.startsWith('#')
-        ? t.colorKey
-        : `#${t.colorKey}`
-      : '#FFD966'
-
-    return {
-      title: t.name,
-      place: (t as any).place ?? '',
-      time: (t as any).time ?? '',
-      color: baseColor,
-      borderColor: baseColor,
-    }
-  })
-
-  // 6) 팝업 데이터 설정
-  setSelectedDayData({
-    date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
-    dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
-    spanEvents,
-    normalEvents,
-    timeEvents,
-  })
-
-  setPopupVisible(true)
-}
-
 
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
 
