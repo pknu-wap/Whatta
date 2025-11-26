@@ -262,7 +262,7 @@ function getEventsForDate(
     }
     // 반복
     if (it.isRecurring) {
-      if (it.date === iso) { 
+      if (it.date === iso) {
         ;(it.isTask ? tasks : singles).push(it as WithLane)
       }
       return
@@ -466,7 +466,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 function getDateOfWeek(weekDay: string): string {
   if (!weekDay) return today()
 
-  const key = weekDay.trim().toUpperCase()   
+  const key = weekDay.trim().toUpperCase()
 
   const map: any = {
     MON: 1,
@@ -480,7 +480,7 @@ function getDateOfWeek(weekDay: string): string {
 
   const target = map[key]
   if (target === undefined) {
-    console.log("❌ Unknown weekDay:", weekDay)
+    console.log('❌ Unknown weekDay:', weekDay)
     return today()
   }
 
@@ -709,64 +709,62 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 // 4. 메인 컴포넌트: MonthView (필터 반영 + 오류 수정)
 // --------------------------------------------------------------------
 export default function MonthView() {
-
-const [ocrModalVisible, setOcrModalVisible] = useState(false)
-const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+  const [ocrModalVisible, setOcrModalVisible] = useState(false)
+  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
 
   // 📌 OCR 이미지 추가 이벤트
-const [imagePopupVisible, setImagePopupVisible] = useState(false)
+  const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
-const sendToOCR = async (base64: string, ext?: string) => {
-  try {
-    const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
-    const lower = ext?.toLowerCase()
-    const format = lower === 'png' ? 'png' : 'jpg'
+  const sendToOCR = async (base64: string, ext?: string) => {
+    try {
+      const cleanBase64 = base64.replace(/^data:.*;base64,/, '')
+      const lower = ext?.toLowerCase()
+      const format = lower === 'png' ? 'png' : 'jpg'
 
-    const res = await http.post('/ocr', {
-      imageType: 'COLLEGE_TIMETABLE',
-      image: {
-        format,
-        name: `timetable.${format}`,
-        data: cleanBase64,
-      },
-    })
+      const res = await http.post('/ocr', {
+        imageType: 'COLLEGE_TIMETABLE',
+        image: {
+          format,
+          name: `timetable.${format}`,
+          data: cleanBase64,
+        },
+      })
 
-    console.log("OCR 성공:", res.data)
+      console.log('OCR 성공:', res.data)
 
-    const rows = res.data?.data?.events ?? []
-    if (!rows.length) {
-      Alert.alert("결과 없음", "인식된 일정이 없습니다.")
-      return
+      const rows = res.data?.data?.events ?? []
+      if (!rows.length) {
+        Alert.alert('결과 없음', '인식된 일정이 없습니다.')
+        return
+      }
+
+      const mapped = rows.map((r: any, idx: number) => ({
+        id: String(idx),
+        title: r.title ?? '',
+        content: r.content ?? '',
+        weekDay: r.weekDay ?? '',
+        date: getDateOfWeek(r.weekDay),
+        startTime: r.startTime ?? '',
+        endTime: r.endTime ?? '',
+      }))
+
+      setOcrEvents(mapped)
+      setOcrModalVisible(true)
+    } catch (err: any) {
+      console.log('OCR 실패:', err.response?.data ?? err)
+      Alert.alert('오류', 'OCR 처리 실패')
+    }
+  }
+
+  useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      setImagePopupVisible(true)
     }
 
-    const mapped = rows.map((r: any, idx: number) => ({
-      id: String(idx),
-      title: r.title ?? '',
-      content: r.content ?? '',
-      weekDay: r.weekDay ?? '',
-      date: getDateOfWeek(r.weekDay),
-      startTime: r.startTime ?? '',
-      endTime: r.endTime ?? '',
-    }))
-
-    setOcrEvents(mapped)
-    setOcrModalVisible(true)
-
-  } catch (err: any) {
-    console.log("OCR 실패:", err.response?.data ?? err)
-    Alert.alert("오류", "OCR 처리 실패")
-  }
-}
-
-useEffect(() => {
-  const handler = (payload?: { source?: string }) => {
-    if (payload?.source !== 'Month') return
-    setImagePopupVisible(true)
-  }
-
-  bus.on('popup:image:create', handler)
-  return () => bus.off('popup:image:create', handler)
-}, [])
+    bus.on('popup:image:create', handler)
+    return () => bus.off('popup:image:create', handler)
+  }, [])
 
   // 월별 캐시 (ym -> days/schedules)
   const cacheRef = useRef<Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>>(
@@ -873,26 +871,29 @@ useEffect(() => {
     return found ? Number(found.id) : null
   }, [filterLabels])
 
-  const openCreateTaskPopup = useCallback((source?: string) => {
-    setTaskPopupMode('create')
-    setTaskPopupId(null)
+  const openCreateTaskPopup = useCallback(
+    (source?: string) => {
+      setTaskPopupMode('create')
+      setTaskPopupId(null)
 
-    const placementDate = source === 'Month' ? today() : null
-    const placementTime = null
+      const placementDate = source === 'Month' ? today() : null
+      const placementTime = null
 
-    setTaskPopupTask({
-      id: null,
-      title: '',
-      content: '',
-      labels: todoLabelId ? [todoLabelId] : [],
-      completed: false,
-      placementDate,
-      placementTime,
-      dueDateTime: null,
-    })
+      setTaskPopupTask({
+        id: null,
+        title: '',
+        content: '',
+        labels: todoLabelId ? [todoLabelId] : [],
+        completed: false,
+        placementDate,
+        placementTime,
+        dueDateTime: null,
+      })
 
-    setTaskPopupVisible(true)
-  }, [todoLabelId])
+      setTaskPopupVisible(true)
+    },
+    [todoLabelId],
+  )
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -923,19 +924,19 @@ useEffect(() => {
   }, [])
 
   // (2) ym이 확정되면 → 모두에게 현재 상태 방송 + API 조회
-  useEffect(() => {
-    if (!ym) return
-    // 방송만 유지: 헤더/모달 동기화
-    bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  }, [ym])
+  // useEffect(() => {
+  //   if (!ym) return
+  //   // 방송만 유지: 헤더/모달 동기화
+  //   bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+  // }, [ym])
 
-  // (3) 다른 컴포넌트가 현재 상태를 물으면 즉시 회신
-  useEffect(() => {
-    const reply = () =>
-      bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-    bus.on('calendar:request-sync', reply)
-    return () => bus.off('calendar:request-sync', reply)
-  }, [ym])
+  // // (3) 다른 컴포넌트가 현재 상태를 물으면 즉시 회신
+  // useEffect(() => {
+  //   const reply = () =>
+  //     bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+  //   bus.on('calendar:request-sync', reply)
+  //   return () => bus.off('calendar:request-sync', reply)
+  // }, [ym])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1072,9 +1073,9 @@ useEffect(() => {
     if (!dateItem.isCurrentMonth) return
 
     const d = dateItem.fullDate
-    setFocusedDateISO(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-    )
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    setFocusedDateISO(isoDate)
+    bus.emit('calendar:set-date', isoDate)
 
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
@@ -1606,18 +1607,17 @@ useEffect(() => {
         }
       />
       <AddImageSheet
-  visible={imagePopupVisible}
-  onClose={() => setImagePopupVisible(false)}
-  onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
-  onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
-/>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-  onAddEvent={(ev) => {
-  }}
-/>
+        visible={imagePopupVisible}
+        onClose={() => setImagePopupVisible(false)}
+        onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
+        onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
+      />
+      <OCREventCardSlider
+        visible={ocrModalVisible}
+        events={ocrEvents}
+        onClose={() => setOcrModalVisible(false)}
+        onAddEvent={(ev) => {}}
+      />
     </ScreenWithSidebar>
   )
 }

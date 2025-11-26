@@ -33,7 +33,7 @@ import Animated, {
   runOnJS,
   withDelay,
 } from 'react-native-reanimated'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
@@ -1467,6 +1467,7 @@ function DraggableFlexalbeEvent({
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView() {
+  const isFocused = useIsFocused()
   // OCR 카드 팝업
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
   const [ocrEvents, setOcrEvents] = useState<any[]>([])
@@ -1678,13 +1679,15 @@ export default function WeekView() {
 
       setWeekDates(arr)
 
-      bus.emit('calendar:state', {
-        date: arr[0],
-        mode: 'week',
-        days: 5,
-        rangeStart: arr[0],
-        rangeEnd: arr[arr.length - 1],
-      })
+      if (isFocused) {
+        bus.emit('calendar:state', {
+          date: arr[0],
+          mode: 'week',
+          days: 5,
+          rangeStart: arr[0],
+          rangeEnd: arr[arr.length - 1],
+        })
+      }
     } else {
       // 7일뷰: anchorDate가 포함된 주 전체
       const s = startOfWeek(anchorDate)
@@ -1692,15 +1695,17 @@ export default function WeekView() {
 
       setWeekDates(arr)
 
-      bus.emit('calendar:state', {
-        date: arr[0],
-        mode: 'week',
-        days: 7,
-        rangeStart: arr[0],
-        rangeEnd: arr[arr.length - 1],
-      })
+      if (isFocused) {
+        bus.emit('calendar:state', {
+          date: arr[0],
+          mode: 'week',
+          days: 7,
+          rangeStart: arr[0],
+          rangeEnd: arr[arr.length - 1],
+        })
+      }
     }
-  }, [anchorDate, isZoomed])
+  }, [anchorDate, isZoomed, isFocused])
 
   useEffect(() => {
     const updateNowTop = (scrollToCenter: boolean) => {
@@ -1888,7 +1893,7 @@ export default function WeekView() {
 
       const emit = () =>
         bus.emit('calendar:state', {
-          date: weekDates[0],
+          date: weekDates[3],
           mode: 'week',
           days: weekDates.length, // 5 또는 7
           rangeStart: weekDates[0],
@@ -1896,39 +1901,34 @@ export default function WeekView() {
         })
 
       const onReq = () => emit()
+      // 1. '명령'을 받을 때 (헤더 등에서 날짜 강제 변경)
       const onSet = (iso: string) => {
-        // iso는 "이동하려는 주의 첫날"이 아니라
-        // 단순히 Header가 보내는 기준값일 뿐이므로
-        // 우리가 원하는 이동폭으로 재계산해야 한다.
-
-        if (isZoomed) {
-          // ⭐ 5일뷰 → +5 / -5 이동
-          const diff = 5
-          // iso는 이동 방향을 알 수 없으므로
-          // iso가 현재 anchorDate보다 크면 +5, 아니면 -5
-          if (iso > anchorDate) {
-            setAnchorDate(addDays(anchorDate, +diff))
-          } else {
-            setAnchorDate(addDays(anchorDate, -diff))
-          }
-        } else {
-          // ⭐ 7일뷰 → +7 / -7 이동
-          const diff = 7
-          if (iso > anchorDate) {
-            setAnchorDate(addDays(anchorDate, +diff))
-          } else {
-            setAnchorDate(addDays(anchorDate, -diff))
-          }
+        if (iso !== anchorDate) {
+          setAnchorDate(iso)
         }
       }
 
-      emit()
+      // 2.'상태'를 들었을 때 (DayView의 대답)
+      const onState = (payload: any) => {
+        if (payload.mode !== 'week' && payload.date && payload.date !== anchorDate) {
+          setAnchorDate(payload.date)
+        }
+      }
+
+      // 이벤트 리스너 등록
       bus.on('calendar:request-sync', onReq)
       bus.on('calendar:set-date', onSet)
+      bus.on('calendar:state', onState) // DayView의 대답
+
+      bus.emit('calendar:request-sync')
+
+      // 내 상태도 방송
+      emit()
 
       return () => {
         bus.off('calendar:request-sync', onReq)
         bus.off('calendar:set-date', onSet)
+        bus.off('calendar:state', onState)
       }
     }, [weekDates.length, weekDates[0]]),
   )

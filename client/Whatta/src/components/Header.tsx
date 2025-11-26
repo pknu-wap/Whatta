@@ -7,7 +7,7 @@ import {
   Animated,
   PanResponder,
   TouchableWithoutFeedback,
-  Switch,
+  Pressable,
 } from 'react-native'
 import AnimatedRe, {
   interpolateColor,
@@ -32,7 +32,6 @@ import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
-type CustomSwitchProps = { value: boolean; onToggle: () => void }
 type ViewMode = 'month' | 'week' | 'day'
 
 /* 날짜 관련 유틸 함수 */
@@ -74,21 +73,42 @@ const today = () => {
   ).padStart(2, '0')}`
 }
 
-/* 스위치 UI */
-const CustomSwitch = ({ value, onToggle }: CustomSwitchProps) => (
-  <TouchableOpacity
-    onPress={onToggle}
-    activeOpacity={0.8}
-    style={[styles.switchTrack, { backgroundColor: value ? '#B04FFF' : '#ccc' }]}
-  >
-    <View
-      style={[
-        styles.switchThumb,
-        value ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' },
-      ]}
-    />
-  </TouchableOpacity>
-)
+/* Custom Toggle 컴포넌트 정의 */
+const CustomToggle = ({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) => {
+  return (
+    <Pressable
+      onPress={() => !disabled && onChange(!value)}
+      style={{
+        width: 51,
+        height: 31,
+        borderRadius: 26,
+        padding: 3,
+        justifyContent: 'center',
+        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
+        opacity: disabled ? 0.4 : 1,
+        marginRight: 16, // 기존 레이아웃 맞춤용 여백
+      }}
+    >
+      <View
+        style={{
+          width: 25,
+          height: 25,
+          borderRadius: 25,
+          backgroundColor: '#fff',
+          transform: [{ translateX: value ? 20 : 0 }],
+        }}
+      />
+    </Pressable>
+  )
+}
 
 /* 전역 필터 상태 */
 const globalPopupState = {
@@ -97,21 +117,8 @@ const globalPopupState = {
   sliderX: 38,
 }
 
-// 열려 있으면 닫고-실행, 아니면 바로 실행
-const useRunOrQueue = () => {
-  const { progress } = useDrawer()
-  return (fn: () => void) => {
-    if ((progress as any).value > 0.01) {
-      bus.emit('drawer:close-then', fn)
-    } else {
-      fn()
-    }
-  }
-}
-
 export default function Header() {
-  const { progress, toggle, close, isOpen } = useDrawer()
-  const navigation = useNavigation<any>()
+  const { progress, toggle, close } = useDrawer()
 
   const [calVisible, setCalVisible] = useState(false)
   const [popup, setPopup] = useState(globalPopupState.popup)
@@ -153,24 +160,18 @@ export default function Header() {
     opacity: interpolate(progress.value, [0, 0.01], [0, 1]),
   }))
 
-  // const runOrQueue = React.useCallback(
-  //   (fn: () => void) => {
-  //     if (isOpen) {
-  //       close()
-  //       setTimeout(fn, CLOSE_ANIM_MS) // 닫힘 애니 끝난 뒤 실행
-  //     } else {
-  //       fn()
-  //     }
-  //   },
-  //   [isOpen, close],
-  // )
-
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: { date: string; mode: ViewMode; days?: number; rangeStart?: string; rangeEnd?: string}) => {
+    const onState = (st: {
+      date: string
+      mode: ViewMode
+      days?: number
+      rangeStart?: string
+      rangeEnd?: string
+    }) => {
       setAnchorDate(st.date)
       setMode(st.mode)
 
@@ -178,7 +179,7 @@ export default function Header() {
       if (st.rangeStart) setRangeStart(st.rangeStart)
       if (st.rangeEnd) setRangeEnd(st.rangeEnd)
     }
-    
+
     bus.on('calendar:state', onState)
     bus.emit('calendar:request-sync', null)
     return () => bus.off('calendar:state', onState)
@@ -245,7 +246,6 @@ export default function Header() {
     const closeHandler = () => {
       setPopup(false)
       globalPopupState.popup = false
-      // 🔹 밖에서 닫을 때도 ScreenWithSidebar 쪽 상태 맞춰주기
       bus.emit('filter:popup', false)
     }
     bus.on('filter:close', closeHandler)
@@ -261,7 +261,6 @@ export default function Header() {
         </TouchableOpacity>
 
         {/* 날짜 그룹 */}
-        {/* 달 이동/타이틀/우측 버튼 - 모두 runOrQueue로 감싸기 */}
         <View style={styles.dateGroup}>
           <TouchableOpacity onPress={goPrev}>
             <Left width={24} height={24} color={colors.icon.default} />
@@ -291,7 +290,7 @@ export default function Header() {
           </TouchableOpacity>
         </View>
 
-        {/* 필터 */}
+        {/* 필터 버튼 */}
         <TouchableOpacity
           onPress={() => {
             const next = !popup
@@ -303,7 +302,6 @@ export default function Header() {
               globalPopupState.sliderX = maxSlide
               globalPopupState.opacity = 1
             }
-            // 🔹 사이드바처럼 전체 오버레이가 알 수 있도록 이벤트 쏘기
             bus.emit('filter:popup', next)
           }}
         >
@@ -316,23 +314,7 @@ export default function Header() {
         </TouchableOpacity>
       </View>
 
-      {/* ✅ 헤더의 빈공간 클릭 시 닫기 */}
-      {/* {popup && (
-        <Pressable
-          style={{
-            position: 'absolute',
-            top: 48,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 998,
-          }}
-          onPress={() => {
-            setPopup(false)
-            globalPopupState.popup = false
-          }}
-        />
-      )} */}
+      {/* 필터 팝업 닫기용 투명 영역 (왼쪽/오른쪽) */}
       {popup && (
         <>
           <View
@@ -383,7 +365,7 @@ export default function Header() {
         <TouchableOpacity style={{ flex: 1 }} onPress={close} />
       </AnimatedRe.View>
 
-      {/* 필터창 */}
+      {/* 필터창 팝업 */}
       {popup && (
         <Animated.View style={[styles.popupContainer, { opacity: popupOpacity }]}>
           <Animated.View
@@ -395,7 +377,7 @@ export default function Header() {
           >
             <Text style={styles.popupTitle}>필터</Text>
 
-            {/* ✅ 슬라이더: 드래그 + 터치 이동 */}
+            {/* 투명도 슬라이더 */}
             <TouchableWithoutFeedback
               onPress={(e) => {
                 const { locationX } = e.nativeEvent
@@ -416,19 +398,15 @@ export default function Header() {
             </TouchableWithoutFeedback>
 
             <View style={{ height: 16 }} />
+
+            {/* 전체 선택 토글 */}
             <View style={styles.row}>
               <Text style={styles.allText}>전체</Text>
-              <Switch
+              <CustomToggle
                 value={allOn}
-                onValueChange={() => {
+                onChange={() => {
                   toggleAll()
                   bus.emit('filter:changed', filterLabels)
-                }}
-                trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                thumbColor={allOn ? '#B04FFF' : '#FFFFFF'}
-                style={{
-                  transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }],
-                  marginRight: 8,
                 }}
               />
             </View>
@@ -436,22 +414,18 @@ export default function Header() {
             <View style={{ height: 7 }} />
             <View style={styles.divider} />
             <View style={{ height: 15 }} />
+
+            {/* 개별 라벨 토글 */}
             {filterLabels.map((l) => (
               <View key={l.id} style={styles.row}>
                 <View style={styles.labelRow}>
                   <Text style={styles.labelText}>{l.title}</Text>
                 </View>
-                <Switch
+                <CustomToggle
                   value={l.enabled}
-                  onValueChange={() => {
+                  onChange={() => {
                     toggleLabel(l.id)
                     bus.emit('filter:changed', filterLabels)
-                  }}
-                  trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-                  thumbColor={l.enabled ? '#B04FFF' : '#FFFFFF'}
-                  style={{
-                    transform: [{ scaleX: 1.05 }, { scaleY: 1.05 }],
-                    marginRight: 8,
                   }}
                 />
               </View>
@@ -466,6 +440,7 @@ export default function Header() {
         onClose={() => setCalVisible(false)}
         currentDate={anchorDate}
         onSelectDate={(iso) => bus.emit('calendar:set-date', iso)}
+        onPressToday={() => bus.emit('calendar:set-date', today())}
       />
     </View>
   )
@@ -533,16 +508,6 @@ const styles = StyleSheet.create({
   },
   allText: { fontSize: 14, marginLeft: 16 },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
-  colorDot: { width: 5, height: 12, marginRight: 4 },
   labelText: { fontSize: 14 },
   divider: { width: 126, height: 1, backgroundColor: '#e1e1e1', alignSelf: 'center' },
-  switchTrack: {
-    width: 51,
-    height: 31,
-    borderRadius: 16,
-    padding: 3,
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  switchThumb: { width: 25, height: 25, borderRadius: 12.5, backgroundColor: '#fff' },
 })

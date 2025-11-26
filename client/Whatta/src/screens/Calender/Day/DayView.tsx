@@ -359,6 +359,18 @@ export default function DayView() {
     bottom: 0,
   })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
+  useFocusEffect(
+    useCallback(() => {
+      bus.emit('calendar:state', {
+        date: anchorDate,
+        mode: 'day',
+      })
+    }, [anchorDate]),
+  )
+
+  useEffect(() => {
+    bus.emit('calendar:set-date', anchorDate)
+  }, [anchorDate])
   useEffect(() => {
     const onReq = () =>
       bus.emit('calendar:state', { date: anchorDateRef.current, mode: 'day' })
