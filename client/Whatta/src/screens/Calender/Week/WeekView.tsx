@@ -1757,7 +1757,7 @@ export default function WeekView() {
     useCallback(() => {
       currentCalendarView.set('week')
 
-      // 들어오자마자 내 정보를 헤더에 쏴줌 (헤더 타이틀/모드 갱신용)
+      // 1. 헤더 정보 갱신 방송
       bus.emit('calendar:state', {
         date: anchorDateRef.current,
         mode: 'week',
@@ -1772,9 +1772,14 @@ export default function WeekView() {
         rowH: ROW_H,
       })
 
-      // 혹시 모르니 최신 날짜 한번 더 요청
+      // 2. 날짜 동기화 요청 (헤더/일간뷰와 맞춤)
       bus.emit('calendar:request-sync')
-    }, [weekDates.length]),
+
+      // 날짜가 안 바껴도 데이터는 새로 가져와야 함 (서버 연동)
+      if (weekDates.length > 0) {
+        fetchWeek(weekDates)
+      }
+    }, [weekDates]),
   )
 
   const fetchWeek = useCallback(async (dates: string[]) => {
@@ -2309,49 +2314,66 @@ export default function WeekView() {
 
   const SWIPE_THRESHOLD = SCREEN_W * 0.25
 
-  const swipeGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      'worklet'
-      let next = e.translationX
-      const maxOffset = SCREEN_W * 0.15
-      if (next > maxOffset) next = maxOffset
-      if (next < -maxOffset) next = -maxOffset
-      swipeTranslateX.value = next
-    })
-    .onEnd(() => {
-      'worklet'
-      const current = swipeTranslateX.value
-      const trigger = SCREEN_W * 0.06
-
-      if (current > trigger) {
-        swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('prev')
-          swipeTranslateX.value = withTiming(0, { duration: 160 })
+  const swipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-10, 10]) // DayView와 동일한 민감도
+        .failOffsetY([-10, 10]) // 세로 스크롤과 충돌 방지
+        .onUpdate((e) => {
+          'worklet'
+          let next = e.translationX
+          const maxOffset = SCREEN_W * 0.15
+          if (next > maxOffset) next = maxOffset
+          if (next < -maxOffset) next = -maxOffset
+          swipeTranslateX.value = next
         })
-      } else if (current < -trigger) {
-        swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('next')
-          swipeTranslateX.value = withTiming(0, { duration: 160 })
-        })
-      } else {
-        swipeTranslateX.value = withTiming(0, { duration: 150 })
-      }
-    })
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
-      scale.value = e.scale
-    })
-    .onEnd(() => {
-      const current = scale.value
-      if (current > 1.05 && !isZoomed) {
-        runOnJS(setIsZoomed)(true)
-      } else if (current < 0.95 && isZoomed) {
-        runOnJS(setIsZoomed)(false)
-      }
-      scale.value = withTiming(1, { duration: 150 })
-    })
+        .onEnd(() => {
+          'worklet'
+          const current = swipeTranslateX.value
+          const trigger = SCREEN_W * 0.06
 
-  const composedGesture = Gesture.Simultaneous(pinchGesture, swipeGesture)
+          if (current > trigger) {
+            swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
+              runOnJS(handleSwipe)('prev')
+              swipeTranslateX.value = withTiming(0, { duration: 160 })
+            })
+          } else if (current < -trigger) {
+            swipeTranslateX.value = withTiming(
+              -SCREEN_W * 0.15,
+              { duration: 120 },
+              () => {
+                runOnJS(handleSwipe)('next')
+                swipeTranslateX.value = withTiming(0, { duration: 160 })
+              },
+            )
+          } else {
+            swipeTranslateX.value = withTiming(0, { duration: 150 })
+          }
+        }),
+    [handleSwipe],
+  )
+  const pinchGesture = useMemo(
+    () =>
+      Gesture.Pinch()
+        .onUpdate((e) => {
+          scale.value = e.scale
+        })
+        .onEnd(() => {
+          const current = scale.value
+          if (current > 1.05 && !isZoomed) {
+            runOnJS(setIsZoomed)(true)
+          } else if (current < 0.95 && isZoomed) {
+            runOnJS(setIsZoomed)(false)
+          }
+          scale.value = withTiming(1, { duration: 150 })
+        }),
+    [isZoomed],
+  )
+
+  const composedGesture = useMemo(
+    () => Gesture.Simultaneous(pinchGesture, swipeGesture),
+    [pinchGesture, swipeGesture],
+  )
 
   const swipeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: swipeTranslateX.value }],
@@ -2397,7 +2419,10 @@ export default function WeekView() {
     ])
   }
 
-  const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
+  const enabledLabelIds = useMemo(
+    () => filterLabels.filter((l) => l.enabled).map((l) => l.id),
+    [filterLabels],
+  )
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
