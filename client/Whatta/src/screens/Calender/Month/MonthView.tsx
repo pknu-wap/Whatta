@@ -1118,6 +1118,7 @@ export default function MonthView() {
 
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+      dateISO: isoDate,
       dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
       spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
         .filter((s) => s.multiDayStart && s.multiDayEnd)
