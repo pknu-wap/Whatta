@@ -443,13 +443,25 @@ return (
   >
 
 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+ <View style={{ flex: 1 }}>
   <TextInput
-    style={[styles.titleInput, { flex: 1 }]}
+    style={[styles.titleInput, { borderBottomWidth: 0 }]}
     value={titleInput}
     onChangeText={setTitleInput}
     placeholder="제목"
     placeholderTextColor="#b5b5b5"
   />
+
+  <View
+    style={{
+      height: 1,
+      backgroundColor: '#ececec',
+      marginTop: 4,
+      width: '130%', 
+      alignSelf: 'center',
+    }}
+  />
+</View>
 
   <Pressable
     ref={colorBtnRef}
@@ -472,11 +484,12 @@ return (
     }}
     hitSlop={20}
     style={{
-      width: 32,
-      height: 32,
+      width: 24,
+      height: 24,
       borderRadius: 16,
       backgroundColor: selectedColor,
-      marginLeft: 12,
+      marginRight: 10,
+      marginBottom: 10
     }}
   />
 </View>
@@ -1451,8 +1464,8 @@ labelBtnRef.current?.measureInWindow?.(
     <View
       style={{
         position: 'absolute',
-        top: palette.y,
-        left: palette.x - 15,
+        top: palette.y - 30,
+        left: palette.x - 5,
         width: POPOVER_W,
         backgroundColor: '#fff',
         borderRadius: 10,
