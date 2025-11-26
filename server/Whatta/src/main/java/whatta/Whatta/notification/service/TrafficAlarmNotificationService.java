@@ -7,6 +7,7 @@ import whatta.Whatta.traffic.entity.BusItem;
 import whatta.Whatta.traffic.entity.TrafficAlarm;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
 import whatta.Whatta.traffic.repository.BusItemRepository;
+import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
 import whatta.Whatta.traffic.service.TrafficService;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public class TrafficAlarmNotificationService {
     private final BusItemRepository itemRepository;
     private final TrafficService trafficService;
     private final NotificationSendService notificationSendService;
+    private final TrafficAlarmRepository alarmRepository;
 
 
 
@@ -48,7 +50,6 @@ public class TrafficAlarmNotificationService {
                 boolean isTarget = stationItems.stream()
                         .anyMatch(item -> item.getBusRouteNo().equals(arrival.busRouteNo()));
 
-                //[대한의원] 131-1번 : 15분 뒤 도착 예정 (남은 정류장 11
                 if (isTarget) {
                     notificationBody.append(
                             String.format("[%s] %s번 버스 : %d분 뒤 도착 예정 (남은 정류장 %d)\n",
@@ -70,6 +71,8 @@ public class TrafficAlarmNotificationService {
                     title,
                     notificationBody.toString().trim()
             );
+
+            handleRepeatOption(alarm);
         }
         if (busesNotifiedCount == 0) {
             notificationSendService.sendTrafficAlarm(
@@ -77,6 +80,21 @@ public class TrafficAlarmNotificationService {
                     "🚨 현재 운행 중인 버스가 없습니다.",
                     "선택하신 교통수단이 회차 대기 지연 혹은 운행시간이 종료되어 현재 운행정보가 없습니다."
             );
+
+            handleRepeatOption(alarm);
         }
     }
+
+    //반복 안 함 설정이면 알림 비활성화 처리
+    private void handleRepeatOption(TrafficAlarm alarm){
+        if(!alarm.isRepeatEnabled()) {
+            TrafficAlarm disabledAlarm = alarm.toBuilder()
+                    .isEnabled(false)
+                    .build();
+
+            alarmRepository.save(disabledAlarm);
+            log.info("{}알람이 일회성으로 실행 후 OFF됩니다.", alarm.getId());
+        }
+    }
+
 }

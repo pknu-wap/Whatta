@@ -5,10 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.notification.service.NotificationSendService;
-import whatta.Whatta.traffic.entity.BusItem;
 import whatta.Whatta.traffic.entity.TrafficAlarm;
-import whatta.Whatta.traffic.payload.request.BusItemCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficAlarmCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficAlarmUpdateRequest;
 import whatta.Whatta.traffic.payload.response.TrafficAlarmResponse;
@@ -37,6 +34,7 @@ public class TrafficAlarmService {
                 .days(request.days())
                 .targetItemIds(request.targetItemIds())
                 .isEnabled(true)
+                .isRepeatEnabled(false)
                 .build();
 
         TrafficAlarm savedAlarm = alarmRepository.save(alarm);
@@ -57,6 +55,7 @@ public class TrafficAlarmService {
         if (request.getAlarmTime() != null) builder.alarmTime(request.getAlarmTime());
         if (request.getDays() != null) builder.days(request.getDays());
         if (request.getIsEnabled() != null) builder.isEnabled(request.getIsEnabled());
+        if (request.getIsRepeatEnabled() != null) builder.isRepeatEnabled(request.getIsRepeatEnabled());
         if (request.getTargetItemIds() != null) builder.targetItemIds(request.getTargetItemIds());
 
         TrafficAlarm updatedAlarm = builder.build();
