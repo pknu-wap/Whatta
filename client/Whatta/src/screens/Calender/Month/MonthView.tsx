@@ -1638,7 +1638,7 @@ const S = StyleSheet.create({
   dayCellFixed: { width: cellWidth, alignItems: 'center' },
   dayTextBase: { textAlign: 'center', color: '#333', fontWeight: '600', fontSize: 15 },
   sunText: { color: 'red' },
-  satText: { color: 'blue' },
+  satText: { color: '#333333' },
 
   calendarGrid: {},
   weekRow: {

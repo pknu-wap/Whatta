@@ -2384,7 +2384,7 @@ const sendToOCR = async (base64: string, ext?: string) => {
                           S.weekHeaderText,
                           { color: '#333333' },
                           dow === 0 && { color: '#FF4D4D' },
-                          dow === 6 && { color: '#4D6BFF' },
+                          dow === 6 && { color: '#333333' },
                           isToday && {
                             color: colors.primary.main,
                             fontWeight: '800',
