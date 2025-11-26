@@ -11,4 +11,5 @@ public record OcrText(
     public int centerX () { return (tl.x()+tr.x()+br.x()+bl.x())/4; }
     public int centerY () { return (tl.y()+tr.y()+br.y()+bl.y())/4; }
     public int topY () { return tl.y(); }
+    public int bottomY() { return bl().y();}
 }
