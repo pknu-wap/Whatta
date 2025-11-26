@@ -22,6 +22,13 @@ public class ScheduleMatcher {
         NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY);
         System.out.println("[hourAnchors] " + hourY);
 
+        int minHour = 0;
+        if (!hourY.isEmpty()) {
+            minHour = hourY.firstKey();
+        }
+        System.out.println("[minHour] " + minHour);
+
+
         final int headerBandMaxY = computeHeaderBandMaxY(ocrTexts, 80);
 
         //블록 내부 text 묶기 + 요일/시간 채우기
@@ -39,6 +46,15 @@ public class ScheduleMatcher {
             TimeConverter tConv = TimeConverter.fromAnchors(hourY, 10); //10분 단위로 반올림
             String start = tConv.formatHHmm(tConv.minutesAtY(r.top()));
             String end = tConv.formatHHmm(tConv.minutesAtY(r.bottom()));
+
+            try {
+                int startHour = Integer.parseInt(start.substring(0, 2));
+                if (!hourY.isEmpty() && startHour < minHour) {
+                    continue;
+                }
+            } catch (NumberFormatException ignored) {
+                //포맷이 이상하면 그냥 통과시켜서 기존 로직 유지
+            }
 
             //텍스트만 추출
             List<String> texts = inside.stream()
