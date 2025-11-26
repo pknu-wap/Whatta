@@ -16,4 +16,5 @@ public interface TrafficAlarmRepository extends MongoRepository<TrafficAlarm, St
     Optional<TrafficAlarm> findByIdAndUserId(String id, String userId);
 
     List<TrafficAlarm> findByAlarmTimeAndDaysContainingAndIsEnabledTrue(LocalTime alarmTime, DayOfWeek today);
+    List<TrafficAlarm> findByAlarmTimeAndIsEnabledTrueAndDaysIsNull(LocalTime alarmTime);
 }

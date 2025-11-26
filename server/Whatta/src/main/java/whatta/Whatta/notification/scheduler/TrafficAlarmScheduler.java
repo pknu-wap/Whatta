@@ -32,6 +32,9 @@ public class TrafficAlarmScheduler {
 
         //지정된 시간과 날짜에 켜져있는 알림만 DB에서 조회
         List<TrafficAlarm> targets = alarmRepository.findByAlarmTimeAndDaysContainingAndIsEnabledTrue(now, today);
+        List<TrafficAlarm> tmp = alarmRepository.findByAlarmTimeAndIsEnabledTrueAndDaysIsNull(now);
+
+        targets.addAll(tmp);
 
         if (targets.isEmpty()) {
             log.debug("해당 시간에 울릴 교통 알림 없음.");
