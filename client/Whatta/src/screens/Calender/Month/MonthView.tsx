@@ -28,7 +28,7 @@ import type { EventItem } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
-import OCREventCardSlider, { OCREvent } from '@/screens/More/OcrEventCardSlider'
+import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 
 // --------------------------------------------------------------------
 // 1. 상수 및 타입 정의
@@ -716,7 +716,7 @@ const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }
 // --------------------------------------------------------------------
 export default function MonthView() {
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+  const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
 
   // 📌 OCR 이미지 추가 이벤트
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
