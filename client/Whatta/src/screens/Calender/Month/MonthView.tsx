@@ -858,9 +858,39 @@ export default function MonthView() {
     return { year: y, monthIndex: m - 1 }
   }
 
+type MonthPopupSpanEvent = {
+  title: string
+  period: string
+  colorKey?: string
+  color: string
+}
+
+type MonthPopupNormalEvent = {
+  title: string
+  memo?: string
+  time?: string
+  color: string
+}
+
+type MonthPopupTimeEvent = {
+  title: string
+  place?: string
+  time?: string
+  color: string
+  borderColor?: string
+}
+
+type SelectedDayData = {
+  date: string
+  dayOfWeek: string
+  spanEvents: MonthPopupSpanEvent[]
+  normalEvents: MonthPopupNormalEvent[]
+  timeEvents: MonthPopupTimeEvent[]
+}
+
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
   const [popupVisible, setPopupVisible] = useState(false)
-  const [selectedDayData, setSelectedDayData] = useState<any>(null)
+  const [selectedDayData, setSelectedDayData] = useState<SelectedDayData | null>(null)
 
   const { items: filterLabels } = useLabelFilter()
 
@@ -1077,6 +1107,8 @@ export default function MonthView() {
   }
 
   type MonthDetailEvent = ExtendedScheduleDataWithColor & {
+  startDate?: string
+  endDate?: string
   startTime?: string
   endTime?: string
   startAt?: string
@@ -1085,30 +1117,17 @@ export default function MonthView() {
 }
   
 function classifyEventForMonthDetail(ev: MonthDetailEvent): "span" | "single" {
+  const startDate = ev.startDate ?? ev.date
+  const endDate = ev.endDate ?? ev.date
+  const isSingleDay = !!startDate && !!endDate && startDate === endDate
+  const hasTime = !!ev.startTime || !!ev.endTime
 
-  const isSingleDay =
-    !!ev.date &&
-    (!ev.multiDayStart ||
-      !ev.multiDayEnd ||
-      ev.multiDayStart === ev.multiDayEnd);
-
-  const hasTime =
-    !!ev.startTime ||
-    !!ev.endTime ||
-    !!ev.time ||
-    (ev.startAt && typeof ev.startAt === "string" && ev.startAt.includes("T")) ||
-    (ev.endAt && typeof ev.endAt === "string" && ev.endAt.includes("T"));
-
-  if (ev.multiDayStart && ev.multiDayEnd && ev.multiDayStart !== ev.multiDayEnd) {
-    return "span";
-  }
-  if (isSingleDay && !hasTime) {
-    return "span";
-  }
-  return "single";
+  if (!isSingleDay) return "span"
+  if (isSingleDay && !hasTime) return "span"
+  return "single"
 }
 
-const handleDatePress = (dateItem: CalendarDateItem) => {
+const handleDatePress = async (dateItem: CalendarDateItem) => {
   if (!dateItem.isCurrentMonth) return
 
   const d = dateItem.fullDate
@@ -1118,15 +1137,59 @@ const handleDatePress = (dateItem: CalendarDateItem) => {
     ).padStart(2, '0')}`,
   )
 
-  // 1) 우선 분류 실행
-  const classified = (dateItem.schedules as ExtendedScheduleDataWithColor[]).map(
-    (s) => ({
-      s,
-      type: classifyEventForMonthDetail(s),
+  // 1) 상세 조회로 시간 정보 보강
+  const enriched = await Promise.all(
+    (dateItem.schedules as ExtendedScheduleDataWithColor[]).map(async (s) => {
+      if (!s.id) return s as MonthDetailEvent
+      try {
+        const res = await http.get(`/event/${s.id}`)
+        const detail = res.data?.data ?? {}
+        const startDate = (detail.startDate ?? detail.date ?? s.multiDayStart ?? s.date)?.slice(0, 10)
+        const endDate = (detail.endDate ?? detail.date ?? s.multiDayEnd ?? s.date)?.slice(0, 10)
+
+        const startTime =
+  detail.startTime ??
+  (detail.startAt ? String(detail.startAt).split('T')[1]?.slice(0, 8) : undefined)
+
+const endTime =
+  detail.endTime ??
+  (detail.endAt ? String(detail.endAt).split('T')[1]?.slice(0, 8) : undefined)
+
+        return {
+          ...s,
+          startDate,
+          endDate,
+          startTime,
+          endTime,
+        } as MonthDetailEvent
+      } catch (e) {
+        console.warn('MonthView: failed to load event detail', s.id, e)
+        return s as MonthDetailEvent
+      }
     }),
   )
 
-  // 2) popup용 데이터 구성
+  // 2) 분류
+  const classified = enriched.map((s) => ({
+    s,
+    type: classifyEventForMonthDetail(s as MonthDetailEvent),
+  }))
+
+  const makeDateLabel = (iso?: string) => {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-')
+    return `${Number(m)}/${Number(d)}`
+  }
+
+  const toMinutes = (t?: string) => {
+    if (!t) return 24 * 60
+    const [hh, mm] = t.split(':')
+    const h = parseInt(hh ?? '0', 10)
+    const m = parseInt(mm ?? '0', 10)
+    return h * 60 + m
+  }
+
+  // 3) spanEvents (기간 + 종일)
   const spanEvents = classified
     .filter(({ type }) => type === 'span')
     .map(({ s }) => {
@@ -1136,16 +1199,25 @@ const handleDatePress = (dateItem: CalendarDateItem) => {
           : `#${s.colorKey}`
         : '#8B5CF6'
 
+      const startDate = (s as MonthDetailEvent).startDate ?? s.multiDayStart ?? s.date
+      const endDate = (s as MonthDetailEvent).endDate ?? s.multiDayEnd ?? s.date
+
       return {
         title: s.name,
-        period: `${s.multiDayStart ?? s.date}~${s.multiDayEnd ?? s.date}`,
+        period: `${startDate ?? ''}~${endDate ?? ''}`,
         colorKey: s.colorKey,
         color: baseColor,
       }
     })
 
+  // 4) normalEvents (하루짜리 + 시간 있는 일정) - 시작 시간 순 정렬
   const normalEvents = classified
     .filter(({ type, s }) => type === 'single' && !s.isTask)
+    .sort(
+      (a, b) =>
+        toMinutes((a.s as MonthDetailEvent).startTime) -
+        toMinutes((b.s as MonthDetailEvent).startTime),
+    )
     .map(({ s }) => {
       const baseColor = s.colorKey
         ? s.colorKey.startsWith('#')
@@ -1153,32 +1225,45 @@ const handleDatePress = (dateItem: CalendarDateItem) => {
           : `#${s.colorKey}`
         : '#F4EAFF'
 
+      const md = s as MonthDetailEvent
+      const startDate = md.startDate ?? s.date
+      const endDate = md.endDate ?? s.date
+      const st = md.startTime?.slice(0, 5)
+      const et = md.endTime?.slice(0, 5)
+
+      let timeStr = '시간 미정'
+      if (startDate && endDate && st && et) {
+        timeStr = `${makeDateLabel(startDate)} ${st} ~ ${makeDateLabel(endDate)} ${et}`
+      } else if (startDate && st) {
+        timeStr = `${makeDateLabel(startDate)} ${st}`
+      }
+
       return {
         title: s.name,
-        memo: s.memo ?? '',
+        memo: (s as any).memo ?? '',
         color: baseColor,
+        time: timeStr,
       }
     })
 
-  const timeEvents = (dateItem.tasks as ExtendedScheduleDataWithColor[]).map(
-    (t) => {
-      const baseColor = t.colorKey
-        ? t.colorKey.startsWith('#')
-          ? t.colorKey
-          : `#${t.colorKey}`
-        : '#FFD966'
+  // 5) timeEvents (tasks) - 기존 로직 유지
+  const timeEvents = (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+    const baseColor = t.colorKey
+      ? t.colorKey.startsWith('#')
+        ? t.colorKey
+        : `#${t.colorKey}`
+      : '#FFD966'
 
-      return {
-        title: t.name,
-        place: t.place ?? '',
-        time: t.time ?? '',
-        color: baseColor,
-        borderColor: baseColor,
-      }
-    },
-  )
+    return {
+      title: t.name,
+      place: (t as any).place ?? '',
+      time: (t as any).time ?? '',
+      color: baseColor,
+      borderColor: baseColor,
+    }
+  })
 
-  // 3) popup으로 전달
+  // 6) 팝업 데이터 설정
   setSelectedDayData({
     date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
     dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
