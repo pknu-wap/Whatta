@@ -30,6 +30,8 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import CheckOff from '@/assets/icons/check_off.svg'
+import CheckOn from '@/assets/icons/check_on.svg'
 import { createEvent } from '@/api/event_api'
 import OcrSplash from '@/screens/More/OcrSplash'
 
@@ -201,10 +203,7 @@ function getHolidayName(date: Date): string | null {
       }
     }
 
-    if (
-      lunarData.부처님오신날.month === month &&
-      lunarData.부처님오신날.day === day
-    ) {
+    if (lunarData.부처님오신날.month === month && lunarData.부처님오신날.day === day) {
       holidayName = holidayName || '부처님 오신 날'
     }
 
@@ -580,13 +579,30 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
   const labelColor = textColorFor(schedule.colorKey)
 
   // Task
+  // Task
   if (schedule.isTask) {
     return (
       <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
         <View style={S.checkboxTouchArea}>
-          <View style={[S.checkboxBase, S.checkboxOff]} />
+          {/* 완료 여부에 따라 아이콘 변경 */}
+          {schedule.isCompleted ? (
+            <CheckOn width={10} height={10} />
+          ) : (
+            <CheckOff width={10} height={10} />
+          )}
         </View>
-        <Text style={S.taskText} numberOfLines={1} ellipsizeMode="clip">
+        <Text
+          style={[
+            S.taskText,
+            // 완료된 경우 취소선 스타일 추가
+            schedule.isCompleted && {
+              textDecorationLine: 'line-through',
+              color: '#999',
+            },
+          ]}
+          numberOfLines={1}
+          ellipsizeMode="clip"
+        >
           {schedule.name}
         </Text>
       </View>
@@ -631,9 +647,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
     const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
     const reachWeekEnd = colSpan === spanToWeekEnd
 
-    const { primary: primaryColor, light: softColor } = colorsFromKey(
-      schedule.colorKey,
-    )
+    const { primary: primaryColor, light: softColor } = colorsFromKey(schedule.colorKey)
 
     const isRealStart = dayISO === schedule.multiDayStart
     const isRealEndInThisRow = colSpan === daysDiff
@@ -685,7 +699,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
       ]}
     >
       <Text
-        style={[S.scheduleText, { color: labelColor }]}
+        style={[S.scheduleText, { color: '#000' }]}
         numberOfLines={1}
         ellipsizeMode="clip"
       >
@@ -698,16 +712,34 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
 interface TaskSummaryBoxProps {
   count: number
   isCurrentMonth: boolean
+  tasks: ScheduleData[]
 }
 
-const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({ count, isCurrentMonth }) => {
+const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({
+  count,
+  isCurrentMonth,
+  tasks,
+}) => {
   const dimmedStyle = !isCurrentMonth ? S.dimmedItem : null
+  const allCompleted = tasks.length > 0 && tasks.every((t: any) => t.isCompleted)
+
   return (
     <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
       <View style={S.checkboxTouchArea}>
-        <View style={[S.checkboxBase, S.checkboxOff]} />
+        {/* 모두 완료면 On, 아니면 Off */}
+        {allCompleted ? (
+          <CheckOn width={10} height={10} />
+        ) : (
+          <CheckOff width={10} height={10} />
+        )}
       </View>
-      <Text style={S.taskText} numberOfLines={1}>
+      <Text
+        style={[
+          S.taskText,
+          allCompleted && { textDecorationLine: 'line-through', color: '#999' },
+        ]}
+        numberOfLines={1}
+      >
         {`${count}개`}
       </Text>
     </View>
@@ -929,9 +961,26 @@ export default function MonthView() {
   // 월 이동 + 스와이프에서 호출
   const goMonth = useCallback(
     (diff: number) => {
-      setYm((prevYm) => addMonthsFromYm(prevYm, diff))
+      // 1. 현재 잡고 있는 날짜 (예: 2025-10-27)
+      const [y, m, d] = focusedDateISO.split('-').map(Number)
+
+      // 2. 달 이동
+      const targetDate = new Date(y, m - 1 + diff, 1)
+
+      // 3. 월말 보정
+      const targetMonthIndex = (m - 1 + diff + 12) % 12
+      if (targetDate.getMonth() !== targetMonthIndex) {
+        targetDate.setDate(0) // 전달 마지막 날로 설정
+      }
+
+      // 4. ISO 변환
+      const nextISO = `${targetDate.getFullYear()}-${String(
+        targetDate.getMonth() + 1,
+      ).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+
+      bus.emit('calendar:set-date', nextISO)
     },
-    [],
+    [focusedDateISO],
   )
 
   // 좌우 스와이프 제스처 (DayView 구조 참고)
@@ -958,6 +1007,7 @@ export default function MonthView() {
   useEffect(() => {
     const onSetDate = (iso: string) => {
       const nextYM = toYM(iso)
+      setFocusedDateISO(iso)
       setYm((prev) => (prev === nextYM ? prev : nextYM))
     }
     bus.on('calendar:set-date', onSetDate)
@@ -981,8 +1031,8 @@ export default function MonthView() {
 
   useFocusEffect(
     React.useCallback(() => {
-      bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-    }, [ym]),
+      bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
+    }, [ym, focusedDateISO]),
   )
 
   const fetchFresh = useCallback(
@@ -1034,50 +1084,12 @@ export default function MonthView() {
 
   useEffect(() => {
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
-      if (!payload?.item) return
-
-      const raw = {
-        ...payload.item,
-        colorKey:
-          typeof payload.item?.colorKey === 'string'
-            ? payload.item.colorKey.replace(/^#/, '').toUpperCase()
-            : undefined,
-      }
-
-      const normalized = mapApiToScheduleData(raw)
-
-      const ymOf = (iso?: string) => (iso ? iso.slice(0, 7) : '')
-      const itemYM = normalized.multiDayStart
-        ? ymOf(normalized.multiDayStart)
-        : ymOf(normalized.date)
-      if (itemYM !== ym) return
-
-      setServerSchedules((prev) => {
-        let next: UISchedule[]
-        if (payload.op === 'create') {
-          next = [...prev, normalized]
-        } else if (payload.op === 'update') {
-          next = prev.map((it) =>
-            it.id === normalized.id
-              ? {
-                  ...it,
-                  ...normalized,
-                  colorKey: normalized.colorKey ?? it.colorKey,
-                }
-              : it,
-          )
-        } else {
-          next = prev.filter((it) => it.id !== normalized.id)
-        }
-        laneMapRef.current = buildLaneMap(next.filter(isSpan))
-        return next
-      })
+      fetchFresh(ym)
     }
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [ym])
-
+  }, [ym, fetchFresh])
   const renderWeeks = (dates: CalendarDateItem[]): CalendarDateItem[][] => {
     const weeks: CalendarDateItem[][] = []
     for (let i = 0; i < dates.length; i += 7) {
@@ -1143,6 +1155,8 @@ export default function MonthView() {
             : `#${t.colorKey}`
           : '#FFD966'
         return {
+          id: t.id,
+          done: t.isCompleted,
           title: t.name,
           place: t.place ?? '',
           time: t.time ?? '',
@@ -1199,14 +1213,15 @@ export default function MonthView() {
     ;(fresh.days ?? []).forEach((day: any) => {
       const dateISO = (day.date ?? day.targetDate ?? '').slice(0, 10)
 
+      // 1. 일정(Event) 처리
       ;(day.events ?? []).forEach((ev: any) => {
         list.push({
           id: String(ev.id),
           name: ev.title ?? ev.name ?? '',
           date: dateISO,
           isRecurring: !!ev.isRepeat,
-          isTask: !!ev.isTask,
-          isCompleted: !!ev.isCompleted,
+          isTask: false,
+          isCompleted: false,
           labelId: pickLabelId(ev),
           colorKey:
             typeof ev.colorKey === 'string'
@@ -1214,8 +1229,22 @@ export default function MonthView() {
               : undefined,
         })
       })
+
+      // 할 일(Task) 처리
+      ;(day.tasks ?? []).forEach((t: any) => {
+        list.push({
+          id: String(t.id),
+          name: t.title ?? '',
+          date: dateISO,
+          isRecurring: false,
+          isTask: true, // Task임을 명시
+          isCompleted: !!t.completed,
+          labelId: pickLabelId(t),
+        })
+      })
     })
 
+    // 3. 기간 일정(Span Events) 처리 (기존 코드 유지)
     ;(fresh.spanEvents ?? []).forEach((ev: any) => {
       const start = (ev.startDate ?? '').slice(0, 10)
       const end = (ev.endDate ?? '').slice(0, 10)
@@ -1287,10 +1316,6 @@ export default function MonthView() {
       Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
     }
   }, [loading])
-
-  useEffect(() => {
-    setFocusedDateISO(`${year}-${pad(monthIndex + 1)}-01`)
-  }, [year, monthIndex])
 
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
@@ -1379,9 +1404,10 @@ export default function MonthView() {
 
                       const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(
                         dateItem.fullDate.getMonth() + 1,
-                      ).padStart(2, '0')}-${String(
-                        dateItem.fullDate.getDate(),
-                      ).padStart(2, '0')}`
+                      ).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(
+                        2,
+                        '0',
+                      )}`
 
                       return (
                         <TouchableOpacity
@@ -1463,10 +1489,7 @@ export default function MonthView() {
                                         isCurrentMonth={isCurrentMonth}
                                       />
                                     ) : (
-                                      <View
-                                        key={`spacer-${idx}`}
-                                        style={S.laneSpacer}
-                                      />
+                                      <View key={`spacer-${idx}`} style={S.laneSpacer} />
                                     ),
                                   )}
 
@@ -1475,6 +1498,7 @@ export default function MonthView() {
                                       key={(taskSummary as any).id}
                                       count={(taskSummary as any).count}
                                       isCurrentMonth={isCurrentMonth}
+                                      tasks={(taskSummary as any).tasks}
                                     />
                                   ) : null}
                                 </>
@@ -1506,6 +1530,7 @@ export default function MonthView() {
         onClose={() => {
           setEventPopupVisible(false)
           setEventPopupData(null)
+          fetchFresh(ym)
         }}
       />
       <TaskDetailPopup
@@ -1517,6 +1542,7 @@ export default function MonthView() {
           setTaskPopupVisible(false)
           setTaskPopupTask(null)
           setTaskPopupId(null)
+          fetchFresh(ym)
         }}
         onSave={async (form) => {
           const pad = (n: number) => String(n).padStart(2, '0')
@@ -1792,7 +1818,7 @@ const S = StyleSheet.create({
   },
   scheduleText: {
     fontSize: 10.5,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'left',
     lineHeight: SCHEDULE_BOX_HEIGHT,
   },

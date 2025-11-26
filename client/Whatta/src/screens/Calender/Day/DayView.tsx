@@ -198,7 +198,7 @@ function computeTaskOverlap(tasks: DayViewTask[]): DayViewTask[] {
 
   // 시작 시간 기준 정렬
   const sorted = [...converted].sort(
-    (a, b) => a.startMin! - b.startMin! || a.endMin! - b.endMin!
+    (a, b) => a.startMin! - b.startMin! || a.endMin! - b.endMin!,
   )
 
   const result: DayViewTask[] = []
@@ -252,15 +252,15 @@ function computeTaskOverlap(tasks: DayViewTask[]): DayViewTask[] {
 
 function groupTasksByOverlap(tasks: DayViewTask[]) {
   const overlapped = computeTaskOverlap(tasks)
-  const sorted = overlapped.sort((a,b)=>a.startMin!-b.startMin!)
+  const sorted = overlapped.sort((a, b) => a.startMin! - b.startMin!)
 
-  const groups: { tasks: DayViewTask[], startMin: number }[] = []
+  const groups: { tasks: DayViewTask[]; startMin: number }[] = []
   let cur: DayViewTask[] = []
   let curEnd = -1
 
   const flush = () => {
     if (!cur.length) return
-    const startMin = Math.min(...cur.map(t=>t.startMin!))
+    const startMin = Math.min(...cur.map((t) => t.startMin!))
     groups.push({ tasks: cur, startMin })
     cur = []
   }
@@ -435,7 +435,6 @@ export default function DayView() {
     return () => bus.off('popup:schedule:create', h)
   }, [])
 
-
   // ✅ DayView 좌우 스와이프 애니메이션 (WeekView와 비슷한 구조, ±1일 이동)
   const swipeTranslateX = useSharedValue(0)
 
@@ -532,8 +531,11 @@ export default function DayView() {
   )
 
   useEffect(() => {
-    bus.emit('calendar:set-date', anchorDate)
-  }, [anchorDate])
+    if (isFocused) {
+      bus.emit('calendar:set-date', anchorDate)
+    }
+  }, [anchorDate, isFocused])
+
   useEffect(() => {
     const onReq = () =>
       bus.emit('calendar:state', { date: anchorDateRef.current, mode: 'day' })
@@ -588,11 +590,11 @@ export default function DayView() {
   // 라벨
 
   interface LabelItem {
-  id: number
-  title: string
-  color?: string
-  colorKey?: string
-}
+    id: number
+    title: string
+    color?: string
+    colorKey?: string
+  }
 
   const [labelList, setLabelList] = useState<LabelItem[]>([])
   const fetchLabels = async () => {
@@ -1242,141 +1244,145 @@ export default function DayView() {
                 const endMin = eh * 60 + em
 
                 // 반복 일정이면 DraggableFixedEvent 사용
-if (evt.isRepeat) {
-  return (
-    <DraggableFixedEvent
-      key={evt.id}
-      id={evt.id}
-      title={evt.title}
-      place={`label ${evt.labels?.[0] ?? ''}`}
-      startMin={startMin}
-      endMin={endMin}
-      color={`#${evt.colorKey}`}
-      anchorDate={anchorDate}
-      onPress={() => openEventDetail(evt)}
-    />
-  )
-}
+                if (evt.isRepeat) {
+                  return (
+                    <DraggableFixedEvent
+                      key={evt.id}
+                      id={evt.id}
+                      title={evt.title}
+                      place={`label ${evt.labels?.[0] ?? ''}`}
+                      startMin={startMin}
+                      endMin={endMin}
+                      color={`#${evt.colorKey}`}
+                      anchorDate={anchorDate}
+                      onPress={() => openEventDetail(evt)}
+                    />
+                  )
+                }
 
-// 일반 일정
-return (
-  <DraggableFlexalbeEvent
-    key={evt.id}
-    id={evt.id}
-    title={evt.title}
-    place={`label ${evt.labels?.[0] ?? ''}`}
-    startMin={startMin}
-    endMin={endMin}
-    color={`#${evt.colorKey}`}
-    anchorDate={anchorDate}
-    isRepeat={!!evt.isRepeat}
-    onPress={() => openEventDetail(evt)}
-  />
-)
+                // 일반 일정
+                return (
+                  <DraggableFlexalbeEvent
+                    key={evt.id}
+                    id={evt.id}
+                    title={evt.title}
+                    place={`label ${evt.labels?.[0] ?? ''}`}
+                    startMin={startMin}
+                    endMin={endMin}
+                    color={`#${evt.colorKey}`}
+                    anchorDate={anchorDate}
+                    isRepeat={!!evt.isRepeat}
+                    onPress={() => openEventDetail(evt)}
+                  />
+                )
               })}
 
-{/* ⭐ Task groups 적용 */}
-{taskGroups.map((group, idx) => {
-  const { tasks: list, startMin } = group
+              {/* ⭐ Task groups 적용 */}
+              {taskGroups.map((group, idx) => {
+                const { tasks: list, startMin } = group
 
-  // 4개 이상 → 그룹박스 1개만
-  if (list.length >= 4) {
-    return (
-<DraggableTaskGroupBox
-    key={`group-${idx}`}
-    group={list}
-    startMin={startMin}
-    count={list.length}
-    anchorDate={anchorDate}
-    onPress={() => setOpenGroupIndex(openGroupIndex === idx ? null : idx)}
-    setIsDraggingTask={setIsDraggingTask}
-/>
-    )
-  }
+                // 4개 이상 → 그룹박스 1개만
+                if (list.length >= 4) {
+                  return (
+                    <DraggableTaskGroupBox
+                      key={`group-${idx}`}
+                      group={list}
+                      startMin={startMin}
+                      count={list.length}
+                      anchorDate={anchorDate}
+                      onPress={() =>
+                        setOpenGroupIndex(openGroupIndex === idx ? null : idx)
+                      }
+                      setIsDraggingTask={setIsDraggingTask}
+                    />
+                  )
+                }
 
-  // 1~3개 → 기존 개별 Task 렌더
-  return list.map((task) => {
-    const start =
-      task.placementTime?.includes(':')
-        ? (() => {
-            const [h, m] = task.placementTime.split(':').map(Number)
-            return h + m / 60
-          })()
-        : 0
+                // 1~3개 → 기존 개별 Task 렌더
+                return list.map((task) => {
+                  const start = task.placementTime?.includes(':')
+                    ? (() => {
+                        const [h, m] = task.placementTime.split(':').map(Number)
+                        return h + m / 60
+                      })()
+                    : 0
 
-    return (
-      <DraggableTaskBox
-        key={task.id}
-        id={task.id}
-        title={task.title}
-        startHour={start}
-        anchorDate={anchorDate}
-        placementDate={task.placementDate}
-        done={task.completed}
-        onPress={() => openTaskPopupFromApi(task.id)}
-        column={task._column}
-        totalColumns={task._totalColumns}
-      />
-    )
-  })
-})}
+                  return (
+                    <DraggableTaskBox
+                      key={task.id}
+                      id={task.id}
+                      title={task.title}
+                      startHour={start}
+                      anchorDate={anchorDate}
+                      placementDate={task.placementDate}
+                      done={task.completed}
+                      onPress={() => openTaskPopupFromApi(task.id)}
+                      column={task._column}
+                      totalColumns={task._totalColumns}
+                    />
+                  )
+                })
+              })}
 
-{/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
-{openGroupIndex !== null && (() => {
-  const group = taskGroups[openGroupIndex]
-  if (!group) return null
-  const { tasks: list, startMin } = group
+              {/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
+              {openGroupIndex !== null &&
+                (() => {
+                  const group = taskGroups[openGroupIndex]
+                  if (!group) return null
+                  const { tasks: list, startMin } = group
 
-  return (
-    <View
-      style={{
-        position: 'absolute',
-        top: startMin * PIXELS_PER_MIN + 52,
-        left: 50 + 18,
-        right: 18,
-        backgroundColor: '#FFF',
-        borderRadius: 10,
-        borderColor: '#B3B3B3',
-        borderWidth: 0.3,
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        zIndex: 500,
-      }}
-    >
-      {list.map((task) => (
-        <Pressable
-          key={task.id}
-          onPress={() => openTaskPopupFromApi(task.id)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 18,
-          }}
-        >
-          <View
-  style={{
-    width: 18,
-    height: 18,
-    borderWidth: 2,
-    borderRadius: 2,
-    borderColor: '#333',
-    marginRight: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFF',   // ⭐ 추가
-  }}
->
-  {task.completed && (
-    <Text style={{ fontSize: 12, color: '#333' }}>✓</Text>
-  )}
-</View>
+                  return (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: startMin * PIXELS_PER_MIN + 52,
+                        left: 50 + 18,
+                        right: 18,
+                        backgroundColor: '#FFF',
+                        borderRadius: 10,
+                        borderColor: '#B3B3B3',
+                        borderWidth: 0.3,
+                        paddingVertical: 16,
+                        paddingHorizontal: 20,
+                        zIndex: 500,
+                      }}
+                    >
+                      {list.map((task) => (
+                        <Pressable
+                          key={task.id}
+                          onPress={() => openTaskPopupFromApi(task.id)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            marginBottom: 18,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderWidth: 2,
+                              borderRadius: 2,
+                              borderColor: '#333',
+                              marginRight: 14,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              backgroundColor: '#FFF', // ⭐ 추가
+                            }}
+                          >
+                            {task.completed && (
+                              <Text style={{ fontSize: 12, color: '#333' }}>✓</Text>
+                            )}
+                          </View>
 
-          <Text style={{ fontSize: 14, color: '#000' }}>{task.title}</Text>
-        </Pressable>
-      ))}
-    </View>
-  )
-})()}
+                          <Text style={{ fontSize: 14, color: '#000' }}>
+                            {task.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )
+                })()}
             </ScrollView>
           </Animated.View>
         </GestureDetector>
@@ -1577,134 +1583,134 @@ function DraggableFixedEvent({
   }
 
   // ===== 드롭 처리 =====
-const handleDrop = useCallback(
-  async (movedY: number) => {
-    try {
-      const SNAP_UNIT = 5 * PIXELS_PER_MIN
-      const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
-      translateY.value = withSpring(snappedY)
+  const handleDrop = useCallback(
+    async (movedY: number) => {
+      try {
+        const SNAP_UNIT = 5 * PIXELS_PER_MIN
+        const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
+        translateY.value = withSpring(snappedY)
 
-      const deltaMin = snappedY / PIXELS_PER_MIN
-      const newStart = startMin + deltaMin
-      const newEnd = endMin + deltaMin
+        const deltaMin = snappedY / PIXELS_PER_MIN
+        const newStart = startMin + deltaMin
+        const newEnd = endMin + deltaMin
 
-      const fmt = (min: number) =>
-        `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}:00`
+        const fmt = (min: number) =>
+          `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}:00`
 
-      const newStartTime = fmt(newStart)
-      const newEndTime = fmt(newEnd)
+        const newStartTime = fmt(newStart)
+        const newEndTime = fmt(newEnd)
 
-      // 🔥 반복 일정 팝업 적용
-      const detailRes = await http.get(`/event/${id}`)
-      const ev = detailRes.data.data
+        // 🔥 반복 일정 팝업 적용
+        const detailRes = await http.get(`/event/${id}`)
+        const ev = detailRes.data.data
 
-      if (ev?.repeat) {
-        const basePayload = {
-          title: ev.title,
-          content: ev.content ?? '',
-          labels: ev.labels ?? [],
+        if (ev?.repeat) {
+          const basePayload = {
+            title: ev.title,
+            content: ev.content ?? '',
+            labels: ev.labels ?? [],
+            startDate: anchorDate,
+            endDate: anchorDate,
+            startTime: newStartTime,
+            endTime: newEndTime,
+            colorKey: ev.colorKey,
+          }
+
+          const prevDay = (iso: string) => {
+            const d = new Date(iso)
+            d.setDate(d.getDate() - 1)
+            const pad = (n: number) => String(n).padStart(2, '0')
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+          }
+
+          Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+            { text: '취소', style: 'cancel' },
+
+            {
+              text: '이 일정만',
+              onPress: async () => {
+                try {
+                  const occ = anchorDate
+                  const prev = ev.repeat.exceptionDates ?? []
+                  const next = prev.includes(occ) ? prev : [...prev, occ]
+
+                  // 기존 반복 일정에서 제외
+                  await http.patch(`/event/${id}`, {
+                    repeat: {
+                      ...ev.repeat,
+                      exceptionDates: next,
+                    },
+                  })
+
+                  // 단일 일정 만들기
+                  await http.post(`/event`, {
+                    ...basePayload,
+                    repeat: null,
+                  })
+
+                  bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                } catch (e) {
+                  console.error('❌ 반복 단일 수정 실패:', e)
+                }
+              },
+            },
+
+            {
+              text: '이후 일정 모두',
+              onPress: async () => {
+                try {
+                  const cutEnd = prevDay(anchorDate)
+
+                  // 기존 반복 일정 잘라내기
+                  await http.patch(`/event/${id}`, {
+                    repeat: {
+                      ...ev.repeat,
+                      endDate: cutEnd,
+                    },
+                  })
+
+                  // 이후 반복 일정 새로 만들기
+                  await http.post(`/event`, {
+                    ...basePayload,
+                    repeat: ev.repeat,
+                  })
+
+                  bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                } catch (e) {
+                  console.error('❌ 반복 전체 수정 실패:', e)
+                }
+              },
+            },
+          ])
+
+          return
+        }
+
+        // 🔥 일반 일정 PATCH (기존 Fixed 로직)
+        await http.patch(`/event/${id}`, {
           startDate: anchorDate,
           endDate: anchorDate,
           startTime: newStartTime,
           endTime: newEndTime,
-          colorKey: ev.colorKey,
-        }
+        })
 
-        const prevDay = (iso: string) => {
-          const d = new Date(iso)
-          d.setDate(d.getDate() - 1)
-          const pad = (n: number) => String(n).padStart(2, '0')
-          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-        }
-
-        Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
-          { text: '취소', style: 'cancel' },
-
-          {
-            text: '이 일정만',
-            onPress: async () => {
-              try {
-                const occ = anchorDate
-                const prev = ev.repeat.exceptionDates ?? []
-                const next = prev.includes(occ) ? prev : [...prev, occ]
-
-                // 기존 반복 일정에서 제외
-                await http.patch(`/event/${id}`, {
-                  repeat: {
-                    ...ev.repeat,
-                    exceptionDates: next,
-                  },
-                })
-
-                // 단일 일정 만들기
-                await http.post(`/event`, {
-                  ...basePayload,
-                  repeat: null,
-                })
-
-                bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-              } catch (e) {
-                console.error('❌ 반복 단일 수정 실패:', e)
-              }
-            },
+        bus.emit('calendar:mutated', {
+          op: 'update',
+          item: {
+            id,
+            isTask: false,
+            startDate: anchorDate,
+            endDate: anchorDate,
+            startTime: newStartTime,
+            endTime: newEndTime,
           },
-
-          {
-            text: '이후 일정 모두',
-            onPress: async () => {
-              try {
-                const cutEnd = prevDay(anchorDate)
-
-                // 기존 반복 일정 잘라내기
-                await http.patch(`/event/${id}`, {
-                  repeat: {
-                    ...ev.repeat,
-                    endDate: cutEnd,
-                  },
-                })
-
-                // 이후 반복 일정 새로 만들기
-                await http.post(`/event`, {
-                  ...basePayload,
-                  repeat: ev.repeat,
-                })
-
-                bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-              } catch (e) {
-                console.error('❌ 반복 전체 수정 실패:', e)
-              }
-            },
-          },
-        ])
-
-        return
+        })
+      } catch (err: any) {
+        console.error('❌ FixedEvent 드롭 실패:', err.message)
       }
-
-      // 🔥 일반 일정 PATCH (기존 Fixed 로직)
-      await http.patch(`/event/${id}`, {
-        startDate: anchorDate,
-        endDate: anchorDate,
-        startTime: newStartTime,
-        endTime: newEndTime,
-      })
-
-      bus.emit('calendar:mutated', {
-        op: 'update',
-        item: {
-          id,
-          isTask: false,
-          startDate: anchorDate,
-          endDate: anchorDate,
-          startTime: newStartTime,
-          endTime: newEndTime,
-        },
-      })
-    } catch (err: any) {
-      console.error('❌ FixedEvent 드롭 실패:', err.message)
-    }
-  },
-  [id, startMin, endMin, anchorDate],
-)
+    },
+    [id, startMin, endMin, anchorDate],
+  )
 
   // ===== 롱프레스 후 드래그 시작 =====
   const hold = Gesture.LongPress()
@@ -1766,7 +1772,7 @@ const handleDrop = useCallback(
             backgroundColor: bg,
             paddingHorizontal: 6,
             paddingTop: 10,
-            zIndex: 10, 
+            zIndex: 10,
           },
           style,
         ]}
@@ -1801,14 +1807,14 @@ const handleDrop = useCallback(
 
 type DraggableTaskBoxProps = {
   id: string
-  title: string | undefined        
+  title: string | undefined
   startHour: number
-  placementDate?: string | null        
+  placementDate?: string | null
   done?: boolean
   anchorDate: string
   onPress?: () => void
-  column: number | undefined         
-  totalColumns: number | undefined         
+  column: number | undefined
+  totalColumns: number | undefined
 }
 
 function DraggableTaskBox({
@@ -1895,38 +1901,38 @@ function DraggableTaskBox({
   }))
 
   // ⭐ Task Overlap 계산 (column/totalColumns을 화면 너비에 반영)
-const COLUMN_GAP = 4
-const LEFT_OFFSET = 50 + 18
-const RIGHT_OFFSET = 18
-const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
+  const COLUMN_GAP = 4
+  const LEFT_OFFSET = 50 + 18
+  const RIGHT_OFFSET = 18
+  const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
 
-const safeColumn = column ?? 0
-const safeTotalColumns = totalColumns ?? 1
+  const safeColumn = column ?? 0
+  const safeTotalColumns = totalColumns ?? 1
 
-const widthPercent = 1 / safeTotalColumns
-const boxWidth = usableWidth * widthPercent - COLUMN_GAP
-const left = LEFT_OFFSET + safeColumn * (usableWidth * widthPercent)
+  const widthPercent = 1 / safeTotalColumns
+  const boxWidth = usableWidth * widthPercent - COLUMN_GAP
+  const left = LEFT_OFFSET + safeColumn * (usableWidth * widthPercent)
 
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
-  style={[
-  {
-    position: 'absolute',
-    left,
-    width: boxWidth,
-    height: ROW_H - 4,
-    backgroundColor: '#FFFFFF80',
-    borderWidth: 0.4,
-    borderColor: '#333333',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  style,
-]}
+        style={[
+          {
+            position: 'absolute',
+            left,
+            width: boxWidth,
+            height: ROW_H - 4,
+            backgroundColor: '#FFFFFF80',
+            borderWidth: 0.4,
+            borderColor: '#333333',
+            borderRadius: 10,
+            paddingHorizontal: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            zIndex: 20,
+          },
+          style,
+        ]}
       >
         {/* ✅ 체크박스 영역 */}
         <Pressable
@@ -2034,7 +2040,7 @@ function DraggableTaskGroupBox({
               placementTime: newTime,
               date: anchorDate,
             })
-          })
+          }),
         )
 
         // 캘린더 갱신 이벤트 (1번만)
@@ -2058,7 +2064,7 @@ function DraggableTaskGroupBox({
     .minDuration(250)
     .onStart(() => {
       runOnJS(triggerHaptic)()
-      runOnJS(setIsDraggingTask)(true)   // 드래그 시작 알림
+      runOnJS(setIsDraggingTask)(true) // 드래그 시작 알림
       dragEnabled.value = true
     })
 
@@ -2121,26 +2127,29 @@ function DraggableTaskGroupBox({
           style,
         ]}
       >
-<Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center' }}>
-  <View
-    style={{
-      width: 18,
-      height: 18,
-      borderWidth: 2,
-      borderRadius: 2, 
-      borderColor: '#333',
-      marginRight: 14,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#FFF', 
-    }}
-  />
-  <Text style={{ fontWeight: '700', fontSize: 13, color: '#9B4FFF' }}>
-    할 일이 있어요! ({count})
-  </Text>
-  <View style={{ flex: 1 }} />
-  <Text style={{ fontSize: 12 }}>▼</Text>
-</Pressable>
+        <Pressable
+          onPress={onPress}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
+        >
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderWidth: 2,
+              borderRadius: 2,
+              borderColor: '#333',
+              marginRight: 14,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: '#FFF',
+            }}
+          />
+          <Text style={{ fontWeight: '700', fontSize: 13, color: '#9B4FFF' }}>
+            할 일이 있어요! ({count})
+          </Text>
+          <View style={{ flex: 1 }} />
+          <Text style={{ fontSize: 12 }}>▼</Text>
+        </Pressable>
       </Animated.View>
     </GestureDetector>
   )

@@ -1557,9 +1557,12 @@ export default function WeekView() {
     (direction: string) => {
       const step = isZoomed ? 5 : 7
       const offset = direction === 'next' ? step : -step
-      setAnchorDate((prev) => addDays(prev, offset))
+
+      const nextDate = addDays(anchorDate, offset)
+
+      bus.emit('calendar:set-date', nextDate)
     },
-    [isZoomed],
+    [isZoomed, anchorDate],
   )
   const [weekDates, setWeekDates] = useState<string[]>([])
 
@@ -1944,6 +1947,8 @@ export default function WeekView() {
 
   useEffect(() => {
     const onReq = () => {
+      if (!isFocused) return
+
       bus.emit('calendar:state', {
         date: anchorDateRef.current,
         mode: 'week',
@@ -1955,6 +1960,7 @@ export default function WeekView() {
 
     // 다른 뷰(DayView)에서 날짜를 바꾸면 나도 조용히 업데이트
     const onState = (payload: any) => {
+      if (isFocused && payload.mode !== 'week') return
       if (payload.mode !== 'week' && payload.date) {
         setAnchorDate((prev) => (prev === payload.date ? prev : payload.date))
       }
@@ -1974,7 +1980,7 @@ export default function WeekView() {
       bus.off('calendar:state', onState)
       bus.off('calendar:set-date', onSet)
     }
-  }, [weekDates])
+  }, [weekDates, isFocused])
 
   useFocusEffect(
     useCallback(() => {
