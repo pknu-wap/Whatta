@@ -19,6 +19,7 @@ import { ScrollView } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
+import type { CreateEventPayload } from '@/api/event_api'
 
 
 interface OCREventEditCardProps {
@@ -29,13 +30,8 @@ interface OCREventEditCardProps {
   endTime?: string
   onClose: () => void
 
-  onSubmit: (data: {
-    title: string
-    date: string
-    startTime?: string
-    endTime?: string
-    memo?: string
-  }) => void
+onSubmit: (data: CreateEventPayload) => void
+
 }
 
 export default function OCREventEditCard({
@@ -260,6 +256,93 @@ const endLabel = (mode: 'none' | 'date', d: Date | null) => {
   return `${d.getMonth() + 1}월 ${d.getDate()}일`
 }
 
+// ⭐ 서버에 보낼 최종 payload 생성 함수
+const buildEventPayload = () => {
+  // 시간
+  const startHM = hasTime ? formatHM(startDate) + ':00' : null
+  const endHM   = hasTime ? formatHM(endDate) + ':00' : null
+
+  // 반복 옵션
+  let repeat: any = null
+
+  if (tab === '반복' && repeatMode !== 'none') {
+    if (repeatMode === 'daily') {
+      repeat = {
+        interval: 1,
+        unit: 'DAY',
+        on: [],
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    } else if (repeatMode === 'weekly') {
+      repeat = {
+        interval: 1,
+        unit: 'WEEK',
+        on: [ WEEKDAY[startDate.getDay()] ],
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    } else if (repeatMode === 'monthly') {
+      repeat = {
+        interval: 1,
+        unit: 'MONTH',
+        on:
+          monthlyOpt === 'byDate'
+            ? [String(startDate.getDate())]
+            : monthlyOpt === 'byNthWeekday'
+              ? [`${nth}-${startDate.getDay()}`]        // 예: "2-1"
+              : [`LAST-${startDate.getDay()}`],        // 예: "LAST-1"
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    } else if (repeatMode === 'custom') {
+      repeat = {
+        interval: repeatEvery,
+        unit: repeatUnit.toUpperCase(),  // DAY/WEEK/MONTH
+        on: [],
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    }
+  }
+
+  // 알림 옵션
+  let reminderNoti = { day: 0, hour: 0, minute: 0 }
+
+  if (remindOn) {
+    if (remindValue === '정시') {
+      reminderNoti = { day: 0, hour: 0, minute: 0 }
+    } else if (remindValue === '5분 전') {
+      reminderNoti = { day: 0, hour: 0, minute: 5 }
+    } else if (remindValue === '10분 전') {
+      reminderNoti = { day: 0, hour: 0, minute: 10 }
+    } else if (remindValue === '30분 전') {
+      reminderNoti = { day: 0, hour: 0, minute: 30 }
+    } else if (remindValue === '1시간 전') {
+      reminderNoti = { day: 0, hour: 1, minute: 0 }
+    } else if (remindValue === '맞춤 설정') {
+      reminderNoti = {
+        day: 0,
+        hour: customHour,
+        minute: customMinute,
+      }
+    }
+  }
+
+  return {
+    title: titleInput,
+    content: memo || '',
+    labels: selectedLabelIds,
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+    startTime: startHM,
+    endTime: endHM,
+    repeat,
+    colorKey: 'FFD966',
+    reminderNoti,
+  }
+}
+
 
   return (
     <View style={styles.card}>
@@ -269,20 +352,15 @@ const endLabel = (mode: 'none' | 'date', d: Date | null) => {
     <Xbutton width={12} height={12} color={'#808080'} />
   </Pressable>
 
-  <Pressable
-    onPress={() =>
-      onSubmit({
-        title: titleInput,
-        date: dateValue,
-        startTime: hasTime ? formatHM(startDate) : undefined,
-        endTime: hasTime ? formatHM(endDate) : undefined,
-        memo,
-      })
-    }
-    hitSlop={20}
-  >
-    <Check width={12} height={12} color={'#808080'} />
-  </Pressable>
+<Pressable
+  onPress={() => {
+    const payload = buildEventPayload()
+    onSubmit(payload)
+  }}
+  hitSlop={20}
+>
+  <Check width={12} height={12} color={'#808080'} />
+</Pressable>
 </View>
 
   {/* 내용 스크롤 가능 */}

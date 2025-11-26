@@ -256,6 +256,8 @@ export default function EventDetailPopup({
       Object.entries(obj).filter(([, v]) => v !== null && v !== undefined),
     ) as T
 
+  const [start, setStart] = useState(new Date())
+
   const buildBasePayload = () => {
     const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
     const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
@@ -279,44 +281,147 @@ export default function EventDetailPopup({
 
   const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
 
-  const buildRepeatPayload = () => {
-    // repeat 탭에서만 사용할 repeat payload 생성 함수
+  const buildRepeatPayload = (opts?: { includeExceptions?: boolean }) => {
+    const includeExceptions = opts?.includeExceptions ?? true
 
-    // repeatMode가 'custom'이면 unit/interval을 custom 피커값으로 결정
-    const interval = repeatMode === 'custom' ? repeatEvery : 1
-    const unit =
-      repeatMode === 'daily'
-        ? 'DAY'
-        : repeatMode === 'weekly'
-          ? 'WEEK'
-          : repeatMode === 'monthly'
-            ? 'MONTH'
-            : repeatUnit === 'day'
-              ? 'DAY'
-              : repeatUnit === 'week'
-                ? 'WEEK'
-                : 'MONTH'
+    // 1) interval / unit 결정
+    let interval: number
+    let unit: 'DAY' | 'WEEK' | 'MONTH'
 
-    // WEEK/MONTH일 때 on 값 계산
-    const on =
-      unit === 'WEEK'
-        ? [WEEKDAY_ENUM[start.getDay()]]
-        : unit === 'MONTH'
-          ? monthlyOpt === 'byDate'
-            ? null
-            : monthlyOpt === 'byNthWeekday'
-              ? [`${nth}${WEEKDAY_ENUM[start.getDay()]}`]
-              : [`LAST_${WEEKDAY_ENUM[start.getDay()]}`]
-          : null
+    if (repeatMode === 'custom') {
+      // 맞춤: 사용자가 선택한 숫자 + 단위 그대로 사용
+      interval = repeatEvery
+      unit = repeatUnit === 'day' ? 'DAY' : repeatUnit === 'week' ? 'WEEK' : 'MONTH'
+    } else {
+      // daily / weekly / monthly → 항상 interval = 1
+      interval = 1
+      unit = repeatMode === 'daily' ? 'DAY' : repeatMode === 'weekly' ? 'WEEK' : 'MONTH'
+    }
+
+    // 2) on 필드(WEEK / MONTH 전용)
+    let on: string[] | null = null
+
+    if (unit === 'WEEK') {
+      // 매주 / n주마다 요일
+      const wd = WEEKDAY_ENUM[start.getDay()] // 시작 날짜 기준 요일
+      on = [wd]
+    } else if (unit === 'MONTH') {
+      const wd = WEEKDAY_ENUM[start.getDay()]
+      const { nth } = getWeekIndexOfMonth(start)
+
+      if (monthlyOpt === 'byDate') {
+        // 매월 10일 처럼 "날짜 기준" → on = null
+        on = null
+      } else if (monthlyOpt === 'byNthWeekday') {
+        // 매월 2번째 수요일 → "2WED"
+        on = [`${nth}${wd}`]
+      } else {
+        // 매월 마지막주 수요일 → "LAST_WED"
+        on = [`LAST_${wd}`]
+      }
+    }
+
+    // 3) 종료일
+    const endDateStr =
+      endMode === 'date' && repeatEndDate ? ymdLocal(repeatEndDate) : null
+
+    // 4) exceptionDates
+    const exceptionDates =
+      includeExceptions && eventData?.repeat?.exceptionDates
+        ? eventData.repeat.exceptionDates
+        : undefined
 
     return stripNil({
       interval,
       unit,
       on,
-      endDate: endMode === 'date' && repeatEndDate ? ymdLocal(repeatEndDate) : null,
-      exceptionDates: eventData?.repeat?.exceptionDates ?? undefined,
+      endDate: endDateStr,
+      exceptionDates,
     })
   }
+
+  // 반복 설정 UI 초기화 (edit 모드에서만)
+  useEffect(() => {
+    if (!visible) return
+    if (mode !== 'edit') return
+    const r = eventData?.repeat
+    if (!r) return
+
+    let nextRepeatMode: RepeatMode = 'daily'
+    let nextRepeatEvery = 1
+    let nextRepeatUnit: RepeatUnit = 'day'
+    let nextMonthlyOpt: MonthlyOpt = 'byDate'
+
+    // 1) DAY
+    if (r.unit === 'DAY') {
+      if (r.interval === 1) {
+        nextRepeatMode = 'daily'
+      } else {
+        nextRepeatMode = 'custom'
+        nextRepeatEvery = r.interval
+        nextRepeatUnit = 'day'
+      }
+    }
+
+    // 2) WEEK
+    if (r.unit === 'WEEK') {
+      const wd = WEEKDAY_ENUM[start.getDay()]
+      const isSimpleWeekly =
+        r.interval === 1 && Array.isArray(r.on) && r.on.length === 1 && r.on[0] === wd
+
+      if (isSimpleWeekly) {
+        // "매주" 패턴
+        nextRepeatMode = 'weekly'
+      } else {
+        // 그 외는 "맞춤 설정 - 주"로 처리
+        nextRepeatMode = 'custom'
+        nextRepeatEvery = r.interval
+        nextRepeatUnit = 'week'
+      }
+    }
+
+    // 3) MONTH
+    if (r.unit === 'MONTH') {
+      if (!r.on || r.on.length === 0) {
+        // on 없음 → "매월 ○일"
+        nextRepeatMode = 'monthly'
+        nextMonthlyOpt = 'byDate'
+      } else {
+        const token = r.on[0] // 예: "2WED" 또는 "LAST_WED"
+        if (token.startsWith('LAST_')) {
+          nextRepeatMode = 'monthly'
+          nextMonthlyOpt = 'byLastWeekday'
+        } else {
+          const nthStr = token[0] // 맨 앞 글자만 숫자로 가정 (2WED)
+          const nthNum = Number(nthStr)
+          if (!Number.isNaN(nthNum)) {
+            nextRepeatMode = 'monthly'
+            nextMonthlyOpt = 'byNthWeekday'
+          } else {
+            // 이상한 패턴 → 맞춤 설정 - 월
+            nextRepeatMode = 'custom'
+            nextRepeatEvery = r.interval
+            nextRepeatUnit = 'month'
+          }
+        }
+      }
+    }
+
+    setRepeatMode(nextRepeatMode)
+    setRepeatEvery(nextRepeatEvery)
+    setRepeatUnit(nextRepeatUnit)
+    setMonthlyOpt(nextMonthlyOpt)
+
+    // 종료일
+    if (r.endDate) {
+      const [y, m, d] = r.endDate.split('-').map(Number)
+      setRepeatEndDate(new Date(y, m - 1, d))
+      setEndMode('date')
+    } else {
+      setRepeatEndDate(null)
+      setEndMode('none')
+    }
+  }, [visible, mode, eventData, start])
 
   const closeAll = () => {
     setOpenCalendar(false)
@@ -435,7 +540,6 @@ export default function EventDetailPopup({
   const [currentEventId] = useState<string | null>(eventId)
 
   /** 날짜 & 시간 */
-  const [start, setStart] = useState(new Date())
   const [end, setEnd] = useState(new Date())
 
   /** 토글 상태 */
@@ -523,7 +627,12 @@ export default function EventDetailPopup({
         },
       })
 
-      // 2) 수정된 내용을 가진 단일 일정 생성
+      // 2) 수정된 내용을 가진 단일 일정 생성 (repeat: null)
+      if (!timeOn) {
+        payload.startTime = null
+        payload.endTime = null
+      }
+
       const createPayload = {
         ...payload,
         repeat: null,
@@ -553,6 +662,7 @@ export default function EventDetailPopup({
   }
 
   // 반복 일정 수정 – "이후 일정 모두"
+  // 반복 일정 수정 – "이후 일정 모두"
   const saveRepeatApplyAll = async () => {
     if (!eventId || !eventData?.repeat) {
       await saveNormal()
@@ -563,15 +673,15 @@ export default function EventDetailPopup({
       const { payload, colorHex } = buildBasePayload()
       const occDate = payload.startDate as string // yyyy-MM-dd
 
+      // 1) 기존 반복 일정 끝을 "전날"로 자르기
       const d = new Date(
         Number(occDate.slice(0, 4)),
         Number(occDate.slice(5, 7)) - 1,
         Number(occDate.slice(8, 10)),
       )
       d.setDate(d.getDate() - 1)
-      const prevDay = ymdLocal(d) // 전날
+      const prevDay = ymdLocal(d)
 
-      // 1) 기존 반복 일정 끝을 "전날"로 자르기
       await http.patch(`/event/${eventId}`, {
         repeat: {
           ...eventData.repeat,
@@ -579,10 +689,18 @@ export default function EventDetailPopup({
         },
       })
 
-      // 2) 수정된 내용 + 원래 repeat로 새 일정 생성 (이후 구간)
+      // 2) 새 반복 설정(현재 UI 기준)을 적용한 새로운 반복 일정 생성
+      const newRepeat = buildRepeatPayload({ includeExceptions: false })
+
+      // 시간 토글에 따라 시간 필드 정리
+      if (!timeOn) {
+        payload.startTime = null
+        payload.endTime = null
+      }
+
       const createPayload: any = {
         ...payload,
-        repeat: eventData.repeat, // 서버 스키마에 맞게 조정
+        repeat: newRepeat,
       }
 
       const resNew = await http.post('/event', createPayload)
@@ -609,10 +727,11 @@ export default function EventDetailPopup({
   }
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
+  // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
-    //반복모드 저장
+    // 1) 반복 탭 저장
     if (activeTab === 'repeat') {
-      // 편집 모드 + 반복 일정인 경우만 분기
+      // 편집 모드 + 기존에 repeat 있는 일정 → 분기(이 일정만 / 이후 모두)
       if (mode === 'edit' && eventData?.repeat != null) {
         Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
           { text: '취소', style: 'cancel' },
@@ -632,12 +751,24 @@ export default function EventDetailPopup({
         return
       }
 
+      // (1) 기본 payload + 컬러
       const { payload, colorHex } = buildBasePayload()
       const repeatPayload = buildRepeatPayload()
 
-      const finalPayload = {
+      // (2) 시간 토글에 따라 시간 필드 / fieldsToClear 정리
+      const fieldsToClear: string[] = []
+      if (!timeOn) {
+        fieldsToClear.push('startTime', 'endTime')
+        payload.startTime = null
+        payload.endTime = null
+      }
+
+      const finalPayload: any = {
         ...payload,
         repeat: repeatPayload,
+      }
+      if (fieldsToClear.length > 0) {
+        finalPayload.fieldsToClear = fieldsToClear
       }
 
       try {
@@ -672,7 +803,7 @@ export default function EventDetailPopup({
       return
     }
 
-    // 일반 일정 / 생성 모드 → 기존 로직
+    // 2) 일반 일정 저장(기존 로직 유지)
     await saveNormal()
   }
 
@@ -891,53 +1022,78 @@ export default function EventDetailPopup({
       throw err
     }
   }
-
   useEffect(() => {
+    if (mode !== 'edit' || !eventId) return
+
     async function fetchEventDetail() {
-      if (mode !== 'edit' || !eventId) return
       try {
         const res = await http.get(`/event/${eventId}`)
         const ev = res.data.data
         if (!ev) return
 
-        // 날짜만 있는 ISO는 Date 생성 없이 value만 들고 있음
-        const rawStartDate = ev.startDate
-        const rawEndDate = ev.endDate
+        const rawStartDate = ev.startDate // 원본 시작일 (YYYY-MM-DD)
+        const rawEndDate = ev.endDate // 원본 종료일 (YYYY-MM-DD)
 
-        let hasTime = Boolean(ev.startTime || ev.endTime)
+        // 1) 원본 기준으로 "며칠짜리 일정인지" 계산
+        const [y1, m1, d1] = rawStartDate.split('-').map(Number)
+        const [y2, m2, d2] = rawEndDate.split('-').map(Number)
+        const baseStartOnly = new Date(y1, m1 - 1, d1)
+        const baseEndOnly = new Date(y2, m2 - 1, d2)
+        const DAY_MS = 24 * 60 * 60 * 1000
+        const durationDays = Math.max(
+          Math.round((baseEndOnly.getTime() - baseStartOnly.getTime()) / DAY_MS),
+          0,
+        )
+
+        // 2) 팝업에서 "보여줄" 시작 날짜(발생일 우선)
+        const effectiveStartYmd =
+          initial?.startDate && initial.startDate !== rawStartDate
+            ? initial.startDate // DayView / WeekView 에서 넘긴 발생일
+            : rawStartDate // 없으면 원본 시작일
+
+        const [ey, em, ed] = effectiveStartYmd.split('-').map(Number)
+        const hasTime = Boolean(ev.startTime || ev.endTime)
 
         if (!hasTime) {
-          // 시간 없는 일정 → UI에서 시간 관련 전체 비노출
+          // ⓐ 시간 없는 일정 → 날짜만, 발생일 기준으로 span 유지
           setTimeOn(false)
 
-          // 날짜만 세팅 (Date 객체로 만들 필요도 없음)
-          const [y1, m1, d1] = rawStartDate.split('-').map(Number)
-          const [y2, m2, d2] = rawEndDate.split('-').map(Number)
+          const occStart = new Date(ey, em - 1, ed)
+          const occEnd = new Date(occStart)
+          occEnd.setDate(occEnd.getDate() + durationDays)
 
-          setStart(new Date(y1, m1 - 1, d1))
-          setEnd(new Date(y2, m2 - 1, d2))
+          setStart(occStart)
+          setEnd(occEnd)
         } else {
-          // 시간 있는 일정 → 날짜 + 시간 반영
-          const [y1, m1, d1] = rawStartDate.split('-').map(Number)
-          const startDate = new Date(y1, m1 - 1, d1)
+          // ⓑ 시간 있는 일정 → 원본 "시작/종료 시각 차이" 유지해서 발생일로 이동
 
-          const [y2, m2, d2] = rawEndDate.split('-').map(Number)
-          const endDate = new Date(y2, m2 - 1, d2)
-
+          // 원본 시작/종료 Date (날짜+시간)
+          const baseStart = new Date(y1, m1 - 1, d1)
           if (ev.startTime) {
-            const [h, mm] = ev.startTime.split(':').map(Number)
-            startDate.setHours(h)
-            startDate.setMinutes(mm)
+            const [sh, sm] = ev.startTime.split(':').map(Number)
+            baseStart.setHours(sh, sm, 0, 0)
           }
+
+          const baseEnd = new Date(y2, m2 - 1, d2)
           if (ev.endTime) {
-            const [h, mm] = ev.endTime.split(':').map(Number)
-            endDate.setHours(h)
-            endDate.setMinutes(mm)
+            const [eh, em2] = ev.endTime.split(':').map(Number)
+            baseEnd.setHours(eh, em2, 0, 0)
           }
+
+          const spanMs = Math.max(baseEnd.getTime() - baseStart.getTime(), 0)
+
+          // 발생일 기준 시작 시각
+          const occStart = new Date(ey, em - 1, ed)
+          if (ev.startTime) {
+            const [sh, sm] = ev.startTime.split(':').map(Number)
+            occStart.setHours(sh, sm, 0, 0)
+          }
+
+          const occEnd = new Date(occStart.getTime() + spanMs)
 
           setTimeOn(true)
-          setStart(startDate)
-          setEnd(endDate)
+          setStart(occStart)
+          setEnd(occEnd)
         }
 
         setScheduleTitle(ev.title ?? '')
@@ -951,7 +1107,7 @@ export default function EventDetailPopup({
     }
 
     fetchEventDetail()
-  }, [mode, eventId])
+  }, [mode, eventId, initial]) // ← initial도 dependency에 추가
 
   const isMultiDaySpan = React.useMemo(() => {
     if (!start || !end) return false

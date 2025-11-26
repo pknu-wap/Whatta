@@ -977,17 +977,20 @@ type SelectedDayData = {
     return () => bus.off('calendar:set-date', onSetDate)
   }, [])
 
-  useEffect(() => {
-    if (!ym) return
-    bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  }, [ym])
+  // (2) ym이 확정되면 → 모두에게 현재 상태 방송 + API 조회
+  // useEffect(() => {
+  //   if (!ym) return
+  //   // 방송만 유지: 헤더/모달 동기화
+  //   bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+  // }, [ym])
 
-  useEffect(() => {
-    const reply = () =>
-      bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-    bus.on('calendar:request-sync', reply)
-    return () => bus.off('calendar:request-sync', reply)
-  }, [ym])
+  // // (3) 다른 컴포넌트가 현재 상태를 물으면 즉시 회신
+  // useEffect(() => {
+  //   const reply = () =>
+  //     bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
+  //   bus.on('calendar:request-sync', reply)
+  //   return () => bus.off('calendar:request-sync', reply)
+  // }, [ym])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1127,47 +1130,58 @@ function classifyEventForMonthDetail(ev: MonthDetailEvent): "span" | "single" {
   return "single"
 }
 
-const handleDatePress = async (dateItem: CalendarDateItem) => {
-  if (!dateItem.isCurrentMonth) return
+    const d = dateItem.fullDate
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    setFocusedDateISO(isoDate)
+    bus.emit('calendar:set-date', isoDate)
 
-  const d = dateItem.fullDate
-  setFocusedDateISO(
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-      d.getDate(),
-    ).padStart(2, '0')}`,
-  )
-
-  // 1) 상세 조회로 시간 정보 보강
-  const enriched = await Promise.all(
-    (dateItem.schedules as ExtendedScheduleDataWithColor[]).map(async (s) => {
-      if (!s.id) return s as MonthDetailEvent
-      try {
-        const res = await http.get(`/event/${s.id}`)
-        const detail = res.data?.data ?? {}
-        const startDate = (detail.startDate ?? detail.date ?? s.multiDayStart ?? s.date)?.slice(0, 10)
-        const endDate = (detail.endDate ?? detail.date ?? s.multiDayEnd ?? s.date)?.slice(0, 10)
-
-        const startTime =
-  detail.startTime ??
-  (detail.startAt ? String(detail.startAt).split('T')[1]?.slice(0, 8) : undefined)
-
-const endTime =
-  detail.endTime ??
-  (detail.endAt ? String(detail.endAt).split('T')[1]?.slice(0, 8) : undefined)
-
+    setSelectedDayData({
+      date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+      spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter((s) => s.multiDayStart && s.multiDayEnd)
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#8B5CF6'
+          return {
+            title: s.name,
+            period: `${s.multiDayStart}~${s.multiDayEnd}`,
+            colorKey: s.colorKey,
+            color: baseColor,
+          }
+        }),
+      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#F4EAFF'
+          return {
+            title: s.name,
+            memo: s.memo ?? '',
+            color: baseColor,
+          }
+        }),
+      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+        const baseColor = t.colorKey
+          ? t.colorKey.startsWith('#')
+            ? t.colorKey
+            : `#${t.colorKey}`
+          : '#FFD966'
         return {
-          ...s,
-          startDate,
-          endDate,
-          startTime,
-          endTime,
-        } as MonthDetailEvent
-      } catch (e) {
-        console.warn('MonthView: failed to load event detail', s.id, e)
-        return s as MonthDetailEvent
-      }
-    }),
-  )
+          title: t.name,
+          place: t.place ?? '',
+          time: t.time ?? '',
+          color: baseColor,
+          borderColor: baseColor,
+        }
+      }),
+    })
 
   // 2) 분류
   const classified = enriched.map((s) => ({
@@ -1778,7 +1792,7 @@ const S = StyleSheet.create({
   dayCellFixed: { width: cellWidth, alignItems: 'center' },
   dayTextBase: { textAlign: 'center', color: '#333', fontWeight: '600', fontSize: 15 },
   sunText: { color: 'red' },
-  satText: { color: 'blue' },
+  satText: { color: '#000000' },
 
   calendarGrid: {},
   weekRow: {
@@ -1830,7 +1844,7 @@ const S = StyleSheet.create({
   todayRing: { borderWidth: 1.0, borderColor: '#CCCCCC', zIndex: 0 },
 
   sunDate: { color: 'red' },
-  satDate: { color: 'blue' },
+  satDate: { color: '#000000' },
   otherMonthDateText: { color: 'gray' },
   otherMonthSunDate: { color: '#F0A0A0' },
   otherMonthSatDate: { color: '#A0A0FF' },
