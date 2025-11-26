@@ -26,9 +26,23 @@ public class ScheduleBlockDetector {
     }
 
     private DetectedBlock detectColoredBoxes (Mat bgrImage) {
+        Mat gray = new Mat();
+        cvtColor(bgrImage, gray, COLOR_BGR2GRAY);
+        Scalar gMean = mean(gray);
+        boolean darkMode = gMean.get(0) < 70; //평균 밝기가 낮으면 다크모드로 간주
+
+        //다크모드라면 전체 이미지를 반전해서, 흰 배경 기준으로 처리
+        Mat workBgr = new Mat();
+        if (darkMode) {
+            bitwise_not(bgrImage, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
+        } else {
+            workBgr = bgrImage.clone();
+        }
+        gray.release();
+
         //살짝 블러 (문자/격자 얇은 라인 완화)
         Mat smooth = new Mat();
-        GaussianBlur(bgrImage, smooth, new Size(3, 3), 0);
+        GaussianBlur(workBgr, smooth, new Size(3, 3), 0);
 
         //HSV로 변환
         Mat hsv = new Mat();
@@ -43,17 +57,10 @@ public class ScheduleBlockDetector {
         Mat sMask = new Mat();
         threshold(S, sMask, 0, 255, THRESH_BINARY | THRESH_OTSU);
 
-        //V 채널 조건부 하한 (다크모드면 비활성화)
-        Scalar vMean = mean(V); //평균값을 반환
-        boolean darkMode = vMean.get(0) < 70; //평균 밝기가 낮으면 다크모드로 판단
-
+        //V 채널 하한
         Mat vMask = new Mat();
-        if (darkMode) {
-            vMask = Mat.ones(V.size(), CV_8U).asMat(); //V 필터 비활성화(모두 통과)
-        } else {
-            double vOtsu = threshold(V, new Mat(), 0, 255, THRESH_BINARY | THRESH_OTSU);
-            threshold(V, vMask, Math.max(80, vOtsu * 0.7), 255, THRESH_BINARY);
-        }
+        double vOtsu = threshold(V, new Mat(), 0, 255, THRESH_BINARY | THRESH_OTSU);
+        threshold(V, vMask, Math.max(80, vOtsu * 0.7), 255, THRESH_BINARY);
 
         //최종 마스크 S + V
         Mat mask = new Mat();
@@ -69,6 +76,7 @@ public class ScheduleBlockDetector {
         smooth.release(); hsv.release();
         S.release(); V.release();
         sMask.release(); vMask.release(); mask.release();
+        workBgr.release();
 
         return ScheduleBlockMapper.toDetectedBlock(bgrImage.size(), blocks);
     }

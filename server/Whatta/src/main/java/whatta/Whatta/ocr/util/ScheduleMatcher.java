@@ -13,9 +13,14 @@ import java.util.stream.Collectors;
 public class ScheduleMatcher {
 
     public static List<MatchedScheduleBlock> matchAll(DetectedBlock blocks, List<OcrText> ocrTexts) {
+        int[] gridRange = computeGridYRange(blocks);
+        int gridTopY = gridRange[0];
+        int gridBottomY = gridRange[1];
+
         //x, y축 앵커 수집
         Map<String, Integer> weekDayX = extractWeekdayAnchors(ocrTexts);
-        NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts);
+        NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY);
+        System.out.println("[hourAnchors] " + hourY);
 
         final int headerBandMaxY = computeHeaderBandMaxY(ocrTexts, 80);
 
@@ -65,6 +70,11 @@ public class ScheduleMatcher {
         if (t == null || t.text() == null) return false;
         String raw = t.text().trim();
         if (raw.isEmpty()) return false;
+
+        //헤더 밴드 위에 있는 텍스트는 모두 무시
+        if (headerBandMaxY != Integer.MIN_VALUE && t.bottomY() <= headerBandMaxY) {
+            return false;
+        }
 
         //헤더 밴드에 있는 것만 축 라벨로 보고 제거
         if (WEEKDAY.matcher(raw).matches() && t.topY() <= headerBandMaxY) {
@@ -135,17 +145,68 @@ public class ScheduleMatcher {
         return anchors;
     }
 
-    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts) {
+    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts, int gridTopY, int gridBottomY) {
 
         List<int[]> candidates = new ArrayList<>();
         for (OcrText text : texts) {
             String t = text.text().trim();
+            int y = text.topY();
+
+            if (y < gridTopY) {
+                continue;
+            }
+            if (y > gridBottomY) {
+                continue;
+            }
+
             if (HOUR.matcher(t).matches()) {
                 int hour = Integer.parseInt(t);
-                candidates.add(new int[]{hour, text.topY()});
+                candidates.add(new int[]{hour, y});
             }
         }
         candidates.sort(Comparator.comparingInt(o->o[1]));
+
+        if (candidates.size() >= 3) { //y축 앵커 후보 중 격자 밖 제거
+            List<Integer> ys = new ArrayList<>();
+            for (int[] c : candidates) ys.add(c[1]);
+
+            List<Integer> diffs = new ArrayList<>();
+            for (int i = 0; i < ys.size() - 1; i++) {
+                int d = ys.get(i + 1) - ys.get(i);
+                if (d > 0) diffs.add(d);
+            }
+
+            if (!diffs.isEmpty()) {
+                Collections.sort(diffs);
+                int median = diffs.get(diffs.size() / 2);
+                double maxGap = median * 1.4; //격자 간격보다 너무 큰 간격은 그리드 밖으로 간주
+
+                //상단 쪽 아웃라이어 제거
+                while (candidates.size() >= 3) {
+                    ys.clear();
+                    for (int[] c : candidates) ys.add(c[1]);
+                    int gapTop = ys.get(1) - ys.get(0);
+                    if (gapTop > maxGap) {
+                        candidates.remove(0); //최상단 쓸모없는 앵커 제거
+                    } else {
+                        break;
+                    }
+                }
+
+                //하단 쪽 아웃라이어 제거
+                while (candidates.size() >= 3) {
+                    ys.clear();
+                    for (int[] c : candidates) ys.add(c[1]);
+                    int n = ys.size();
+                    int gapBottom = ys.get(n - 1) - ys.get(n - 2);
+                    if (gapBottom > maxGap) {
+                        candidates.remove(candidates.size() - 1); //최하단 쓸모없는 앵커 제거
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
 
         //y 순서대로 24시간으로 보정
         int offset = 0;
@@ -215,4 +276,24 @@ public class ScheduleMatcher {
         return koToEn(best);
     }
 
+    private static int[] computeGridYRange(DetectedBlock blocks) {
+        var list = blocks.blocks();
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
+
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+
+        for (var b : list) {
+            Rect r = Rect.fromBlock(b);
+            if (r.top < minY) minY = r.top;
+            if (r.bottom > maxY) maxY = r.bottom;
+        }
+
+        int height = maxY - minY;
+        int margin = Math.max(10, (int)(height * 0.05));
+
+        return new int[]{minY - margin, maxY + margin};
+    }
 }
