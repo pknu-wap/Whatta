@@ -39,7 +39,7 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
-import type { OCREvent } from '@/screens/More/OcrEventCardSlider'
+import type { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
@@ -169,7 +169,7 @@ let draggingEventId: string | null = null
 export default function DayView() {
   // OCR 카드
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+  const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
 
   // 📌 이미지 추가 모달 열기
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
@@ -212,7 +212,7 @@ export default function DayView() {
             endTime: ev.endTime ?? '',
           }
         })
-        .sort((a: OCREvent, b: OCREvent) => a.date.localeCompare(b.date))
+        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
 
       setOcrEvents(parsed)
       setOcrModalVisible(true)
@@ -1277,6 +1277,10 @@ export default function DayView() {
           events={ocrEvents}
           onClose={() => setOcrModalVisible(false)}
           onAddEvent={(ev) => {}}
+          onSaveAll={async () => {
+    await fetchDailyEvents(anchorDate); 
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) });
+  }}
         />
       </ScreenWithSidebar>
     </GestureHandlerRootView>

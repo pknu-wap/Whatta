@@ -50,7 +50,7 @@ import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import AddImageSheet from '@/screens/More/Ocr'
-import OCREventCardSlider, { OCREvent } from '@/screens/More/OcrEventCardSlider'
+import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 
 /* -------------------------------------------------------------------------- */
 /* Axios 설정 */
