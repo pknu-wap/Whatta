@@ -1079,63 +1079,105 @@ export default function MonthView() {
   }
 
   const handleDatePress = (dateItem: CalendarDateItem) => {
-    if (!dateItem.isCurrentMonth) return
+  if (!dateItem.isCurrentMonth) return;
 
-    const d = dateItem.fullDate
-    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    setFocusedDateISO(isoDate)
-    bus.emit('calendar:set-date', isoDate)
+  const d = dateItem.fullDate;
+  const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
+  setFocusedDateISO(isoDate);
+  bus.emit("calendar:set-date", isoDate);
 
-    setSelectedDayData({
-      date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
-      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
-      spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => s.multiDayStart && s.multiDayEnd)
-        .map((s) => {
-          const baseColor = s.colorKey
-            ? s.colorKey.startsWith('#')
-              ? s.colorKey
-              : `#${s.colorKey}`
-            : '#8B5CF6'
-          return {
-            title: s.name,
-            period: `${s.multiDayStart}~${s.multiDayEnd}`,
-            colorKey: s.colorKey,
-            color: baseColor,
-          }
-        }),
-      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
-        .map((s) => {
-          const baseColor = s.colorKey
-            ? s.colorKey.startsWith('#')
-              ? s.colorKey
-              : `#${s.colorKey}`
-            : '#F4EAFF'
-          return {
-            title: s.name,
-            memo: s.memo ?? '',
-            color: baseColor,
-          }
-        }),
-      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
-        const baseColor = t.colorKey
-          ? t.colorKey.startsWith('#')
-            ? t.colorKey
-            : `#${t.colorKey}`
-          : '#FFD966'
+  // ------------------------------------------------------------
+  // 📌 MonthDetailPopup 에 전달할 때만 span 변환
+  // ------------------------------------------------------------
+  const convertForPopup = (item: any) => {
+    const hasTime =
+      !!item.startTime ||
+      !!item.endTime ||
+      !!item.start_at ||
+      !!item.end_at ||
+      !!item.time;
+
+    const start = item.startDate ?? item.date;
+    const end = item.endDate ?? item.date;
+
+    // 조건: 하루짜리 + 시간 없음 → spanEvent 로 분류
+    if (!hasTime && start && end && start.slice(0, 10) === end.slice(0, 10)) {
+      return {
+        ...item,
+        multiDayStart: start.slice(0, 10),
+        multiDayEnd: end.slice(0, 10),
+        isSpan: true,
+      };
+    }
+
+    return item;
+  };
+
+  // 날짜 기준으로 popup 데이터 생성 + 변환 적용
+  const extendedSchedules = (dateItem.schedules as ExtendedScheduleDataWithColor[]).map(
+    convertForPopup
+  );
+  const extendedTasks = (dateItem.tasks as ExtendedScheduleDataWithColor[]);
+
+  setSelectedDayData({
+    date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+    dayOfWeek: ["일", "월", "화", "수", "목", "금", "토"][d.getDay()],
+
+    // span + 변환된 span
+    spanEvents: extendedSchedules
+      .filter((s) => s.multiDayStart && s.multiDayEnd)
+      .map((s) => {
+        const baseColor = s.colorKey
+          ? s.colorKey.startsWith("#")
+            ? s.colorKey
+            : `#${s.colorKey}`
+          : "#8B5CF6";
         return {
-          title: t.name,
-          place: t.place ?? '',
-          time: t.time ?? '',
+          title: s.name,
+          period: `${s.multiDayStart}~${s.multiDayEnd}`,
+          colorKey: s.colorKey,
           color: baseColor,
-          borderColor: baseColor,
-        }
+        };
       }),
-    })
 
-    setPopupVisible(true)
-  }
+    // 단일 일정 (시간 없는 일정이 span 변환됨 → 여기서 제외됨)
+    normalEvents: extendedSchedules
+      .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+      .map((s) => {
+        const baseColor = s.colorKey
+          ? s.colorKey.startsWith("#")
+            ? s.colorKey
+            : `#${s.colorKey}`
+          : "#F4EAFF";
+        return {
+          title: s.name,
+          memo: s.memo ?? "",
+          color: baseColor,
+        };
+      }),
+
+    // timeEvents 는 그대로 유지
+    timeEvents: extendedTasks.map((t) => {
+      const baseColor = t.colorKey
+        ? t.colorKey.startsWith("#")
+          ? t.colorKey
+          : `#${t.colorKey}`
+        : "#FFD966";
+      return {
+        title: t.name,
+        place: t.place ?? "",
+        time: t.time ?? "",
+        color: baseColor,
+        borderColor: baseColor,
+      };
+    }),
+  });
+
+  setPopupVisible(true);
+};
 
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
 
