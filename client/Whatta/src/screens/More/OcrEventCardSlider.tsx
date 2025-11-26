@@ -5,6 +5,13 @@ import colors from '@/styles/colors'
 import { createEvent, CreateEventPayload } from '@/api/event_api'
 import { getMyLabels, createLabel } from '@/api/label_api'
 
+import Animated, {
+  useSharedValue,
+  withTiming,
+  useAnimatedStyle,
+  runOnJS,
+} from 'react-native-reanimated'
+
 export interface OCREventDisplay {
   id: string
   title: string
@@ -121,6 +128,62 @@ export default function OCREventCardSlider({
     }
   }
 
+  const handleRemoveCard = (id: string) => {
+  setEditedEvents(prev => prev.filter(ev => ev.id !== id))
+}
+
+useEffect(() => {
+  if (editedEvents.length === 0) onClose()
+}, [editedEvents])
+
+const AnimatedCard = ({
+  children,
+  isLast,
+  itemWidth,
+  spacing,
+  onRemove,
+  id,
+}: {
+  children: (animateRemove: () => void) => React.ReactNode
+  isLast: boolean
+  itemWidth: number
+  spacing: number
+  onRemove: (id: string) => void
+  id: string
+}) => {
+
+  const translateY = useSharedValue(0)
+  const opacity = useSharedValue(1)
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }))
+
+  const animateRemove = () => {
+    translateY.value = withTiming(-40, { duration: 250 })
+    opacity.value = withTiming(0, { duration: 250 }, (finished) => {
+      if (finished) {
+        runOnJS(onRemove)(id)
+      }
+    })
+  }
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: itemWidth,
+          marginRight: isLast ? 0 : spacing,
+        },
+        animStyle,
+      ]}
+    >
+      {children(animateRemove)}
+    </Animated.View>
+  )
+}
+
   return (
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.overlay}>
@@ -135,41 +198,42 @@ export default function OCREventCardSlider({
             snapToInterval={ITEM_WIDTH + SPACING}
             ListHeaderComponent={<View style={{ width: SIDE_PADDING }} />}
             ListFooterComponent={<View style={{ width: SIDE_PADDING }} />}
-            renderItem={({ item, index }) => {
-              const isLast = index === editedEvents.length - 1
 
-              return (
-                <View
-                  style={{
-                    width: ITEM_WIDTH,
-                    marginRight: isLast ? 0 : SPACING,
-                  }}
-                >
-                  <OCREventCard
-                    title={item.title}
-                    date={item.startDate}
-                    week={undefined}
-                    startTime={item.startTime?.slice(0, 5)}
-                    endTime={item.endTime?.slice(0, 5)}
-                    
+renderItem={({ item, index }) => {
+  const isLast = index === editedEvents.length - 1
 
-                    onSubmit={(finalPayload) => {
-                      setEditedEvents(prev =>
-                        prev.map(ev =>
-                          ev.id === item.id
-                            ? { ...ev, ...finalPayload, repeat: ev.repeat }
-                            : ev
-                        )
-                      )
+  return (
+    <AnimatedCard
+      id={item.id}
+      isLast={isLast}
+      itemWidth={ITEM_WIDTH}
+      spacing={SPACING}
+      onRemove={handleRemoveCard}
+    >
+      {(animateRemove) => (
+        <OCREventCard
+          title={item.title}
+          date={item.startDate}
+          startTime={item.startTime?.slice(0, 5)}
+          endTime={item.endTime?.slice(0, 5)}
 
-                      onAddEvent({ ...finalPayload, repeat: item.repeat })
-                    }}
-
-                    onClose={onClose}
-                  />
-                </View>
+          onSubmit={(finalPayload) => {
+            setEditedEvents(prev =>
+              prev.map(ev =>
+                ev.id === item.id
+                  ? { ...ev, ...finalPayload, repeat: ev.repeat }
+                  : ev
               )
-            }}
+            )
+            onAddEvent({ ...finalPayload, repeat: item.repeat })
+          }}
+
+          onClose={animateRemove}
+        />
+      )}
+    </AnimatedCard>
+  )
+}}
           />
 
           <Pressable style={styles.saveAllBtn} onPress={handleSaveAll}>
