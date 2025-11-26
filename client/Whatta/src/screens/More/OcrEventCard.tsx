@@ -472,8 +472,8 @@ return (
     }}
     hitSlop={20}
     style={{
-      width: 32,
-      height: 32,
+      width: 24,
+      height: 24,
       borderRadius: 16,
       backgroundColor: selectedColor,
       marginLeft: 12,
