@@ -114,7 +114,7 @@ export default function OCREventCardSlider({
 
       onSaveAll?.()
       onClose()
-      Alert.alert('성공', '모든 일정이 저장되었습니다.')
+      
     } catch (err) {
       console.error(err)
       Alert.alert('오류', '일정 저장 중 오류가 발생했습니다.')
