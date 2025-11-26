@@ -1345,7 +1345,7 @@ function DraggableFlexalbeEvent({
     })
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
-  const displayColor = isRepeat ? `${safeColor}33` : safeColor    //반복일정 투명도
+  const displayColor = isRepeat ? `${safeColor}40` : safeColor    //반복일정 투명도
   const colGap = 0.5
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
