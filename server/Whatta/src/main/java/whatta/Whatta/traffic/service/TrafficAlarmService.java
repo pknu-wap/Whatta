@@ -12,6 +12,7 @@ import whatta.Whatta.traffic.payload.response.TrafficAlarmResponse;
 import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
 import whatta.Whatta.traffic.repository.BusItemRepository;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,13 +29,15 @@ public class TrafficAlarmService {
     public TrafficAlarmResponse createAlarm(String userId, TrafficAlarmCreateRequest request) {
         validateTrafficItems(userId, request.targetItemIds( ));
 
+        boolean shouldRepeat = (request.days() != null && !request.days().isEmpty());
+
         TrafficAlarm alarm = TrafficAlarm.builder()
                 .userId(userId)
                 .alarmTime(request.alarmTime())
-                .days(request.days())
+                .days(request.days() != null ? request.days() : new HashSet<>())
                 .targetItemIds(request.targetItemIds())
                 .isEnabled(true)
-                .isRepeatEnabled(false)
+                .isRepeatEnabled(shouldRepeat)
                 .build();
 
         TrafficAlarm savedAlarm = alarmRepository.save(alarm);
@@ -53,7 +56,12 @@ public class TrafficAlarmService {
         TrafficAlarm.TrafficAlarmBuilder builder = originalAlarm.toBuilder();
 
         if (request.getAlarmTime() != null) builder.alarmTime(request.getAlarmTime());
-        if (request.getDays() != null) builder.days(request.getDays());
+        if (request.getDays() != null) {
+            builder.days(request.getDays());
+            //day값이 없을경우 클라이언트의 명시적 요청보다 우선되어 반복 off
+            boolean shouldRepeat = !request.getDays().isEmpty();
+            builder.isRepeatEnabled(shouldRepeat);
+        }
         if (request.getIsEnabled() != null) builder.isEnabled(request.getIsEnabled());
         if (request.getIsRepeatEnabled() != null) builder.isRepeatEnabled(request.getIsRepeatEnabled());
         if (request.getTargetItemIds() != null) builder.targetItemIds(request.getTargetItemIds());
