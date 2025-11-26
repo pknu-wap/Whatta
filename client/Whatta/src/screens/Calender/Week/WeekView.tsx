@@ -1345,7 +1345,7 @@ function DraggableFlexalbeEvent({
     })
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
-  const displayColor = isRepeat ? `${safeColor}26` : safeColor    //반복일정 투명도
+  const displayColor = isRepeat ? `${safeColor}33` : safeColor    //반복일정 투명도
   const colGap = 0.5
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
@@ -2634,8 +2634,8 @@ export default function WeekView() {
 
                             <Text
                               style={[S.taskTitle, s.done && S.taskTitleDone]}
-                              numberOfLines={1}
-                              ellipsizeMode="clip"
+                              numberOfLines={3}
+                              ellipsizeMode="tail"
                             >
                               {s.title}
                             </Text>
@@ -2732,7 +2732,7 @@ export default function WeekView() {
 
                             <Text
                               style={{
-                                color: isSingleDay ? '#FFFFFF' : '#000000',
+                                color: isSingleDay ? '#000000' : '#000000',
                                 fontWeight: '700',
                                 fontSize: 12,
                                 maxWidth: '90%',
@@ -3223,7 +3223,7 @@ const S = StyleSheet.create({
     elevation: 0,
   },
   eventTitle: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontWeight: '700',
     fontSize: 10,
     lineHeight: 12,
@@ -3293,7 +3293,7 @@ const S = StyleSheet.create({
     fontWeight: '600',
     fontSize: 10,
     lineHeight: 13,
-    flexShrink: 0,
+    flexShrink: 1,
     flexGrow: 0,
     flexWrap: 'wrap',
   },
