@@ -14,7 +14,6 @@ import whatta.Whatta.traffic.repository.BusItemRepository;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -58,13 +57,18 @@ public class TrafficAlarmService {
         if (request.getAlarmTime() != null) builder.alarmTime(request.getAlarmTime());
         if (request.getDays() != null) {
             builder.days(request.getDays());
-            //day값이 없을경우 클라이언트의 명시적 요청보다 우선되어 반복 off
             boolean shouldRepeat = !request.getDays().isEmpty();
             builder.isRepeatEnabled(shouldRepeat);
         }
         if (request.getIsEnabled() != null) builder.isEnabled(request.getIsEnabled());
         if (request.getIsRepeatEnabled() != null) builder.isRepeatEnabled(request.getIsRepeatEnabled());
         if (request.getTargetItemIds() != null) builder.targetItemIds(request.getTargetItemIds());
+
+        //요일값이 없을경우 클라이언트의 명시적 요청보다 우선되어 반복 off
+        TrafficAlarm temp = builder.build();
+        if (temp.getDays() == null || temp.getDays().isEmpty()) {
+            builder.isRepeatEnabled(false);
+        }
 
         TrafficAlarm updatedAlarm = builder.build();
         TrafficAlarm savedAlarm = alarmRepository.save(updatedAlarm);
