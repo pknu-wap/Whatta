@@ -1078,7 +1078,7 @@ export default function MonthView() {
     colorKey?: string
   }
 
-  const handleDatePress = (dateItem: CalendarDateItem) => {
+  const handleDatePress = async (dateItem: CalendarDateItem) => {
   if (!dateItem.isCurrentMonth) return;
 
   const d = dateItem.fullDate;
@@ -1086,98 +1086,136 @@ export default function MonthView() {
     2,
     "0"
   )}-${String(d.getDate()).padStart(2, "0")}`;
+
   setFocusedDateISO(isoDate);
   bus.emit("calendar:set-date", isoDate);
 
   // ------------------------------------------------------------
-  // 📌 MonthDetailPopup 에 전달할 때만 span 변환
+  // 1) 상세 API 호출하여 startDate/startTime/endDate/endTime 보정
   // ------------------------------------------------------------
-  const convertForPopup = (item: any) => {
-    const hasTime =
-      !!item.startTime ||
-      !!item.endTime ||
-      !!item.start_at ||
-      !!item.end_at ||
-      !!item.time;
+  const schedulesRaw = dateItem.schedules as any[];
+  const tasksRaw = dateItem.tasks as any[];
 
-    const start = item.startDate ?? item.date;
-    const end = item.endDate ?? item.date;
+  // 이벤트 상세 API 호출 (시간 정보 확보)
+  const enriched = await Promise.all(
+    schedulesRaw.map(async (s) => {
+      try {
+        const res = await http.get(`/event/${s.id}`);
+        const detail = res.data?.data ?? {};
 
-    // 조건: 하루짜리 + 시간 없음 → spanEvent 로 분류
-    if (!hasTime && start && end && start.slice(0, 10) === end.slice(0, 10)) {
-      return {
-        ...item,
-        multiDayStart: start.slice(0, 10),
-        multiDayEnd: end.slice(0, 10),
-        isSpan: true,
-      };
-    }
+        const startDate = detail.startDate?.slice(0, 10) ?? s.startDate ?? s.date;
+        const endDate = detail.endDate?.slice(0, 10) ?? s.endDate ?? s.date;
 
-    return item;
+        const startTime =
+          detail.startTime ??
+          detail.startAt ??
+          detail.start_at ??
+          null;
+        const endTime =
+          detail.endTime ??
+          detail.endAt ??
+          detail.end_at ??
+          null;
+
+        return {
+          ...s,
+          startDate,
+          endDate,
+          startTime,
+          endTime,
+        };
+      } catch (e) {
+        return {
+          ...s,
+          startDate: s.startDate ?? s.date,
+          endDate: s.endDate ?? s.date,
+          startTime: null,
+          endTime: null,
+        };
+      }
+    })
+  );
+
+  // 테스크는 task API가 이미 시간 정보를 포함하고 있음
+  const enrichedTasks = tasksRaw.map((t) => ({
+    ...t,
+    startTime: t.placementTime ?? null,
+    endTime: t.placementTime ?? null,
+    startDate: t.placementDate ?? t.date,
+    endDate: t.placementDate ?? t.date,
+  }));
+
+  // ------------------------------------------------------------
+  // 2) MonthDetailPopup 전용 분류 함수
+  // ------------------------------------------------------------
+  const classifyForPopup = (ev: any) => {
+    const startDate = ev.startDate;
+    const endDate = ev.endDate;
+    const hasTime = !!ev.startTime || !!ev.endTime;
+    const isSingleDay = startDate === endDate;
+
+    // ① 여러날짜 → span
+    if (!isSingleDay) return "span";
+
+    // ② 하루짜리 + 시간 없음 → span
+    if (isSingleDay && !hasTime) return "span";
+
+    // ③ 하루짜리 + 시간 있음 → 단일 (시간표)
+    return "single";
   };
 
-  // 날짜 기준으로 popup 데이터 생성 + 변환 적용
-  const extendedSchedules = (dateItem.schedules as ExtendedScheduleDataWithColor[]).map(
-    convertForPopup
-  );
-  const extendedTasks = (dateItem.tasks as ExtendedScheduleDataWithColor[]);
+  // 3) 분류 적용
+  const spanEvents = enriched.filter((ev) => classifyForPopup(ev) === "span");
+  const normalEvents = enriched.filter((ev) => classifyForPopup(ev) === "single" && !ev.isTask);
+  const timeEvents = enrichedTasks.map((t) => ({
+    ...t,
+    time: t.startTime ?? "",
+  }));
 
+  // ------------------------------------------------------------
+  // 4) MonthDetailPopup 으로 전달
+  // ------------------------------------------------------------
   setSelectedDayData({
     date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
     dayOfWeek: ["일", "월", "화", "수", "목", "금", "토"][d.getDay()],
 
-    // span + 변환된 span
-    spanEvents: extendedSchedules
-      .filter((s) => s.multiDayStart && s.multiDayEnd)
-      .map((s) => {
-        const baseColor = s.colorKey
-          ? s.colorKey.startsWith("#")
-            ? s.colorKey
-            : `#${s.colorKey}`
-          : "#8B5CF6";
-        return {
-          title: s.name,
-          period: `${s.multiDayStart}~${s.multiDayEnd}`,
-          colorKey: s.colorKey,
-          color: baseColor,
-        };
-      }),
+    // span 일정
+    spanEvents: spanEvents.map((s) => {
+      const color = s.colorKey ? (s.colorKey.startsWith("#") ? s.colorKey : `#${s.colorKey}`) : "#8B5CF6";
+      return {
+        title: s.name,
+        period: `${s.startDate}~${s.endDate}`,
+        colorKey: s.colorKey,
+        color,
+      };
+    }),
 
-    // 단일 일정 (시간 없는 일정이 span 변환됨 → 여기서 제외됨)
-    normalEvents: extendedSchedules
-      .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
-      .map((s) => {
-        const baseColor = s.colorKey
-          ? s.colorKey.startsWith("#")
-            ? s.colorKey
-            : `#${s.colorKey}`
-          : "#F4EAFF";
-        return {
-          title: s.name,
-          memo: s.memo ?? "",
-          color: baseColor,
-        };
-      }),
+    // 하루짜리 시간있는 단일 일정
+    normalEvents: normalEvents.map((s) => {
+      const color = s.colorKey ? (s.colorKey.startsWith("#") ? s.colorKey : `#${s.colorKey}`) : "#F4EAFF";
+      return {
+        title: s.name,
+        memo: s.memo ?? "",
+        color,
+      };
+    }),
 
-    // timeEvents 는 그대로 유지
-    timeEvents: extendedTasks.map((t) => {
-      const baseColor = t.colorKey
-        ? t.colorKey.startsWith("#")
-          ? t.colorKey
-          : `#${t.colorKey}`
-        : "#FFD966";
+    // 시간 기반 일정(timeEvents)
+    timeEvents: timeEvents.map((t) => {
+      const color = t.colorKey ? (t.colorKey.startsWith("#") ? t.colorKey : `#${t.colorKey}`) : "#FFD966";
       return {
         title: t.name,
         place: t.place ?? "",
         time: t.time ?? "",
-        color: baseColor,
-        borderColor: baseColor,
+        color,
+        borderColor: color,
       };
     }),
   });
 
   setPopupVisible(true);
 };
+
 
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
 

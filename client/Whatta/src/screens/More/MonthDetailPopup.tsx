@@ -179,11 +179,21 @@ export default function MonthlyDetailPopup({
                     const isEnd = currentDate === endKorean
 
                     // ✅ 마진 조건
-                    const marginStyle = isStart
-                      ? { marginLeft: 24, marginRight: 0 }
-                      : isEnd
-                        ? { marginLeft: 0, marginRight: 24 }
-                        : { marginLeft: 0, marginRight: 0 }
+                   let marginStyle = { marginLeft: 0, marginRight: 0 }
+
+                    // 하루짜리 span 일정 → 양쪽 24px
+                    if (isStart && isEnd) {
+                      marginStyle = { marginLeft: 24, marginRight: 24 }
+                    }
+                    // 시작일
+                    else if (isStart) {
+                      marginStyle = { marginLeft: 24, marginRight: 0 }
+                    }
+                    // 종료일
+                    else if (isEnd) {
+                      marginStyle = { marginLeft: 0, marginRight: 24 }
+                    }
+
 
                     const rawColor = t.colorKey || t.color
                     const formatted = rawColor
