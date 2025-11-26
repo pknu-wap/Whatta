@@ -31,7 +31,7 @@ public class TrafficAlarmScheduler {
         DayOfWeek today = LocalDate.now().getDayOfWeek();
 
         //지정된 시간과 날짜에 켜져있는 알림만 DB에서 조회
-        List<TrafficAlarm> targets = alarmRepository.findByAlarmTimeAndDaysContainingAndIsEnabledTrue(now, today);
+        List<TrafficAlarm> targets = alarmRepository.findAlarmsToNotify(now, today);
 
         if (targets.isEmpty()) {
             log.debug("해당 시간에 울릴 교통 알림 없음.");
