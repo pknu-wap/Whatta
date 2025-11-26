@@ -1639,7 +1639,7 @@ const S = StyleSheet.create({
   dayCellFixed: { width: cellWidth, alignItems: 'center' },
   dayTextBase: { textAlign: 'center', color: '#333', fontWeight: '600', fontSize: 15 },
   sunText: { color: 'red' },
-  satText: { color: 'blue' },
+  satText: { color: '#000000' },
 
   calendarGrid: {},
   weekRow: {
@@ -1691,7 +1691,7 @@ const S = StyleSheet.create({
   todayRing: { borderWidth: 1.0, borderColor: '#CCCCCC', zIndex: 0 },
 
   sunDate: { color: 'red' },
-  satDate: { color: 'blue' },
+  satDate: { color: '#000000' },
   otherMonthDateText: { color: 'gray' },
   otherMonthSunDate: { color: '#F0A0A0' },
   otherMonthSatDate: { color: '#A0A0FF' },
