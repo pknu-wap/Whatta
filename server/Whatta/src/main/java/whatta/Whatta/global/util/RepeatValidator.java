@@ -1,4 +1,4 @@
-package whatta.Whatta.global.validator;
+package whatta.Whatta.global.util;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
@@ -18,24 +18,24 @@ public class RepeatValidator implements ConstraintValidator<ValidRepeat, RepeatR
     public boolean isValid(RepeatRequest repeatRequest, ConstraintValidatorContext constraintValidatorContext) {
         if(repeatRequest == null) { return true; }
 
-        switch (repeatRequest.getUnit()) {
+        switch (repeatRequest.unit()) {
             case DAY:
-                if(repeatRequest.getOn() != null && !repeatRequest.getOn().isEmpty())
+                if(repeatRequest.on() != null && !repeatRequest.on().isEmpty())
                     return false;
                 return true;
             case WEEK:
-                if(repeatRequest.getOn() == null || repeatRequest.getOn().isEmpty())
+                if(repeatRequest.on() == null || repeatRequest.on().isEmpty())
                     return false;
-                for(String token : repeatRequest.getOn()) {
+                for(String token : repeatRequest.on()) {
                     if(token == null || !WEEK_DAY.matcher(token).matches()) {
                         return false;
                     }
                 }
                 return true;
             case MONTH:
-                if(repeatRequest.getOn() == null || repeatRequest.getOn().size() != 1)
+                if(repeatRequest.on() == null || repeatRequest.on().size() != 1)
                     return false;
-                String token = repeatRequest.getOn().get(0);
+                String token = repeatRequest.on().get(0);
                 if (token == null) return false;
                 if(!(MONTH_DAY.matcher(token).matches()
                 || MONTH_NTH.matcher(token).matches()

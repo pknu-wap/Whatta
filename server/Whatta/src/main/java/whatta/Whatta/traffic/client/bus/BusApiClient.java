@@ -50,6 +50,8 @@ public class BusApiClient {
                 .queryParam("gpsLati", gpsLati)
                 .queryParam("gpsLong", gpsLong)
                 .queryParam("_type", "json")
+                .queryParam("pageNo", 1)
+                .queryParam("numOfRows", 999)
                 .build(true)
                 .toUri();
 
@@ -68,6 +70,8 @@ public class BusApiClient {
                 .queryParam("cityCode", cityCode)
                 .queryParam("nodeNm", encodedKeyword)
                 .queryParam("_type", "json")
+                .queryParam("pageNo", 1)
+                .queryParam("numOfRows", 999)
                 .build(true)
                 .toUri();
 
@@ -81,8 +85,10 @@ public class BusApiClient {
                 .fromUriString(stationBaseUrl + operationPath)
                 .queryParam("serviceKey", serviceKey)
                 .queryParam("cityCode", cityCode)
-                .queryParam("nodeId", nodeId)
+                .queryParam("nodeid", nodeId)
                 .queryParam("_type", "json")
+                .queryParam("pageNo", 1)
+                .queryParam("numOfRows", 999)
                 .build(true)
                 .toUri();
 
@@ -99,6 +105,8 @@ public class BusApiClient {
                 .queryParam("cityCode", cityCode)
                 .queryParam("nodeId", nodeId)
                 .queryParam("_type", "json")
+                .queryParam("pageNo", 1)
+                .queryParam("numOfRows", 999)
                 .build(true)
                 .toUri();
 
@@ -118,6 +126,8 @@ public class BusApiClient {
                 .queryParam("nodeId", nodeId)
                 .queryParam("routeId", routeId)
                 .queryParam("_type", "json")
+                .queryParam("pageNo", 1)
+                .queryParam("numOfRows", 999)
                 .build(true)
                 .toUri();
 

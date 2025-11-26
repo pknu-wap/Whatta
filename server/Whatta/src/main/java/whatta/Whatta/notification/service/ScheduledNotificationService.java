@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
+
 @Service
 @AllArgsConstructor
 public class ScheduledNotificationService {
@@ -70,8 +72,8 @@ public class ScheduledNotificationService {
             return;
         }
 
-        //알림 시각 계산
-        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), task.getRepeat(), task.getReminderNotiAt());
+        //알림 시각 계산 ** 임시로 task 반복 x **
+        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), null, task.getReminderNotiAt());
 
         if(triggerAt == null) { return;}
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
@@ -116,23 +118,6 @@ public class ScheduledNotificationService {
                 .minusDays(offset.day())
                 .minusHours(offset.hour())
                 .minusMinutes(offset.minute());
-    }
-    private LocalDateTime findNextOccurrenceStartAfter(LocalDateTime startAt, Repeat repeat, LocalDateTime from) {
-        RepeatUnit unit = repeat.getUnit();
-        int interval = repeat.getInterval();
-        LocalDate endDate = repeat.getEndDate();
-        LocalTime startTime = startAt.toLocalTime();
-
-        switch (unit) { // 수정
-            case DAY:
-                return RepeatUtil.findNextDaily(startAt.toLocalDate(), startTime, interval, endDate, from);
-            case WEEK:
-                return RepeatUtil.findNextWeekly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
-            case MONTH:
-                return RepeatUtil.findNextMonthly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
-            default:
-                throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
-        }
     }
 
     //지금 시각 기준으로 울려야 하는 리마인드 알림들 조회

@@ -9,21 +9,21 @@ import whatta.Whatta.global.repeat.RepeatUnit;
 import java.time.LocalDate;
 import java.util.List;
 
-@Getter
-@NoArgsConstructor
 @ValidRepeat
-public class RepeatRequest {
-    private int interval;
-    private RepeatUnit unit;
-    private List<String> on;
-    private LocalDate endDate;
-
+public record RepeatRequest (
+    int interval,
+    RepeatUnit unit,
+    List<String> on,
+    LocalDate endDate,
+    List<LocalDate> exceptionDates
+){
     public Repeat toEntity() { //변환로직은 추후에 서비스로 이동
         return Repeat.builder()
                 .interval(interval)
                 .unit(unit)
                 .on(on)
-                .endDate(endDate)
+                .endDate((endDate == null)? LocalDate.of(2999, 12, 31) : endDate)
+                .exceptionDates(exceptionDates)
                 .build();
     }
 }

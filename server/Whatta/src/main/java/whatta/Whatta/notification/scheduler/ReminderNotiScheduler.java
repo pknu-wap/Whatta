@@ -27,7 +27,7 @@ public class ReminderNotiScheduler {
     private final EventRepository eventRepository;
     private final TaskRepository taskRepository;
 
-    @Scheduled(fixedRate = 60 * 1000) //1분마다
+    @Scheduled(cron = "0 * * * * *") //1분마다
     public void sendReminder() {
         LocalDateTime now = LocalDateTime.now();
         //log.info("localDateTime: {}", now);
