@@ -31,6 +31,7 @@ interface OCREventEditCardProps {
   endTime?: string
   onClose: () => void
   isFromOCR?: boolean
+  colorKey?: string
 
 onSubmit: (data: CreateEventPayload) => void
 
@@ -44,7 +45,46 @@ export default function OCREventEditCard({
   endTime,
   onSubmit,
   onClose,
+  colorKey,
 }: OCREventEditCardProps) {
+
+  // ⭐ 색상 선택 state
+const [selectedColor, setSelectedColor] = useState(colorKey ? `#${colorKey}` : '#FFD966')
+
+useEffect(() => {
+  if (colorKey) {
+    setSelectedColor(`#${colorKey}`)
+  }
+}, [colorKey])
+
+// 팝오버 관련 ref/state
+const colorBtnRef = React.useRef<View>(null)
+const cardRef = React.useRef<View>(null)
+
+const [palette, setPalette] = useState({
+  visible: false,
+  x: 0,
+  y: 0,
+})
+
+// 팝오버 UI 옵션 (EventDetailPopup 그대로)
+const POPOVER_W = 105
+const POP_GAP = 8
+const RIGHT_ALIGN = true
+const NUDGE_X = -5
+const NUDGE_Y = -10
+
+const COLORS = [
+  '#B04FFF',
+  '#FF4F4F',
+  '#FF8A66',
+  '#FFD966',
+  '#75FF66',
+  '#4FCAFF',
+  '#584FFF',
+  '#FF4FF0',
+]
+
   // 제목/메모
   const [titleInput, setTitleInput] = useState(title)
   const [memo, setMemo] = useState('')
@@ -340,7 +380,7 @@ const buildEventPayload = () => {
     startTime: startHM,
     endTime: endHM,
     repeat,
-    colorKey: 'FFD966',
+    colorKey: selectedColor.replace('#', '').toUpperCase(),
     reminderNoti,
   }
 }
@@ -377,8 +417,8 @@ useEffect(() => {
 }, [labels])
 
 
-  return (
-    <View style={styles.card}>
+return (
+  <View style={styles.card} ref={cardRef}>
 {/* HEADER */}
 <View style={styles.header}>
   <Pressable onPress={onClose} hitSlop={20}>
@@ -402,14 +442,44 @@ useEffect(() => {
     contentContainerStyle={{ paddingBottom: 40 }}
   >
 
-{/* 제목 입력 */}
-<TextInput
-  style={styles.titleInput}
-  value={titleInput}
-  onChangeText={setTitleInput}
-  placeholder="제목"
-  placeholderTextColor="#b5b5b5"
-/>
+<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+  <TextInput
+    style={[styles.titleInput, { flex: 1 }]}
+    value={titleInput}
+    onChangeText={setTitleInput}
+    placeholder="제목"
+    placeholderTextColor="#b5b5b5"
+  />
+
+  <Pressable
+    ref={colorBtnRef}
+    onPress={() => {
+      colorBtnRef.current?.measureInWindow((bx, by, bw, bh) => {
+        cardRef.current?.measureInWindow((cx, cy) => {
+          const relX = bx - cx
+          const relY = by - cy
+
+          const left = relX + bw - POPOVER_W
+          const top = relY + bh + POP_GAP
+
+          setPalette({
+            visible: true,
+            x: left + NUDGE_X,
+            y: top + NUDGE_Y,
+          })
+        })
+      })
+    }}
+    hitSlop={20}
+    style={{
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: selectedColor,
+      marginLeft: 12,
+    }}
+  />
+</View>
 
       {/* 탭 */}
       <View style={styles.tabRow}>
@@ -1369,6 +1439,62 @@ labelBtnRef.current?.measureInWindow?.(
           onChangeText={setMemo}
         />
       </View>
+      {/* 색상 팝오버 */}
+{palette.visible && (
+  <>
+    {/* backdrop */}
+    <Pressable
+      style={StyleSheet.absoluteFill}
+      onPress={() => setPalette((p) => ({ ...p, visible: false }))}
+    />
+
+    <View
+      style={{
+        position: 'absolute',
+        top: palette.y,
+        left: palette.x - 15,
+        width: POPOVER_W,
+        backgroundColor: '#fff',
+        borderRadius: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        shadowColor: '#00000040',
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 12 },
+        zIndex: 999,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 13,
+          color: '#888',
+          fontWeight: '600',
+          marginBottom: 8,
+        }}
+      >
+        색상
+      </Text>
+
+      {COLORS.map((c) => (
+        <Pressable
+          key={c}
+          onPress={() => {
+            setSelectedColor(c)
+            setPalette((p) => ({ ...p, visible: false }))
+          }}
+          style={{
+          width: 73,
+            height: 24,
+            borderRadius: 10,
+            backgroundColor: c,
+            marginBottom: 10,
+          }}
+        />
+      ))}
+    </View>
+  </>
+)}
       </ScrollView>
     </View>
   )
@@ -1384,15 +1510,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  titleInput: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#222',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ececec',
-    paddingBottom: 8,
-    marginBottom: 16,
-  },
+titleInput: {
+  flex: 1,
+  fontSize: 20,
+  fontWeight: '700',
+  color: '#222',
+  borderBottomWidth: 1,
+  borderBottomColor: '#ececec',
+  paddingVertical: 10, 
+},
 
   tabRow: {
     flexDirection: 'row',

@@ -114,7 +114,7 @@ export default function OCREventCardSlider({
 
       onSaveAll?.()
       onClose()
-      
+
     } catch (err) {
       console.error(err)
       Alert.alert('오류', '일정 저장 중 오류가 발생했습니다.')
@@ -151,6 +151,7 @@ export default function OCREventCardSlider({
                     week={undefined}
                     startTime={item.startTime?.slice(0, 5)}
                     endTime={item.endTime?.slice(0, 5)}
+                    
 
                     onSubmit={(finalPayload) => {
                       setEditedEvents(prev =>
