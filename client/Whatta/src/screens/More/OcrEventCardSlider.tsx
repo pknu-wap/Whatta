@@ -63,7 +63,9 @@ const mapWeekDayToRepeat = (w?: string) => {
   // ⭐ editedEvents → 이제 서버에 보낼 수 있는 full payload 를 저장함
   const [editedEvents, setEditedEvents] = useState<
     (CreateEventPayload & { id: string })[]
-  >(
+  >([])
+   React.useEffect(() => { // ✅ 여기: events가 바뀔 때마다 동기화
+  setEditedEvents(
     events.map((ev) => ({
       id: ev.id,
       title: ev.title,
@@ -78,6 +80,7 @@ const mapWeekDayToRepeat = (w?: string) => {
       reminderNoti: { day: 0, hour: 0, minute: 0 },
     }))
   )
+}, [events]) // ✅ 여기: deps에 events 추가
 
   // ⭐ “모두 저장”
   const handleSaveAll = async () => {
