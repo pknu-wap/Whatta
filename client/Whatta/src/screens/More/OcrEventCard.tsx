@@ -1464,8 +1464,8 @@ labelBtnRef.current?.measureInWindow?.(
     <View
       style={{
         position: 'absolute',
-        top: palette.y,
-        left: palette.x - 15,
+        top: palette.y - 30,
+        left: palette.x - 5,
         width: POPOVER_W,
         backgroundColor: '#fff',
         borderRadius: 10,
