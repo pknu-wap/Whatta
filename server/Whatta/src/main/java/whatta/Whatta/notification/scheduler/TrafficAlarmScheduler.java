@@ -32,7 +32,7 @@ public class TrafficAlarmScheduler {
 
         //지정된 시간과 날짜에 켜져있는 알림만 DB에서 조회
         List<TrafficAlarm> targets = alarmRepository.findByAlarmTimeAndDaysContainingAndIsEnabledTrue(now, today);
-        List<TrafficAlarm> tmp = alarmRepository.findByAlarmTimeAndIsEnabledTrueAndDaysIsNull(now);
+        List<TrafficAlarm> tmp = alarmRepository.findOneTimeAlarms(now);
 
         targets.addAll(tmp);
 

@@ -1,6 +1,7 @@
 package whatta.Whatta.traffic.repository;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import whatta.Whatta.traffic.entity.BusItem;
 import whatta.Whatta.traffic.entity.TrafficAlarm;
 
@@ -16,5 +17,6 @@ public interface TrafficAlarmRepository extends MongoRepository<TrafficAlarm, St
     Optional<TrafficAlarm> findByIdAndUserId(String id, String userId);
 
     List<TrafficAlarm> findByAlarmTimeAndDaysContainingAndIsEnabledTrue(LocalTime alarmTime, DayOfWeek today);
-    List<TrafficAlarm> findByAlarmTimeAndIsEnabledTrueAndDaysIsNull(LocalTime alarmTime);
+    @Query("{ 'alarmTime': ?0, 'isEnabled': true, $or: [ { 'days': null }, { 'days': { $size: 0 } } ] }") // 수정
+    List<TrafficAlarm> findOneTimeAlarms(LocalTime alarmTime);
 }
