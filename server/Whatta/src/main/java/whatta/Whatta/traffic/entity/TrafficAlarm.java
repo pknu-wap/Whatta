@@ -40,4 +40,7 @@ public class TrafficAlarm {
     @Builder.Default
     private boolean isEnabled = true;
 
+    @Builder.Default
+    private boolean isRepeatEnabled = true;
+
 }

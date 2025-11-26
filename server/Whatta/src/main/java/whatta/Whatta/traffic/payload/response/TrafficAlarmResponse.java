@@ -14,7 +14,8 @@ public record TrafficAlarmResponse(
         LocalTime alarmTime,
         Set<DayOfWeek> days,
         List<String> targetItemIds,
-        boolean isEnabled
+        boolean isEnabled,
+        boolean isRepeatEnabled
 ) {
     public static TrafficAlarmResponse fromEntity(TrafficAlarm alarm) {
         return TrafficAlarmResponse.builder()
@@ -23,6 +24,7 @@ public record TrafficAlarmResponse(
                 .days(alarm.getDays())
                 .targetItemIds(alarm.getTargetItemIds())
                 .isEnabled(alarm.isEnabled())
+                .isRepeatEnabled(alarm.isRepeatEnabled())
                 .build();
     }
 }
