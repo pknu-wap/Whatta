@@ -14,6 +14,7 @@ import { ts } from '@/styles/typography'
 import { Easing } from 'react-native'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
+import { useNavigation } from '@react-navigation/native'
 
 const { width, height } = Dimensions.get('window')
 
@@ -39,6 +40,7 @@ interface MonthlyDetailPopupProps {
   onClose: () => void
   dayData: {
     date?: string
+    dateISO?: string
     dayOfWeek?: string
     spanEvents?: DayEvent[]
     normalEvents?: DayEvent[]
@@ -51,6 +53,7 @@ export default function MonthlyDetailPopup({
   onClose,
   dayData,
 }: MonthlyDetailPopupProps) {
+  const nav = useNavigation<any>()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.95)).current
   const [isVisible, setIsVisible] = React.useState(visible)
@@ -137,6 +140,13 @@ export default function MonthlyDetailPopup({
 
   if (!isVisible) return null
 
+  const handleHeaderDatePress = () => {
+    const iso = dayData.dateISO
+    if (!iso) return
+    nav.navigate('Day')
+    onClose()
+  }
+
   // ✅ ISO 시간 변환 함수
   const formatTimeRange = (startAt?: string, endAt?: string) => {
     if (!startAt || !endAt) return ''
@@ -158,9 +168,11 @@ export default function MonthlyDetailPopup({
             {/* Header */}
             <View style={S.header}>
               <View style={S.headerInner}>
-                <Text style={[S.headerText]}>
-                  {dayData.date} ({dayData.dayOfWeek})
-                </Text>
+                <Pressable onPress={handleHeaderDatePress}>
+                  <Text style={[S.headerText]}>
+                    {dayData.date} ({dayData.dayOfWeek})
+                  </Text>
+                </Pressable>
                 {/* 커스텀 X 아이콘 */}
                 <Pressable onPress={onClose} hitSlop={10} style={S.closeWrap}>
                   <View style={S.closeLine1} />
