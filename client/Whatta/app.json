@@ -4,47 +4,65 @@
     "slug": "Whatta",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/whatta.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "bundleIdentifier": "com.whatta.whatta",
-      "buildNumber": "4",
-      "updates": { "enabled": false },
+      "buildNumber": "6",
       "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+
       "infoPlist": {
-        "NSCalendarsUsageDescription": "캘린더 일정을 표시하기 위해 사용합니다.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+
+        "NSCameraUsageDescription": "사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
+        "NSPhotoLibraryUsageDescription": "사진을 불러오기 위해 사진 앨범 접근 권한이 필요합니다.",
+        "NSPhotoLibraryAddUsageDescription": "사진을 저장하기 위해 앨범 접근 권한이 필요합니다."
       }
     },
+
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/whatta_logo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.whatta.whatta"
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-font", "expo-secure-store"],
+
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "15.1",
+            "flipper": false,
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+          }
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
+    ],
+
     "extra": {
       "eas": {
-        "projectId": "b9f60a36-178c-4e7d-a143-d6ee718eb26d"
+        "projectId": "b895d0bb-969a-4bbe-bb79-27d84e2c27a7"
       }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/b9f60a36-178c-4e7d-a143-d6ee718eb26d"
     }
   }
 }

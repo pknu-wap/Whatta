@@ -1,36 +1,96 @@
 import 'react-native-gesture-handler'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { StyleSheet, ActivityIndicator, View, Text } from 'react-native'
-import React, { createContext, useState, useCallback, useEffect } from 'react'
+import { ActivityIndicator, View, Text, StyleSheet, Animated, StatusBar } from 'react-native'
+import React, { useState, useEffect, useRef } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import RootStack from '@/navigation/RootStack'
 import { ensureAuthReady } from '@/app/bootstrap'
+import { DrawerProvider } from '@/providers/DrawerProvider'
+import { LabelProvider } from '@/providers/LabelProvider'
+import { LabelFilterProvider } from '@/providers/LabelFilterProvider'
+import messaging from '@react-native-firebase/messaging'
+import CustomSplash from '@/screens/CustomSplash'
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 
-// ✅ 라벨 타입
-export interface LabelItem {
-  id: string
-  name: string
-  color: string
-  enabled: boolean
+// 포그라운드 메시지 핸들러
+// messaging().onMessage(async (remoteMessage) => {
+//   console.log('Foreground Message received:', remoteMessage)
+//   Alert.alert('[FCM] Foreground Message received:', JSON.stringify(remoteMessage))
+// })
+
+function ForegroundBanner({
+  message,
+  onHide,
+  topInset,
+}: {
+  message: { title: string; body: string } | null
+  onHide: () => void
+  topInset: number
+}) {
+  const translateY = useRef(new Animated.Value(-120)).current 
+
+  useEffect(() => {
+    if (!message) return
+
+    Animated.sequence([
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.delay(3000),
+      Animated.timing(translateY, {
+        toValue: -100,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onHide()
+    })
+  }, [message, onHide, translateY])
+
+  if (!message) return null
+
+  return (
+    <Animated.View
+      style={[
+        S.banner,
+        {
+          top: topInset + 6, // 다이나믹 아일랜드/노치 아래로 내림
+          transform: [{ translateY }],
+        },
+      ]}
+    >
+      <Text style={S.title}>{message.title}</Text>
+      {!!message.body && <Text style={S.body}>{message.body}</Text>}
+    </Animated.View>
+  )
 }
 
-interface FilterContextType {
-  labels: LabelItem[]
-  toggleLabel: (id: string) => void
-  toggleAll: () => void
+function ForegroundBannerHost({
+  message,
+  onHide,
+}: {
+  message: { title: string; body: string } | null
+  onHide: () => void
+}) {
+  const insets = useSafeAreaInsets()
+  return (
+    <ForegroundBanner
+      message={message}
+      onHide={onHide}
+      topInset={insets.top}
+    />
+  )
 }
-
-// ✅ 전역 라벨 컨텍스트
-export const FilterContext = createContext<FilterContextType>({
-  labels: [],
-  toggleLabel: () => {},
-  toggleAll: () => {},
-})
 
 export default function App() {
+  
   const [ready, setReady] = useState(false)
+  const [splashDone, setSplashDone] = useState(false)
 
-  // ✅ 앱 시작 시 게스트 로그인 / 인증 준비
+  const [fgMsg, setFgMsg] = useState<{ title: string; body: string } | null>(null)
+
   useEffect(() => {
     ;(async () => {
       try {
@@ -41,42 +101,101 @@ export default function App() {
     })()
   }, [])
 
-  // ✅ 라벨 상태 (시간표 제거됨)
-  const [labels, setLabels] = useState<LabelItem[]>([
-    { id: '1', name: '과제', color: '#B04FFF', enabled: true },
-    { id: '3', name: '약속', color: '#B04FFF', enabled: true },
-    { id: '4', name: '동아리', color: '#B04FFF', enabled: true },
-    { id: '5', name: '수업', color: '#B04FFF', enabled: true },
-  ])
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+      console.log('Foreground Message received:', remoteMessage)
 
-  // ✅ 개별 토글
-  const toggleLabel = useCallback((id: string) => {
-    setLabels((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, enabled: !l.enabled } : l)),
-    )
+      const toStr = (v: unknown): string | undefined => {
+        if (v == null) return undefined
+        if (typeof v === 'string') return v
+        try {
+          return JSON.stringify(v)
+        } catch {
+          return String(v)
+        }
+      }
+
+      const title =
+        remoteMessage.notification?.title ||
+        toStr(remoteMessage.data?.title) ||
+        '알림'
+
+      const body =
+        remoteMessage.notification?.body ||
+        toStr(remoteMessage.data?.body) ||
+        ''
+
+      setFgMsg({ title, body })
+    })
+
+    return unsubscribe
   }, [])
 
-  // ✅ 전체 on/off
-  const toggleAll = useCallback(() => {
-    const allOn = labels.every((l) => l.enabled)
-    setLabels((prev) => prev.map((l) => ({ ...l, enabled: !allOn })))
-  }, [labels])
-
-  if (!ready) {
+  if (!ready || !splashDone) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <CustomSplash onFinish={() => setSplashDone(true)} />
+      </GestureHandlerRootView>
     )
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <FilterContext.Provider value={{ labels, toggleLabel, toggleAll }}>
-        <NavigationContainer>
-          <RootStack />
-        </NavigationContainer>
-      </FilterContext.Provider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider> 
+      {/* ✅ [수정] SafeAreaProvider로 전체 감싸기 */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {/* ✅ [수정] ForegroundBanner 직접 호출 대신 Host 사용 */}
+        <ForegroundBannerHost 
+          message={fgMsg}
+          onHide={() => setFgMsg(null)}
+        />
+
+        <LabelProvider>
+          <LabelFilterProvider>
+            <DrawerProvider>
+              <NavigationContainer>
+                <RootStack />
+              </NavigationContainer>
+            </DrawerProvider>
+          </LabelFilterProvider>
+        </LabelProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   )
 }
+
+const S = StyleSheet.create({
+  banner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+
+    marginHorizontal: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,                          
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+
+    elevation: 6,
+    zIndex: 9999,
+  },
+
+  title: {
+    color: '#111111',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  body: {
+    color: '#444444',
+    fontSize: 13,
+    marginTop: 3,
+  },
+})

@@ -4,7 +4,7 @@ import { refreshTokens, guestLogin } from '@/api/auth'
 import { getInstallationId } from '@/lib/uuid'
 
 export const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app',
+  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
 })
 
 http.interceptors.request.use((config) => {
