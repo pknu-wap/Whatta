@@ -281,6 +281,68 @@ function groupTasksByOverlap(tasks: DayViewTask[]) {
 }
 
 export default function DayView() {
+
+  function getLabelName(labelId?: number) {
+  if (!labelId) return ''
+  const found = labelList.find((l) => l.id === labelId)
+  return found ? found.title : ''
+}
+
+  function computeEventOverlap(events: any[]) {
+  // startMin, endMin을 가진 이벤트 배열을 받는다고 가정
+
+  const sorted = [...events].sort(
+    (a, b) => a.startMin - b.startMin || a.endMin - b.endMin
+  )
+
+  let group: any[] = []
+  let groupEnd = -1
+  const result: any[] = []
+
+  const flush = () => {
+    if (!group.length) return
+    const columns: any[][] = []
+
+    group.forEach((ev) => {
+      let placed = false
+      for (let i = 0; i < columns.length; i++) {
+        const last = columns[i][columns[i].length - 1]
+        if (last.endMin <= ev.startMin) {
+          columns[i].push(ev)
+          ev._column = i
+          placed = true
+          break
+        }
+      }
+      if (!placed) {
+        columns.push([ev])
+        ev._column = columns.length - 1
+      }
+    })
+
+    group.forEach((ev) => {
+      ev._totalColumns = columns.length
+      result.push(ev)
+    })
+
+    group = []
+  }
+
+  for (const ev of sorted) {
+    if (ev.startMin > groupEnd) {
+      flush()
+      group = [ev]
+      groupEnd = ev.endMin
+    } else {
+      group.push(ev)
+      groupEnd = Math.max(groupEnd, ev.endMin)
+    }
+  }
+
+  flush()
+  return result
+}
+
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [isDraggingTask, setIsDraggingTask] = useState(false)
   const [tasks, setTasks] = useState<any[]>([])
@@ -797,7 +859,24 @@ export default function DayView() {
         }
 
         // 이제 필터 적용한 값으로 세팅
-        setEvents(timelineEvents.filter(filterEvent))
+        // 1) 이벤트 startMin / endMin 계산
+const parsedEvents = timelineEvents.map((e: any) => {
+  const [sh, sm] = e.clippedStartTime.split(':').map(Number)
+  const [eh, em] = e.clippedEndTime.split(':').map(Number)
+
+  return {
+    ...e,
+    startMin: sh * 60 + sm,
+    endMin: eh * 60 + em,
+  }
+})
+
+// 2) overlap 계산해서 column 정보 부여
+const overlapped = computeEventOverlap(parsedEvents)
+
+// 3) 필터 적용
+setEvents(overlapped.filter(filterEvent))
+
         setSpanEvents(span.filter(filterEvent))
         setTasks(timedTasks.filter(filterTask))
         setChecks(checksAll.filter(filterTask))
@@ -1250,7 +1329,7 @@ export default function DayView() {
                       key={evt.id}
                       id={evt.id}
                       title={evt.title}
-                      place={`label ${evt.labels?.[0] ?? ''}`}
+                      place={getLabelName(evt.labels?.[0])}
                       startMin={startMin}
                       endMin={endMin}
                       color={`#${evt.colorKey}`}
@@ -1262,18 +1341,20 @@ export default function DayView() {
 
                 // 일반 일정
                 return (
-                  <DraggableFlexalbeEvent
-                    key={evt.id}
-                    id={evt.id}
-                    title={evt.title}
-                    place={`label ${evt.labels?.[0] ?? ''}`}
-                    startMin={startMin}
-                    endMin={endMin}
-                    color={`#${evt.colorKey}`}
-                    anchorDate={anchorDate}
-                    isRepeat={!!evt.isRepeat}
-                    onPress={() => openEventDetail(evt)}
-                  />
+<DraggableFlexalbeEvent
+  key={evt.id}
+  id={evt.id}
+  title={evt.title}
+  place={getLabelName(evt.labels?.[0])}
+  startMin={startMin}
+  endMin={endMin}
+  color={`#${evt.colorKey}`}
+  anchorDate={anchorDate}
+  isRepeat={!!evt.isRepeat}
+  _column={evt._column}        
+  _totalColumns={evt._totalColumns} 
+  onPress={() => openEventDetail(evt)}
+/>
                 )
               })}
 
@@ -1319,6 +1400,7 @@ export default function DayView() {
                       onPress={() => openTaskPopupFromApi(task.id)}
                       column={task._column}
                       totalColumns={task._totalColumns}
+                      events={events}
                     />
                   )
                 })
@@ -1815,6 +1897,7 @@ type DraggableTaskBoxProps = {
   onPress?: () => void
   column: number | undefined
   totalColumns: number | undefined
+  events: any[]
 }
 
 function DraggableTaskBox({
@@ -1827,6 +1910,7 @@ function DraggableTaskBox({
   onPress,
   column,
   totalColumns,
+  events,
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
@@ -1909,9 +1993,29 @@ function DraggableTaskBox({
   const safeColumn = column ?? 0
   const safeTotalColumns = totalColumns ?? 1
 
-  const widthPercent = 1 / safeTotalColumns
-  const boxWidth = usableWidth * widthPercent - COLUMN_GAP
-  const left = LEFT_OFFSET + safeColumn * (usableWidth * widthPercent)
+const startMin = startHour * 60
+const endMin = startMin + 60 // task는 기본 1시간
+
+// 🟣 Task와 겹치는 이벤트 찾기
+const overlappingEvents = events.filter(ev => {
+  return !(ev.endMin <= startMin || ev.startMin >= endMin)
+})
+
+// 이벤트 겹침 오프셋
+const EVENT_STAGGER = 14  // 원하는 값(픽셀)
+const eventOffset = overlappingEvents.length * EVENT_STAGGER
+
+const widthPercent = 1 / safeTotalColumns
+  
+const isOverlapWithEvent = overlappingEvents.length > 0
+
+let boxWidth = usableWidth * widthPercent - COLUMN_GAP
+let left = LEFT_OFFSET + safeColumn * (usableWidth * widthPercent)
+
+if (isOverlapWithEvent) {
+  boxWidth = usableWidth * 0.5
+  left = LEFT_OFFSET + usableWidth * 0.5
+}
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -2165,6 +2269,8 @@ type DraggableFlexalbeEventProps = {
   anchorDate: string
   isRepeat?: boolean
   onPress?: () => void
+  _column?: number
+  _totalColumns?: number
 }
 
 function DraggableFlexalbeEvent({
@@ -2177,6 +2283,7 @@ function DraggableFlexalbeEvent({
   anchorDate,
   isRepeat = false,
   onPress,
+  _column
 }: DraggableFlexalbeEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
@@ -2401,13 +2508,22 @@ function DraggableFlexalbeEvent({
 
   const backgroundColor = color.startsWith('#') ? color : `#${color}`
 
+  // ⭐ 겹침용 계단식 offset
+const BASE_LEFT = 50 + 18
+const STAGGER = 32         // 하나 겹칠 때마다 오른쪽으로 32px
+const MAX_STAGGER = 96        // 너무 많아지면 제한
+
+const shift = Math.min((_column ?? 0) * STAGGER, MAX_STAGGER)
+
+const left = BASE_LEFT + shift
+
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
             position: 'absolute',
-            left: 50 + 18,
+            left,
             right: 18,
             height,
             backgroundColor,
