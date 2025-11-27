@@ -14,7 +14,7 @@ export default function CustomSplash({ onFinish }: { onFinish: () => void }) {
 
   // 타이핑용 상태
   const [typed, setTyped] = useState('')
-  const fullText = 'Whatta'
+  const fullText = 'WHATTA'
 
   // 로고 슬라이드 + 페이드
   const logoStyle = useAnimatedStyle(() => ({

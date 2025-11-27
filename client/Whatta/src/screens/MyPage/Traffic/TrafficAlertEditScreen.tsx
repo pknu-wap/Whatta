@@ -221,7 +221,7 @@ export default function TrafficAlertEditScreen() {
       return
     }
     const alarmTime = `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
-    const days = repeatOn ? getDayStrings() : null
+    const days = repeatOn ? getDayStrings() : []
     const body = {
       alarmTime,
       days,
