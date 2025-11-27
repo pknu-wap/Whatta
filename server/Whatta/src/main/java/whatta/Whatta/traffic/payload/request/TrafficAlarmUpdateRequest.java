@@ -13,6 +13,5 @@ public class TrafficAlarmUpdateRequest {
     private Set<DayOfWeek> days;
     private List<String> targetItemIds;
     private Boolean isEnabled;
-    private Boolean isRepeatEnabled;
 
 }
