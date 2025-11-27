@@ -1088,7 +1088,7 @@ export default function DayView() {
                           ? raw
                           : `#${raw}`
                         : '#8B5CF6'
-                      const bg = `${base}33` // 동일하게 
+                      const bg = `${base}4D`
 
                       return (
                         <Pressable key={t.id ?? i} onPress={() => openEventDetail(t)}>
@@ -1723,7 +1723,7 @@ const handleDrop = useCallback(
   }))
 
   const base = color.startsWith('#') ? color : `#${color}`
-  const bg = `${base}33` // 투명도 수정 15% - 26, 20% - 33, 25% - 40, 30% - 4D
+  const bg = `${base}4D` 
 
   return (
     <GestureDetector gesture={composedGesture}>
