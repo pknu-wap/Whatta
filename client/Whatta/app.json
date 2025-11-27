@@ -11,6 +11,10 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "notification": {
+      "icon": "./assets/whatta.png",
+      "color": "#ffffff"
+    },
     "ios": {
       "bundleIdentifier": "com.whatta.whatta",
       "buildNumber": "17",
@@ -29,8 +33,12 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/whatta_logo.png",
+        "foregroundImage": "./assets/whatta.png",
         "backgroundColor": "#ffffff"
+      },
+      "notification": {
+        "icon": "./assets/whatta.png",
+        "color": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -60,9 +68,7 @@
     ],
 
     "extra": {
-      "eas": {
-        
-      }
+      "eas": {}
     }
   }
 }
