@@ -250,10 +250,21 @@ export default function MonthlyDetailPopup({
                             <Text style={S.chipText} numberOfLines={1}>
                               {t.title}
                             </Text>
+                            {dayData.dateISO && (
+                            <Text
+                              style={[
+                                ts('place'),
+                                { color: '#333333', fontSize: 10, marginTop: 2 },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {dayData.dateISO}
+                            </Text>
+                            )}
                           </View>
                         </View>
                       )
-                    } //여기 수정됐어요
+                    }
 
                     // ✅ 비교
                     const isStart = currentDate === startKorean
