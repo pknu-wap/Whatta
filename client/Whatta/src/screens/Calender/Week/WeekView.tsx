@@ -1158,6 +1158,9 @@ function DraggableTaskBox({
             <Text style={[S.taskTitle, done && S.taskTitleDone]} numberOfLines={3}>
               {title}
             </Text>
+
+              
+
           </Pressable>
         </View>
       </Animated.View>
@@ -1345,7 +1348,7 @@ function DraggableFlexalbeEvent({
     })
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
-  const displayColor = isRepeat ? mixWhite(safeColor, 60) : safeColor
+  const displayColor = isRepeat ? `${safeColor}4D` : safeColor    //반복일정 투명도
   const colGap = 0.5
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
@@ -1425,12 +1428,21 @@ function DraggableFlexalbeEvent({
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
-  const style = useAnimatedStyle(() => ({
+  const style = useAnimatedStyle(() => {
+  // 반복 vs 일반 우선순위: 일반일정이 항상 반복일정보다 위에 오도록 가중치 부여
+  const baseZ =
+    isDragging.value || dropBoost.value
+      ? 9999
+      : overlapDepth * 2 + (isRepeat ? 0 : 1) // 일반일정(1) > 반복일정(0)
+
+  return {
     top: topBase + translateY.value,
     transform: [{ translateX: translateX.value }],
-    zIndex: isDragging.value || dropBoost.value ? 9999 : overlapDepth,
+    zIndex: baseZ,
     elevation: isDragging.value || dropBoost.value ? 50 : 0,
-  }))
+  }
+})
+
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -1439,11 +1451,15 @@ function DraggableFlexalbeEvent({
           S.eventBox,
           {
             left,
-            width: width,
+            width,
             height,
             backgroundColor: displayColor,
             ...overlapStyle,
           },
+          // ⭐ 반복 일정일 때 DayView와 동일한 강조 디자인
+            isRepeat && {
+              borderRadius: 0,
+            },
           style,
         ]}
       >
@@ -1459,6 +1475,19 @@ function DraggableFlexalbeEvent({
             {title}
           </Text>
           {!!place && <Text style={S.eventPlace}>{place}</Text>}
+
+          {isRepeat && (
+  <Text
+    style={{
+      marginTop: 2,
+      marginLeft: 2,
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#9B4FFF',
+    }}
+  >
+  </Text>
+)}
         </Pressable>
       </Animated.View>
     </GestureDetector>
@@ -2628,8 +2657,8 @@ export default function WeekView() {
 
                             <Text
                               style={[S.taskTitle, s.done && S.taskTitleDone]}
-                              numberOfLines={1}
-                              ellipsizeMode="clip"
+                              numberOfLines={3}
+                              ellipsizeMode="tail"
                             >
                               {s.title}
                             </Text>
@@ -2663,7 +2692,7 @@ export default function WeekView() {
                       const mainColor = s.color?.startsWith('#')
                         ? s.color
                         : `#${s.color || 'B04FFF'}`
-                      const lightColor = mixWhite(mainColor, 70)
+                      const lightColor = `${mainColor}26`  //span일정 투명도
                       const displayColor = s.isRepeat
                         ? mixWhite(mainColor, 70)
                         : isSingleDay
@@ -2726,7 +2755,7 @@ export default function WeekView() {
 
                             <Text
                               style={{
-                                color: isSingleDay ? '#FFFFFF' : '#000000',
+                                color: isSingleDay ? '#000000' : '#000000',
                                 fontWeight: '700',
                                 fontSize: 12,
                                 maxWidth: '90%',
@@ -3242,7 +3271,7 @@ const S = StyleSheet.create({
     elevation: 0,
   },
   eventTitle: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontWeight: '700',
     fontSize: 10,
     lineHeight: 12,
@@ -3312,7 +3341,7 @@ const S = StyleSheet.create({
     fontWeight: '600',
     fontSize: 10,
     lineHeight: 13,
-    flexShrink: 0,
+    flexShrink: 1,
     flexGrow: 0,
     flexWrap: 'wrap',
   },

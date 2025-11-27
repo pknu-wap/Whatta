@@ -689,6 +689,43 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
     )
   }
 
+  //  하루짜리 반복일정인지 판별
+const isOneDayRecurring =
+  schedule.isRecurring &&
+  (!schedule.multiDayStart && !schedule.multiDayEnd);
+
+if (isOneDayRecurring) {
+  const main = schedule.colorKey
+    ? `#${schedule.colorKey}`
+    : baseColor;
+  const bg = `${main}4D`;    //반복일정 투명도
+
+  return (
+    <View
+      style={[
+        S.scheduleBox,
+        {
+          backgroundColor: bg,            // 연한색
+          borderRadius: 0,                // 둥근 모서리 제거
+          paddingLeft: TEXT_HORIZONTAL_PADDING,
+        },
+        dimmedStyle,
+      ]}
+    >
+      <Text
+        style={[
+          S.scheduleText,
+          { color: '#000' }               // 반복일정은 검정 텍스트
+        ]}
+        numberOfLines={1}
+        ellipsizeMode="clip"
+      >
+        {schedule.name}
+      </Text>
+    </View>
+  );
+}
+  
   // 단일 일정
   return (
     <View
