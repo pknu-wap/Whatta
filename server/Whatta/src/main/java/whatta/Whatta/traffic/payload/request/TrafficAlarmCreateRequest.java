@@ -12,8 +12,9 @@ import java.util.Set;
 public record TrafficAlarmCreateRequest(
         @NotNull
         LocalTime alarmTime,
-        @NotNull
+
         Set<DayOfWeek> days,
+
         @NotNull
         @Size(min = 1, max = 6)
         List<String> targetItemIds
