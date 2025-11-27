@@ -1116,27 +1116,65 @@ export default function MonthView() {
     setFocusedDateISO(isoDate)
     bus.emit('calendar:set-date', isoDate)
 
+    // 클릭한 날짜의 원본 day 데이터를 찾아서 all-day 단일 일정 구분
+    const rawDay = days.find((day) => {
+      const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
+      return dayISO === isoDate
+    })
+    const rawEvents: any[] = (rawDay as any)?.events ?? []
+    const allDaySingles = rawEvents.filter(
+      (ev) => ev.startTime == null && ev.endTime == null,
+    )
+    const allDaySingleIds = new Set(allDaySingles.map((ev) => String(ev.id)))
+
+
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
       dateISO: isoDate,
       dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
-      spanEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => s.multiDayStart && s.multiDayEnd)
-        .map((s) => {
-          const baseColor = s.colorKey
-            ? s.colorKey.startsWith('#')
-              ? s.colorKey
-              : `#${s.colorKey}`
-            : '#8B5CF6'
+      spanEvents: [
+        ...(dateItem.schedules as ExtendedScheduleDataWithColor[])
+          .filter((s) => s.multiDayStart && s.multiDayEnd)
+          .map((s) => {
+            const baseColor = s.colorKey
+              ? s.colorKey.startsWith('#')
+                ? s.colorKey
+                : `#${s.colorKey}`
+              : '#8B5CF6'
+            return {
+              title: s.name,
+              period: `${s.multiDayStart}~${s.multiDayEnd}`,
+              colorKey: s.colorKey,
+              color: baseColor,
+            }
+          }),
+        ...allDaySingles.map((ev) => {
+          const rawColor = ev.colorKey as string | undefined
+          const formatted =              
+            rawColor && rawColor.length > 0
+              ? rawColor.startsWith('#')
+                ? rawColor
+                : `#${rawColor}`
+              : null
+          const baseColor = !formatted || formatted.toUpperCase() === '#FFFFFF'
+            ? '#8B5CF6'
+            : formatted                     
           return {
-            title: s.name,
-            period: `${s.multiDayStart}~${s.multiDayEnd}`,
-            colorKey: s.colorKey,
+            title: ev.title ?? ev.name ?? '',
+            // 단일 all-day 일정은 period 없이 제목만 표시 
+            colorKey: ev.colorKey,
             color: baseColor,
           }
         }),
+      ],
       normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter((s) => !s.multiDayStart && !s.multiDayEnd && !s.isTask)
+        .filter(
+          (s) =>
+            !s.multiDayStart &&
+            !s.multiDayEnd &&
+            !s.isTask &&
+            !allDaySingleIds.has(String(s.id)), // all-day 단일 일정은 여기서 제외
+        )
         .map((s) => {
           const baseColor = s.colorKey
             ? s.colorKey.startsWith('#')
