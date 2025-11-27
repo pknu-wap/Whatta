@@ -681,7 +681,7 @@ if (isOneDayRecurring) {
   const main = schedule.colorKey
     ? `#${schedule.colorKey}`
     : baseColor;
-  const bg = `${main}4D`;    //반복일정 투명도
+  const bg = `${main}33`;    //반복일정 투명도
 
   return (
     <View
