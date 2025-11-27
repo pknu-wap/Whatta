@@ -1089,12 +1089,23 @@ export default function MonthView() {
           })
         })
 
-        const merged: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map(
-          (it) => ({
-            ...it,
-            colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
-          }),
-        )
+       const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map( // 여기 수정됐어요
+         (it) => ({
+           ...it,
+           colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
+         }),
+       ) // 여기 수정됐어요
+
+       // ✅ id + isTask 기준으로 중복 제거  // 여기 수정됐어요
+       const dedup = new Map<string, UISchedule>() // 여기 수정됐어요
+       for (const item of mergedRaw) {             // 여기 수정됐어요
+         const prefix = item.isTask ? 'TASK' : 'EVENT' // 여기 수정됐어요
+         const key = `${prefix}-${item.id}`          // 여기 수정됐어요
+         if (!dedup.has(key)) {
+           dedup.set(key, item)
+         }
+       }
+       const merged = Array.from(dedup.values())     // 여기 수정됐어요
 
         cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
         if (targetYM === ym) {
@@ -1360,8 +1371,20 @@ export default function MonthView() {
           console.warn('[MonthView] fetchTasksForMonth 실패, 일정만 표시합니다.', err)
         }
 
-        const merged: UISchedule[] = [...monthlySchedules, ...tasksThisMonth]
-        laneMapRef.current = buildLaneMap(merged.filter(isSpan))
+        const mergedRaw: UISchedule[] = [...monthlySchedules, ...tasksThisMonth] // 여기 수정됐어요
+
+       const dedup = new Map<string, UISchedule>() // 여기 수정됐어요
+       for (const item of mergedRaw) {             // 여기 수정됐어요
+         const prefix = item.isTask ? 'TASK' : 'EVENT' // 여기 수정됐어요
+         const key = `${prefix}-${item.id}`          // 여기 수정됐어요
+         if (!dedup.has(key)) {
+           dedup.set(key, item)
+         }
+       }
+       const merged = Array.from(dedup.values())     // 여기 수정됐어요
+
+       laneMapRef.current = buildLaneMap(merged.filter(isSpan))
+        
 
         if (!alive) return
         setDays(fresh.days)
