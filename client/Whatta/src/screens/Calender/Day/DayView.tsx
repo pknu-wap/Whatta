@@ -1098,7 +1098,7 @@ export default function DayView() {
                           ? raw
                           : `#${raw}`
                         : '#8B5CF6'
-                      const bg = `${base}26`
+                      const bg = `${base}4D`
 
                       return (
                         <Pressable key={t.id ?? i} onPress={() => openEventDetail(t)}>
@@ -1758,7 +1758,7 @@ function DraggableFixedEvent({
   }))
 
   const base = color.startsWith('#') ? color : `#${color}`
-  const bg = `${base}33`
+  const bg = `${base}4D` 
 
   return (
     <GestureDetector gesture={composedGesture}>
