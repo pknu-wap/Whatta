@@ -579,7 +579,6 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
   const labelColor = textColorFor(schedule.colorKey)
 
   // Task
-  // Task
   if (schedule.isTask) {
     return (
       <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
@@ -653,8 +652,7 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
     const isRealEndInThisRow = colSpan === daysDiff
 
     const width =
-      colSpan * cellWidth -
-      EVENT_HPAD * 2 +
+      colSpan * cellWidth - EVENT_HPAD * 2 +
       (isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0)
     const segPosStyle = reachWeekEnd ? { left: -1, right: 0 } : { left: -EVENT_HPAD }
 
@@ -690,42 +688,39 @@ const ScheduleItem: React.FC<ScheduleItemProps> = ({
   }
 
   //  하루짜리 반복일정인지 판별
-const isOneDayRecurring =
-  schedule.isRecurring &&
-  (!schedule.multiDayStart && !schedule.multiDayEnd);
+  const isOneDayRecurring =
+    schedule.isRecurring && !schedule.multiDayStart && !schedule.multiDayEnd
 
-if (isOneDayRecurring) {
-  const main = schedule.colorKey
-    ? `#${schedule.colorKey}`
-    : baseColor;
-  const bg = `${main}33`;    //반복일정 투명도
+  if (isOneDayRecurring) {
+    const main = schedule.colorKey ? `#${schedule.colorKey}` : baseColor
+    const bg = `${main}4D` // 반복일정 투명도
 
-  return (
-    <View
-      style={[
-        S.scheduleBox,
-        {
-          backgroundColor: bg,            // 연한색
-          borderRadius: 0,                // 둥근 모서리 제거
-          paddingLeft: TEXT_HORIZONTAL_PADDING,
-        },
-        dimmedStyle,
-      ]}
-    >
-      <Text
+    return (
+      <View
         style={[
-          S.scheduleText,
-          { color: '#000' }               // 반복일정은 검정 텍스트
+          S.scheduleBox,
+          {
+            backgroundColor: bg, // 연한색
+            borderRadius: 0, // 둥근 모서리 제거
+            paddingLeft: TEXT_HORIZONTAL_PADDING,
+          },
+          dimmedStyle,
         ]}
-        numberOfLines={1}
-        ellipsizeMode="clip"
       >
-        {schedule.name}
-      </Text>
-    </View>
-  );
-}
-  
+        <Text
+          style={[
+            S.scheduleText,
+            { color: '#000' }, // 반복일정은 검정 텍스트
+          ]}
+          numberOfLines={1}
+          ellipsizeMode="clip"
+        >
+          {schedule.name}
+        </Text>
+      </View>
+    )
+  }
+
   // 단일 일정
   return (
     <View
@@ -797,23 +792,19 @@ export default function MonthView() {
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
       setOcrSplashVisible(true)
-      
+
       const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
       const lower = (ext ?? 'jpg').toLowerCase()
       const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
 
-      const res = await http.post(
-        '/ocr',
-        {
-          imageType: 'COLLEGE_TIMETABLE',
-          image: {
-            format,
-            name: `timetable.${format}`,
-            data: cleanBase64,
-          },
+      const res = await http.post('/ocr', {
+        imageType: 'COLLEGE_TIMETABLE',
+        image: {
+          format,
+          name: `timetable.${format}`,
+          data: cleanBase64,
         },
-        
-      )
+      })
 
       console.log('OCR 성공:', res.data)
 
@@ -837,17 +828,16 @@ export default function MonthView() {
         .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
 
       setOcrEvents(parsed)
-      
-        // OCR 성공한 시점에서 스플래쉬 끄기
-  setOcrSplashVisible(false)
 
-  // 바로 카드 켜기
-  setOcrModalVisible(true)
+      // OCR 성공한 시점에서 스플래쉬 끄기
+      setOcrSplashVisible(false)
 
-  } catch (err) {
-    Alert.alert('오류', 'OCR 처리 실패')
+      // 바로 카드 켜기
+      setOcrModalVisible(true)
+    } catch (err) {
+      Alert.alert('오류', 'OCR 처리 실패')
+    }
   }
-}
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -1051,205 +1041,20 @@ export default function MonthView() {
     return () => bus.off('calendar:set-date', onSetDate)
   }, [])
 
-  // (2) ym이 확정되면 → 모두에게 현재 상태 방송 + API 조회
-  // useEffect(() => {
-  //   if (!ym) return
-  //   // 방송만 유지: 헤더/모달 동기화
-  //   bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  // }, [ym])
-
-  // // (3) 다른 컴포넌트가 현재 상태를 물으면 즉시 회신
-  // useEffect(() => {
-  //   const reply = () =>
-  //     bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  //   bus.on('calendar:request-sync', reply)
-  //   return () => bus.off('calendar:request-sync', reply)
-  // }, [ym])
-
   useFocusEffect(
     React.useCallback(() => {
       bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
     }, [ym, focusedDateISO]),
   )
 
-  const fetchFresh = useCallback(
-    async (targetYM: string) => {
-      try {
-        const fresh = await fetchMonthlyApi(targetYM)
-        const schedulesFromMonth = flattenMonthly(fresh)
-        const tasksThisMonth = await fetchTasksForMonth(targetYM)
-
-        const colorById = new Map<string, string | undefined>()
-        ;(fresh.spanEvents ?? []).forEach((e: any) => {
-          colorById.set(String(e.id), e.colorKey)
-        })
-        ;(fresh.days ?? []).forEach((d: any) => {
-          ;(d.events ?? []).forEach((ev: any) => {
-            colorById.set(String(ev.id), ev.colorKey)
-          })
-        })
-
-        const merged: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map(
-          (it) => ({
-            ...it,
-            colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
-          }),
-        )
-
-        cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
-        if (targetYM === ym) {
-          setDays(fresh.days)
-          setServerSchedules(merged)
-        }
-      } catch {}
-    },
-    [ym],
-  )
-
-  useEffect(() => {
-    const onInvalidate = ({ ym: dirtyYM }: { ym: string }) => fetchFresh(dirtyYM)
-    bus.on('calendar:invalidate', onInvalidate)
-    return () => bus.off('calendar:invalidate', onInvalidate)
-  }, [fetchFresh])
-
-  const { year, monthIndex } = useMemo(() => parseYM(ym), [ym])
-
-  const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
-  const focusedDate = useMemo(() => new Date(focusedDateISO), [focusedDateISO])
-  const [days, setDays] = useState<MonthlyDay[]>([])
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
-      fetchFresh(ym)
+  const fetchMonthlyApi = async (ymStr: string): Promise<MonthlyPayload> => {
+    const res = await http.get('/calendar/monthly', { params: { month: ymStr } })
+    const data = res.data?.data ?? {}
+    return {
+      days: (data.days ?? []) as MonthlyDay[],
+      spanEvents: (data.spanEvents ?? []) as MonthlyPayload['spanEvents'],
     }
-
-    bus.on('calendar:mutated', onMutated)
-    return () => bus.off('calendar:mutated', onMutated)
-  }, [ym, fetchFresh])
-  const renderWeeks = (dates: CalendarDateItem[]): CalendarDateItem[][] => {
-    const weeks: CalendarDateItem[][] = []
-    for (let i = 0; i < dates.length; i += 7) {
-      weeks.push(dates.slice(i, i + 7))
-    }
-    return weeks
   }
-
-  type ExtendedScheduleData = ScheduleData & {
-    memo?: string
-    place?: string
-    time?: string
-  }
-
-  type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
-    colorKey?: string
-  }
-
-  const handleDatePress = (dateItem: CalendarDateItem) => {
-    if (!dateItem.isCurrentMonth) return
-
-    const d = dateItem.fullDate
-    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    setFocusedDateISO(isoDate)
-    bus.emit('calendar:set-date', isoDate)
-
-    // 클릭한 날짜의 원본 day 데이터를 찾아서 all-day 단일 일정 구분
-    const rawDay = days.find((day) => {
-      const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
-      return dayISO === isoDate
-    })
-    const rawEvents: any[] = (rawDay as any)?.events ?? []
-    const allDaySingles = rawEvents.filter(
-      (ev) => ev.startTime == null && ev.endTime == null,
-    )
-    const allDaySingleIds = new Set(allDaySingles.map((ev) => String(ev.id)))
-
-
-    setSelectedDayData({
-      date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
-      dateISO: isoDate,
-      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
-      spanEvents: [
-        ...(dateItem.schedules as ExtendedScheduleDataWithColor[])
-          .filter((s) => s.multiDayStart && s.multiDayEnd)
-          .map((s) => {
-            const baseColor = s.colorKey
-              ? s.colorKey.startsWith('#')
-                ? s.colorKey
-                : `#${s.colorKey}`
-              : '#8B5CF6'
-            return {
-              title: s.name,
-              period: `${s.multiDayStart}~${s.multiDayEnd}`,
-              colorKey: s.colorKey,
-              color: baseColor,
-            }
-          }),
-        ...allDaySingles.map((ev) => {
-          const rawColor = ev.colorKey as string | undefined
-          const formatted =              
-            rawColor && rawColor.length > 0
-              ? rawColor.startsWith('#')
-                ? rawColor
-                : `#${rawColor}`
-              : null
-          const baseColor = !formatted || formatted.toUpperCase() === '#FFFFFF'
-            ? '#8B5CF6'
-            : formatted                     
-          return {
-            title: ev.title ?? ev.name ?? '',
-            // 단일 all-day 일정은 period 없이 제목만 표시 
-            colorKey: ev.colorKey,
-            color: baseColor,
-          }
-        }),
-      ],
-      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter(
-          (s) =>
-            !s.multiDayStart &&
-            !s.multiDayEnd &&
-            !s.isTask &&
-            !allDaySingleIds.has(String(s.id)), // all-day 단일 일정은 여기서 제외
-        )
-        .map((s) => {
-          const baseColor = s.colorKey
-            ? s.colorKey.startsWith('#')
-              ? s.colorKey
-              : `#${s.colorKey}`
-            : '#F4EAFF'
-          return {
-            title: s.name,
-            memo: s.memo ?? '',
-            color: baseColor,
-          }
-        }),
-      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
-        const baseColor = t.colorKey
-          ? t.colorKey.startsWith('#')
-            ? t.colorKey
-            : `#${t.colorKey}`
-          : '#FFD966'
-        return {
-          id: t.id,
-          done: t.isCompleted,
-          title: t.name,
-          place: t.place ?? '',
-          time: t.time ?? '',
-          color: baseColor,
-          borderColor: baseColor,
-        }
-      }),
-    })
-
-    setPopupVisible(true)
-  }
-
-  const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
-
-  useEffect(() => {
-    laneMapRef.current = buildLaneMap(serverSchedules.filter(isSpan))
-  }, [serverSchedules])
 
   type MonthlyPayload = {
     days: MonthlyDay[]
@@ -1262,15 +1067,6 @@ export default function MonthView() {
       endDate: string
       isRepeat?: boolean | null
     }[]
-  }
-
-  const fetchMonthlyApi = async (ymStr: string): Promise<MonthlyPayload> => {
-    const res = await http.get('/calendar/monthly', { params: { month: ymStr } })
-    const data = res.data?.data ?? {}
-    return {
-      days: (data.days ?? []) as MonthlyDay[],
-      spanEvents: (data.spanEvents ?? []) as MonthlyPayload['spanEvents'],
-    }
   }
 
   const flattenMonthly = (fresh: MonthlyPayload): UISchedule[] => {
@@ -1320,7 +1116,7 @@ export default function MonthView() {
       })
     })
 
-    // 3. 기간 일정(Span Events) 처리 (기존 코드 유지)
+    // 3. 기간 일정(Span Events) 처리
     ;(fresh.spanEvents ?? []).forEach((ev: any) => {
       const start = (ev.startDate ?? '').slice(0, 10)
       const end = (ev.endDate ?? '').slice(0, 10)
@@ -1342,8 +1138,88 @@ export default function MonthView() {
       })
     })
 
-    return list
+    // ✅ 월간 API 내부에서 중복 id(특히 spanEvents + days.events)가 있을 때
+    //    id + isTask 기준으로 dedupe 해서 한 번만 남기기
+    const map = new Map<string, UISchedule>()
+    for (const item of list) {
+      const key = `${item.isTask ? 'T' : 'E'}-${item.id}`
+      // spanEvents가 뒤에서 push 되므로 multiDay 정보가 있는 쪽이 남도록 overwrite
+      map.set(key, item)
+    }
+
+    return Array.from(map.values())
   }
+
+  // ✅ 월간 일정(monthly) + fetchTasksForMonth 결과를 합칠 때도
+  //    id + isTask 기준으로 한 번만 남기기 (중복 생성 방지)
+  const mergeSchedules = (monthly: UISchedule[], tasks: UISchedule[]): UISchedule[] => {
+    const map = new Map<string, UISchedule>()
+    for (const it of monthly) {
+      const key = `${it.isTask ? 'T' : 'E'}-${it.id}`
+      map.set(key, it)
+    }
+    for (const it of tasks) {
+      const key = `${it.isTask ? 'T' : 'E'}-${it.id}`
+      // Task API 쪽 정보가 더 최신/자세한 경우가 많으니 이쪽으로 overwrite
+      map.set(key, it)
+    }
+    return Array.from(map.values())
+  }
+
+  const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
+
+  const fetchFresh = useCallback(
+    async (targetYM: string) => {
+      try {
+        const fresh = await fetchMonthlyApi(targetYM)
+        const schedulesFromMonth = flattenMonthly(fresh)
+        const tasksThisMonth = await fetchTasksForMonth(targetYM)
+
+        const colorById = new Map<string, string | undefined>()
+        ;(fresh.spanEvents ?? []).forEach((e: any) => {
+          colorById.set(String(e.id), e.colorKey)
+        })
+        ;(fresh.days ?? []).forEach((d: any) => {
+          ;(d.events ?? []).forEach((ev: any) => {
+            colorById.set(String(ev.id), ev.colorKey)
+          })
+        })
+
+        // ✅ 월간 + task 결과 합치면서 id 기준으로 중복 제거
+        const mergedRaw: UISchedule[] = mergeSchedules(
+          schedulesFromMonth,
+          tasksThisMonth,
+        )
+
+        const merged: UISchedule[] = mergedRaw.map((it) => ({
+          ...it,
+          colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
+        }))
+
+        cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
+        if (targetYM === ym) {
+          setDays(fresh.days)
+          setServerSchedules(merged)
+        }
+      } catch (err) {
+        console.warn('[MonthView] fetchFresh 실패', err)
+      }
+    },
+    [ym],
+  )
+
+  useEffect(() => {
+    const onInvalidate = ({ ym: dirtyYM }: { ym: string }) => fetchFresh(dirtyYM)
+    bus.on('calendar:invalidate', onInvalidate)
+    return () => bus.off('calendar:invalidate', onInvalidate)
+  }, [fetchFresh])
+
+  const { year, monthIndex } = useMemo(() => parseYM(ym), [ym])
+
+  const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
+  const focusedDate = useMemo(() => new Date(focusedDateISO), [focusedDateISO])
+  const [days, setDays] = useState<MonthlyDay[]>([])
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -1360,7 +1236,9 @@ export default function MonthView() {
           console.warn('[MonthView] fetchTasksForMonth 실패, 일정만 표시합니다.', err)
         }
 
-        const merged: UISchedule[] = [...monthlySchedules, ...tasksThisMonth]
+        // ✅ 여기서도 마찬가지로 id 기준 중복 제거
+        const merged: UISchedule[] = mergeSchedules(monthlySchedules, tasksThisMonth)
+
         laneMapRef.current = buildLaneMap(merged.filter(isSpan))
 
         if (!alive) return
@@ -1419,6 +1297,125 @@ export default function MonthView() {
       ),
     )
   }, [year, monthIndex, focusedDateISO, filteredSchedules])
+
+  const renderWeeks = (dates: CalendarDateItem[]): CalendarDateItem[][] => {
+    const weeks: CalendarDateItem[][] = []
+    for (let i = 0; i < dates.length; i += 7) {
+      weeks.push(dates.slice(i, i + 7))
+    }
+    return weeks
+  }
+
+  type ExtendedScheduleData = ScheduleData & {
+    memo?: string
+    place?: string
+    time?: string
+  }
+
+  type ExtendedScheduleDataWithColor = ExtendedScheduleData & {
+    colorKey?: string
+  }
+
+  const handleDatePress = (dateItem: CalendarDateItem) => {
+    if (!dateItem.isCurrentMonth) return
+
+    const d = dateItem.fullDate
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(d.getDate()).padStart(2, '0')}`
+    setFocusedDateISO(isoDate)
+    bus.emit('calendar:set-date', isoDate)
+
+    // 클릭한 날짜의 원본 day 데이터를 찾아서 all-day 단일 일정 구분
+    const rawDay = days.find((day) => {
+      const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
+      return dayISO === isoDate
+    })
+    const rawEvents: any[] = (rawDay as any)?.events ?? []
+    const allDaySingles = rawEvents.filter(
+      (ev) => ev.startTime == null && ev.endTime == null,
+    )
+    const allDaySingleIds = new Set(allDaySingles.map((ev) => String(ev.id)))
+
+    setSelectedDayData({
+      date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
+      dateISO: isoDate,
+      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
+      spanEvents: [
+        ...(dateItem.schedules as ExtendedScheduleDataWithColor[])
+          .filter((s) => s.multiDayStart && s.multiDayEnd)
+          .map((s) => {
+            const baseColor = s.colorKey
+              ? s.colorKey.startsWith('#')
+                ? s.colorKey
+                : `#${s.colorKey}`
+              : '#8B5CF6'
+            return {
+              title: s.name,
+              period: `${s.multiDayStart}~${s.multiDayEnd}`,
+              colorKey: s.colorKey,
+              color: baseColor,
+            }
+          }),
+        ...allDaySingles.map((ev) => {
+          const rawColor = ev.colorKey as string | undefined
+          const formatted =
+            rawColor && rawColor.length > 0
+              ? rawColor.startsWith('#')
+                ? rawColor
+                : `#${rawColor}`
+              : null
+          const baseColor =
+            !formatted || formatted.toUpperCase() === '#FFFFFF' ? '#8B5CF6' : formatted
+          return {
+            title: ev.title ?? ev.name ?? '',
+            // 단일 all-day 일정은 period 없이 제목만 표시
+            colorKey: ev.colorKey,
+            color: baseColor,
+          }
+        }),
+      ],
+      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
+        .filter(
+          (s) =>
+            !s.multiDayStart &&
+            !s.multiDayEnd &&
+            !s.isTask &&
+            !allDaySingleIds.has(String(s.id)), // all-day 단일 일정은 여기서 제외
+        )
+        .map((s) => {
+          const baseColor = s.colorKey
+            ? s.colorKey.startsWith('#')
+              ? s.colorKey
+              : `#${s.colorKey}`
+            : '#F4EAFF'
+          return {
+            title: s.name,
+            memo: s.memo ?? '',
+            color: baseColor,
+          }
+        }),
+      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+        const baseColor = t.colorKey
+          ? t.colorKey.startsWith('#')
+            ? t.colorKey
+            : `#${t.colorKey}`
+          : '#FFD966'
+        return {
+          id: t.id,
+          done: t.isCompleted,
+          title: t.name,
+          place: t.place ?? '',
+          time: t.time ?? '',
+          color: baseColor,
+          borderColor: baseColor,
+        }
+      }),
+    })
+
+    setPopupVisible(true)
+  }
 
   return (
     <ScreenWithSidebar mode="overlay">
@@ -1496,9 +1493,7 @@ export default function MonthView() {
                         >
                           {/* 날짜 번호 및 스타일 */}
                           <View style={S.dateNumberWrapper}>
-                            {dateItem.isToday ? (
-                              <View style={S.todayRoundedSquare} />
-                            ) : null}
+                            {dateItem.isToday ? <View style={S.todayRoundedSquare} /> : null}
                             <Text
                               style={[
                                 ts('monthDate'),
@@ -1727,36 +1722,34 @@ export default function MonthView() {
         onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
       />
       <Modal
-  visible={ocrSplashVisible}
-  transparent={true}
-  animationType="fade"
-  statusBarTranslucent={true}
->
-  <OcrSplash />
-</Modal>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-
-  // ✔ 단일 저장
-  onAddEvent={async (payload) => {
-    try {
-      await createEvent(payload)
-      await fetchFresh(ym)  // ★ 여기!
-      bus.emit('calendar:invalidate', { ym })
-    } catch (err) {
-      console.error(err)
-    }
-  }}
-
-  // ✔ 전체 저장
-  onSaveAll={async () => {
-    await fetchFresh(ym)    // ★ 여기!
-    bus.emit('calendar:invalidate', { ym })
-    setOcrModalVisible(false)
-  }}
-/>
+        visible={ocrSplashVisible}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+      >
+        <OcrSplash />
+      </Modal>
+      <OCREventCardSlider
+        visible={ocrModalVisible}
+        events={ocrEvents}
+        onClose={() => setOcrModalVisible(false)}
+        // ✔ 단일 저장
+        onAddEvent={async (payload) => {
+          try {
+            await createEvent(payload)
+            await fetchFresh(ym)
+            bus.emit('calendar:invalidate', { ym })
+          } catch (err) {
+            console.error(err)
+          }
+        }}
+        // ✔ 전체 저장
+        onSaveAll={async () => {
+          await fetchFresh(ym)
+          bus.emit('calendar:invalidate', { ym })
+          setOcrModalVisible(false)
+        }}
+      />
     </ScreenWithSidebar>
   )
 }
