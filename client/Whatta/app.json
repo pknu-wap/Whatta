@@ -13,8 +13,8 @@
     },
     "ios": {
       "bundleIdentifier": "com.whatta.whatta",
-      "buildNumber": "6",
-      "supportsTablet": true,
+      "buildNumber": "17",
+      "supportsTablet": false,
       "googleServicesFile": "./GoogleService-Info.plist",
 
       "infoPlist": {
