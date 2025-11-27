@@ -149,5 +149,7 @@ public class ScheduledNotificationService {
                 .build();
 
         scheduledNotiRepository.save(updated);
+
+        //반복일정의 경우 다음 알림에 저장
     }
 }
