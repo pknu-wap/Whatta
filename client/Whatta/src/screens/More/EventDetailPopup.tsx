@@ -2091,6 +2091,7 @@ export default function EventDetailPopup({
                             if (!v) {
                               setRemindOn(false)
                               setRemindOpen(false)
+                              setCustomOpen(false)
                               return
                             }
 
@@ -2098,6 +2099,7 @@ export default function EventDetailPopup({
                             if (!ok) {
                               setRemindOn(false)
                               setRemindOpen(false)
+                              setCustomOpen(false)
                               return
                             }
 
