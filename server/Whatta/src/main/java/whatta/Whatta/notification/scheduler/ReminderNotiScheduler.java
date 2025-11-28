@@ -74,7 +74,7 @@ public class ReminderNotiScheduler {
         long totalMinutes = Duration.between(triggerAt, startAt).toMinutes();
         String offsetText = buildOffsetText(totalMinutes);
         String body = String.format(
-                "%s뒤 '%s' %s이 있어요.", offsetText, title, targetType
+                "%s '%s' %s이 있어요.", offsetText, title, targetType
         );
 
         notificationSendService.sendReminder(userId, notiTitle, body, targetId);
@@ -103,6 +103,8 @@ public class ReminderNotiScheduler {
 
         if (sb.isEmpty()) {
             sb.append("곧 ");
+        }else {
+            sb.append("뒤");
         }
 
         return sb.toString();
