@@ -38,7 +38,7 @@ public class ScheduledNotificationService {
         //알림 시각 계산
         LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(event.getStartDate(), event.getStartTime()), event.getRepeat(), event.getReminderNotiAt());
 
-        if(triggerAt == null) { return;}
+        if(triggerAt == null) { return; }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
         ScheduledNotification base = scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                 NotificationTargetType.EVENT, event.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
@@ -47,10 +47,12 @@ public class ScheduledNotificationService {
                         .status(NotiStatus.ACTIVE)
                         .targetType(NotificationTargetType.EVENT)
                         .targetId(event.getId())
-                        .triggerAt(triggerAt)
                         .build());
 
-        scheduledNotiRepository.save(base);
+        scheduledNotiRepository.save(base.toBuilder()
+                .triggerAt(triggerAt)
+                .updatedAt(LocalDateTime.now())
+                .build());
     }
 
     //2. task 생성/수정 시
@@ -60,10 +62,10 @@ public class ScheduledNotificationService {
             return;
         }
 
-        //알림 시각 계산 ** 임시로 task 반복 x **
+        //알림 시각 계산
         LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), null, task.getReminderNotiAt());
 
-        if(triggerAt == null) { return;}
+        if(triggerAt == null) { return; }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
         ScheduledNotification base = scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                         NotificationTargetType.TASK, task.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
@@ -72,10 +74,12 @@ public class ScheduledNotificationService {
                         .status(NotiStatus.ACTIVE)
                         .targetType(NotificationTargetType.TASK)
                         .targetId(task.getId())
-                        .triggerAt(triggerAt)
                         .build());
 
-        scheduledNotiRepository.save(base);
+        scheduledNotiRepository.save(base.toBuilder()
+                .triggerAt(triggerAt)
+                .updatedAt(LocalDateTime.now())
+                .build());
     }
 
     public void cancelScheduledNotification(String targetId) {
