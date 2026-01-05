@@ -166,7 +166,7 @@ public class EventService {
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
-        scheduledNotiService.cancelReminder(eventId);
+        scheduledNotiService.cancelScheduledNotification(eventId);
         eventRepository.delete(event);
     }
 }

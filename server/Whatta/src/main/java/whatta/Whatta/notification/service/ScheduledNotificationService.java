@@ -4,9 +4,8 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
+import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.repeat.Repeat;
-import whatta.Whatta.global.repeat.RepeatUnit;
-import whatta.Whatta.global.util.RepeatUtil;
 import whatta.Whatta.notification.entity.ScheduledNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;
@@ -14,9 +13,7 @@ import whatta.Whatta.notification.repository.ScheduledNotificationRepository;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 
 import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
@@ -26,18 +23,13 @@ import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
 public class ScheduledNotificationService {
 
     private final ScheduledNotificationRepository scheduledNotiRepository;
+    private final EventRepository eventRepository;
 
     //-------------reminder---------------
     //1. event 생성/수정 시
     public void createScheduledNotification(Event event) {
         if(event.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
-            scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatus(NotificationTargetType.EVENT, event.getId(), NotiStatus.ACTIVE)
-                    .ifPresent(schedule -> {
-                        ScheduledNotification canceled = schedule.toBuilder()
-                                .status(NotiStatus.CANCELED)
-                                .build();
-                        scheduledNotiRepository.save(canceled);
-                    });
+            cancelScheduledNotification(event.getId());
             return;
         }
 
@@ -59,16 +51,10 @@ public class ScheduledNotificationService {
         scheduledNotiRepository.save(base);
     }
 
-    //2. task 생성 수정 시
+    //2. task 생성/수정 시
     public void createScheduledNotification(Task task) {
         if(task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
-            scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatus(NotificationTargetType.TASK, task.getId(), NotiStatus.ACTIVE)
-                    .ifPresent(schedule -> {
-                        ScheduledNotification canceled = schedule.toBuilder()
-                                .status(NotiStatus.CANCELED)
-                                .build();
-                        scheduledNotiRepository.save(canceled);
-                    });
+            cancelScheduledNotification(task.getId());
             return;
         }
 
@@ -88,6 +74,16 @@ public class ScheduledNotificationService {
                         .build());
 
         scheduledNotiRepository.save(base);
+    }
+
+    public void cancelScheduledNotification(String targetId) {
+        scheduledNotiRepository.findByTargetIdAndStatus(targetId, NotiStatus.ACTIVE)
+                .ifPresent(schedule -> {
+                    ScheduledNotification canceled = schedule.toBuilder()
+                            .status(NotiStatus.CANCELED)
+                            .build();
+                    scheduledNotiRepository.save(canceled);
+                });
     }
 
     private LocalDateTime calculateTriggerAt(LocalDateTime startAt, Repeat repeat, ReminderNoti offset) {
