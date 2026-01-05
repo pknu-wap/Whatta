@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
+import whatta.Whatta.global.exception.ErrorCode;
+import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.repeat.Repeat;
 import whatta.Whatta.notification.entity.ScheduledNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
@@ -132,5 +134,25 @@ public class ScheduledNotificationService {
         scheduledNotiRepository.save(updated);
 
         //반복일정의 경우 다음 알림에 저장
+        Event target = eventRepository.findById(noti.getTargetId())
+                .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
+
+        LocalDateTime nextTriggerAt = calculateTriggerAt(LocalDateTime.of(target.getStartDate(), target.getStartTime()), target.getRepeat(), target.getReminderNotiAt());
+
+        if (nextTriggerAt == null) {
+            return;
+        }
+        //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
+        ScheduledNotification base = scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
+                        NotificationTargetType.EVENT, target.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
+                .orElseGet(() -> ScheduledNotification.builder()
+                        .userId(target.getUserId())
+                        .status(NotiStatus.ACTIVE)
+                        .targetType(NotificationTargetType.EVENT)
+                        .targetId(target.getId())
+                        .triggerAt(nextTriggerAt)
+                        .build());
+
+        scheduledNotiRepository.save(base);
     }
 }
