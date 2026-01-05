@@ -183,6 +183,7 @@ public class TaskService {
             throw new RestApiException(ErrorCode.TASK_NOT_FOUND);
         }
 
+        scheduledNotiService.cancelScheduledNotification(taskId);
         taskRepository.deleteById(taskId);
     }
 
