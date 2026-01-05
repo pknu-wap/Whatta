@@ -2,6 +2,7 @@ package whatta.Whatta.event.service;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.mapper.EventMapper;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
@@ -160,10 +161,12 @@ public class EventService {
         return eventMapper.toEventDetailsResponse(updatedEvent);
     }
 
+    @Transactional
     public void deleteEvent(String userId, String eventId) {
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
+        scheduledNotiService.cancelReminder(eventId);
         eventRepository.delete(event);
     }
 }

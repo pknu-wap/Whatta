@@ -24,7 +24,7 @@ public class ScheduledNotification {
     @Builder.Default
     private NotiStatus status = NotiStatus.ACTIVE;
 
-    private NotificationTargetType targetType; // EVENT, TASK, SUMMARY
+    private NotificationTargetType targetType; // EVENT, TASK
     private String targetId;
 
     private LocalDateTime triggerAt;
