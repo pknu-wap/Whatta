@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Modal
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -20,7 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { runOnJS } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 
@@ -39,13 +40,16 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
-import type { OCREvent } from '@/screens/More/OcrEventCardSlider'
+import type { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import OcrSplash from '@/screens/More/OcrSplash'
+import { createEvent } from '@/api/event_api'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 8000,
+  timeout: 0,
   withCredentials: false,
 })
 
@@ -165,16 +169,196 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 
 let draggingEventId: string | null = null
 
+interface DayViewTask {
+  id: string
+  title?: string
+  placementDate?: string | null
+  placementTime?: string | null
+  completed?: boolean
+  labels?: number[]
+  content?: string
+
+  // 내부 계산용
+  startMin?: number
+  endMin?: number
+  _column?: number
+  _totalColumns?: number
+}
+
+function computeTaskOverlap(tasks: DayViewTask[]): DayViewTask[] {
+  const filtered = tasks.filter((t) => t.placementTime)
+
+  // placementTime → startMin/endMin 변환
+  const converted: DayViewTask[] = filtered.map((t) => {
+    const [h, m] = t.placementTime!.split(':').map(Number)
+    const startMin = h * 60 + m
+    const endMin = startMin + 60 // 기본 1시간
+    return { ...t, startMin, endMin }
+  })
+
+  // 시작 시간 기준 정렬
+  const sorted = [...converted].sort(
+    (a, b) => a.startMin! - b.startMin! || a.endMin! - b.endMin!,
+  )
+
+  const result: DayViewTask[] = []
+  let group: DayViewTask[] = []
+  let groupEnd = -1
+
+  const flushGroup = () => {
+    if (group.length === 0) return
+
+    const columns: DayViewTask[][] = []
+
+    group.forEach((t) => {
+      let placed = false
+      for (let i = 0; i < columns.length; i++) {
+        const last = columns[i][columns[i].length - 1]
+        if (last.endMin! <= t.startMin!) {
+          columns[i].push(t)
+          t._column = i
+          placed = true
+          break
+        }
+      }
+      if (!placed) {
+        columns.push([t])
+        t._column = columns.length - 1
+      }
+    })
+
+    group.forEach((t) => {
+      t._totalColumns = columns.length
+      result.push(t)
+    })
+
+    group = []
+  }
+
+  for (const t of sorted) {
+    if (t.startMin! > groupEnd) {
+      flushGroup()
+      group.push(t)
+      groupEnd = t.endMin!
+    } else {
+      group.push(t)
+      groupEnd = Math.max(groupEnd, t.endMin!)
+    }
+  }
+
+  flushGroup()
+  return result
+}
+
+function groupTasksByOverlap(tasks: DayViewTask[]) {
+  const overlapped = computeTaskOverlap(tasks)
+  const sorted = overlapped.sort((a, b) => a.startMin! - b.startMin!)
+
+  const groups: { tasks: DayViewTask[]; startMin: number }[] = []
+  let cur: DayViewTask[] = []
+  let curEnd = -1
+
+  const flush = () => {
+    if (!cur.length) return
+    const startMin = Math.min(...cur.map((t) => t.startMin!))
+    groups.push({ tasks: cur, startMin })
+    cur = []
+  }
+
+  for (const t of sorted) {
+    if (t.startMin! > curEnd) {
+      flush()
+      cur = [t]
+      curEnd = t.endMin!
+    } else {
+      cur.push(t)
+      curEnd = Math.max(curEnd, t.endMin!)
+    }
+  }
+  flush()
+
+  return groups
+}
+
 export default function DayView() {
+
+  function getLabelName(labelId?: number) {
+  if (!labelId) return ''
+  const found = labelList.find((l) => l.id === labelId)
+  return found ? found.title : ''
+}
+
+  function computeEventOverlap(events: any[]) {
+  // startMin, endMin을 가진 이벤트 배열을 받는다고 가정
+
+  const sorted = [...events].sort(
+    (a, b) => a.startMin - b.startMin || a.endMin - b.endMin
+  )
+
+  let group: any[] = []
+  let groupEnd = -1
+  const result: any[] = []
+
+  const flush = () => {
+    if (!group.length) return
+    const columns: any[][] = []
+
+    group.forEach((ev) => {
+      let placed = false
+      for (let i = 0; i < columns.length; i++) {
+        const last = columns[i][columns[i].length - 1]
+        if (last.endMin <= ev.startMin) {
+          columns[i].push(ev)
+          ev._column = i
+          placed = true
+          break
+        }
+      }
+      if (!placed) {
+        columns.push([ev])
+        ev._column = columns.length - 1
+      }
+    })
+
+    group.forEach((ev) => {
+      ev._totalColumns = columns.length
+      result.push(ev)
+    })
+
+    group = []
+  }
+
+  for (const ev of sorted) {
+    if (ev.startMin > groupEnd) {
+      flush()
+      group = [ev]
+      groupEnd = ev.endMin
+    } else {
+      group.push(ev)
+      groupEnd = Math.max(groupEnd, ev.endMin)
+    }
+  }
+
+  flush()
+  return result
+}
+
+  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
+  const [isDraggingTask, setIsDraggingTask] = useState(false)
+  const [tasks, setTasks] = useState<any[]>([])
+  const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
+  const [openGroupIndex, setOpenGroupIndex] = useState<number | null>(null)
   // OCR 카드
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
+  const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
 
   // 📌 이미지 추가 모달 열기
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
+      setOcrSplashVisible(true)
+      
       const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
       const lower = (ext ?? 'jpg').toLowerCase()
       const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
@@ -189,7 +373,7 @@ export default function DayView() {
             data: cleanBase64,
           },
         },
-        { timeout: 20000 }, // ⬅ 20초
+        
       )
 
       console.log('OCR 성공:', res.data)
@@ -211,18 +395,20 @@ export default function DayView() {
             endTime: ev.endTime ?? '',
           }
         })
-        .sort((a: OCREvent, b: OCREvent) => a.date.localeCompare(b.date))
+        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
 
       setOcrEvents(parsed)
-      setOcrModalVisible(true)
-    } catch (err: any) {
-      console.log('🔍 OCR 실패 Raw Error:', err)
-      console.log('🔍 OCR 실패 response:', err.response)
-      console.log('🔍 OCR 실패 data:', err.response?.data)
-      console.log('🔑 token.getAccess():', token.getAccess())
-      Alert.alert('오류', 'OCR 처리 실패')
-    }
+      
+        // OCR 성공한 시점에서 스플래쉬 끄기
+  setOcrSplashVisible(false)
+
+  // 바로 카드 켜기
+  setOcrModalVisible(true)
+
+  } catch (err) {
+    Alert.alert('오류', 'OCR 처리 실패')
   }
+}
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -234,6 +420,7 @@ export default function DayView() {
     return () => bus.off('popup:image:create', handler)
   }, [])
 
+  const isFocused = useIsFocused()
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
@@ -247,6 +434,18 @@ export default function DayView() {
       lastBroadcastRef.current = anchorDate
     }
   }, [anchorDate])
+
+  useEffect(() => {
+    if (!isFocused) return
+
+    bus.emit('calendar:state', {
+      date: anchorDate,
+      mode: 'day',
+    })
+    bus.emit('calendar:meta', {
+      mode: 'day',
+    })
+  }, [anchorDate, isFocused])
   const [checks, setChecks] = useState(INITIAL_CHECKS)
   const [events, setEvents] = useState<any[]>([])
   const [spanEvents, setSpanEvents] = useState<any[]>([])
@@ -297,8 +496,6 @@ export default function DayView() {
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
   }, [])
-
-  const [tasks, setTasks] = useState<any[]>([])
 
   // ✅ DayView 좌우 스와이프 애니메이션 (WeekView와 비슷한 구조, ±1일 이동)
   const swipeTranslateX = useSharedValue(0)
@@ -359,6 +556,48 @@ export default function DayView() {
     bottom: 0,
   })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
+  useFocusEffect(
+    useCallback(() => {
+      currentCalendarView.set('day')
+
+      // 헤더나 WeekView에서 현재 상태를 알려줄 때
+      const onState = (payload: any) => {
+        // 날짜 정보가 있고, 내 날짜와 다르면 업데이트
+        if (payload.date && payload.date !== anchorDateRef.current) {
+          setAnchorDate(payload.date)
+        }
+      }
+
+      // 강제 날짜 변경 명령 (달력 팝업 등)
+      const onSet = (iso: string) => {
+        setAnchorDate((prev) => (prev === iso ? prev : iso))
+      }
+
+      bus.on('calendar:state', onState)
+      bus.on('calendar:set-date', onSet)
+      bus.emit('calendar:request-sync')
+
+      return () => {
+        bus.off('calendar:state', onState)
+        bus.off('calendar:set-date', onSet)
+      }
+    }, []), // 의존성 비움 - 스와이프 시 재실행 방지
+  )
+  useFocusEffect(
+    useCallback(() => {
+      bus.emit('calendar:state', {
+        date: anchorDate,
+        mode: 'day',
+      })
+    }, [anchorDate]),
+  )
+
+  useEffect(() => {
+    if (isFocused) {
+      bus.emit('calendar:set-date', anchorDate)
+    }
+  }, [anchorDate, isFocused])
+
   useEffect(() => {
     const onReq = () =>
       bus.emit('calendar:state', { date: anchorDateRef.current, mode: 'day' })
@@ -411,7 +650,15 @@ export default function DayView() {
   const ROW_H_LOCAL = 48
 
   // 라벨
-  const [labelList, setLabelList] = useState([])
+
+  interface LabelItem {
+    id: number
+    title: string
+    color?: string
+    colorKey?: string
+  }
+
+  const [labelList, setLabelList] = useState<LabelItem[]>([])
   const fetchLabels = async () => {
     try {
       const res = await http.get('/user/setting/label')
@@ -612,7 +859,24 @@ export default function DayView() {
         }
 
         // 이제 필터 적용한 값으로 세팅
-        setEvents(timelineEvents.filter(filterEvent))
+        // 1) 이벤트 startMin / endMin 계산
+const parsedEvents = timelineEvents.map((e: any) => {
+  const [sh, sm] = e.clippedStartTime.split(':').map(Number)
+  const [eh, em] = e.clippedEndTime.split(':').map(Number)
+
+  return {
+    ...e,
+    startMin: sh * 60 + sm,
+    endMin: eh * 60 + em,
+  }
+})
+
+// 2) overlap 계산해서 column 정보 부여
+const overlapped = computeEventOverlap(parsedEvents)
+
+// 3) 필터 적용
+setEvents(overlapped.filter(filterEvent))
+
         setSpanEvents(span.filter(filterEvent))
         setTasks(timedTasks.filter(filterTask))
         setChecks(checksAll.filter(filterTask))
@@ -856,7 +1120,7 @@ export default function DayView() {
         },
       },
     ])
-  }
+  } 
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -913,7 +1177,7 @@ export default function DayView() {
                           ? raw
                           : `#${raw}`
                         : '#8B5CF6'
-                      const bg = `${base}26`
+                      const bg = `${base}4D`
 
                       return (
                         <Pressable key={t.id ?? i} onPress={() => openEventDetail(t)}>
@@ -1058,44 +1322,149 @@ export default function DayView() {
                 const startMin = sh * 60 + sm
                 const endMin = eh * 60 + em
 
+                // 반복 일정이면 DraggableFixedEvent 사용
+                if (evt.isRepeat) {
+                  return (
+                    <DraggableFixedEvent
+                      key={evt.id}
+                      id={evt.id}
+                      title={evt.title}
+                      place={getLabelName(evt.labels?.[0])}
+                      startMin={startMin}
+                      endMin={endMin}
+                      color={`#${evt.colorKey}`}
+                      anchorDate={anchorDate}
+                      onPress={() => openEventDetail(evt)}
+                    />
+                  )
+                }
+
+                // 일반 일정
                 return (
-                  <DraggableFlexalbeEvent
-                    key={evt.id}
-                    id={evt.id}
-                    title={evt.title}
-                    place={`label ${evt.labels?.[0] ?? ''}`}
-                    startMin={startMin}
-                    endMin={endMin}
-                    color={`#${evt.colorKey}`}
-                    anchorDate={anchorDate}
-                    isRepeat={!!evt.isRepeat}
-                    onPress={() => openEventDetail(evt)}
-                  />
+<DraggableFlexalbeEvent
+  key={evt.id}
+  id={evt.id}
+  title={evt.title}
+  place={getLabelName(evt.labels?.[0])}
+  startMin={startMin}
+  endMin={endMin}
+  color={`#${evt.colorKey}`}
+  anchorDate={anchorDate}
+  isRepeat={!!evt.isRepeat}
+  _column={evt._column}        
+  _totalColumns={evt._totalColumns} 
+  onPress={() => openEventDetail(evt)}
+/>
                 )
               })}
 
-              {tasks.map((task) => {
-                const start =
-                  task.placementTime && task.placementTime.includes(':')
+              {/* ⭐ Task groups 적용 */}
+              {taskGroups.map((group, idx) => {
+                const { tasks: list, startMin } = group
+
+                // 4개 이상 → 그룹박스 1개만
+                if (list.length >= 4) {
+                  return (
+                    <DraggableTaskGroupBox
+                      key={`group-${idx}`}
+                      group={list}
+                      startMin={startMin}
+                      count={list.length}
+                      anchorDate={anchorDate}
+                      onPress={() =>
+                        setOpenGroupIndex(openGroupIndex === idx ? null : idx)
+                      }
+                      setIsDraggingTask={setIsDraggingTask}
+                    />
+                  )
+                }
+
+                // 1~3개 → 기존 개별 Task 렌더
+                return list.map((task) => {
+                  const start = task.placementTime?.includes(':')
                     ? (() => {
                         const [h, m] = task.placementTime.split(':').map(Number)
                         return h + m / 60
                       })()
                     : 0
 
-                return (
-                  <DraggableTaskBox
-                    key={task.id}
-                    id={task.id}
-                    title={task.title}
-                    startHour={start}
-                    anchorDate={anchorDate}
-                    placementDate={task.placementDate}
-                    done={task.completed ?? false}
-                    onPress={() => openTaskPopupFromApi(task.id)}
-                  />
-                )
+                  return (
+                    <DraggableTaskBox
+                      key={task.id}
+                      id={task.id}
+                      title={task.title}
+                      startHour={start}
+                      anchorDate={anchorDate}
+                      placementDate={task.placementDate}
+                      done={task.completed}
+                      onPress={() => openTaskPopupFromApi(task.id)}
+                      column={task._column}
+                      totalColumns={task._totalColumns}
+                      events={events}
+                    />
+                  )
+                })
               })}
+
+              {/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
+              {openGroupIndex !== null &&
+                (() => {
+                  const group = taskGroups[openGroupIndex]
+                  if (!group) return null
+                  const { tasks: list, startMin } = group
+
+                  return (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: startMin * PIXELS_PER_MIN + 52,
+                        left: 50 + 18,
+                        right: 18,
+                        backgroundColor: '#FFF',
+                        borderRadius: 10,
+                        borderColor: '#B3B3B3',
+                        borderWidth: 0.3,
+                        paddingVertical: 16,
+                        paddingHorizontal: 20,
+                        zIndex: 500,
+                      }}
+                    >
+                      {list.map((task) => (
+                        <Pressable
+                          key={task.id}
+                          onPress={() => openTaskPopupFromApi(task.id)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            marginBottom: 18,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderWidth: 2,
+                              borderRadius: 2,
+                              borderColor: '#333',
+                              marginRight: 14,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              backgroundColor: '#FFF', // ⭐ 추가
+                            }}
+                          >
+                            {task.completed && (
+                              <Text style={{ fontSize: 12, color: '#333' }}>✓</Text>
+                            )}
+                          </View>
+
+                          <Text style={{ fontSize: 14, color: '#000' }}>
+                            {task.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )
+                })()}
             </ScrollView>
           </Animated.View>
         </GestureDetector>
@@ -1213,18 +1582,43 @@ export default function DayView() {
             fetchDailyEvents(anchorDate) // 일정 새로 반영
           }}
         />
+        <Modal
+  visible={ocrSplashVisible}
+  transparent={true}
+  animationType="fade"
+  statusBarTranslucent={true}
+>
+  <OcrSplash />
+</Modal>
         <AddImageSheet
           visible={imagePopupVisible}
           onClose={() => setImagePopupVisible(false)}
           onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
           onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
         />
-        <OCREventCardSlider
-          visible={ocrModalVisible}
-          events={ocrEvents}
-          onClose={() => setOcrModalVisible(false)}
-          onAddEvent={(ev) => {}}
-        />
+       <OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await createEvent(payload)
+      await fetchDailyEvents(anchorDate)
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
+  onSaveAll={async () => {
+    await fetchDailyEvents(anchorDate)
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    setOcrModalVisible(false)
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
@@ -1237,14 +1631,273 @@ function thumbH(visibleH: number, contentH: number) {
   return Math.max(minH, Math.min(h, visibleH))
 }
 
-type DraggableTaskBoxProps = {
+type DraggableFixedEventProps = {
   id: string
   title: string
+  place: string
+  startMin: number
+  endMin: number
+  color: string
+  anchorDate: string
+  onPress?: () => void
+}
+
+function DraggableFixedEvent({
+  id,
+  title,
+  place,
+  startMin,
+  endMin,
+  color,
+  anchorDate,
+  onPress,
+}: DraggableFixedEventProps) {
+  // ===== 공통 계산 =====
+  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const height = rawHeight
+
+  // ===== 드래그 상태 =====
+  const translateY = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
+
+  const triggerHaptic = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+  }
+
+  // ===== 드롭 처리 =====
+  const handleDrop = useCallback(
+    async (movedY: number) => {
+      try {
+        const SNAP_UNIT = 5 * PIXELS_PER_MIN
+        const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
+        translateY.value = withSpring(snappedY)
+
+        const deltaMin = snappedY / PIXELS_PER_MIN
+        const newStart = startMin + deltaMin
+        const newEnd = endMin + deltaMin
+
+        const fmt = (min: number) =>
+          `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}:00`
+
+        const newStartTime = fmt(newStart)
+        const newEndTime = fmt(newEnd)
+
+        // 🔥 반복 일정 팝업 적용
+        const detailRes = await http.get(`/event/${id}`)
+        const ev = detailRes.data.data
+
+        if (ev?.repeat) {
+          const basePayload = {
+            title: ev.title,
+            content: ev.content ?? '',
+            labels: ev.labels ?? [],
+            startDate: anchorDate,
+            endDate: anchorDate,
+            startTime: newStartTime,
+            endTime: newEndTime,
+            colorKey: ev.colorKey,
+          }
+
+          const prevDay = (iso: string) => {
+            const d = new Date(iso)
+            d.setDate(d.getDate() - 1)
+            const pad = (n: number) => String(n).padStart(2, '0')
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+          }
+
+          Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
+            { text: '취소', style: 'cancel' },
+
+            {
+              text: '이 일정만',
+              onPress: async () => {
+                try {
+                  const occ = anchorDate
+                  const prev = ev.repeat.exceptionDates ?? []
+                  const next = prev.includes(occ) ? prev : [...prev, occ]
+
+                  // 기존 반복 일정에서 제외
+                  await http.patch(`/event/${id}`, {
+                    repeat: {
+                      ...ev.repeat,
+                      exceptionDates: next,
+                    },
+                  })
+
+                  // 단일 일정 만들기
+                  await http.post(`/event`, {
+                    ...basePayload,
+                    repeat: null,
+                  })
+
+                  bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                } catch (e) {
+                  console.error('❌ 반복 단일 수정 실패:', e)
+                }
+              },
+            },
+
+            {
+              text: '이후 일정 모두',
+              onPress: async () => {
+                try {
+                  const cutEnd = prevDay(anchorDate)
+
+                  // 기존 반복 일정 잘라내기
+                  await http.patch(`/event/${id}`, {
+                    repeat: {
+                      ...ev.repeat,
+                      endDate: cutEnd,
+                    },
+                  })
+
+                  // 이후 반복 일정 새로 만들기
+                  await http.post(`/event`, {
+                    ...basePayload,
+                    repeat: ev.repeat,
+                  })
+
+                  bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                } catch (e) {
+                  console.error('❌ 반복 전체 수정 실패:', e)
+                }
+              },
+            },
+          ])
+
+          return
+        }
+
+        // 🔥 일반 일정 PATCH (기존 Fixed 로직)
+        await http.patch(`/event/${id}`, {
+          startDate: anchorDate,
+          endDate: anchorDate,
+          startTime: newStartTime,
+          endTime: newEndTime,
+        })
+
+        bus.emit('calendar:mutated', {
+          op: 'update',
+          item: {
+            id,
+            isTask: false,
+            startDate: anchorDate,
+            endDate: anchorDate,
+            startTime: newStartTime,
+            endTime: newEndTime,
+          },
+        })
+      } catch (err: any) {
+        console.error('❌ FixedEvent 드롭 실패:', err.message)
+      }
+    },
+    [id, startMin, endMin, anchorDate],
+  )
+
+  // ===== 롱프레스 후 드래그 시작 =====
+  const hold = Gesture.LongPress()
+    .minDuration(250)
+    .onStart(() => {
+      runOnJS(triggerHaptic)()
+      dragEnabled.value = true
+    })
+
+  // ===== 드래그 =====
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      if (!dragEnabled.value) return
+      const totalHeight = 24 * 60 * PIXELS_PER_MIN
+      const topOffset = startMin * PIXELS_PER_MIN + translateY.value + e.changeY
+
+      const minTop = 0
+      const maxTop = totalHeight - rawHeight
+      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+      translateY.value = clampedTop - startMin * PIXELS_PER_MIN
+    })
+    .onEnd(() => {
+      if (!dragEnabled.value) return
+      dragEnabled.value = false
+
+      const totalHeight = 24 * 60 * PIXELS_PER_MIN
+      const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+
+      const minTop = 0
+      const maxTop = totalHeight - rawHeight
+
+      const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
+      const delta = clampedTop - startMin * PIXELS_PER_MIN
+
+      translateY.value = delta
+      runOnJS(handleDrop)(delta)
+    })
+
+  // ===== 합성 제스처 =====
+  const composedGesture = Gesture.Simultaneous(hold, drag)
+
+  // ===== 스타일 =====
+  const style = useAnimatedStyle(() => ({
+    top: startMin * PIXELS_PER_MIN + translateY.value,
+  }))
+
+  const base = color.startsWith('#') ? color : `#${color}`
+  const bg = `${base}4D` 
+
+  return (
+    <GestureDetector gesture={composedGesture}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            left: 50 + 16,
+            right: 16,
+            height,
+            backgroundColor: bg,
+            paddingHorizontal: 6,
+            paddingTop: 10,
+            zIndex: 10,
+          },
+          style,
+        ]}
+      >
+        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={10}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: '#000',
+              fontWeight: '600',
+              fontSize: 12,
+            }}
+          >
+            {title}
+          </Text>
+
+          <Text
+            numberOfLines={1}
+            style={{
+              color: '#6B6B6B',
+              marginTop: 8,
+              fontSize: 10,
+            }}
+          >
+            {place}
+          </Text>
+        </Pressable>
+      </Animated.View>
+    </GestureDetector>
+  )
+}
+
+type DraggableTaskBoxProps = {
+  id: string
+  title: string | undefined
   startHour: number
-  placementDate?: string
+  placementDate?: string | null
   done?: boolean
   anchorDate: string
   onPress?: () => void
+  column: number | undefined
+  totalColumns: number | undefined
+  events: any[]
 }
 
 function DraggableTaskBox({
@@ -1255,6 +1908,9 @@ function DraggableTaskBox({
   done: initialDone = false,
   anchorDate,
   onPress,
+  column,
+  totalColumns,
+  events,
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
@@ -1328,14 +1984,47 @@ function DraggableTaskBox({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
   }))
 
+  // ⭐ Task Overlap 계산 (column/totalColumns을 화면 너비에 반영)
+  const COLUMN_GAP = 4
+  const LEFT_OFFSET = 50 + 18
+  const RIGHT_OFFSET = 18
+  const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
+
+  const safeColumn = column ?? 0
+  const safeTotalColumns = totalColumns ?? 1
+
+const startMin = startHour * 60
+const endMin = startMin + 60 // task는 기본 1시간
+
+// 🟣 Task와 겹치는 이벤트 찾기
+const overlappingEvents = events.filter(ev => {
+  return !(ev.endMin <= startMin || ev.startMin >= endMin)
+})
+
+// 이벤트 겹침 오프셋
+const EVENT_STAGGER = 14  // 원하는 값(픽셀)
+const eventOffset = overlappingEvents.length * EVENT_STAGGER
+
+const widthPercent = 1 / safeTotalColumns
+  
+const isOverlapWithEvent = overlappingEvents.length > 0
+
+let boxWidth = usableWidth * widthPercent - COLUMN_GAP
+let left = LEFT_OFFSET + safeColumn * (usableWidth * widthPercent)
+
+if (isOverlapWithEvent) {
+  boxWidth = usableWidth * 0.5
+  left = LEFT_OFFSET + usableWidth * 0.5
+}
+
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
             position: 'absolute',
-            left: 50 + 18,
-            right: 18,
+            left,
+            width: boxWidth,
             height: ROW_H - 4,
             backgroundColor: '#FFFFFF80',
             borderWidth: 0.4,
@@ -1397,6 +2086,179 @@ function DraggableTaskBox({
   )
 }
 
+function DraggableTaskGroupBox({
+  group,
+  startMin,
+  count,
+  anchorDate,
+  onPress,
+  setIsDraggingTask, // ⭐ DayView에서 내려받도록 추가
+}: {
+  group: DayViewTask[]
+  startMin: number
+  count: number
+  anchorDate: string
+  onPress: () => void
+  setIsDraggingTask: (v: boolean) => void
+}) {
+  const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
+  const translateX = useSharedValue(0)
+  const dragEnabled = useSharedValue(false)
+
+  const triggerHaptic = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+  }
+
+  // startMin 변경 → 위치 보정
+  useEffect(() => {
+    translateY.value = withSpring(startMin * PIXELS_PER_MIN)
+  }, [startMin])
+
+  // ------------------------------------------
+  //      ⭐ 드롭 처리 (PATCH 병렬 처리)
+  // ------------------------------------------
+  const handleDrop = useCallback(
+    async (snappedY: number) => {
+      try {
+        const newStartMin = snappedY / PIXELS_PER_MIN
+        const delta = newStartMin - startMin
+        const fmt = (n: number) => String(n).padStart(2, '0')
+
+        // PATCH 모두 병렬 처리 → 렌더 중단 없이 빠르게 끝남
+        await Promise.all(
+          group.map(async (t) => {
+            const m = t.placementTime?.match(/(\d+):(\d+)/)
+            if (!t.placementTime || !m) return
+
+            const oldH = Number(m[1])
+            const oldM = Number(m[2])
+            const oldMin = oldH * 60 + oldM
+
+            const newMin = oldMin + delta
+            const newH = Math.floor(newMin / 60)
+            const newM = newMin % 60
+            const newTime = `${fmt(newH)}:${fmt(newM)}:00`
+
+            return http.patch(`/task/${t.id}`, {
+              placementDate: anchorDate,
+              placementTime: newTime,
+              date: anchorDate,
+            })
+          }),
+        )
+
+        // 캘린더 갱신 이벤트 (1번만)
+        bus.emit('calendar:mutated', {
+          op: 'update',
+          item: { id: null, isTask: true, date: anchorDate },
+        })
+      } catch (err) {
+        console.log('❌ Group drop error:', err)
+      } finally {
+        runOnJS(setIsDraggingTask)(false) // 드래그 종료
+      }
+    },
+    [group, startMin, anchorDate],
+  )
+
+  // ------------------------------------------
+  //      ⭐ 롱프레스 → 드래그 시작
+  // ------------------------------------------
+  const hold = Gesture.LongPress()
+    .minDuration(250)
+    .onStart(() => {
+      runOnJS(triggerHaptic)()
+      runOnJS(setIsDraggingTask)(true) // 드래그 시작 알림
+      dragEnabled.value = true
+    })
+
+  // ------------------------------------------
+  //      ⭐ 드래그
+  // ------------------------------------------
+  const drag = Gesture.Pan()
+    .onChange((e) => {
+      if (!dragEnabled.value) return
+      const maxY = 23 * 60 * PIXELS_PER_MIN
+      const nextY = translateY.value + e.changeY
+      translateY.value = Math.max(0, Math.min(maxY, nextY))
+      translateX.value += e.changeX
+    })
+    .onEnd(() => {
+      if (!dragEnabled.value) return
+      dragEnabled.value = false
+
+      const SNAP_UNIT = 5 * PIXELS_PER_MIN
+      let snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      snappedY = Math.max(0, Math.min(23 * 60 * PIXELS_PER_MIN, snappedY))
+
+      translateY.value = withSpring(snappedY)
+      translateX.value = withSpring(0)
+
+      runOnJS(handleDrop)(snappedY)
+    })
+
+  const composedGesture = Gesture.Simultaneous(hold, drag)
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
+  }))
+
+  // UI 위치 계산 (기존과 동일)
+  const LEFT_OFFSET = 50 + 18
+  const RIGHT_OFFSET = 18
+  const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
+  const boxWidth = usableWidth - 4
+
+  return (
+    <GestureDetector gesture={composedGesture}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            left: LEFT_OFFSET,
+            width: boxWidth,
+            height: ROW_H - 4,
+            backgroundColor: '#FFFFFF80',
+            borderWidth: 0.4,
+            borderRadius: 10,
+            borderColor: '#333333',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 16,
+            zIndex: 30,
+          },
+          style,
+        ]}
+      >
+        <Pressable
+          onPress={onPress}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
+        >
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderWidth: 2,
+              borderRadius: 2,
+              borderColor: '#333',
+              marginRight: 14,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: '#FFF',
+            }}
+          />
+          <Text style={{ fontWeight: '700', fontSize: 13, color: '#9B4FFF' }}>
+            할 일이 있어요! ({count})
+          </Text>
+          <View style={{ flex: 1 }} />
+          <Text style={{ fontSize: 12 }}>▼</Text>
+        </Pressable>
+      </Animated.View>
+    </GestureDetector>
+  )
+}
+
 type DraggableFlexalbeEventProps = {
   id: string
   title: string
@@ -1407,6 +2269,8 @@ type DraggableFlexalbeEventProps = {
   anchorDate: string
   isRepeat?: boolean
   onPress?: () => void
+  _column?: number
+  _totalColumns?: number
 }
 
 function DraggableFlexalbeEvent({
@@ -1419,6 +2283,7 @@ function DraggableFlexalbeEvent({
   anchorDate,
   isRepeat = false,
   onPress,
+  _column
 }: DraggableFlexalbeEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
@@ -1643,13 +2508,22 @@ function DraggableFlexalbeEvent({
 
   const backgroundColor = color.startsWith('#') ? color : `#${color}`
 
+  // ⭐ 겹침용 계단식 offset
+const BASE_LEFT = 50 + 18
+const STAGGER = 32         // 하나 겹칠 때마다 오른쪽으로 32px
+const MAX_STAGGER = 96        // 너무 많아지면 제한
+
+const shift = Math.min((_column ?? 0) * STAGGER, MAX_STAGGER)
+
+const left = BASE_LEFT + shift
+
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
             position: 'absolute',
-            left: 50 + 18,
+            left,
             right: 18,
             height,
             backgroundColor,

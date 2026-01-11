@@ -17,9 +17,8 @@ import { Alert, Linking } from 'react-native'
 interface Props {
   visible: boolean
   onClose: () => void
-  onTakePhoto?: (uri: string, base64: string, ext?: string) => void 
+  onTakePhoto?: (uri: string, base64: string, ext?: string) => void
   onPickImage?: (uri: string, base64: string, ext?: string) => void
-  
 }
 
 export default function AddImageSheet({
@@ -28,80 +27,74 @@ export default function AddImageSheet({
   onTakePhoto,
   onPickImage,
 }: Props) {
-  
   /** 📌 공통: 권한 없으면 설정으로 이동시키는 Alert */
-function showPermissionAlert(message: string) {
-  Alert.alert(
-    '권한이 꺼져 있어요',
-    message,
-    [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '설정 열기',
-        onPress: () => Linking.openSettings(),
-      },
-    ],
-    { cancelable: true }
-  )
-}
-/** 📸 카메라 */
-const handleTakePhoto = async () => {
-  const { status } = await ImagePicker.requestCameraPermissionsAsync()
-
-  if (status !== 'granted') {
-    showPermissionAlert('설정 > Whatta > 카메라에서 권한을 허용해야 촬영할 수 있어요.')
-    return
-  }
-
-  const result = await ImagePicker.launchCameraAsync({
-    mediaTypes: ['images'],
-    base64: true,
-    quality: 1,
-  })
-
-  if (!result.canceled) {
-    const asset = result.assets[0]
-    let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
-    if (ext === 'heic') ext = 'jpg'
-
-    const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
-    onTakePhoto?.(asset.uri, cleanBase64!, ext)
-  }
-}
-
-/** 🖼 갤러리 */
-const handlePickImage = async () => {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-
-  if (status !== 'granted') {
-    showPermissionAlert(
-      '설정 > Whatta > 사진에서 권한을 허용해야 갤러리에서 이미지를 불러올 수 있어요.'
+  function showPermissionAlert(message: string) {
+    Alert.alert(
+      '권한이 꺼져 있어요',
+      message,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '설정 열기',
+          onPress: () => Linking.openSettings(),
+        },
+      ],
+      { cancelable: true },
     )
-    return
+  }
+  /** 📸 카메라 */
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync()
+
+    if (status !== 'granted') {
+      showPermissionAlert('설정 > Whatta > 카메라에서 권한을 허용해야 촬영할 수 있어요.')
+      return
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 1,
+    })
+
+    if (!result.canceled) {
+      const asset = result.assets[0]
+      let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
+      if (ext === 'heic') ext = 'jpg'
+
+      const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
+      onTakePhoto?.(asset.uri, cleanBase64!, ext)
+    }
   }
 
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    base64: true,
-    quality: 1,
-  })
+  /** 🖼 갤러리 */
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
 
-  if (!result.canceled) {
-    const asset = result.assets[0]
-    let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
-    if (ext === 'heic') ext = 'jpg'
+    if (status !== 'granted') {
+      showPermissionAlert(
+        '설정 > Whatta > 사진에서 권한을 허용해야 갤러리에서 이미지를 불러올 수 있어요.',
+      )
+      return
+    }
 
-    const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
-    onPickImage?.(asset.uri, cleanBase64!, ext)
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 1,
+    })
+
+    if (!result.canceled) {
+      const asset = result.assets[0]
+      let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
+      if (ext === 'heic') ext = 'jpg'
+
+      const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
+      onPickImage?.(asset.uri, cleanBase64!, ext)
+    }
   }
-}
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       {/* Overlay */}
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={[StyleSheet.absoluteFill, styles.overlay]} />
@@ -113,7 +106,7 @@ const handlePickImage = async () => {
 
         <Text style={styles.title}>이미지로 추가</Text>
 
-{/* 촬영하기 */}
+        {/* 촬영하기
 <Pressable
   style={styles.itemRow}
   onPress={() => {
@@ -123,7 +116,7 @@ const handlePickImage = async () => {
 >
   <CameraIcon width={24} height={24} style={styles.icon} />
   <Text style={styles.label}>촬영하기</Text>
-</Pressable>
+</Pressable> */}
 
         {/* 사진 불러오기 */}
         <Pressable
@@ -138,35 +131,34 @@ const handlePickImage = async () => {
         </Pressable>
 
         {/* 하단 여백 */}
-        <View style={{ height: 24 }} />
+        <View style={{ height: 0 }} />
       </View>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
-
   overlay: {
-  ...StyleSheet.absoluteFillObject,
-  backgroundColor: 'rgba(255,255,255,0.7)',
-  zIndex: 1,
-},
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    zIndex: 1,
+  },
 
   sheet: {
-  position: 'absolute',
-  bottom: 0,
-  width: '100%',
-  height: '26%',
-  backgroundColor: 'white',
-  paddingTop: 17,
-  borderTopLeftRadius: 10,
-  borderTopRightRadius: 10,
-  shadowColor: '#000',
-  shadowOpacity: 0.25,
-  shadowRadius: 4,
-  shadowOffset: { width: 0, height: 0 },
-  zIndex: 2,
-},
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    height: '26%',
+    backgroundColor: 'white',
+    paddingTop: 17,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    zIndex: 2,
+  },
 
   handle: {
     width: 36,

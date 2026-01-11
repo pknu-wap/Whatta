@@ -12,6 +12,9 @@ import {
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import { Easing } from 'react-native'
+import { http } from '@/lib/http'
+import { bus } from '@/lib/eventBus'
+import { useNavigation } from '@react-navigation/native'
 
 const { width, height } = Dimensions.get('window')
 
@@ -37,6 +40,7 @@ interface MonthlyDetailPopupProps {
   onClose: () => void
   dayData: {
     date?: string
+    dateISO?: string
     dayOfWeek?: string
     spanEvents?: DayEvent[]
     normalEvents?: DayEvent[]
@@ -49,6 +53,7 @@ export default function MonthlyDetailPopup({
   onClose,
   dayData,
 }: MonthlyDetailPopupProps) {
+  const nav = useNavigation<any>()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.95)).current
   const [isVisible, setIsVisible] = React.useState(visible)
@@ -61,13 +66,34 @@ export default function MonthlyDetailPopup({
       setTasks(
         dayData.timeEvents
           .filter((ev) => !ev.startAt && !ev.endAt)
-          .map((ev) => ({ ...ev, done: false })),
+          .map((ev) => ({ ...ev, done: ev.done ?? false })),
       )
     }
   }, [dayData])
 
-  const toggleTask = (idx: number) => {
-    setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !t.done } : t)))
+  const toggleTask = async (idx: number) => {
+    const task = tasks[idx]
+    if (!task.id) return
+
+    const nextDone = !task.done
+
+    // 1. UI 즉시 반영
+    setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: nextDone } : t)))
+
+    // 2. 서버 요청 & 이벤트 발행
+    try {
+      await http.patch(`/task/${task.id}`, {
+        completed: nextDone,
+      })
+
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: { id: task.id, isTask: true, isCompleted: nextDone },
+      })
+    } catch (e) {
+      console.error('Task toggle failed:', e)
+      setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !nextDone } : t)))
+    }
   }
 
   // ✅ 애니메이션 지속 시간 늘리기
@@ -114,6 +140,13 @@ export default function MonthlyDetailPopup({
 
   if (!isVisible) return null
 
+  const handleHeaderDatePress = () => {
+    const iso = dayData.dateISO
+    if (!iso) return
+    nav.navigate('Day')
+    onClose()
+  }
+
   // ✅ ISO 시간 변환 함수
   const formatTimeRange = (startAt?: string, endAt?: string) => {
     if (!startAt || !endAt) return ''
@@ -135,9 +168,11 @@ export default function MonthlyDetailPopup({
             {/* Header */}
             <View style={S.header}>
               <View style={S.headerInner}>
-                <Text style={[S.headerText]}>
-                  {dayData.date} ({dayData.dayOfWeek})
-                </Text>
+                <Pressable onPress={handleHeaderDatePress}>
+                  <Text style={[S.headerText]}>
+                    {dayData.date} ({dayData.dayOfWeek})
+                  </Text>
+                </Pressable>
                 {/* 커스텀 X 아이콘 */}
                 <Pressable onPress={onClose} hitSlop={10} style={S.closeWrap}>
                   <View style={S.closeLine1} />
@@ -174,16 +209,82 @@ export default function MonthlyDetailPopup({
                     const startKorean = formatToKoreanDate(startDate)
                     const endKorean = formatToKoreanDate(endDate)
 
+                    const isSingleAllDay =
+                      !t.period || !t.period.includes('~')
+
+                      if (isSingleAllDay) { // ⭐ 단 하루짜리 all-day 일정 전용 디자인
+                      const rawColor = t.colorKey || t.color //여기 수정됐어요
+                      const formatted = rawColor
+                        ? rawColor.startsWith('#')
+                          ? rawColor
+                          : `#${rawColor}`
+                        : null //여기 수정됐어요
+                      const baseColor =
+                        !formatted || formatted.toUpperCase() === '#FFFFFF'
+                          ? '#8B5CF6'
+                          : formatted //여기 수정됐어요
+                      const bgWithOpacity =
+                        baseColor.length === 7 ? `${baseColor}26` : baseColor
+
+                      return (
+                        <View
+                          key={t.id ?? i}
+                          style={[
+                            S.chip,
+                            {
+                              marginLeft: 24, 
+                              marginRight: 24,
+                              backgroundColor: bgWithOpacity,
+                              borderRadius: 6,
+                            },
+                          ]}
+                        >
+                          {/* ⭐ 양쪽 칩바 추가 */}
+                          <View
+                            style={[S.chipBar, { left: 0, backgroundColor: baseColor }]}
+                          />
+                          <View
+                            style={[S.chipBar, { right: 0, backgroundColor: baseColor }]}
+                          />
+                          <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                            <Text style={S.chipText} numberOfLines={1}>
+                              {t.title}
+                            </Text>
+                            {dayData.dateISO && (
+                            <Text
+                              style={[
+                                ts('place'),
+                                { color: '#333333', fontSize: 10, marginTop: 2 },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {dayData.dateISO}
+                            </Text>
+                            )}
+                          </View>
+                        </View>
+                      )
+                    }
+
                     // ✅ 비교
                     const isStart = currentDate === startKorean
                     const isEnd = currentDate === endKorean
 
                     // ✅ 마진 조건
-                    const marginStyle = isStart
-                      ? { marginLeft: 24, marginRight: 0 }
-                      : isEnd
-                        ? { marginLeft: 0, marginRight: 24 }
-                        : { marginLeft: 0, marginRight: 0 }
+                    let marginStyle = { marginLeft: 0, marginRight: 0 }
+
+                    // 하루짜리 span 일정 → 양쪽 24px
+                    if (isStart && isEnd) {
+                      marginStyle = { marginLeft: 24, marginRight: 24 }
+                    }
+                    // 시작일
+                    else if (isStart) {
+                      marginStyle = { marginLeft: 24, marginRight: 0 }
+                    }
+                    // 종료일
+                    else if (isEnd) {
+                      marginStyle = { marginLeft: 0, marginRight: 24 }
+                    }
 
                     const rawColor = t.colorKey || t.color
                     const formatted = rawColor

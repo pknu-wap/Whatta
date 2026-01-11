@@ -102,8 +102,11 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   const ghostStyle = useAnimatedStyle(() => {
     const isWeek = ghostMode.value === 'week'
 
-    const dx = isWeek ? -ghostMeta.w * 0.8 : -ghostMeta.w / 2
-    const dy = isWeek ? -ghostMeta.h * 0.6 : -ghostMeta.h / 2
+    const OFFSET_X = -28 // 손가락보다 25px 오른쪽
+    const OFFSET_Y = -15 // 손가락보다 15px 위쪽
+
+    const dy = -ghostMeta.h + OFFSET_Y
+    const dx = OFFSET_X
 
     return {
       transform: [{ translateX: dragX.value + dx }, { translateY: dragY.value + dy }],

@@ -19,6 +19,8 @@ import { ScrollView } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
+import type { CreateEventPayload } from '@/api/event_api'
+import { getMyLabels } from '@/api/label_api'
 
 
 interface OCREventEditCardProps {
@@ -28,14 +30,11 @@ interface OCREventEditCardProps {
   startTime?: string
   endTime?: string
   onClose: () => void
+  isFromOCR?: boolean
+  colorKey?: string
 
-  onSubmit: (data: {
-    title: string
-    date: string
-    startTime?: string
-    endTime?: string
-    memo?: string
-  }) => void
+onSubmit: (data: CreateEventPayload) => void
+
 }
 
 export default function OCREventEditCard({
@@ -46,7 +45,46 @@ export default function OCREventEditCard({
   endTime,
   onSubmit,
   onClose,
+  colorKey,
 }: OCREventEditCardProps) {
+
+  // ⭐ 색상 선택 state
+const [selectedColor, setSelectedColor] = useState(colorKey ? `#${colorKey}` : '#FFD966')
+
+useEffect(() => {
+  if (colorKey) {
+    setSelectedColor(`#${colorKey}`)
+  }
+}, [colorKey])
+
+// 팝오버 관련 ref/state
+const colorBtnRef = React.useRef<View>(null)
+const cardRef = React.useRef<View>(null)
+
+const [palette, setPalette] = useState({
+  visible: false,
+  x: 0,
+  y: 0,
+})
+
+// 팝오버 UI 옵션 (EventDetailPopup 그대로)
+const POPOVER_W = 105
+const POP_GAP = 8
+const RIGHT_ALIGN = true
+const NUDGE_X = -5
+const NUDGE_Y = -10
+
+const COLORS = [
+  '#B04FFF',
+  '#FF4F4F',
+  '#FF8A66',
+  '#FFD966',
+  '#75FF66',
+  '#4FCAFF',
+  '#584FFF',
+  '#FF4FF0',
+]
+
   // 제목/메모
   const [titleInput, setTitleInput] = useState(title)
   const [memo, setMemo] = useState('')
@@ -260,29 +298,142 @@ const endLabel = (mode: 'none' | 'date', d: Date | null) => {
   return `${d.getMonth() + 1}월 ${d.getDate()}일`
 }
 
+// ⭐ 서버에 보낼 최종 payload 생성 함수
+const buildEventPayload = () => {
+  // 시간
+  const startHM = hasTime ? formatHM(startDate) + ':00' : null
+  const endHM   = hasTime ? formatHM(endDate) + ':00' : null
 
-  return (
-    <View style={styles.card}>
+  // 반복 옵션
+  let repeat: any = null
+
+  if (tab === '반복' && repeatMode !== 'none') {
+    if (repeatMode === 'daily') {
+      repeat = {
+        interval: 1,
+        unit: 'DAY',
+        on: [],
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    } else if (repeatMode === 'weekly') {
+      repeat = {
+        interval: 1,
+        unit: 'WEEK',
+        on: [ WEEKDAY[startDate.getDay()] ],
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    } else if (repeatMode === 'monthly') {
+      repeat = {
+        interval: 1,
+        unit: 'MONTH',
+        on:
+          monthlyOpt === 'byDate'
+            ? [String(startDate.getDate())]
+            : monthlyOpt === 'byNthWeekday'
+              ? [`${nth}-${startDate.getDay()}`]        // 예: "2-1"
+              : [`LAST-${startDate.getDay()}`],        // 예: "LAST-1"
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    } else if (repeatMode === 'custom') {
+      repeat = {
+        interval: repeatEvery,
+        unit: repeatUnit.toUpperCase(),  // DAY/WEEK/MONTH
+        on: [],
+        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        exceptionDates: [],
+      }
+    }
+  }
+
+  // 알림 옵션
+  let reminderNoti = { day: 0, hour: 0, minute: 0 }
+
+  if (remindOn) {
+    if (remindValue === '정시') {
+      reminderNoti = { day: 0, hour: 0, minute: 0 }
+    } else if (remindValue === '5분 전') {
+      reminderNoti = { day: 0, hour: 0, minute: 5 }
+    } else if (remindValue === '10분 전') {
+      reminderNoti = { day: 0, hour: 0, minute: 10 }
+    } else if (remindValue === '30분 전') {
+      reminderNoti = { day: 0, hour: 0, minute: 30 }
+    } else if (remindValue === '1시간 전') {
+      reminderNoti = { day: 0, hour: 1, minute: 0 }
+    } else if (remindValue === '맞춤 설정') {
+      reminderNoti = {
+        day: 0,
+        hour: customHour,
+        minute: customMinute,
+      }
+    }
+  }
+
+  return {
+    title: titleInput,
+    content: memo || '',
+    labels: selectedLabelIds,
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0],
+    startTime: startHM,
+    endTime: endHM,
+    repeat,
+    colorKey: selectedColor.replace('#', '').toUpperCase(),
+    reminderNoti,
+  }
+}
+
+  // 🔥 OCR 카드 전용: '시간표' 라벨 자동 선택/자동 생성
+// 🔥 라벨 목록 불러오기
+useEffect(() => {
+  const loadLabels = async () => {
+    const list = await getMyLabels()
+    setLabels(list)
+  }
+  loadLabels()
+}, [])
+
+// 🔥 시간표 자동 선택/생성
+useEffect(() => {
+  if (!labels.length) return
+
+  const applyTimetable = async () => {
+    let target = labels.find((l) => l.title === '시간표')
+
+    if (!target) {
+      const newLabel = await createLabel('시간표')
+      setLabels((prev) => [...prev, newLabel])
+      target = newLabel
+    }
+
+    setSelectedLabelIds((prev) =>
+      prev.includes(target.id) ? prev : [...prev, target.id]
+    )
+  }
+
+  applyTimetable()
+}, [labels])
+
+
+return (
+  <View style={styles.card} ref={cardRef}>
 {/* HEADER */}
 <View style={styles.header}>
   <Pressable onPress={onClose} hitSlop={20}>
     <Xbutton width={12} height={12} color={'#808080'} />
   </Pressable>
 
-  <Pressable
-    onPress={() =>
-      onSubmit({
-        title: titleInput,
-        date: dateValue,
-        startTime: hasTime ? formatHM(startDate) : undefined,
-        endTime: hasTime ? formatHM(endDate) : undefined,
-        memo,
-      })
-    }
-    hitSlop={20}
-  >
-    <Check width={12} height={12} color={'#808080'} />
-  </Pressable>
+<Pressable
+  onPress={() => {
+    const payload = buildEventPayload()
+    onSubmit(payload)
+  }}
+  hitSlop={20}
+>
+  <Check width={12} height={12} color={'#808080'} />
+</Pressable>
 </View>
 
   {/* 내용 스크롤 가능 */}
@@ -291,14 +442,57 @@ const endLabel = (mode: 'none' | 'date', d: Date | null) => {
     contentContainerStyle={{ paddingBottom: 40 }}
   >
 
-{/* 제목 입력 */}
-<TextInput
-  style={styles.titleInput}
-  value={titleInput}
-  onChangeText={setTitleInput}
-  placeholder="제목"
-  placeholderTextColor="#b5b5b5"
-/>
+<View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+ <View style={{ flex: 1 }}>
+  <TextInput
+    style={[styles.titleInput, { borderBottomWidth: 0 }]}
+    value={titleInput}
+    onChangeText={setTitleInput}
+    placeholder="제목"
+    placeholderTextColor="#b5b5b5"
+  />
+
+  <View
+    style={{
+      height: 1,
+      backgroundColor: '#ececec',
+      marginTop: 4,
+      width: '130%', 
+      alignSelf: 'center',
+    }}
+  />
+</View>
+
+  <Pressable
+    ref={colorBtnRef}
+    onPress={() => {
+      colorBtnRef.current?.measureInWindow((bx, by, bw, bh) => {
+        cardRef.current?.measureInWindow((cx, cy) => {
+          const relX = bx - cx
+          const relY = by - cy
+
+          const left = relX + bw - POPOVER_W
+          const top = relY + bh + POP_GAP
+
+          setPalette({
+            visible: true,
+            x: left + NUDGE_X,
+            y: top + NUDGE_Y,
+          })
+        })
+      })
+    }}
+    hitSlop={20}
+    style={{
+      width: 24,
+      height: 24,
+      borderRadius: 16,
+      backgroundColor: selectedColor,
+      marginRight: 10,
+      marginBottom: 10
+    }}
+  />
+</View>
 
       {/* 탭 */}
       <View style={styles.tabRow}>
@@ -1258,6 +1452,62 @@ labelBtnRef.current?.measureInWindow?.(
           onChangeText={setMemo}
         />
       </View>
+      {/* 색상 팝오버 */}
+{palette.visible && (
+  <>
+    {/* backdrop */}
+    <Pressable
+      style={StyleSheet.absoluteFill}
+      onPress={() => setPalette((p) => ({ ...p, visible: false }))}
+    />
+
+    <View
+      style={{
+        position: 'absolute',
+        top: palette.y - 30,
+        left: palette.x - 5,
+        width: POPOVER_W,
+        backgroundColor: '#fff',
+        borderRadius: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        shadowColor: '#00000040',
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 12 },
+        zIndex: 999,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 13,
+          color: '#888',
+          fontWeight: '600',
+          marginBottom: 8,
+        }}
+      >
+        색상
+      </Text>
+
+      {COLORS.map((c) => (
+        <Pressable
+          key={c}
+          onPress={() => {
+            setSelectedColor(c)
+            setPalette((p) => ({ ...p, visible: false }))
+          }}
+          style={{
+          width: 73,
+            height: 24,
+            borderRadius: 10,
+            backgroundColor: c,
+            marginBottom: 10,
+          }}
+        />
+      ))}
+    </View>
+  </>
+)}
       </ScrollView>
     </View>
   )
@@ -1273,15 +1523,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  titleInput: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#222',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ececec',
-    paddingBottom: 8,
-    marginBottom: 16,
-  },
+titleInput: {
+  flex: 1,
+  fontSize: 20,
+  fontWeight: '700',
+  color: '#222',
+  borderBottomWidth: 1,
+  borderBottomColor: '#ececec',
+  paddingVertical: 10, 
+},
 
   tabRow: {
     flexDirection: 'row',

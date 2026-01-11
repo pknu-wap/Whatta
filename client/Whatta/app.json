@@ -11,36 +11,38 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "notification": {
+      "icon": "./assets/whatta.png",
+      "color": "#ffffff"
+    },
     "ios": {
       "bundleIdentifier": "com.whatta.whatta",
-      "buildNumber": "6",
-      "supportsTablet": true,
+      "buildNumber": "20",
+      "supportsTablet": false,
       "googleServicesFile": "./GoogleService-Info.plist",
-
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-
         "NSCameraUsageDescription": "사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
-        "NSPhotoLibraryUsageDescription": "사진을 불러오기 위해 사진 앨범 접근 권한이 필요합니다.",
-        "NSPhotoLibraryAddUsageDescription": "사진을 저장하기 위해 앨범 접근 권한이 필요합니다."
+        "NSPhotoLibraryUsageDescription": "선택한 사진에서 일정을 인식(OCR)하여 캘린더 이벤트를 자동으로 생성하는 기능에 사용됩니다."
       }
     },
-
     "android": {
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/whatta_logo.png",
+        "foregroundImage": "./assets/whatta.png",
         "backgroundColor": "#ffffff"
+      },
+      "notification": {
+        "icon": "./assets/whatta.png",
+        "color": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.whatta.whatta"
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       "expo-font",
       "expo-secure-store",
@@ -51,17 +53,19 @@
             "useFrameworks": "static",
             "deploymentTarget": "15.1",
             "flipper": false,
-            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBMessaging"
+            ]
           }
         }
       ],
       "@react-native-firebase/app",
       "@react-native-firebase/messaging"
     ],
-
     "extra": {
       "eas": {
-        "projectId": "b895d0bb-969a-4bbe-bb79-27d84e2c27a7"
+        "projectId": "b895d0bb-969a-4bde-bb79-27d84e2c27a7"
       }
     }
   }

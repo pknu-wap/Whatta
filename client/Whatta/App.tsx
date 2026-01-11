@@ -1,6 +1,13 @@
 import 'react-native-gesture-handler'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { ActivityIndicator, View, Text, StyleSheet, Animated, StatusBar } from 'react-native'
+import {
+  ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  StatusBar,
+} from 'react-native'
 import React, { useState, useEffect, useRef } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import RootStack from '@/navigation/RootStack'
@@ -11,6 +18,7 @@ import { LabelFilterProvider } from '@/providers/LabelFilterProvider'
 import messaging from '@react-native-firebase/messaging'
 import CustomSplash from '@/screens/CustomSplash'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
+import * as Font from 'expo-font'
 
 // 포그라운드 메시지 핸들러
 // messaging().onMessage(async (remoteMessage) => {
@@ -27,7 +35,7 @@ function ForegroundBanner({
   onHide: () => void
   topInset: number
 }) {
-  const translateY = useRef(new Animated.Value(-120)).current 
+  const translateY = useRef(new Animated.Value(-120)).current
 
   useEffect(() => {
     if (!message) return
@@ -75,17 +83,10 @@ function ForegroundBannerHost({
   onHide: () => void
 }) {
   const insets = useSafeAreaInsets()
-  return (
-    <ForegroundBanner
-      message={message}
-      onHide={onHide}
-      topInset={insets.top}
-    />
-  )
+  return <ForegroundBanner message={message} onHide={onHide} topInset={insets.top} />
 }
 
 export default function App() {
-  
   const [ready, setReady] = useState(false)
   const [splashDone, setSplashDone] = useState(false)
 
@@ -116,19 +117,23 @@ export default function App() {
       }
 
       const title =
-        remoteMessage.notification?.title ||
-        toStr(remoteMessage.data?.title) ||
-        '알림'
+        remoteMessage.notification?.title || toStr(remoteMessage.data?.title) || '알림'
 
       const body =
-        remoteMessage.notification?.body ||
-        toStr(remoteMessage.data?.body) ||
-        ''
+        remoteMessage.notification?.body || toStr(remoteMessage.data?.body) || ''
 
       setFgMsg({ title, body })
     })
 
     return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    ;(async () => {
+      await Font.loadAsync({
+        Righteous: require('./assets/fonts/Righteous-Regular.ttf'),
+      })
+    })()
   }, [])
 
   if (!ready || !splashDone) {
@@ -140,14 +145,11 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider> 
+    <SafeAreaProvider>
       {/* ✅ [수정] SafeAreaProvider로 전체 감싸기 */}
       <GestureHandlerRootView style={{ flex: 1 }}>
         {/* ✅ [수정] ForegroundBanner 직접 호출 대신 Host 사용 */}
-        <ForegroundBannerHost 
-          message={fgMsg}
-          onHide={() => setFgMsg(null)}
-        />
+        <ForegroundBannerHost message={fgMsg} onHide={() => setFgMsg(null)} />
 
         <LabelProvider>
           <LabelFilterProvider>
@@ -172,7 +174,7 @@ const S = StyleSheet.create({
 
     marginHorizontal: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,                          
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,

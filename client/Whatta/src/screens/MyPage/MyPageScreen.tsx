@@ -111,10 +111,10 @@ export default function MyPageScreen({ navigation }: Props) {
           <View style={S.profileCard}>
             <View style={S.avatar} />
             <View style={{ flex: 1 }}>
-              <Text style={S.profileName}>닉네임</Text>
-              <Text style={S.profileMeta}>나이 / 직업</Text>
+              <Text style={S.profileName}>사용자님</Text>
+              {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
             </View>
-            <Text style={S.editLink}>편집</Text>
+            {/* <Text style={S.editLink}>편집</Text> */}
           </View>
         </View>
       }
@@ -152,7 +152,7 @@ const S = StyleSheet.create({
   },
   card: {
     width: '90%',
-    height: 130,
+    height: 100,
     alignSelf: 'center',
     backgroundColor: '#FFF',
     borderRadius: 10,
