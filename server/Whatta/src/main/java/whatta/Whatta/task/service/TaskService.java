@@ -189,7 +189,7 @@ public class TaskService {
 
     //task 상세 조회
     @Transactional(readOnly = true)
-    public TaskResponse findTaskById(String userId, String taskId) {
+    public TaskResponse getTaskDetails(String userId, String taskId) {
         Task task = taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
 
@@ -206,9 +206,9 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-//    사이드바 task 목록 조회
+    //사이드바 task 목록 조회
     @Transactional(readOnly = true)
-    public  List<SidebarTaskResponse> findSidebarTasks(String userId){
+    public  List<SidebarTaskResponse> getSidebarTasks(String userId){
         List<Task> tasks = taskRepository.
                 findByUserIdAndPlacementDateIsNullOrderBySortNumberAsc(userId);
 

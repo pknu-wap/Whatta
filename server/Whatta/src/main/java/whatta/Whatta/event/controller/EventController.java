@@ -33,7 +33,7 @@ public class EventController {
 
     @GetMapping("/{eventId}")
     @Operation(summary = "일정 상세 조회", description = "eventId로 일정의 상세 정보를 조회합니다.")
-    public ResponseEntity<?> getEvent(@AuthenticationPrincipal String userId,
+    public ResponseEntity<?> getEventById(@AuthenticationPrincipal String userId,
                                       @PathVariable String eventId) {
         return Response.ok("success get event", eventService.getEventDetails(userId, eventId));
     }
