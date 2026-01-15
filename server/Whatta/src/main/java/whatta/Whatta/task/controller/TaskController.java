@@ -66,7 +66,7 @@ public class TaskController {
     public ResponseEntity<?> getTaskById(
             @AuthenticationPrincipal String userId,
             @PathVariable String taskId) {
-        TaskResponse response = taskService.findTaskById(userId, taskId);
+        TaskResponse response = taskService.getTaskDetails(userId, taskId);
         return Response.ok("Task 상세 정보입니다.", response);
     }
 
@@ -80,7 +80,7 @@ public class TaskController {
     @GetMapping("/sidebar")
     @Operation(summary = "사이드바 Task 목록 조회", description = "배치되지 않은 사이드바의 Task 목록을 조회합니다.")
     public ResponseEntity<?> getSidebarTasks(@AuthenticationPrincipal String userId) {
-        List<SidebarTaskResponse> response = taskService.findSidebarTasks(userId);
+        List<SidebarTaskResponse> response = taskService.getSidebarTasks(userId);
         return Response.ok("사이드바의 Task 목록입니다.", response);
     }
 

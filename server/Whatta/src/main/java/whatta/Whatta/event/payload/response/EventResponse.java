@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Builder
-public record EventDetailsResponse(
+public record EventResponse(
         String id,
         String title,
         String content,
