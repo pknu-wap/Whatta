@@ -13,7 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ScheduledNotificationRepository extends MongoRepository<ScheduledNotification, String> {
 
-    Optional<ScheduledNotification> findByTargetTypeAndTargetIdAndStatus(NotificationTargetType targetType, String targetId, NotiStatus status);
+    Optional<ScheduledNotification> findByTargetIdAndStatus(String targetId, NotiStatus status);
 
     Optional<ScheduledNotification> findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(NotificationTargetType targetType, String targetId, NotiStatus status, LocalDateTime now);
 
