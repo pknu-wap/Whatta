@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
-import whatta.Whatta.notification.service.ScheduledNotificationService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -33,7 +33,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
-    private final ScheduledNotificationService scheduledNotiService;
+    private final ReminderNotiService scheduledNotiService;
 
     //정렬 간격 상수
     private static final long SORT_GAP = 10000L;

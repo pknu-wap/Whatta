@@ -5,11 +5,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.traffic.entity.TrafficAlarm;
-import whatta.Whatta.traffic.payload.request.TrafficAlarmCreateRequest;
-import whatta.Whatta.traffic.payload.request.TrafficAlarmUpdateRequest;
-import whatta.Whatta.traffic.payload.response.TrafficAlarmResponse;
-import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
+import whatta.Whatta.traffic.entity.TrafficNotification;
+import whatta.Whatta.traffic.payload.request.TrafficNotiCreateRequest;
+import whatta.Whatta.traffic.payload.request.TrafficNotiUpdateRequest;
+import whatta.Whatta.traffic.payload.response.TrafficNotiResponse;
+import whatta.Whatta.traffic.repository.TrafficNotiRepository;
 import whatta.Whatta.traffic.repository.BusItemRepository;
 
 import java.time.DayOfWeek;
@@ -23,13 +23,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class TrafficAlarmService {
+public class TrafficNotiService {
 
     private final BusItemRepository itemRepository;
-    private final TrafficAlarmRepository alarmRepository;
+    private final TrafficNotiRepository trafficNotiRepository;
 
     //교통알림 생성
-    public TrafficAlarmResponse createAlarm(String userId, TrafficAlarmCreateRequest request) {
+    public TrafficNotiResponse createTrafficNoti(String userId, TrafficNotiCreateRequest request) {
         validateTrafficItems(userId, request.targetItemIds( ));
 
         LocalTime cleanTime = request.alarmTime().truncatedTo(ChronoUnit.MINUTES);
@@ -37,7 +37,7 @@ public class TrafficAlarmService {
         Set<DayOfWeek> days = (request.days() != null) ? request.days() : new HashSet<>();
         boolean shouldRepeat = !days.isEmpty();
 
-        TrafficAlarm alarm = TrafficAlarm.builder()
+        TrafficNotification alarm = TrafficNotification.builder()
                 .userId(userId)
                 .alarmTime(cleanTime)
                 .days(request.days() != null ? request.days() : new HashSet<>())
@@ -46,20 +46,20 @@ public class TrafficAlarmService {
                 .isRepeatEnabled(shouldRepeat)
                 .build();
 
-        TrafficAlarm savedAlarm = alarmRepository.save(alarm);
-        return TrafficAlarmResponse.fromEntity(savedAlarm);
+        TrafficNotification savedAlarm = trafficNotiRepository.save(alarm);
+        return TrafficNotiResponse.fromEntity(savedAlarm);
     }
 
     //교통알림 수정
-    public TrafficAlarmResponse updateAlarm(String userId, String alarmId, TrafficAlarmUpdateRequest request) {
-        TrafficAlarm originalAlarm = alarmRepository.findByIdAndUserId(alarmId, userId)
+    public TrafficNotiResponse updateTrafficNoti(String userId, String alarmId, TrafficNotiUpdateRequest request) {
+        TrafficNotification originalAlarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
         if (request.getTargetItemIds() != null) {
             validateTrafficItems(userId, request.getTargetItemIds());
         }
 
-        TrafficAlarm.TrafficAlarmBuilder builder = originalAlarm.toBuilder();
+        TrafficNotification.TrafficNotificationBuilder builder = originalAlarm.toBuilder();
 
         if (request.getAlarmTime() != null) builder.alarmTime(request.getAlarmTime()
                 .truncatedTo(ChronoUnit.MINUTES));
@@ -72,30 +72,30 @@ public class TrafficAlarmService {
         if (request.getTargetItemIds() != null) builder.targetItemIds(request.getTargetItemIds());
 
         //요일값이 없을경우 반복 off
-        TrafficAlarm temp = builder.build();
+        TrafficNotification temp = builder.build();
         if (temp.getDays() == null || temp.getDays().isEmpty()) {
             builder.isRepeatEnabled(false);
         }
 
-        TrafficAlarm updatedAlarm = builder.build();
-        TrafficAlarm savedAlarm = alarmRepository.save(updatedAlarm);
+        TrafficNotification updatedAlarm = builder.build();
+        TrafficNotification savedAlarm = trafficNotiRepository.save(updatedAlarm);
 
-        return TrafficAlarmResponse.fromEntity(savedAlarm);
+        return TrafficNotiResponse.fromEntity(savedAlarm);
     }
 
     //교통알림 삭제
-    public void deleteAlarm(String userId, String alarmId) {
-        TrafficAlarm alarm = alarmRepository.findByIdAndUserId(alarmId, userId)
+    public void deleteTrafficNoti(String userId, String alarmId) {
+        TrafficNotification alarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        alarmRepository.delete(alarm);
+        trafficNotiRepository.delete(alarm);
     }
 
     //교통알림 목록 조회
     @Transactional(readOnly = true)
-    public List<TrafficAlarmResponse> getTrafficAlarms(String userId){
-        return alarmRepository.findByUserId(userId).stream()
-                .map(TrafficAlarmResponse::fromEntity)
+    public List<TrafficNotiResponse> getTrafficNotis(String userId){
+        return trafficNotiRepository.findByUserId(userId).stream()
+                .map(TrafficNotiResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 

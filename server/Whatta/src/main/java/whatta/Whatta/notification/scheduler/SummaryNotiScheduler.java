@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import whatta.Whatta.notification.service.ScheduleSummaryNotiService;
+import whatta.Whatta.notification.service.SummaryNotiService;
 import whatta.Whatta.user.entity.ScheduleSummaryNoti;
 import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
 import whatta.Whatta.user.repository.UserSettingRepository;
@@ -16,10 +16,10 @@ import java.util.List;
 @Slf4j
 @Component
 @AllArgsConstructor
-public class ScheduleSummaryNotiScheduler {
+public class SummaryNotiScheduler {
 
     private final UserSettingRepository userSettingRepository;
-    private final ScheduleSummaryNotiService scheduleSummaryNotiService;
+    private final SummaryNotiService summaryNotiService;
 
     //매분마다 요약알림 보낼 시각인지 체크
     @Scheduled(cron = "0 * * * * *") //1분마다
@@ -41,7 +41,7 @@ public class ScheduleSummaryNotiScheduler {
             }
 
             try {
-                scheduleSummaryNotiService.sendSummary(notiSlim, nowUser);
+                summaryNotiService.sendSummary(notiSlim, nowUser);
             } catch (Exception e) {
                 log.error("[SUMMARY] Failed to send summary for userId={}", notiSlim.getUserId(), e);
             }

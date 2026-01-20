@@ -15,12 +15,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-@Document("traffic_alarms")
+@Document("traffic_notifications")
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class TrafficAlarm {
+public class TrafficNotification {
 
     @Id
     private String id;

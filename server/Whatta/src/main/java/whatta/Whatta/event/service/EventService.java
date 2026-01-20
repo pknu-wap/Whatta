@@ -13,7 +13,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.global.util.LocalTimeUtil;
-import whatta.Whatta.notification.service.ScheduledNotificationService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
@@ -32,7 +32,7 @@ public class EventService {
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
     private final EventMapper eventMapper;
-    private final ScheduledNotificationService scheduledNotiService;
+    private final ReminderNotiService scheduledNotiService;
 
     public EventResponse createEvent(String userId, EventCreateRequest request) {
 

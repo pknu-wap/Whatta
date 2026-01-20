@@ -6,10 +6,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
-import whatta.Whatta.notification.entity.ScheduledNotification;
+import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotificationTargetType;
 import whatta.Whatta.notification.service.NotificationSendService;
-import whatta.Whatta.notification.service.ScheduledNotificationService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.repository.TaskRepository;
 
@@ -22,7 +22,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ReminderNotiScheduler {
 
-    private final ScheduledNotificationService scheduledNotiService;
+    private final ReminderNotiService scheduledNotiService;
     private final NotificationSendService notificationSendService;
     private final EventRepository eventRepository;
     private final TaskRepository taskRepository;
@@ -32,12 +32,12 @@ public class ReminderNotiScheduler {
         LocalDateTime now = LocalDateTime.now();
         //log.info("localDateTime: {}", now);
 
-        List<ScheduledNotification> dueNotis =
+        List<ReminderNotification> dueNotis =
                 scheduledNotiService.findDueReminders(now);
 
         if(dueNotis.isEmpty()) return;
 
-        for(ScheduledNotification noti : dueNotis) {
+        for(ReminderNotification noti : dueNotis) {
             try {
                 handleReminder(noti);
                 scheduledNotiService.afterReminderSent(noti);
@@ -47,7 +47,7 @@ public class ReminderNotiScheduler {
         }
     }
 
-    private void handleReminder(ScheduledNotification noti) {
+    private void handleReminder(ReminderNotification noti) {
         String userId = noti.getUserId();
         String targetId = noti.getTargetId();
 

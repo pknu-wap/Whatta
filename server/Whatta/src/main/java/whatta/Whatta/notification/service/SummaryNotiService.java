@@ -12,12 +12,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 @Service
 @AllArgsConstructor
-public class ScheduleSummaryNotiService {
+public class SummaryNotiService {
 
     private final CalendarViewService calendarViewService;
     private final NotificationSendService notificationSendService;
@@ -41,11 +40,11 @@ public class ScheduleSummaryNotiService {
                         + daily.timedTasks().size();
 
 
-        // 요약 메시지 생성
+        //요약 메시지 생성
         String title = buildTitle(targetDate, eventCount, taskCount);
         String body = buildBody(targetDate, daily, eventCount, taskCount);
 
-        // FCM 전송
+        //FCM 전송
         notificationSendService.sendSummary(
                 notiSlim.getUserId(),
                 title,

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 @Getter
-public class TrafficAlarmUpdateRequest {
+public class TrafficNotiUpdateRequest {
     private LocalTime alarmTime;
     private Set<DayOfWeek> days;
     private List<String> targetItemIds;
