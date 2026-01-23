@@ -6,11 +6,11 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.notification.entity.FcmToken;
-import whatta.Whatta.notification.entity.ScheduledNotification;
+import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.payload.request.FcmTokenRequest;
 import whatta.Whatta.notification.repository.FcmTokenRepository;
-import whatta.Whatta.notification.repository.ScheduledNotificationRepository;
+import whatta.Whatta.notification.repository.ReminderNotiRepository;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.repository.UserRepository;
 
@@ -23,7 +23,7 @@ public class FcmTokenService {
 
     private final UserRepository userRepository;
     private final FcmTokenRepository fcmTokenRepository;
-    private final ScheduledNotificationRepository scheduledNotiRepository;
+    private final ReminderNotiRepository scheduledNotiRepository;
 
     @Transactional
     public void registerFcmToken(String userId, FcmTokenRequest request) {
@@ -64,8 +64,8 @@ public class FcmTokenService {
     }
 
     private void disabledNotification(String userId) {
-        List<ScheduledNotification> notis = scheduledNotiRepository.findByStatusAndUserId(NotiStatus.ACTIVE, userId);
-        for(ScheduledNotification noti : notis) {
+        List<ReminderNotification> notis = scheduledNotiRepository.findByStatusAndUserId(NotiStatus.ACTIVE, userId);
+        for(ReminderNotification noti : notis) {
             scheduledNotiRepository.save(noti.toBuilder()
                     .status(NotiStatus.CANCELED)
                     .build());

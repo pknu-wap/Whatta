@@ -10,11 +10,11 @@ import whatta.Whatta.notification.enums.NotificationTargetType;
 
 import java.time.LocalDateTime;
 
-@Document("scheduled_notifications")
+@Document("reminder_notifications")
 @AllArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class ScheduledNotification {
+public class ReminderNotification {
     @Id
     private String id;
 
@@ -24,7 +24,7 @@ public class ScheduledNotification {
     @Builder.Default
     private NotiStatus status = NotiStatus.ACTIVE;
 
-    private NotificationTargetType targetType; // EVENT, TASK
+    private NotificationTargetType targetType; //EVENT, TASK
     private String targetId;
 
     private LocalDateTime triggerAt;

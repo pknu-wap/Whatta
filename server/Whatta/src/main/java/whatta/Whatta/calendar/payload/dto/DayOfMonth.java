@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Builder
-public record MonthDay(
+public record DayOfMonth(
         LocalDate date,
         List<MonthEvent> events,
         int taskCount,

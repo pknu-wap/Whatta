@@ -8,10 +8,10 @@ import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.repeat.Repeat;
-import whatta.Whatta.notification.entity.ScheduledNotification;
+import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;
-import whatta.Whatta.notification.repository.ScheduledNotificationRepository;
+import whatta.Whatta.notification.repository.ReminderNotiRepository;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
@@ -22,9 +22,9 @@ import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
 
 @Service
 @AllArgsConstructor
-public class ScheduledNotificationService {
+public class ReminderNotiService {
 
-    private final ScheduledNotificationRepository scheduledNotiRepository;
+    private final ReminderNotiRepository reminderNotiRepository;
     private final EventRepository eventRepository;
 
     //-------------reminder---------------
@@ -40,16 +40,16 @@ public class ScheduledNotificationService {
 
         if(triggerAt == null) { return; }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
-        ScheduledNotification base = scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
+        ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                 NotificationTargetType.EVENT, event.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
-                .orElseGet(() -> ScheduledNotification.builder()
+                .orElseGet(() -> ReminderNotification.builder()
                         .userId(event.getUserId())
                         .status(NotiStatus.ACTIVE)
                         .targetType(NotificationTargetType.EVENT)
                         .targetId(event.getId())
                         .build());
 
-        scheduledNotiRepository.save(base.toBuilder()
+        reminderNotiRepository.save(base.toBuilder()
                 .triggerAt(triggerAt)
                 .updatedAt(LocalDateTime.now())
                 .build());
@@ -67,28 +67,28 @@ public class ScheduledNotificationService {
 
         if(triggerAt == null) { return; }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
-        ScheduledNotification base = scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
+        ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                         NotificationTargetType.TASK, task.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
-                .orElseGet(() -> ScheduledNotification.builder()
+                .orElseGet(() -> ReminderNotification.builder()
                         .userId(task.getUserId())
                         .status(NotiStatus.ACTIVE)
                         .targetType(NotificationTargetType.TASK)
                         .targetId(task.getId())
                         .build());
 
-        scheduledNotiRepository.save(base.toBuilder()
+        reminderNotiRepository.save(base.toBuilder()
                 .triggerAt(triggerAt)
                 .updatedAt(LocalDateTime.now())
                 .build());
     }
 
     public void cancelScheduledNotification(String targetId) {
-        scheduledNotiRepository.findByTargetIdAndStatus(targetId, NotiStatus.ACTIVE)
+        reminderNotiRepository.findByTargetIdAndStatus(targetId, NotiStatus.ACTIVE)
                 .ifPresent(schedule -> {
-                    ScheduledNotification canceled = schedule.toBuilder()
+                    ReminderNotification canceled = schedule.toBuilder()
                             .status(NotiStatus.CANCELED)
                             .build();
-                    scheduledNotiRepository.save(canceled);
+                    reminderNotiRepository.save(canceled);
                 });
     }
 
@@ -123,19 +123,19 @@ public class ScheduledNotificationService {
     }
 
     //지금 시각 기준으로 울려야 하는 리마인드 알림들 조회
-    public List<ScheduledNotification> findDueReminders(LocalDateTime now) {
-        return scheduledNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
+    public List<ReminderNotification> findDueReminders(LocalDateTime now) {
+        return reminderNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
     }
 
     //알림 보낸 후 상태 업데이트
     @Transactional
-    public void afterReminderSent(ScheduledNotification noti) {
+    public void afterReminderSent(ReminderNotification noti) {
         //완료 표시
-        ScheduledNotification updated = noti.toBuilder()
+        ReminderNotification updated = noti.toBuilder()
                 .status(NotiStatus.COMPLETED)
                 .build();
 
-        scheduledNotiRepository.save(updated);
+        reminderNotiRepository.save(updated);
 
         //반복일정의 경우 다음 알림에 저장
         Event target = eventRepository.findById(noti.getTargetId())
@@ -147,9 +147,9 @@ public class ScheduledNotificationService {
             return;
         }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
-        ScheduledNotification base = scheduledNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
+        ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                         NotificationTargetType.EVENT, target.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
-                .orElseGet(() -> ScheduledNotification.builder()
+                .orElseGet(() -> ReminderNotification.builder()
                         .userId(target.getUserId())
                         .status(NotiStatus.ACTIVE)
                         .targetType(NotificationTargetType.EVENT)
@@ -157,6 +157,6 @@ public class ScheduledNotificationService {
                         .triggerAt(nextTriggerAt)
                         .build());
 
-        scheduledNotiRepository.save(base);
+        reminderNotiRepository.save(base);
     }
 }

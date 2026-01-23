@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.traffic.entity.BusItem;
-import whatta.Whatta.traffic.entity.TrafficAlarm;
+import whatta.Whatta.traffic.entity.TrafficNotification;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
 import whatta.Whatta.traffic.repository.BusItemRepository;
-import whatta.Whatta.traffic.repository.TrafficAlarmRepository;
+import whatta.Whatta.traffic.repository.TrafficNotiRepository;
 import whatta.Whatta.traffic.service.TrafficService;
 
 import java.util.List;
@@ -17,16 +17,16 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TrafficAlarmNotificationService {
+public class BusNotiProcessor {
 
     private final BusItemRepository itemRepository;
     private final TrafficService trafficService;
     private final NotificationSendService notificationSendService;
-    private final TrafficAlarmRepository alarmRepository;
+    private final TrafficNotiRepository alarmRepository;
 
 
 
-    public void CheckAndNotify(TrafficAlarm alarm) {
+    public void CheckAndNotify(TrafficNotification alarm) {
         //알림에 연결된 버스목록 조회
         List<BusItem> items = itemRepository.findAllById(alarm.getTargetItemIds());
 
@@ -86,9 +86,9 @@ public class TrafficAlarmNotificationService {
     }
 
     //반복 안 함 설정이면 알림 비활성화 처리
-    private void handleRepeatOption(TrafficAlarm alarm){
+    private void handleRepeatOption(TrafficNotification alarm){
         if(!alarm.isRepeatEnabled()) {
-            TrafficAlarm disabledAlarm = alarm.toBuilder()
+            TrafficNotification disabledAlarm = alarm.toBuilder()
                     .isEnabled(false)
                     .build();
 

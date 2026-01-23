@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Builder
-public record WeekDay(
+public record DayOfWeek(
         LocalDate date,
         List<AllDayEvent> allDayEvents,
         List<AllDayTask> allDayTasks,

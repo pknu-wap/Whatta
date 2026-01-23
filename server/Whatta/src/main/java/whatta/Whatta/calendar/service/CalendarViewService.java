@@ -299,9 +299,9 @@ public class CalendarViewService {
             timedTasksByDate.get(task.placementDate()).add(calendarMapper.timedTaskItemToResponse(task));
         }
 
-        List<WeekDay> days = new ArrayList<>();
+        List<DayOfWeek> days = new ArrayList<>();
         for(LocalDate date : datesInRange) {
-            days.add(WeekDay.builder()
+            days.add(DayOfWeek.builder()
                             .date(date)
                             .allDayEvents(allDayEventsByDate.get(date))
                             .allDayTasks(allDayTasksByDate.get(date))
@@ -434,9 +434,9 @@ public class CalendarViewService {
             taskByDate.get(task.placementDate()).add(calendarMapper.MonthlyTaskResultToResponse(task));
         }
 
-        List<MonthDay> days = new ArrayList<>();
+        List<DayOfMonth> days = new ArrayList<>();
         for(LocalDate date : datesInRange) {
-            days.add(MonthDay.builder()
+            days.add(DayOfMonth.builder()
                             .date(date)
                             .events(eventByDate.get(date))
                             .taskCount(taskByDate.get(date).size())

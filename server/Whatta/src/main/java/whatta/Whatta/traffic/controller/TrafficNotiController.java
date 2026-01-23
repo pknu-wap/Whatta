@@ -13,12 +13,12 @@ import org.springframework.web.bind.annotation.*;
 
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.traffic.payload.request.BusItemCreateRequest;
-import whatta.Whatta.traffic.payload.request.TrafficAlarmCreateRequest;
-import whatta.Whatta.traffic.payload.request.TrafficAlarmUpdateRequest;
+import whatta.Whatta.traffic.payload.request.TrafficNotiCreateRequest;
+import whatta.Whatta.traffic.payload.request.TrafficNotiUpdateRequest;
 import whatta.Whatta.traffic.payload.response.BusItemResponse;
-import whatta.Whatta.traffic.payload.response.TrafficAlarmResponse;
+import whatta.Whatta.traffic.payload.response.TrafficNotiResponse;
 import whatta.Whatta.traffic.service.BusItemService;
-import whatta.Whatta.traffic.service.TrafficAlarmService;
+import whatta.Whatta.traffic.service.TrafficNotiService;
 
 import java.util.List;
 
@@ -28,9 +28,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 @SecurityRequirement(name = "BearerAuth")
-public class TrafficAlarmController {
+public class TrafficNotiController {
 
-    private final TrafficAlarmService trafficAlarmService;
+    private final TrafficNotiService trafficNotiService;
     private final BusItemService busItemService;
 
     @PostMapping("/items")
@@ -66,9 +66,9 @@ public class TrafficAlarmController {
     @Operation(summary = "교통알림 생성", description = "선택한 즐겨찾기 항목들에 대해 알림을 생성합니다.")
     public ResponseEntity<?> createTrafficAlarm(
             @AuthenticationPrincipal String userId,
-            @RequestBody @Validated TrafficAlarmCreateRequest request
+            @RequestBody @Validated TrafficNotiCreateRequest request
     ) {
-        TrafficAlarmResponse response = trafficAlarmService.createAlarm(userId, request);
+        TrafficNotiResponse response = trafficNotiService.createTrafficNoti(userId, request);
         return Response.ok("교통알림 생성 성공", response);
     }
 
@@ -77,7 +77,7 @@ public class TrafficAlarmController {
     public ResponseEntity<?> getMyTrafficAlarms(
             @AuthenticationPrincipal String userId
     ) {
-        List<TrafficAlarmResponse> response = trafficAlarmService.getTrafficAlarms(userId);
+        List<TrafficNotiResponse> response = trafficNotiService.getTrafficNotis(userId);
         return Response.ok("교통알림 목록 조회 성공", response);
     }
 
@@ -86,9 +86,9 @@ public class TrafficAlarmController {
     public ResponseEntity<?> updateTrafficAlarm(
             @AuthenticationPrincipal String userId,
             @Parameter(description = "수정할 알림 ID") @PathVariable String alarmId,
-            @RequestBody @Validated TrafficAlarmUpdateRequest request
+            @RequestBody @Validated TrafficNotiUpdateRequest request
     ) {
-        TrafficAlarmResponse response = trafficAlarmService.updateAlarm(userId, alarmId, request);
+        TrafficNotiResponse response = trafficNotiService.updateTrafficNoti(userId, alarmId, request);
         return Response.ok("교통알림 수정 성공", response);
     }
 
@@ -98,7 +98,7 @@ public class TrafficAlarmController {
             @AuthenticationPrincipal String userId,
             @Parameter(description = "삭제할 알림 ID") @PathVariable String alarmId
     ) {
-        trafficAlarmService.deleteAlarm(userId, alarmId);
+        trafficNotiService.deleteTrafficNoti(userId, alarmId);
         return Response.ok("교통알림 삭제 성공");
     }
 }

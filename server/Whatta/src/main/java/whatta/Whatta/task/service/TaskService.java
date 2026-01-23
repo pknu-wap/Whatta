@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
-import whatta.Whatta.notification.service.ScheduledNotificationService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -33,7 +33,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
-    private final ScheduledNotificationService scheduledNotiService;
+    private final ReminderNotiService scheduledNotiService;
 
     //정렬 간격 상수
     private static final long SORT_GAP = 10000L;
@@ -189,7 +189,7 @@ public class TaskService {
 
     //task 상세 조회
     @Transactional(readOnly = true)
-    public TaskResponse findTaskById(String userId, String taskId) {
+    public TaskResponse getTaskDetails(String userId, String taskId) {
         Task task = taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
 
@@ -206,9 +206,9 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-//    사이드바 task 목록 조회
+    //사이드바 task 목록 조회
     @Transactional(readOnly = true)
-    public  List<SidebarTaskResponse> findSidebarTasks(String userId){
+    public  List<SidebarTaskResponse> getSidebarTasks(String userId){
         List<Task> tasks = taskRepository.
                 findByUserIdAndPlacementDateIsNullOrderBySortNumberAsc(userId);
 

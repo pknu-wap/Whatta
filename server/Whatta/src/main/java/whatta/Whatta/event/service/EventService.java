@@ -7,13 +7,13 @@ import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.mapper.EventMapper;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
 import whatta.Whatta.event.payload.request.EventUpdateRequest;
-import whatta.Whatta.event.payload.response.EventDetailsResponse;
+import whatta.Whatta.event.payload.response.EventResponse;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.global.util.LocalTimeUtil;
-import whatta.Whatta.notification.service.ScheduledNotificationService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
@@ -32,9 +32,9 @@ public class EventService {
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
     private final EventMapper eventMapper;
-    private final ScheduledNotificationService scheduledNotiService;
+    private final ReminderNotiService scheduledNotiService;
 
-    public EventDetailsResponse createEvent(String userId, EventCreateRequest request) {
+    public EventResponse createEvent(String userId, EventCreateRequest request) {
 
         User user = userRepository.findUserById(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
@@ -80,7 +80,7 @@ public class EventService {
         }
     }
 
-    public EventDetailsResponse getEventDetails(String userId, String eventId) {
+    public EventResponse getEventDetails(String userId, String eventId) {
 
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
@@ -89,7 +89,7 @@ public class EventService {
         return eventMapper.toEventDetailsResponse(event);
     }
 
-    public EventDetailsResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
+    public EventResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
 
         Event originalEvent = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
