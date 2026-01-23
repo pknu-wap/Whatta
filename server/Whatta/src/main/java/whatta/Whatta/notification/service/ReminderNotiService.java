@@ -29,9 +29,9 @@ public class ReminderNotiService {
 
     //-------------reminder---------------
     //1. event 생성/수정 시
-    public void createScheduledNotification(Event event) {
+    public void createReminderNotification(Event event) {
         if(event.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
-            cancelScheduledNotification(event.getId());
+            cancelReminderNotification(event.getId());
             return;
         }
 
@@ -56,9 +56,9 @@ public class ReminderNotiService {
     }
 
     //2. task 생성/수정 시
-    public void createScheduledNotification(Task task) {
+    public void createReminderNotification(Task task) {
         if(task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
-            cancelScheduledNotification(task.getId());
+            cancelReminderNotification(task.getId());
             return;
         }
 
@@ -82,7 +82,7 @@ public class ReminderNotiService {
                 .build());
     }
 
-    public void cancelScheduledNotification(String targetId) {
+    private void cancelReminderNotification(String targetId) {
         reminderNotiRepository.findByTargetIdAndStatus(targetId, NotiStatus.ACTIVE)
                 .ifPresent(schedule -> {
                     ReminderNotification canceled = schedule.toBuilder()
@@ -123,13 +123,13 @@ public class ReminderNotiService {
     }
 
     //지금 시각 기준으로 울려야 하는 리마인드 알림들 조회
-    public List<ReminderNotification> findDueReminders(LocalDateTime now) {
+    public List<ReminderNotification> getActiveRemindersToSend(LocalDateTime now) {
         return reminderNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
     }
 
     //알림 보낸 후 상태 업데이트
     @Transactional
-    public void afterReminderSent(ReminderNotification noti) {
+    public void completeReminder(ReminderNotification noti) {
         //완료 표시
         ReminderNotification updated = noti.toBuilder()
                 .status(NotiStatus.COMPLETED)

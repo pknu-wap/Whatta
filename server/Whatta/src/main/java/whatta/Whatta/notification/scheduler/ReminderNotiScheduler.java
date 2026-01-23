@@ -33,14 +33,14 @@ public class ReminderNotiScheduler {
         //log.info("localDateTime: {}", now);
 
         List<ReminderNotification> dueNotis =
-                scheduledNotiService.findDueReminders(now);
+                scheduledNotiService.getActiveRemindersToSend(now);
 
         if(dueNotis.isEmpty()) return;
 
         for(ReminderNotification noti : dueNotis) {
             try {
                 handleReminder(noti);
-                scheduledNotiService.afterReminderSent(noti);
+                scheduledNotiService.completeReminder(noti);
             } catch (Exception e) {
                 log.error("[REMINDER] Failed to send reminder. notiId={}", noti.getId(), e);
             }
