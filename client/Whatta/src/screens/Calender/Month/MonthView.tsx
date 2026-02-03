@@ -14,8 +14,6 @@ import {
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
-
-import { useRoute } from '@react-navigation/native'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { MonthlyDay } from '@/api/calendar'
 import { adaptMonthlyToSchedules, ScheduleData } from '@/api/adapter'
@@ -35,104 +33,22 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import { createEvent } from '@/api/event_api'
 import OcrSplash from '@/screens/More/OcrSplash'
 
-// --------------------------------------------------------------------
-// 1. 상수 및 타입 정의
-// --------------------------------------------------------------------
-const DARK_GRAY_COLOR = '#555555'
-const FONT_MAIN = '#000000'
-const FONT_SUB = '#999999'
-const COLOR_PRIMARY = '#B04FFF'
-const COLOR_LIGHT = '#EAD7FF'
-
-// 반복 일정 배경, 경계선/멀티데이 시작/종료 표시용
-const SCHEDULE_COLOR = '#B04FFF'
-// 단일 일정 및 멀티데이(기간이 긴 일정) 바 배경색
-const SCHEDULE_LIGHT_COLOR = '#E5CCFF'
-
-const CHECKBOX_SIZE = 9
-
-const SCHEDULE_BOX_HEIGHT = 17
-const TASK_BOX_HEIGHT = 17
-const ITEM_MARGIN_VERTICAL = 2
-const EVENT_AREA_PADDING_TOP = 5
-const SINGLE_SCHEDULE_BORDER_WIDTH = 5
-const TEXT_HORIZONTAL_PADDING = 4
-const EVENT_HPAD = 4
-const MULTI_LEFT_GAP = 3 // 시작일 왼쪽 여백
-const MULTI_RIGHT_GAP = 3 // 종료일 오른쪽 여백
-const CAP_W = 6 // 캡 두께
-
-//  HOLIDAYS: 양력 공휴일 (JS getMonth() 0-11월 기준)
-const HOLIDAYS: Record<string, string> = {
-  '0-1': '신정', // 1월 1일
-  '2-1': '삼일절', // 3월 1일
-  '4-1': '노동절', // 5월 1일
-  '4-5': '어린이날', // 5월 5일
-  '5-6': '현충일', // 6월 6일
-  '7-14': '광복절', // 8월 15일
-  '9-3': '개천절', // 10월 3일
-  '9-9': '한글날', // 10월 9일
-  '11-25': '크리스마스', // 12월 25일
-}
-
-// 연도별 음력/대체공휴일 2026까지만 표시함
-const LUNAR_HOLIDAYS_OFFSETS: Record<
-  number,
-  {
-    설날: { month: number; day: number }[]
-    추석: { month: number; day: number }[]
-    부처님오신날: { month: number; day: number }
-    대체휴일: { month: number; day: number }[]
-  }
-> = {
-  2024: {
-    설날: [
-      { month: 1, day: 9 },
-      { month: 1, day: 10 },
-      { month: 1, day: 11 },
-    ],
-    추석: [
-      { month: 8, day: 16 },
-      { month: 8, day: 17 },
-      { month: 8, day: 18 },
-    ],
-    부처님오신날: { month: 4, day: 15 },
-    대체휴일: [{ month: 1, day: 12 }],
-  },
-  2025: {
-    설날: [
-      { month: 0, day: 28 },
-      { month: 0, day: 29 },
-      { month: 0, day: 30 },
-    ],
-    추석: [
-      { month: 9, day: 5 },
-      { month: 9, day: 6 },
-      { month: 9, day: 7 },
-    ],
-    부처님오신날: { month: 4, day: 24 },
-    대체휴일: [{ month: 9, day: 8 }],
-  },
-  2026: {
-    설날: [
-      { month: 1, day: 16 },
-      { month: 1, day: 17 },
-      { month: 1, day: 18 },
-    ],
-    추석: [
-      { month: 8, day: 24 },
-      { month: 8, day: 25 },
-      { month: 8, day: 26 },
-    ],
-    부처님오신날: { month: 4, day: 24 },
-    대체휴일: [
-      { month: 2, day: 2 },
-      { month: 4, day: 25 },
-      { month: 7, day: 17 },
-      { month: 9, day: 5 },
-    ],
-  },
-}
+import {
+  CHECKBOX_SIZE,
+  SCHEDULE_BOX_HEIGHT,
+  TASK_BOX_HEIGHT,
+  EVENT_AREA_PADDING_TOP,
+  ITEM_MARGIN_VERTICAL,
+  SINGLE_SCHEDULE_BORDER_WIDTH,
+  TEXT_HORIZONTAL_PADDING,
+  EVENT_HPAD,
+  DARK_GRAY_COLOR,
+  SCHEDULE_COLOR,
+  SCHEDULE_LIGHT_COLOR
+} from './constants'
+import { today, getDateOfWeek } from './dateUtils'
+import { getHolidayName } from './holidayUtils'
+import { textColorFor, colorsFromKey } from './colorUtils'
 
 interface TaskSummaryItem {
   isTaskSummary: true
@@ -165,62 +81,7 @@ const ts = (styleName: string): any => {
   return {}
 }
 
-const today = (): string => {
-  const t = new Date()
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
-    t.getDate(),
-  ).padStart(2, '0')}`
-}
 const TODAY_ISO = today()
-
-function getHolidayName(date: Date): string | null {
-  const year = date.getFullYear()
-  const month = date.getMonth() // 0-11
-  const day = date.getDate()
-  let holidayName: string | null = null
-
-  // 1. 양력 공휴일
-  const solarKey = `${month}-${day}`
-  if (HOLIDAYS[solarKey]) {
-    holidayName = HOLIDAYS[solarKey]
-  }
-
-  // 2. 음력/특정 연도 공휴일 및 대체휴일
-  const lunarData = LUNAR_HOLIDAYS_OFFSETS[year]
-
-  if (lunarData) {
-    for (const h of lunarData.설날) {
-      if (h.month === month && h.day === day) {
-        holidayName = holidayName || '설날'
-        break
-      }
-    }
-
-    for (const h of lunarData.추석) {
-      if (h.month === month && h.day === day) {
-        holidayName = holidayName || '추석'
-        break
-      }
-    }
-
-    if (lunarData.부처님오신날.month === month && lunarData.부처님오신날.day === day) {
-      holidayName = holidayName || '부처님 오신 날'
-    }
-
-    for (const h of lunarData.대체휴일) {
-      if (h.month === month && h.day === day) {
-        holidayName = '대체휴일'
-        break
-      }
-    }
-  }
-
-  if (holidayName) {
-    if (holidayName.length > 4) return holidayName.substring(0, 4)
-    return holidayName
-  }
-  return null
-}
 
 function buildLaneMap(spans: ScheduleData[]) {
   const days = (d: string) => Date.parse(d) / 86400000
@@ -457,108 +318,7 @@ function getCalendarDates(
 }
 
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
-
-// HEX → {r,g,b}
-function hexToRgb(hex: string) {
-  const h = hex.replace('#', '')
-  const bigint = parseInt(
-    h.length === 3
-      ? h
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : h,
-    16,
-  )
-  return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
-
-const pad2 = (n: number) => String(n).padStart(2, '0')
-
-function getDateOfWeek(weekDay: string): string {
-  if (!weekDay) return today()
-
-  const key = weekDay.trim().toUpperCase()
-
-  const map: any = {
-    MON: 1,
-    TUE: 2,
-    WED: 3,
-    THU: 4,
-    FRI: 5,
-    SAT: 6,
-    SUN: 0,
-  }
-
-  const target = map[key]
-  if (target === undefined) {
-    console.log('❌ Unknown weekDay:', weekDay)
-    return today()
-  }
-
-  const now = new Date()
-  const todayIdx = now.getDay()
-
-  const diff = target - todayIdx
-  const d = new Date()
-  d.setDate(now.getDate() + diff)
-
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-
-// --------------------------------------------------------------------
-// 컬러키
-// --------------------------------------------------------------------
-
-// 연한색 제조
-function softHex(hex: string, t = 0.7) {
-  const { r, g, b } = hexToRgb(hex)
-  const mix = (c: number) => Math.round(c + (255 - c) * t)
-  const toHex = (n: number) => n.toString(16).padStart(2, '0')
-  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`
-}
-
-// hex → 대비되는 텍스트 색(검정/흰색) 결정
-const textColorFor = (hex?: string) => {
-  if (!hex) return '#FFFFFF'
-  const h = hex.replace('#', '').toUpperCase()
-  if (h === 'FFF' || h === 'FFFFFF') return '#000000'
-  const r = parseInt(h.slice(0, 2), 16) / 255
-  const g = parseInt(h.slice(2, 4), 16) / 255
-  const b = parseInt(h.slice(4, 6), 16) / 255
-  const L = 0.2126 * r + 0.7152 * g + 0.0722 * b
-  return L > 0.7 ? '#000000' : '#FFFFFF'
-}
-
-// 컬러키 → 진한색/연한색 계산
-const colorsFromKey = (hex?: string) => {
-  const base = (hex && `#${hex.replace('#', '')}`) || '#8B5CF6'
-  const light = base.startsWith('#')
-    ? `rgba(${parseInt(base.slice(1, 3), 16)},${parseInt(
-        base.slice(3, 5),
-        16,
-      )},${parseInt(base.slice(5, 7), 16)},0.2)`
-    : 'rgba(139,92,246,0.2)'
-  return { primary: base, light }
-}
-
-// 타입가드
-function isTaskSummaryItem(item: DisplayItem): item is TaskSummaryItem {
-  return (
-    typeof (item as any)?.isTaskSummary !== 'undefined' &&
-    (item as any).isTaskSummary === true
-  )
-}
 type UISchedule = ScheduleData & { colorKey?: string }
-
-// 월 문자열(YYYY-MM) 기준으로 개월 수 이동
-function addMonthsFromYm(ym: string, diff: number): string {
-  const [y, m] = ym.split('-').map(Number)
-  const d = new Date(y, m - 1 + diff, 1)
-  const yy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  return `${yy}-${mm}`
-}
 
 // --------------------------------------------------------------------
 // 3. Custom UI Components (ScheduleItem, TaskSummaryBox)
