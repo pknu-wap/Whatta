@@ -2,8 +2,6 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   View,
   Text,
-  StyleSheet,
-  Dimensions,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
@@ -16,7 +14,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { runOnJS } from 'react-native-reanimated'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { MonthlyDay } from '@/api/calendar'
-import { adaptMonthlyToSchedules, ScheduleData } from '@/api/adapter'
+import { ScheduleData } from '@/api/adapter'
 import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
 import { fetchTasksForMonth } from '@/api/event_api'
@@ -28,27 +26,16 @@ import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
-import CheckOff from '@/assets/icons/check_off.svg'
-import CheckOn from '@/assets/icons/check_on.svg'
+import { S } from './S'
+
+
 import { createEvent } from '@/api/event_api'
 import OcrSplash from '@/screens/More/OcrSplash'
 
-import {
-  CHECKBOX_SIZE,
-  SCHEDULE_BOX_HEIGHT,
-  TASK_BOX_HEIGHT,
-  EVENT_AREA_PADDING_TOP,
-  ITEM_MARGIN_VERTICAL,
-  SINGLE_SCHEDULE_BORDER_WIDTH,
-  TEXT_HORIZONTAL_PADDING,
-  EVENT_HPAD,
-  DARK_GRAY_COLOR,
-  SCHEDULE_COLOR,
-  SCHEDULE_LIGHT_COLOR
-} from './constants'
+
 import { today, getDateOfWeek } from './dateUtils'
 import { getHolidayName } from './holidayUtils'
-import { textColorFor, colorsFromKey } from './colorUtils'
+import { ScheduleItem, TaskSummaryBox, UISchedule } from './MonthViewItems'
 
 interface TaskSummaryItem {
   isTaskSummary: true
@@ -83,6 +70,7 @@ const ts = (styleName: string): any => {
 
 const TODAY_ISO = today()
 
+// 2. 일정 위치 계산
 function buildLaneMap(spans: ScheduleData[]) {
   const days = (d: string) => Date.parse(d) / 86400000
   const list = spans
@@ -108,6 +96,7 @@ function buildLaneMap(spans: ScheduleData[]) {
   return map
 }
 
+// 2-1 특정 날짜 분리
 function getEventsForDate(
   fullDate: Date,
   allSchedules: ScheduleData[],
@@ -232,6 +221,7 @@ function getEventsForDate(
   return { schedules: schedulesForRender, tasks }
 }
 
+// 할 일이 2개 이상이면 요약박스
 function getDisplayItems(
   schedules: ScheduleData[],
   tasks: ScheduleData[],
@@ -253,6 +243,7 @@ function getDisplayItems(
   return displayList
 }
 
+// 3. 달력 날짜 만들기
 function getCalendarDates(
   year: number,
   month: number,
@@ -318,230 +309,7 @@ function getCalendarDates(
 }
 
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
-type UISchedule = ScheduleData & { colorKey?: string }
 
-// --------------------------------------------------------------------
-// 3. Custom UI Components (ScheduleItem, TaskSummaryBox)
-// --------------------------------------------------------------------
-interface ScheduleItemProps {
-  schedule: UISchedule
-  currentDateISO: string
-  isCurrentMonth: boolean
-}
-
-const ScheduleItem: React.FC<ScheduleItemProps> = ({
-  schedule,
-  currentDateISO,
-  isCurrentMonth,
-}) => {
-  const dimmedStyle = !isCurrentMonth ? S.dimmedItem : null
-  const { primary: baseColor, light: lightColor } = colorsFromKey(schedule.colorKey)
-  const labelColor = textColorFor(schedule.colorKey)
-
-  // Task
-  // Task
-  if (schedule.isTask) {
-    return (
-      <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
-        <View style={S.checkboxTouchArea}>
-          {/* 완료 여부에 따라 아이콘 변경 */}
-          {schedule.isCompleted ? (
-            <CheckOn width={10} height={10} />
-          ) : (
-            <CheckOff width={10} height={10} />
-          )}
-        </View>
-        <Text
-          style={[
-            S.taskText,
-            // 완료된 경우 취소선 스타일 추가
-            schedule.isCompleted && {
-              textDecorationLine: 'line-through',
-              color: '#999',
-            },
-          ]}
-          numberOfLines={1}
-          ellipsizeMode="clip"
-        >
-          {schedule.name}
-        </Text>
-      </View>
-    )
-  }
-
-  // Multi-day
-  if (schedule.multiDayStart && schedule.multiDayEnd) {
-    const dayISO = currentDateISO
-
-    const isWithinRange =
-      dayISO >= schedule.multiDayStart && dayISO <= schedule.multiDayEnd
-    const inToday = dayISO >= schedule.multiDayStart && dayISO <= schedule.multiDayEnd
-
-    const toLocalISO = (d: Date) => {
-      return (
-        d.getFullYear() +
-        '-' +
-        String(d.getMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(d.getDate()).padStart(2, '0')
-      )
-    }
-
-    const cur = new Date(dayISO + 'T00:00:00')
-    const prev = new Date(cur)
-    prev.setDate(prev.getDate() - 1)
-    const prevStr = toLocalISO(prev)
-    const inPrev = prevStr >= schedule.multiDayStart && prevStr <= schedule.multiDayEnd
-    const dow = cur.getDay()
-    const isRowStart = inToday && (!inPrev || dow === 0)
-
-    if (!isRowStart) {
-      return <View style={S.laneSpacer} />
-    }
-
-    const spanToWeekEnd = 7 - dow
-    const end = new Date(schedule.multiDayEnd + 'T00:00:00')
-    const daysDiff =
-      Math.floor((end.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24)) + 1
-
-    const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
-    const reachWeekEnd = colSpan === spanToWeekEnd
-
-    const { primary: primaryColor, light: softColor } = colorsFromKey(schedule.colorKey)
-
-    const isRealStart = dayISO === schedule.multiDayStart
-    const isRealEndInThisRow = colSpan === daysDiff
-
-    const width =
-      colSpan * cellWidth -
-      EVENT_HPAD * 2 +
-      (isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0)
-    const segPosStyle = reachWeekEnd ? { left: -1, right: 0 } : { left: -EVENT_HPAD }
-
-    return (
-      <View style={[S.multiDayContainer, !isCurrentMonth ? S.dimmedItem : null]}>
-        <View
-          style={[
-            S.multiSegAbs,
-            segPosStyle,
-            {
-              width,
-              backgroundColor: softColor,
-              borderLeftWidth: isRealStart ? SINGLE_SCHEDULE_BORDER_WIDTH : 0,
-              borderRightWidth: isRealEndInThisRow ? SINGLE_SCHEDULE_BORDER_WIDTH : 0,
-              borderColor: primaryColor,
-              borderTopLeftRadius: isRealStart ? 3 : 0,
-              borderBottomLeftRadius: isRealStart ? 3 : 0,
-              borderTopRightRadius: isRealEndInThisRow ? 3 : 0,
-              borderBottomRightRadius: isRealEndInThisRow ? 3 : 0,
-              paddingLeft: isRealStart ? TEXT_HORIZONTAL_PADDING : 4,
-              paddingRight: isRealEndInThisRow ? TEXT_HORIZONTAL_PADDING : 4,
-            },
-          ]}
-        >
-          {isRealStart ? (
-            <Text numberOfLines={1} ellipsizeMode="clip" style={S.multiBarText}>
-              {schedule.name}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-    )
-  }
-
-  //  하루짜리 반복일정인지 판별
-const isOneDayRecurring =
-  schedule.isRecurring &&
-  (!schedule.multiDayStart && !schedule.multiDayEnd);
-
-if (isOneDayRecurring) {
-  const main = schedule.colorKey
-    ? `#${schedule.colorKey}`
-    : baseColor;
-  const bg = `${main}33`;    //반복일정 투명도
-
-  return (
-    <View
-      style={[
-        S.scheduleBox,
-        {
-          backgroundColor: bg,            // 연한색
-          borderRadius: 0,                // 둥근 모서리 제거
-          paddingLeft: TEXT_HORIZONTAL_PADDING,
-        },
-        dimmedStyle,
-      ]}
-    >
-      <Text
-        style={[
-          S.scheduleText,
-          { color: '#000' }               // 반복일정은 검정 텍스트
-        ]}
-        numberOfLines={1}
-        ellipsizeMode="clip"
-      >
-        {schedule.name}
-      </Text>
-    </View>
-  );
-}
-  
-  // 단일 일정
-  return (
-    <View
-      style={[
-        S.scheduleBox,
-        { backgroundColor: baseColor, paddingLeft: TEXT_HORIZONTAL_PADDING },
-        dimmedStyle,
-      ]}
-    >
-      <Text
-        style={[S.scheduleText, { color: '#000' }]}
-        numberOfLines={1}
-        ellipsizeMode="clip"
-      >
-        {schedule.name}
-      </Text>
-    </View>
-  )
-}
-
-interface TaskSummaryBoxProps {
-  count: number
-  isCurrentMonth: boolean
-  tasks: ScheduleData[]
-}
-
-const TaskSummaryBox: React.FC<TaskSummaryBoxProps> = ({
-  count,
-  isCurrentMonth,
-  tasks,
-}) => {
-  const dimmedStyle = !isCurrentMonth ? S.dimmedItem : null
-  const allCompleted = tasks.length > 0 && tasks.every((t: any) => t.isCompleted)
-
-  return (
-    <View style={[S.taskBox, S.taskBoxBordered, dimmedStyle]}>
-      <View style={S.checkboxTouchArea}>
-        {/* 모두 완료면 On, 아니면 Off */}
-        {allCompleted ? (
-          <CheckOn width={10} height={10} />
-        ) : (
-          <CheckOff width={10} height={10} />
-        )}
-      </View>
-      <Text
-        style={[
-          S.taskText,
-          allCompleted && { textDecorationLine: 'line-through', color: '#999' },
-        ]}
-        numberOfLines={1}
-      >
-        {`${count}개`}
-      </Text>
-    </View>
-  )
-}
 
 // --------------------------------------------------------------------
 // 4. 메인 컴포넌트: MonthView
@@ -832,6 +600,7 @@ export default function MonthView() {
     }, [ym, focusedDateISO]),
   )
 
+  // 1. 데이터 가져옴 + 저장 (서버 -> 화면)
   const fetchFresh = useCallback(
     async (targetYM: string) => {
       try {
@@ -849,23 +618,23 @@ export default function MonthView() {
           })
         })
 
-       const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map( // 여기 수정됐어요
+       const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map( 
          (it) => ({
            ...it,
            colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
          }),
-       ) // 여기 수정됐어요
+       ) 
 
-       // ✅ id + isTask 기준으로 중복 제거  // 여기 수정됐어요
-       const dedup = new Map<string, UISchedule>() // 여기 수정됐어요
-       for (const item of mergedRaw) {             // 여기 수정됐어요
-         const prefix = item.isTask ? 'TASK' : 'EVENT' // 여기 수정됐어요
-         const key = `${prefix}-${item.id}`          // 여기 수정됐어요
+       
+       const dedup = new Map<string, UISchedule>() 
+       for (const item of mergedRaw) {             
+         const prefix = item.isTask ? 'TASK' : 'EVENT' 
+         const key = `${prefix}-${item.id}`          
          if (!dedup.has(key)) {
            dedup.set(key, item)
          }
        }
-       const merged = Array.from(dedup.values())     // 여기 수정됐어요
+       const merged = Array.from(dedup.values())    
 
         cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
         if (targetYM === ym) {
@@ -916,6 +685,7 @@ export default function MonthView() {
     colorKey?: string
   }
 
+  // 4. 상세 팝업 데이터 만듬
   const handleDatePress = (dateItem: CalendarDateItem) => {
     if (!dateItem.isCurrentMonth) return
 
@@ -1543,281 +1313,3 @@ export default function MonthView() {
     </ScreenWithSidebar>
   )
 }
-
-// --------------------------------------------------------------------
-// 5. 스타일시트 정의 (S)
-// --------------------------------------------------------------------
-const { width: screenWidth } = Dimensions.get('window')
-const horizontalPadding = 12
-const cellWidth = (screenWidth - horizontalPadding) / 7
-const MIN_CELL_HEIGHT = 115
-
-const S = StyleSheet.create({
-  contentContainerWrapper: { flex: 1, paddingBottom: 0, paddingTop: 0 },
-  contentArea: { flex: 1, paddingHorizontal: 6, paddingTop: 5 },
-  scrollContentContainer: { paddingBottom: 20 },
-  dayHeader: {
-    flexDirection: 'row',
-    marginBottom: 5,
-    marginTop: 2,
-    paddingHorizontal: 6,
-  },
-  dayCellFixed: { width: cellWidth, alignItems: 'center' },
-  dayTextBase: { textAlign: 'center', color: '#333', fontWeight: '600', fontSize: 15 },
-  sunText: { color: 'red' },
-  satText: { color: '#000000' },
-
-  calendarGrid: {},
-  weekRow: {
-    flexDirection: 'row',
-    width: '100%',
-  },
-  dateCell: {
-    width: cellWidth,
-    minHeight: MIN_CELL_HEIGHT,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    position: 'relative',
-    borderWidth: 0,
-    paddingBottom: 2,
-    overflow: 'visible',
-    zIndex: 1,
-  },
-  dateNumberWrapper: {
-    height: 18,
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingLeft: 6,
-    paddingTop: 0,
-    position: 'relative',
-  },
-  eventArea: {
-    width: '100%',
-    paddingHorizontal: EVENT_HPAD,
-    paddingTop: EVENT_AREA_PADDING_TOP,
-    paddingBottom: ITEM_MARGIN_VERTICAL,
-  },
-  focusedDayBorder: { borderWidth: 0.8, borderColor: '#AAAAAA', borderRadius: 4 },
-  todayBorder: { borderWidth: 1.5, borderColor: '#CCCCCC', borderRadius: 4 },
-  dateNumberBase: { color: 'black', zIndex: 1 },
-
-  ringBase: {
-    position: 'absolute',
-    top: 1,
-    left: 1,
-    right: 1,
-    bottom: 1,
-    borderRadius: 6,
-    pointerEvents: 'none',
-    zIndex: 3,
-  },
-  focusRing: { borderWidth: 0.8, borderColor: '#AAAAAA' },
-  todayRing: { borderWidth: 1.0, borderColor: '#CCCCCC', zIndex: 0 },
-
-  sunDate: { color: 'red' },
-  satDate: { color: '#000000' },
-  otherMonthDateText: { color: 'gray' },
-  otherMonthSunDate: { color: '#F0A0A0' },
-  otherMonthSatDate: { color: '#A0A0FF' },
-  otherMonthHolidayText: { color: '#F08080' },
-
-  todayDateText: { fontWeight: 'bold' },
-  holidayDateText: { color: 'red' },
-  todayRoundedSquare: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    top: 1,
-    left: 3,
-    backgroundColor: 'rgba(176, 79, 255, 0.15)',
-    zIndex: 1,
-  },
-  holidayText: {
-    position: 'absolute',
-    right: 6,
-    top: 3,
-    fontSize: 8,
-    color: 'red',
-    lineHeight: 14,
-    fontWeight: 'normal',
-  },
-  smallHolidayText: { fontSize: 7 },
-  scheduleBox: {
-    height: SCHEDULE_BOX_HEIGHT,
-    borderRadius: 3,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    paddingHorizontal: 0,
-    marginBottom: ITEM_MARGIN_VERTICAL,
-    overflow: 'hidden',
-  },
-  recurringSchedule: {
-    backgroundColor: SCHEDULE_COLOR,
-    paddingLeft: TEXT_HORIZONTAL_PADDING,
-    paddingRight: TEXT_HORIZONTAL_PADDING,
-  },
-  singleSchedule: {
-    backgroundColor: SCHEDULE_LIGHT_COLOR,
-    paddingLeft: TEXT_HORIZONTAL_PADDING,
-    paddingRight: TEXT_HORIZONTAL_PADDING,
-  },
-  singleDaySolid: {
-    backgroundColor: SCHEDULE_COLOR,
-    paddingLeft: TEXT_HORIZONTAL_PADDING,
-    paddingRight: TEXT_HORIZONTAL_PADDING,
-  },
-  singleDayTextWhite: { color: '#FFF', fontWeight: '700', marginTop: -1 },
-  singleScheduleBorder: {
-    borderLeftWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
-    borderRightWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
-    borderColor: SCHEDULE_COLOR,
-  },
-  scheduleText: {
-    fontSize: 10.5,
-    fontWeight: '600',
-    textAlign: 'left',
-    lineHeight: SCHEDULE_BOX_HEIGHT,
-  },
-  recurringScheduleText: {
-    color: '#FFFFFF',
-    marginTop: 0.5,
-    fontWeight: '700',
-    paddingLeft: 4,
-  },
-  singleScheduleText: { color: '#000', marginTop: -1 },
-  endTodayCap: {
-    position: 'absolute',
-    right: -3,
-    top: (SCHEDULE_BOX_HEIGHT - 8) / 2,
-    width: 6,
-    height: 8,
-    borderRadius: 4,
-  },
-
-  checkboxTouchArea: { marginRight: 3, alignSelf: 'center' },
-  checkboxBase: {
-    width: CHECKBOX_SIZE,
-    height: CHECKBOX_SIZE,
-    borderRadius: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  checkboxOff: { backgroundColor: '#FFFFFF', borderColor: '#000000' },
-  checkboxOn: { backgroundColor: DARK_GRAY_COLOR, borderColor: DARK_GRAY_COLOR },
-  checkMark: {
-    color: '#FFFFFF',
-    fontSize: 7,
-    fontWeight: '900',
-    lineHeight: CHECKBOX_SIZE,
-  },
-  taskBox: {
-    height: TASK_BOX_HEIGHT,
-    backgroundColor: 'transparent',
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: '#000000',
-    paddingLeft: 1,
-    paddingRight: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: ITEM_MARGIN_VERTICAL,
-  },
-  taskBoxNoCheckbox: {
-    height: TASK_BOX_HEIGHT,
-    backgroundColor: 'transparent',
-    borderRadius: 2,
-    paddingLeft: 1,
-    paddingRight: 0,
-    justifyContent: 'center',
-    marginBottom: ITEM_MARGIN_VERTICAL,
-  },
-  taskBoxBordered: {
-    borderWidth: 1,
-    borderColor: '#000000',
-    backgroundColor: '#FFFFFF',
-    paddingLeft: 2,
-    paddingRight: TEXT_HORIZONTAL_PADDING,
-  },
-  taskText: {
-    fontSize: 12,
-    color: '#333',
-    fontWeight: '500',
-    flex: 1,
-    textAlign: 'left',
-    lineHeight: TASK_BOX_HEIGHT,
-    textAlignVertical: 'center',
-  },
-
-  dimmedItem: {
-    opacity: 0.3,
-  },
-
-  multiDayContainer: {
-    width: '100%',
-    marginBottom: ITEM_MARGIN_VERTICAL,
-    height: SCHEDULE_BOX_HEIGHT,
-    justifyContent: 'center',
-    overflow: 'visible',
-    position: 'relative',
-  },
-  multiBarBase: {
-    height: SCHEDULE_BOX_HEIGHT,
-    backgroundColor: SCHEDULE_LIGHT_COLOR,
-    paddingHorizontal: 0,
-    justifyContent: 'center',
-    borderRadius: 0,
-    borderTopWidth: 0,
-    borderBottomWidth: 0,
-    borderColor: 'transparent',
-  },
-  multiBarLeftEdge: {
-    borderLeftWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
-    borderColor: SCHEDULE_COLOR,
-    borderTopLeftRadius: 3,
-    borderBottomLeftRadius: 3,
-    paddingLeft: TEXT_HORIZONTAL_PADDING,
-  },
-  multiBarRightEdge: {
-    borderRightWidth: SINGLE_SCHEDULE_BORDER_WIDTH,
-    borderColor: SCHEDULE_COLOR,
-    borderTopRightRadius: 3,
-    borderBottomRightRadius: 3,
-    paddingRight: TEXT_HORIZONTAL_PADDING,
-  },
-  multiBarText: {
-    fontSize: 12,
-    color: '#000',
-    fontWeight: '600',
-    lineHeight: SCHEDULE_BOX_HEIGHT,
-  },
-  multiStartContainer: {},
-  multiEndContainer: {},
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    zIndex: 99,
-  },
-
-  laneSpacer: {
-    height: SCHEDULE_BOX_HEIGHT,
-    marginBottom: ITEM_MARGIN_VERTICAL,
-  },
-
-  laneRow: { marginBottom: ITEM_MARGIN_VERTICAL },
-  laneRowLast: { marginBottom: 0 },
-
-  multiSegAbs: {
-    position: 'absolute',
-    left: -EVENT_HPAD,
-    top: 0,
-    height: SCHEDULE_BOX_HEIGHT,
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-})
