@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, Dimensions } from 'react-native'
+import { View, Text } from 'react-native'
 
 import { ScheduleData } from '@/api/adapter'
 import CheckOff from '@/assets/icons/check_off.svg'
@@ -11,7 +11,7 @@ import {
   EVENT_HPAD,
 } from './constants'
 import { colorsFromKey } from './colorUtils'
-import { S } from './S'
+import { S, cellWidth } from './S'
 
 export type UISchedule = ScheduleData & { colorKey?: string }
 
@@ -21,11 +21,7 @@ interface ScheduleItemProps {
   isCurrentMonth: boolean
 }
 
-const { width: screenWidth } = Dimensions.get('window')
-const horizontalPadding = 12
-const cellWidth = (screenWidth - horizontalPadding) / 7
-
-export const ScheduleItem: React.FC<ScheduleItemProps> = ({
+export const ScheduleItem: React.FC<ScheduleItemProps> = ({    
   schedule,
   currentDateISO,
   isCurrentMonth,

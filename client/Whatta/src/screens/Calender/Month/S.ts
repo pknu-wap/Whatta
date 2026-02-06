@@ -19,7 +19,7 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window')
 const horizontalPadding = 12
-const cellWidth = (screenWidth - horizontalPadding) / 7
+export const cellWidth = (screenWidth - horizontalPadding) / 7
 const MIN_CELL_HEIGHT = 115
 
 export const S = StyleSheet.create({
