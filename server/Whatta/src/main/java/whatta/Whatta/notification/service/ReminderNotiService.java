@@ -102,7 +102,9 @@ public class ReminderNotiService {
         return startAt
                 .minusDays(offset.day())
                 .minusHours(offset.hour())
-                .minusMinutes(offset.minute());
+                .minusMinutes(offset.minute())
+                .withSecond(0)
+                .withNano(0);
     }
 
     public List<ReminderNotification> getActiveRemindersToSend(LocalDateTime now) {
