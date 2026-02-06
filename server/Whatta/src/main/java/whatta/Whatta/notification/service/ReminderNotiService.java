@@ -38,7 +38,9 @@ public class ReminderNotiService {
         //알림 시각 계산
         LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(event.getStartDate(), event.getStartTime()), event.getRepeat(), event.getReminderNotiAt());
 
-        if(triggerAt == null) { return; }
+        if(triggerAt == null) {
+            return;
+        }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
         ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                 NotificationTargetType.EVENT, event.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
@@ -82,7 +84,7 @@ public class ReminderNotiService {
                 .build());
     }
 
-    private void cancelReminderNotification(String targetId) {
+    public void cancelReminderNotification(String targetId) {
         reminderNotiRepository.findByTargetIdAndStatus(targetId, NotiStatus.ACTIVE)
                 .ifPresent(schedule -> {
                     ReminderNotification canceled = schedule.toBuilder()
@@ -113,8 +115,10 @@ public class ReminderNotiService {
 
             cursor = occurrenceStart.plusSeconds(1);
         }
+
         return null;
     }
+
     private LocalDateTime applyOffset(LocalDateTime startAt, ReminderNoti offset) {
         return startAt
                 .minusDays(offset.day())
@@ -142,6 +146,7 @@ public class ReminderNotiService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         LocalDateTime nextTriggerAt = calculateTriggerAt(LocalDateTime.of(target.getStartDate(), target.getStartTime()), target.getRepeat(), target.getReminderNotiAt());
+        System.out.println("repeat event nextTriggerAt: " + nextTriggerAt);
 
         if (nextTriggerAt == null) {
             return;
@@ -157,6 +162,7 @@ public class ReminderNotiService {
                         .triggerAt(nextTriggerAt)
                         .build());
 
+        System.out.println("repeat event reminder" + base);
         reminderNotiRepository.save(base);
     }
 }

@@ -111,7 +111,7 @@ public class CalendarViewService {
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), event.startTime()),
                         event.repeat(),
                         date, date
                 );
@@ -246,7 +246,7 @@ public class CalendarViewService {
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), event.startTime()),
                         event.repeat(),
                         start, end
                 );
@@ -389,7 +389,7 @@ public class CalendarViewService {
         for(CalendarMonthlyEventResult event : eventsResult) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), event.startTime()),
                         event.repeat(),
                         start, end);
 
@@ -498,10 +498,10 @@ public class CalendarViewService {
             if (next == null || next.isAfter(rangeEndTime)) break;
 
             LocalDate occDate = next.toLocalDate();
+            System.out.println("cursor=" + cursor + " next=" + next + " occDate=" + occDate);
 
-            if (repeat.getExceptionDates() != null
-                    && repeat.getExceptionDates().contains(occDate)) {
-                cursor = occDate.plusDays(1).atStartOfDay();
+            if (repeat.getExceptionDates() != null && repeat.getExceptionDates().contains(occDate)) {
+                cursor = next.plusSeconds(1);
                 continue;
             }
 
@@ -509,7 +509,8 @@ public class CalendarViewService {
                 result.add(occDate);
             }
 
-            cursor = occDate.plusDays(1).atStartOfDay();
+            cursor = next.plusSeconds(1);
+
         }
         return result;
     }
