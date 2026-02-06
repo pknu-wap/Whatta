@@ -406,6 +406,19 @@ export default function MonthView() {
     return result
   }, [calendarDates])
 
+  // weeks가 바뀔 때만 계산
+  const weekMaxLanes = useMemo(() => {
+  return weeks.map((week) =>
+    Math.max(
+      -1,
+      ...week.flatMap((d) =>
+        d.schedules.map((it) => (it as any).__lane ?? -1),
+      ),
+    ),
+  )
+}, [weeks])
+    
+
   type ExtendedScheduleData = ScheduleData & {
     memo?: string
     place?: string
@@ -741,12 +754,7 @@ export default function MonthView() {
                 {weeks.map((week, weekIndex) => (
                   <View key={`week-${weekIndex}`} style={S.weekRow}>
                     {week.map((dateItem: CalendarDateItem, i: number) => {
-                      const weekMaxLane = Math.max(
-                        -1,
-                        ...week.flatMap((d) =>
-                          d.schedules.map((it) => (it as any).__lane ?? -1),
-                        ),
-                      )
+                      const weekMaxLane = weekMaxLanes[weekIndex] ?? -1
                       const itemsToRender: DisplayItem[] = getDisplayItems(
                         dateItem.schedules,
                         dateItem.tasks,
