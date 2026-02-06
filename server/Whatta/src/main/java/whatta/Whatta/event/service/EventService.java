@@ -65,7 +65,7 @@ public class EventService {
         }
         Event newEvent = eventRepository.save(eventBuilder.build());
         //알림 추가
-        scheduledNotiService.createReminderNotification(newEvent);
+        scheduledNotiService.updateReminderNotification(newEvent);
 
        return eventMapper.toEventDetailsResponse(newEvent);
     }
@@ -156,7 +156,7 @@ public class EventService {
 
         Event updatedEvent = eventRepository.save(builder.build());
         //알림 수정
-        scheduledNotiService.createReminderNotification(updatedEvent);
+        scheduledNotiService.updateReminderNotification(updatedEvent);
 
         return eventMapper.toEventDetailsResponse(updatedEvent);
     }

@@ -27,44 +27,23 @@ public class ReminderNotiService {
     private final ReminderNotiRepository reminderNotiRepository;
     private final EventRepository eventRepository;
 
-    //-------------reminder---------------
-    //1. event 생성/수정 시
-    public void createReminderNotification(Event event) {
-        if(event.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
+    //event 생성/수정 시
+    public void updateReminderNotification(Event event) {
+        if(event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
             cancelReminderNotification(event.getId());
             return;
         }
 
-        //알림 시각 계산
-        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(event.getStartDate(), event.getStartTime()), event.getRepeat(), event.getReminderNotiAt());
-
-        if(triggerAt == null) {
-            return;
-        }
-        //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
-        ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
-                NotificationTargetType.EVENT, event.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
-                .orElseGet(() -> ReminderNotification.builder()
-                        .userId(event.getUserId())
-                        .status(NotiStatus.ACTIVE)
-                        .targetType(NotificationTargetType.EVENT)
-                        .targetId(event.getId())
-                        .build());
-
-        reminderNotiRepository.save(base.toBuilder()
-                .triggerAt(triggerAt)
-                .updatedAt(LocalDateTime.now())
-                .build());
+        upsertActiveReminderNotification(event);
     }
 
-    //2. task 생성/수정 시
-    public void createReminderNotification(Task task) {
+    //task 생성/수정 시
+    public void updateReminderNotification(Task task) {
         if(task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
             cancelReminderNotification(task.getId());
             return;
         }
 
-        //알림 시각 계산
         LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), null, task.getReminderNotiAt());
 
         if(triggerAt == null) { return; }
@@ -126,43 +105,45 @@ public class ReminderNotiService {
                 .minusMinutes(offset.minute());
     }
 
-    //지금 시각 기준으로 울려야 하는 리마인드 알림들 조회
     public List<ReminderNotification> getActiveRemindersToSend(LocalDateTime now) {
         return reminderNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
     }
 
-    //알림 보낸 후 상태 업데이트
     @Transactional
-    public void completeReminder(ReminderNotification noti) {
-        //완료 표시
+    public void completeAndScheduleNextReminder(ReminderNotification noti) {
         ReminderNotification updated = noti.toBuilder()
                 .status(NotiStatus.COMPLETED)
                 .build();
 
         reminderNotiRepository.save(updated);
 
-        //반복일정의 경우 다음 알림에 저장
-        Event target = eventRepository.findById(noti.getTargetId())
-                .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
+        if (noti.getTargetType() == NotificationTargetType.EVENT) {
+            Event target = eventRepository.findById(noti.getTargetId())
+                    .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
-        LocalDateTime nextTriggerAt = calculateTriggerAt(LocalDateTime.of(target.getStartDate(), target.getStartTime()), target.getRepeat(), target.getReminderNotiAt());
-        System.out.println("repeat event nextTriggerAt: " + nextTriggerAt);
+            upsertActiveReminderNotification(target);
+        }
+    }
 
-        if (nextTriggerAt == null) {
+    private void upsertActiveReminderNotification(Event event){
+        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(event.getStartDate(), event.getStartTime()), event.getRepeat(), event.getReminderNotiAt());
+
+        if(triggerAt == null) {
             return;
         }
-        //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
+
         ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
-                        NotificationTargetType.EVENT, target.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
+                        NotificationTargetType.EVENT, event.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
                 .orElseGet(() -> ReminderNotification.builder()
-                        .userId(target.getUserId())
+                        .userId(event.getUserId())
                         .status(NotiStatus.ACTIVE)
                         .targetType(NotificationTargetType.EVENT)
-                        .targetId(target.getId())
-                        .triggerAt(nextTriggerAt)
+                        .targetId(event.getId())
                         .build());
 
-        System.out.println("repeat event reminder" + base);
-        reminderNotiRepository.save(base);
+        reminderNotiRepository.save(base.toBuilder()
+                .triggerAt(triggerAt)
+                .updatedAt(LocalDateTime.now())
+                .build());
     }
 }
