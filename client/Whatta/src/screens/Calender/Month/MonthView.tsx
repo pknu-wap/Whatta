@@ -417,6 +417,16 @@ export default function MonthView() {
     ),
   )
 }, [weeks])
+
+// 주간 변경될 때만 계산
+const displayItemsByWeek = useMemo(() => {
+  return weeks.map((week) =>
+    week.map((dateItem) =>
+      getDisplayItems(dateItem.schedules, dateItem.tasks)
+    )
+  )
+}, [weeks])
+
     
 
   type ExtendedScheduleData = ScheduleData & {
@@ -755,11 +765,7 @@ export default function MonthView() {
                   <View key={`week-${weekIndex}`} style={S.weekRow}>
                     {week.map((dateItem: CalendarDateItem, i: number) => {
                       const weekMaxLane = weekMaxLanes[weekIndex] ?? -1
-                      const itemsToRender: DisplayItem[] = getDisplayItems(
-                        dateItem.schedules,
-                        dateItem.tasks,
-                      )
-
+                      const itemsToRender = displayItemsByWeek[weekIndex][i]
                       const isCurrentMonth = dateItem.isCurrentMonth
 
                       const dayOfWeekStyle = isCurrentMonth
