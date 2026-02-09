@@ -46,6 +46,9 @@ import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import OcrSplash from '@/screens/More/OcrSplash'
 import { createEvent } from '@/api/event_api'
+import { today, addDays, getDateOfWeek } from '@/utils/calender/date'
+import { computeTaskOverlap, groupTasksByOverlap, computeEventOverlap, } from '@/utils/calender/overlap'
+import type { DayViewTask } from '@/types/calender'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -87,18 +90,6 @@ http.interceptors.response.use(
   },
 )
 
-const pad2 = (n: number) => String(n).padStart(2, '0')
-const today = () => {
-  const t = new Date()
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-
-const addDays = (iso: string, d: number) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const b = new Date(y, m - 1, dd + d)
-  return `${b.getFullYear()}-${pad2(b.getMonth() + 1)}-${pad2(b.getDate())}`
-}
-
 const { width: SCREEN_W } = Dimensions.get('window')
 
 function FullBleed({
@@ -128,37 +119,6 @@ function FullBleed({
   )
 }
 
-function getDateOfWeek(weekDay: string): string {
-  if (!weekDay) return today()
-
-  const key = weekDay.trim().toUpperCase() // ⭐ 중요
-
-  const map: any = {
-    MON: 1,
-    TUE: 2,
-    WED: 3,
-    THU: 4,
-    FRI: 5,
-    SAT: 6,
-    SUN: 0,
-  }
-
-  const target = map[key]
-  if (target === undefined) {
-    console.log('❌ Unknown weekDay:', weekDay)
-    return today()
-  }
-
-  const now = new Date()
-  const todayIdx = now.getDay()
-
-  const diff = target - todayIdx
-  const d = new Date()
-  d.setDate(now.getDate() + diff)
-
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-
 const INITIAL_CHECKS: any[] = []
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
@@ -169,178 +129,12 @@ const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 
 let draggingEventId: string | null = null
 
-interface DayViewTask {
-  id: string
-  title?: string
-  placementDate?: string | null
-  placementTime?: string | null
-  completed?: boolean
-  labels?: number[]
-  content?: string
-
-  // 내부 계산용
-  startMin?: number
-  endMin?: number
-  _column?: number
-  _totalColumns?: number
-}
-
-function computeTaskOverlap(tasks: DayViewTask[]): DayViewTask[] {
-  const filtered = tasks.filter((t) => t.placementTime)
-
-  // placementTime → startMin/endMin 변환
-  const converted: DayViewTask[] = filtered.map((t) => {
-    const [h, m] = t.placementTime!.split(':').map(Number)
-    const startMin = h * 60 + m
-    const endMin = startMin + 60 // 기본 1시간
-    return { ...t, startMin, endMin }
-  })
-
-  // 시작 시간 기준 정렬
-  const sorted = [...converted].sort(
-    (a, b) => a.startMin! - b.startMin! || a.endMin! - b.endMin!,
-  )
-
-  const result: DayViewTask[] = []
-  let group: DayViewTask[] = []
-  let groupEnd = -1
-
-  const flushGroup = () => {
-    if (group.length === 0) return
-
-    const columns: DayViewTask[][] = []
-
-    group.forEach((t) => {
-      let placed = false
-      for (let i = 0; i < columns.length; i++) {
-        const last = columns[i][columns[i].length - 1]
-        if (last.endMin! <= t.startMin!) {
-          columns[i].push(t)
-          t._column = i
-          placed = true
-          break
-        }
-      }
-      if (!placed) {
-        columns.push([t])
-        t._column = columns.length - 1
-      }
-    })
-
-    group.forEach((t) => {
-      t._totalColumns = columns.length
-      result.push(t)
-    })
-
-    group = []
-  }
-
-  for (const t of sorted) {
-    if (t.startMin! > groupEnd) {
-      flushGroup()
-      group.push(t)
-      groupEnd = t.endMin!
-    } else {
-      group.push(t)
-      groupEnd = Math.max(groupEnd, t.endMin!)
-    }
-  }
-
-  flushGroup()
-  return result
-}
-
-function groupTasksByOverlap(tasks: DayViewTask[]) {
-  const overlapped = computeTaskOverlap(tasks)
-  const sorted = overlapped.sort((a, b) => a.startMin! - b.startMin!)
-
-  const groups: { tasks: DayViewTask[]; startMin: number }[] = []
-  let cur: DayViewTask[] = []
-  let curEnd = -1
-
-  const flush = () => {
-    if (!cur.length) return
-    const startMin = Math.min(...cur.map((t) => t.startMin!))
-    groups.push({ tasks: cur, startMin })
-    cur = []
-  }
-
-  for (const t of sorted) {
-    if (t.startMin! > curEnd) {
-      flush()
-      cur = [t]
-      curEnd = t.endMin!
-    } else {
-      cur.push(t)
-      curEnd = Math.max(curEnd, t.endMin!)
-    }
-  }
-  flush()
-
-  return groups
-}
-
 export default function DayView() {
 
   function getLabelName(labelId?: number) {
   if (!labelId) return ''
   const found = labelList.find((l) => l.id === labelId)
   return found ? found.title : ''
-}
-
-  function computeEventOverlap(events: any[]) {
-  // startMin, endMin을 가진 이벤트 배열을 받는다고 가정
-
-  const sorted = [...events].sort(
-    (a, b) => a.startMin - b.startMin || a.endMin - b.endMin
-  )
-
-  let group: any[] = []
-  let groupEnd = -1
-  const result: any[] = []
-
-  const flush = () => {
-    if (!group.length) return
-    const columns: any[][] = []
-
-    group.forEach((ev) => {
-      let placed = false
-      for (let i = 0; i < columns.length; i++) {
-        const last = columns[i][columns[i].length - 1]
-        if (last.endMin <= ev.startMin) {
-          columns[i].push(ev)
-          ev._column = i
-          placed = true
-          break
-        }
-      }
-      if (!placed) {
-        columns.push([ev])
-        ev._column = columns.length - 1
-      }
-    })
-
-    group.forEach((ev) => {
-      ev._totalColumns = columns.length
-      result.push(ev)
-    })
-
-    group = []
-  }
-
-  for (const ev of sorted) {
-    if (ev.startMin > groupEnd) {
-      flush()
-      group = [ev]
-      groupEnd = ev.endMin
-    } else {
-      group.push(ev)
-      groupEnd = Math.max(groupEnd, ev.endMin)
-    }
-  }
-
-  flush()
-  return result
 }
 
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
