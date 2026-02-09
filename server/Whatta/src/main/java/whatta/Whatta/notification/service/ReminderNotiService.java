@@ -68,6 +68,7 @@ public class ReminderNotiService {
                 .ifPresent(schedule -> {
                     ReminderNotification canceled = schedule.toBuilder()
                             .status(NotiStatus.CANCELED)
+                            .updatedAt(LocalDateTime.now())
                             .build();
                     reminderNotiRepository.save(canceled);
                 });
@@ -115,6 +116,7 @@ public class ReminderNotiService {
     public void completeAndScheduleNextReminder(ReminderNotification noti) {
         ReminderNotification updated = noti.toBuilder()
                 .status(NotiStatus.COMPLETED)
+                .updatedAt(LocalDateTime.now())
                 .build();
 
         reminderNotiRepository.save(updated);
