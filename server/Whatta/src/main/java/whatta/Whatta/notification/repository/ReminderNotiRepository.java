@@ -20,4 +20,6 @@ public interface ReminderNotiRepository extends MongoRepository<ReminderNotifica
     List<ReminderNotification> findByStatusAndTriggerAtLessThanEqual(NotiStatus status, LocalDateTime now);
 
     List<ReminderNotification> findByStatusAndUserId(NotiStatus status, String userId);
+
+    long deleteByStatusAndUpdatedAtAfter(NotiStatus status, LocalDateTime expiredBefore);
 }
