@@ -40,16 +40,130 @@ import { ScheduleItem, TaskSummaryBox, UISchedule } from './MonthViewItems'
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
 
 
-// --------------------------------------------------------------------
-// 4. 메인 컴포넌트: MonthView
-// --------------------------------------------------------------------
 export default function MonthView() {
+
+  // OCR hook & Popup hook
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
   const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
-
-  // 📌 OCR 이미지 추가 이벤트
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
+
+  const [eventPopupVisible, setEventPopupVisible] = useState(false)
+  const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
+  const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
+
+  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
+  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
+  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
+  const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
+
+    useEffect(() => {
+    const handler = (payload?: { source?: string }) => {
+      if (payload?.source !== 'Month') return
+      setImagePopupVisible(true)
+    }
+
+    bus.on('popup:image:create', handler)
+    return () => bus.off('popup:image:create', handler)
+  }, [])
+
+  useEffect(() => {
+      const h = (payload?: { source?: string }) => {
+        if (payload?.source !== 'Month') return
+        setEventPopupMode('create')
+        setEventPopupData(null)
+        setEventPopupVisible(true)
+      }
+      bus.on('popup:schedule:create', h)
+      return () => bus.off('popup:schedule:create', h)
+    }, [])
+
+  // 캘린더 동기화 hooks
+  const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
+  const [ym, setYm] = useState<string>(() => {
+    const t = new Date()
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`
+  })
+
+  useEffect(() => {
+    const onSetDate = (iso: string) => {
+      const nextYM = toYM(iso)
+      setFocusedDateISO(iso)
+      setYm((prev) => (prev === nextYM ? prev : nextYM))
+    }
+    bus.on('calendar:set-date', onSetDate)
+    return () => bus.off('calendar:set-date', onSetDate)
+  }, [])
+
+  useFocusEffect(
+    React.useCallback(() => {
+      bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
+    }, [ym, focusedDateISO]),
+  )
+
+
+  // 데이터 fetch
+  const fetchFresh = useCallback(
+    async (targetYM: string) => {
+      try {
+        const fresh = await fetchMonthlyApi(targetYM)
+        const schedulesFromMonth = flattenMonthly(fresh)
+        const tasksThisMonth = await fetchTasksForMonth(targetYM)
+
+        const colorById = new Map<string, string | undefined>()
+        ;(fresh.spanEvents ?? []).forEach((e: any) => {
+          colorById.set(String(e.id), e.colorKey)
+        })
+        ;(fresh.days ?? []).forEach((d: any) => {
+          ;(d.events ?? []).forEach((ev: any) => {
+            colorById.set(String(ev.id), ev.colorKey)
+          })
+        })
+
+       const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map( 
+         (it) => ({
+           ...it,
+           colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
+         }),
+       ) 
+
+       
+       const dedup = new Map<string, UISchedule>() 
+       for (const item of mergedRaw) {             
+         const prefix = item.isTask ? 'TASK' : 'EVENT' 
+         const key = `${prefix}-${item.id}`          
+         if (!dedup.has(key)) {
+           dedup.set(key, item)
+         }
+       }
+       const merged = Array.from(dedup.values())    
+
+        cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
+        if (targetYM === ym) {
+          setDays(fresh.days)
+          setServerSchedules(merged)
+        }
+      } catch {}
+    },
+    [ym],
+  )
+
+  useEffect(() => {
+    const onInvalidate = ({ ym: dirtyYM }: { ym: string }) => fetchFresh(dirtyYM)
+    bus.on('calendar:invalidate', onInvalidate)
+    return () => bus.off('calendar:invalidate', onInvalidate)
+  }, [fetchFresh])
+
+  useEffect(() => {
+    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
+      fetchFresh(ym)
+    }
+
+    bus.on('calendar:mutated', onMutated)
+    return () => bus.off('calendar:mutated', onMutated)
+  }, [ym, fetchFresh])
+
+
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
@@ -106,86 +220,11 @@ export default function MonthView() {
   }
 }
 
-  useEffect(() => {
-    const handler = (payload?: { source?: string }) => {
-      if (payload?.source !== 'Month') return
-      setImagePopupVisible(true)
-    }
-
-    bus.on('popup:image:create', handler)
-    return () => bus.off('popup:image:create', handler)
-  }, [])
-
   // 월별 캐시 (ym -> days/schedules)
   const cacheRef = useRef<Map<string, { days: MonthlyDay[]; schedules: ScheduleData[] }>>(
     new Map(),
   )
   const laneMapRef = useRef<Map<string, number>>(new Map())
-
-  const [eventPopupVisible, setEventPopupVisible] = useState(false)
-  const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
-  const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
-
-  useEffect(() => {
-    const h = (payload?: { source?: string }) => {
-      if (payload?.source !== 'Month') return
-      setEventPopupMode('create')
-      setEventPopupData(null)
-      setEventPopupVisible(true)
-    }
-    bus.on('popup:schedule:create', h)
-    return () => bus.off('popup:schedule:create', h)
-  }, [])
-
-  const [taskPopupVisible, setTaskPopupVisible] = useState(false)
-  const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
-  const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
-  const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
-
-  async function openTaskPopupFromApi(taskId: string) {
-    try {
-      const res = await http.get(`/task/${taskId}`)
-      const data = res.data?.data
-      if (!data) return
-
-      setTaskPopupMode('edit')
-      setTaskPopupId(data.id)
-      setTaskPopupTask({
-        id: data.id,
-        title: data.title ?? '',
-        content: data.content ?? '',
-        labels: data.labels ?? [],
-        completed: data.completed ?? false,
-        placementDate: data.placementDate,
-        placementTime: data.placementTime,
-        dueDateTime: data.dueDateTime ?? null,
-      })
-      setTaskPopupVisible(true)
-    } catch (e) {
-      console.warn('task detail load error', e)
-      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
-    }
-  }
-
-  const mapApiToScheduleData = (raw: any): UISchedule => ({
-    id: String(raw.id),
-    name: raw.title ?? raw.name ?? '',
-    date: (raw.date ?? raw.startDate ?? '').slice(0, 10),
-    isRecurring: !!raw.isRepeat,
-    isTask: !!raw.isTask,
-    labelId: String(raw.labelId ?? ''),
-    isCompleted: !!raw.isCompleted,
-    colorKey:
-      typeof raw.colorKey === 'string'
-        ? raw.colorKey.replace(/^#/, '').toUpperCase()
-        : undefined,
-    ...(raw.startDate && raw.endDate
-      ? {
-          multiDayStart: raw.startDate.slice(0, 10),
-          multiDayEnd: raw.endDate.slice(0, 10),
-        }
-      : {}),
-  })
 
   const fade = useRef(new Animated.Value(1)).current
 
@@ -194,14 +233,13 @@ export default function MonthView() {
     const d = typeof src === 'string' ? new Date(src) : src
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
   }
-  const monthStart = (ym: string) => `${ym}-01`
 
   const parseYM = (s: string) => {
     const [y, m] = s.split('-').map(Number)
     return { year: y, monthIndex: m - 1 }
   }
 
-  const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
+
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
@@ -247,10 +285,6 @@ export default function MonthView() {
     return () => bus.off('task:create', handler)
   }, [openCreateTaskPopup])
 
-  const [ym, setYm] = useState<string>(() => {
-    const t = new Date()
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`
-  })
 
   // 월 이동 + 스와이프에서 호출
   const goMonth = useCallback(
@@ -297,106 +331,13 @@ export default function MonthView() {
     [goMonth],
   )
 
-  // 외부에서 날짜 세팅
-  useEffect(() => {
-    const onSetDate = (iso: string) => {
-      const nextYM = toYM(iso)
-      setFocusedDateISO(iso)
-      setYm((prev) => (prev === nextYM ? prev : nextYM))
-    }
-    bus.on('calendar:set-date', onSetDate)
-    return () => bus.off('calendar:set-date', onSetDate)
-  }, [])
-
-  // (2) ym이 확정되면 → 모두에게 현재 상태 방송 + API 조회
-  // useEffect(() => {
-  //   if (!ym) return
-  //   // 방송만 유지: 헤더/모달 동기화
-  //   bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  // }, [ym])
-
-  // // (3) 다른 컴포넌트가 현재 상태를 물으면 즉시 회신
-  // useEffect(() => {
-  //   const reply = () =>
-  //     bus.emit('calendar:state', { date: monthStart(ym), mode: 'month' })
-  //   bus.on('calendar:request-sync', reply)
-  //   return () => bus.off('calendar:request-sync', reply)
-  // }, [ym])
-
-  useFocusEffect(
-    React.useCallback(() => {
-      bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
-    }, [ym, focusedDateISO]),
-  )
-
-  // 1. 데이터 가져옴 + 저장 (서버 -> 화면)
-  const fetchFresh = useCallback(
-    async (targetYM: string) => {
-      try {
-        const fresh = await fetchMonthlyApi(targetYM)
-        const schedulesFromMonth = flattenMonthly(fresh)
-        const tasksThisMonth = await fetchTasksForMonth(targetYM)
-
-        const colorById = new Map<string, string | undefined>()
-        ;(fresh.spanEvents ?? []).forEach((e: any) => {
-          colorById.set(String(e.id), e.colorKey)
-        })
-        ;(fresh.days ?? []).forEach((d: any) => {
-          ;(d.events ?? []).forEach((ev: any) => {
-            colorById.set(String(ev.id), ev.colorKey)
-          })
-        })
-
-       const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map( 
-         (it) => ({
-           ...it,
-           colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
-         }),
-       ) 
-
-       
-       const dedup = new Map<string, UISchedule>() 
-       for (const item of mergedRaw) {             
-         const prefix = item.isTask ? 'TASK' : 'EVENT' 
-         const key = `${prefix}-${item.id}`          
-         if (!dedup.has(key)) {
-           dedup.set(key, item)
-         }
-       }
-       const merged = Array.from(dedup.values())    
-
-        cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
-        if (targetYM === ym) {
-          setDays(fresh.days)
-          setServerSchedules(merged)
-        }
-      } catch {}
-    },
-    [ym],
-  )
-
-  useEffect(() => {
-    const onInvalidate = ({ ym: dirtyYM }: { ym: string }) => fetchFresh(dirtyYM)
-    bus.on('calendar:invalidate', onInvalidate)
-    return () => bus.off('calendar:invalidate', onInvalidate)
-  }, [fetchFresh])
-
   const { year, monthIndex } = useMemo(() => parseYM(ym), [ym])
 
   const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
-  const focusedDate = useMemo(() => new Date(focusedDateISO), [focusedDateISO])
   const [days, setDays] = useState<MonthlyDay[]>([])
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
-      fetchFresh(ym)
-    }
-
-    bus.on('calendar:mutated', onMutated)
-    return () => bus.off('calendar:mutated', onMutated)
-  }, [ym, fetchFresh])
- 
+  
   // Memo로 캐싱
   const weeks = useMemo(() => {
     const result: CalendarDateItem[][] = []
@@ -412,7 +353,7 @@ export default function MonthView() {
     Math.max(
       -1,
       ...week.flatMap((d) =>
-        d.schedules.map((it) => (it as any).__lane ?? -1),
+        [...d.schedules, ...d.tasks].map((it) => (it as any).__lane ?? -1),
       ),
     ),
   )
@@ -427,7 +368,6 @@ const displayItemsByWeek = useMemo(() => {
   )
 }, [weeks])
 
-    
 
   type ExtendedScheduleData = ScheduleData & {
     memo?: string
@@ -727,33 +667,284 @@ const displayItemsByWeek = useMemo(() => {
     )
   }, [year, monthIndex, focusedDateISO, filteredSchedules])
 
+
+  const renderDayHeader = () => (
+  <View style={S.dayHeader}>
+    {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
+      <View key={`dow-${index}`} style={S.dayCellFixed}>
+        <Text
+          style={[
+            ts('monthDate'),
+            S.dayTextBase,
+            index === 0 ? S.sunText : null,
+            index === 6 ? S.satText : null,
+          ]}
+        >
+          {day}
+        </Text>
+      </View>
+    ))}
+    {loading && (
+      <View style={S.loadingOverlay}>
+        <ActivityIndicator />
+      </View>
+    )}
+  </View>
+)
+
+  const renderDateCell = (dateItem: CalendarDateItem, weekIndex: number, dayIndex: number, ) => { 
+    const weekMaxLane = weekMaxLanes[weekIndex] ?? -1
+    const itemsToRender = displayItemsByWeek[weekIndex][dayIndex]
+    const isCurrentMonth = dateItem.isCurrentMonth
+
+    const dayOfWeekStyle = isCurrentMonth
+      ? dayIndex % 7 === 0
+        ? S.sunDate
+        : (dayIndex + 1) % 7 === 0
+          ? S.satDate
+          : null
+      : null
+
+    const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(
+      dateItem.fullDate.getMonth() + 1,
+    ).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(2, '0')}`
+
+    const onlySchedules = itemsToRender.filter((it) => !(it as any).isTaskSummary)
+
+    const laneSlots: (ScheduleData | null)[] = Array.from(
+      { length: Math.max(0, weekMaxLane + 1) },
+      () => null,
+    )
+
+    for (const it of onlySchedules) {
+      const l = (it as any).__lane ?? 0
+      if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
+    }
+
+  return (
+        <TouchableOpacity
+          key={dateItem.fullDate.toISOString()}
+          style={[S.dateCell]}
+          hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
+          onPress={() => handleDatePress(dateItem)}
+          activeOpacity={isCurrentMonth ? 0.7 : 1}
+          disabled={!isCurrentMonth}
+          >
+          {/* 날짜 번호 및 스타일 */}
+            <View style={S.dateNumberWrapper}>
+              {dateItem.isToday ? (
+              <View style={S.todayRoundedSquare} />
+              ) : null}
+              <Text
+              style={[
+                ts('monthDate'),
+                  S.dateNumberBase,
+                  isCurrentMonth ? dayOfWeekStyle
+                    : dayIndex % 7 === 0 ? S.otherMonthSunDate
+                    : (dayIndex + 1) % 7 === 0 ? S.otherMonthSatDate
+                    : S.otherMonthDateText,
+                    isCurrentMonth && dateItem.isHoliday ? S.holidayDateText
+                    : null,
+            ]} >
+              {String(dateItem.day)}
+            </Text>
+            {dateItem.holidayName ? (
+              <Text
+                style={[
+                  S.holidayText,
+                  !isCurrentMonth ? S.otherMonthHolidayText : null,
+                  dateItem.holidayName === '크리스마스'
+                  ? S.smallHolidayText
+                  : null, ]} >
+                  {dateItem.holidayName.substring(0, 4)}
+              </Text> ) : null}
+            </View>
+
+          {/* 일정 및 할 일 영역 */}
+          <View style={S.eventArea}>
+            {(() => {
+              const taskSummary = itemsToRender.find(
+                (it) => (it as any).isTaskSummary, )
+              const onlySchedules = itemsToRender.filter(
+                (it) => !(it as any).isTaskSummary, )
+
+              for (const it of onlySchedules) {
+                const l = (it as any).__lane ?? 0
+                if (l >= 0 && l < laneSlots.length)
+                  laneSlots[l] = it as ScheduleData
+              }
+
+              return (
+                <>
+                {laneSlots.map((slot, idx) =>
+                  slot ? (
+                    <ScheduleItem
+                      key={`${slot.id}-${currentDateISO}-lane${idx}`}
+                      schedule={slot as UISchedule}
+                      currentDateISO={currentDateISO}
+                      isCurrentMonth={isCurrentMonth} />
+                    ) : (
+                    <View key={`spacer-${idx}`} style={S.laneSpacer} />
+                    ),
+              )}
+
+              {taskSummary ? (
+                <TaskSummaryBox
+                  key={(taskSummary as any).id}
+                  count={(taskSummary as any).count}
+                  isCurrentMonth={isCurrentMonth}
+                  tasks={(taskSummary as any).tasks}
+                />
+                ) : null}
+                </>
+              )
+            })()}
+          </View>
+        </TouchableOpacity>
+    )
+}
+
+const closeEventPopup = () => {
+  setEventPopupVisible(false)
+  setEventPopupData(null)
+  fetchFresh(ym)
+}
+
+const closeTaskPopup = () => {
+  setTaskPopupVisible(false)
+  setTaskPopupTask(null)
+  setTaskPopupId(null)
+  fetchFresh(ym)
+}
+
+const handleTaskSave = useCallback(async (form:any) => {
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  let placementDate: string | null = null
+  let placementTime: string | null = null
+  const fieldsToClear: string[] = []
+
+  if (form.hasDate && form.date) {
+    const d = form.date
+    placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+      d.getDate(),
+        )}`
+  } else {
+    fieldsToClear.push('placementDate')
+    }
+
+  if (form.hasTime && form.time) {
+    const t = form.time
+    placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:00`
+  } else {
+    fieldsToClear.push('placementTime')
+  }
+    
+  //reminderNoti
+  const reminderNoti = form.reminderNoti ?? null
+  if (!reminderNoti) fieldsToClear.push('reminderNoti')
+
+  const targetDate = placementDate ?? focusedDateISO
+
+  try {
+    if (taskPopupMode === 'edit') {
+      if (!taskPopupId) return
+
+      await http.patch(`/task/${taskPopupId}`, {
+        title: form.title,
+        content: form.memo,
+        labels: form.labels,
+        placementDate,
+        placementTime,
+        reminderNoti,
+        fieldsToClear,
+      })
+
+        bus.emit('calendar:mutated', {
+          op: 'update',
+          item: { id: taskPopupId, date: targetDate },
+        })
+        } else {
+          const res = await http.post('/task', {
+            title: form.title,
+            content: form.memo,
+            labels: form.labels,
+            placementDate,
+            placementTime,
+            reminderNoti,
+            date: targetDate,
+          })
+
+          const newId = res.data?.data?.id
+
+          bus.emit('calendar:mutated', {
+            op: 'create',
+            item: { id: newId, date: targetDate },
+          })
+        }
+        await fetchFresh(ym)
+        setTaskPopupVisible(false)
+        setTaskPopupId(null)
+        setTaskPopupTask(null)
+        console.warn(' 테스크 저장 완료');
+      } catch (err) {
+        console.error('❌ 테스크 저장 실패:', err)
+        Alert.alert('오류', '테스크를 저장하지 못했습니다.')
+      }
+    }, [
+      taskPopupMode,
+      taskPopupId,
+      focusedDateISO,
+      fetchFresh,
+])
+
+const handleTaskDelete = useCallback(async () => {
+  if (!taskPopupId) return
+  try {
+    await http.delete(`/task/${taskPopupId}`)
+
+    bus.emit('calendar:mutated', {
+      op: 'delete',
+      item: { id: taskPopupId, date: focusedDateISO },
+    })
+
+    await fetchFresh(ym)
+
+    setTaskPopupVisible(false)
+    setTaskPopupId(null)
+    setTaskPopupTask(null)
+  } catch (err) {
+    console.error('❌ 테스크 삭제 실패:', err)
+    Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+  }
+}, [taskPopupId, focusedDateISO, fetchFresh, ym])
+
+const handleOcrAddEvent = useCallback(
+  async (payload:any) => {
+    try {
+      await createEvent(payload)
+      await fetchFresh(ym)
+      bus.emit('calendar:invalidate', { ym })
+    } catch (err) {
+      console.error(err)
+    }
+  },
+  [fetchFresh, ym],
+)
+
+const handleOcrSaveAll = useCallback(async () => {
+  await fetchFresh(ym)
+  bus.emit('calendar:invalidate', { ym })
+  setOcrModalVisible(false)
+}, [fetchFresh, ym])
+
   return (
     <ScreenWithSidebar mode="overlay">
       <GestureDetector gesture={swipeGesture}>
         <View collapsable={false} style={{ flex: 1 }}>
           <View style={S.contentContainerWrapper}>
             {/* 요일 헤더 */}
-            <View style={S.dayHeader}>
-              {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
-                <View key={`dow-${index}`} style={S.dayCellFixed}>
-                  <Text
-                    style={[
-                      ts('monthDate'),
-                      S.dayTextBase,
-                      index === 0 ? S.sunText : null,
-                      index === 6 ? S.satText : null,
-                    ]}
-                  >
-                    {day}
-                  </Text>
-                </View>
-              ))}
-              {loading && (
-                <View style={S.loadingOverlay}>
-                  <ActivityIndicator />
-                </View>
-              )}
-            </View>
+            {renderDayHeader()}
 
             {/* 달력 그리드 */}
             <ScrollView
@@ -761,129 +952,13 @@ const displayItemsByWeek = useMemo(() => {
               contentContainerStyle={S.scrollContentContainer}
             >
               <Animated.View style={[S.calendarGrid, { opacity: fade }]}>
-                {weeks.map((week, weekIndex) => (
-                  <View key={`week-${weekIndex}`} style={S.weekRow}>
-                    {week.map((dateItem: CalendarDateItem, i: number) => {
-                      const weekMaxLane = weekMaxLanes[weekIndex] ?? -1
-                      const itemsToRender = displayItemsByWeek[weekIndex][i]
-                      const isCurrentMonth = dateItem.isCurrentMonth
-
-                      const dayOfWeekStyle = isCurrentMonth
-                        ? i % 7 === 0
-                          ? S.sunDate
-                          : (i + 1) % 7 === 0
-                            ? S.satDate
-                            : null
-                        : null
-
-                      const currentDateISO = `${dateItem.fullDate.getFullYear()}-${String(
-                        dateItem.fullDate.getMonth() + 1,
-                      ).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(
-                        2,
-                        '0',
-                      )}`
-
-                      return (
-                        <TouchableOpacity
-                          key={dateItem.fullDate.toISOString()}
-                          style={[S.dateCell]}
-                          hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
-                          onPress={() => handleDatePress(dateItem)}
-                          activeOpacity={isCurrentMonth ? 0.7 : 1}
-                          disabled={!isCurrentMonth}
-                        >
-                          {/* 날짜 번호 및 스타일 */}
-                          <View style={S.dateNumberWrapper}>
-                            {dateItem.isToday ? (
-                              <View style={S.todayRoundedSquare} />
-                            ) : null}
-                            <Text
-                              style={[
-                                ts('monthDate'),
-                                S.dateNumberBase,
-                                isCurrentMonth
-                                  ? dayOfWeekStyle
-                                  : i % 7 === 0
-                                    ? S.otherMonthSunDate
-                                    : (i + 1) % 7 === 0
-                                      ? S.otherMonthSatDate
-                                      : S.otherMonthDateText,
-                                isCurrentMonth && dateItem.isHoliday
-                                  ? S.holidayDateText
-                                  : null,
-                              ]}
-                            >
-                              {String(dateItem.day)}
-                            </Text>
-
-                            {dateItem.holidayName ? (
-                              <Text
-                                style={[
-                                  S.holidayText,
-                                  !isCurrentMonth ? S.otherMonthHolidayText : null,
-                                  dateItem.holidayName === '크리스마스'
-                                    ? S.smallHolidayText
-                                    : null,
-                                ]}
-                              >
-                                {dateItem.holidayName.substring(0, 4)}
-                              </Text>
-                            ) : null}
-                          </View>
-
-                          {/* 일정 및 할 일 영역 */}
-                          <View style={S.eventArea}>
-                            {(() => {
-                              const taskSummary = itemsToRender.find(
-                                (it) => (it as any).isTaskSummary,
-                              )
-                              const onlySchedules = itemsToRender.filter(
-                                (it) => !(it as any).isTaskSummary,
-                              )
-
-                              const laneSlots: (ScheduleData | null)[] = Array.from(
-                                { length: Math.max(0, weekMaxLane + 1) },
-                                () => null,
-                              )
-
-                              for (const it of onlySchedules) {
-                                const l = (it as any).__lane ?? 0
-                                if (l >= 0 && l < laneSlots.length)
-                                  laneSlots[l] = it as ScheduleData
-                              }
-
-                              return (
-                                <>
-                                  {laneSlots.map((slot, idx) =>
-                                    slot ? (
-                                      <ScheduleItem
-                                        key={`${slot.id}-${currentDateISO}-lane${idx}`}
-                                        schedule={slot as UISchedule}
-                                        currentDateISO={currentDateISO}
-                                        isCurrentMonth={isCurrentMonth}
-                                      />
-                                    ) : (
-                                      <View key={`spacer-${idx}`} style={S.laneSpacer} />
-                                    ),
-                                  )}
-
-                                  {taskSummary ? (
-                                    <TaskSummaryBox
-                                      key={(taskSummary as any).id}
-                                      count={(taskSummary as any).count}
-                                      isCurrentMonth={isCurrentMonth}
-                                      tasks={(taskSummary as any).tasks}
-                                    />
-                                  ) : null}
-                                </>
-                              )
-                            })()}
-                          </View>
-                        </TouchableOpacity>
-                      )
-                    })}
-                  </View>
-                ))}
+                    {weeks.map((week, weekIndex) => (
+                      <View key={`week-${weekIndex}`} style={S.weekRow}>
+                        {week.map((dateItem, dayIndex) =>
+                          renderDateCell(dateItem, weekIndex, dayIndex)
+                        )}
+                      </View>
+                    ))}
               </Animated.View>
             </ScrollView>
           </View>
@@ -901,122 +976,16 @@ const displayItemsByWeek = useMemo(() => {
         eventId={eventPopupData?.id ?? null}
         mode={eventPopupMode}
         initial={eventPopupData ?? undefined}
-        onClose={() => {
-          setEventPopupVisible(false)
-          setEventPopupData(null)
-          fetchFresh(ym)
-        }}
+        onClose={closeEventPopup}
       />
       <TaskDetailPopup
         visible={taskPopupVisible}
         mode={taskPopupMode}
         taskId={taskPopupId ?? undefined}
         initialTask={taskPopupTask}
-        onClose={() => {
-          setTaskPopupVisible(false)
-          setTaskPopupTask(null)
-          setTaskPopupId(null)
-          fetchFresh(ym)
-        }}
-        onSave={async (form) => {
-          const pad = (n: number) => String(n).padStart(2, '0')
-
-          let placementDate: string | null = null
-          let placementTime: string | null = null
-          const fieldsToClear: string[] = []
-
-          if (form.hasDate && form.date) {
-            const d = form.date
-            placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-              d.getDate(),
-            )}`
-          } else {
-            fieldsToClear.push('placementDate')
-          }
-
-          if (form.hasTime && form.time) {
-            const t = form.time
-            placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:00`
-          } else {
-            fieldsToClear.push('placementTime')
-          }
-          //reminderNoti
-          const reminderNoti = form.reminderNoti ?? null
-          if (!reminderNoti) fieldsToClear.push('reminderNoti')
-
-          const targetDate = placementDate ?? focusedDateISO
-
-          try {
-            if (taskPopupMode === 'edit') {
-              if (!taskPopupId) return
-
-              await http.patch(`/task/${taskPopupId}`, {
-                title: form.title,
-                content: form.memo,
-                labels: form.labels,
-                placementDate,
-                placementTime,
-                reminderNoti,
-                fieldsToClear,
-              })
-
-              bus.emit('calendar:mutated', {
-                op: 'update',
-                item: { id: taskPopupId, date: targetDate },
-              })
-            } else {
-              const res = await http.post('/task', {
-                title: form.title,
-                content: form.memo,
-                labels: form.labels,
-                placementDate,
-                placementTime,
-                reminderNoti,
-                date: targetDate,
-              })
-
-              const newId = res.data?.data?.id
-
-              bus.emit('calendar:mutated', {
-                op: 'create',
-                item: { id: newId, date: targetDate },
-              })
-            }
-
-            await fetchFresh(ym)
-
-            setTaskPopupVisible(false)
-            setTaskPopupId(null)
-            setTaskPopupTask(null)
-          } catch (err) {
-            console.error('❌ 테스크 저장 실패:', err)
-            Alert.alert('오류', '테스크를 저장하지 못했습니다.')
-          }
-        }}
-        onDelete={
-          taskPopupMode === 'edit'
-            ? async () => {
-                if (!taskPopupId) return
-                try {
-                  await http.delete(`/task/${taskPopupId}`)
-
-                  bus.emit('calendar:mutated', {
-                    op: 'delete',
-                    item: { id: taskPopupId, date: focusedDateISO },
-                  })
-
-                  await fetchFresh(ym)
-
-                  setTaskPopupVisible(false)
-                  setTaskPopupId(null)
-                  setTaskPopupTask(null)
-                } catch (err) {
-                  console.error('❌ 테스크 삭제 실패:', err)
-                  Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
-                }
-              }
-            : undefined
-        }
+        onClose={closeTaskPopup} 
+        onSave={handleTaskSave}
+        onDelete={taskPopupMode === 'edit' ? handleTaskDelete : undefined}
       />
       <AddImageSheet
         visible={imagePopupVisible}
@@ -1037,23 +1006,11 @@ const displayItemsByWeek = useMemo(() => {
   events={ocrEvents}
   onClose={() => setOcrModalVisible(false)}
 
-  // ✔ 단일 저장
-  onAddEvent={async (payload) => {
-    try {
-      await createEvent(payload)
-      await fetchFresh(ym)  // ★ 여기!
-      bus.emit('calendar:invalidate', { ym })
-    } catch (err) {
-      console.error(err)
-    }
-  }}
+  // 단일 저장
+   onAddEvent={handleOcrAddEvent}
 
-  // ✔ 전체 저장
-  onSaveAll={async () => {
-    await fetchFresh(ym)    // ★ 여기!
-    bus.emit('calendar:invalidate', { ym })
-    setOcrModalVisible(false)
-  }}
+  // 전체 저장
+  onSaveAll={handleOcrSaveAll}
 />
     </ScreenWithSidebar>
   )
