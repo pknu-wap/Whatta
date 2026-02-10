@@ -95,7 +95,7 @@ public class TaskService {
 
         Task savedTask = taskRepository.save(newTask);
         //알림 추가
-        scheduledNotiService.createScheduledNotification(savedTask);
+        scheduledNotiService.updateReminderNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -172,7 +172,7 @@ public class TaskService {
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
         //알림 수정
-        scheduledNotiService.createScheduledNotification(savedTask);
+        scheduledNotiService.updateReminderNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -183,7 +183,7 @@ public class TaskService {
             throw new RestApiException(ErrorCode.TASK_NOT_FOUND);
         }
 
-        scheduledNotiService.cancelScheduledNotification(taskId);
+        scheduledNotiService.cancelReminderNotification(taskId);
         taskRepository.deleteById(taskId);
     }
 

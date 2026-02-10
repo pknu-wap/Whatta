@@ -65,7 +65,7 @@ public class EventService {
         }
         Event newEvent = eventRepository.save(eventBuilder.build());
         //알림 추가
-        scheduledNotiService.createScheduledNotification(newEvent);
+        scheduledNotiService.updateReminderNotification(newEvent);
 
        return eventMapper.toEventDetailsResponse(newEvent);
     }
@@ -156,7 +156,7 @@ public class EventService {
 
         Event updatedEvent = eventRepository.save(builder.build());
         //알림 수정
-        scheduledNotiService.createScheduledNotification(updatedEvent);
+        scheduledNotiService.updateReminderNotification(updatedEvent);
 
         return eventMapper.toEventDetailsResponse(updatedEvent);
     }
@@ -166,7 +166,7 @@ public class EventService {
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
-        scheduledNotiService.cancelScheduledNotification(eventId);
+        scheduledNotiService.cancelReminderNotification(eventId);
         eventRepository.delete(event);
     }
 }

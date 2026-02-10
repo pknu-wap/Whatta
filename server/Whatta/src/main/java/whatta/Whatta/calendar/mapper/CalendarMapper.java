@@ -87,8 +87,8 @@ public class CalendarMapper {
                 .title(result.title())
                 .colorKey(result.colorKey())
                 .labels(result.labels())
-                .startTime(LocalTimeUtil.localTimeToString(result.endTime()))
-                .endTime(LocalTimeUtil.localTimeToString(result.startTime()))
+                .startTime(LocalTimeUtil.localTimeToString(result.startTime()))
+                .endTime(LocalTimeUtil.localTimeToString(result.endTime()))
                 .isRepeat(result.repeat() != null)
                 .build();
     }
