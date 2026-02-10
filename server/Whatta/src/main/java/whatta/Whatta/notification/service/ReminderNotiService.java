@@ -27,6 +27,8 @@ public class ReminderNotiService {
     private final ReminderNotiRepository reminderNotiRepository;
     private final EventRepository eventRepository;
 
+    private static final int COMPLETED_RETENTION_DAYS = 7;
+
     //event 생성/수정 시
     public void updateReminderNotification(Event event) {
         if(event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
@@ -149,5 +151,11 @@ public class ReminderNotiService {
                 .triggerAt(triggerAt)
                 .updatedAt(LocalDateTime.now())
                 .build());
+    }
+
+    public long deleteExpiredCompletedReminders() {
+        LocalDateTime expiredBefore = LocalDateTime.now().minusDays(COMPLETED_RETENTION_DAYS);
+        return reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.COMPLETED, expiredBefore)
+                + reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
     }
 }

@@ -38,4 +38,14 @@ public class ReminderNotiScheduler {
             }
         }
     }
+
+    @Scheduled(cron = "0 0 4 * * *", zone = "Asia/Seoul")
+    public void cleanupCompletedReminders () {
+        try {
+            long deletedCount = reminderNotiService.deleteExpiredCompletedReminders();
+            log.info("[REMINDER] [CLEANUP] deletedCount={}", deletedCount);
+        } catch (Exception e) {
+            log.error("[REMINDER] [CLEANUP] Failed to cleanup completed reminders", e);
+        }
+    }
 }
