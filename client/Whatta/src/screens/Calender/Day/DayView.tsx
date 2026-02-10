@@ -31,8 +31,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { bus, EVENT } from '@/lib/eventBus'
 import axios from 'axios'
-import { token } from '@/lib/token'
-import { refreshTokens } from '@/api/auth'
+import { http } from '@/lib/http'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
@@ -54,46 +53,6 @@ import DayTaskLayer from '@/components/dayview/DayTaskLayer'
 import DayTaskBox from '@/components/dayview/DayTaskBox'
 import DayTaskGroupDetailPopup from '@/components/dayview/DayTaskGroupDetailPopup'
 
-const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 0,
-  withCredentials: false,
-})
-
-// 요청 인터셉터
-http.interceptors.request.use(
-  (config) => {
-    const access = token.getAccess()
-    if (access) {
-      config.headers.Authorization = `Bearer ${access}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-// 응답 인터셉터
-http.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      try {
-        await refreshTokens()
-        const newAccess = token.getAccess()
-        if (newAccess) {
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`
-          return http(originalRequest)
-        }
-      } catch (err) {
-        console.error('[❌ 토큰 갱신 실패]', err)
-      }
-    }
-    return Promise.reject(error)
-  },
-)
-
 const { width: SCREEN_W } = Dimensions.get('window')
 
 const INITIAL_CHECKS: any[] = []
@@ -108,7 +67,7 @@ let draggingEventId: string | null = null
 
 export default function DayView() {
 
-  console.log('TaskGroupBox =', DraggableTaskGroupBox)
+  console.log('HTTP BASE:', http.defaults.baseURL)
 
   function getLabelName(labelId?: number) {
   if (!labelId) return ''

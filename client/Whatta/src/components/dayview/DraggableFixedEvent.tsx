@@ -8,7 +8,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
-import axios from 'axios'
+import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 
 const ROW_H = 48
@@ -67,7 +67,7 @@ export default function DraggableFixedEvent({
         const newEndTime = fmt(newEnd)
 
         // 🔥 반복 일정 팝업 적용
-        const detailRes = await axios.get(`/event/${id}`)
+        const detailRes = await http.get(`/event/${id}`)
         const ev = detailRes.data.data
 
         if (ev?.repeat) {
@@ -101,7 +101,7 @@ export default function DraggableFixedEvent({
                   const next = prev.includes(occ) ? prev : [...prev, occ]
 
                   // 기존 반복 일정에서 제외
-                  await axios.patch(`/event/${id}`, {
+                  await http.patch(`/event/${id}`, {
                     repeat: {
                       ...ev.repeat,
                       exceptionDates: next,
@@ -109,7 +109,7 @@ export default function DraggableFixedEvent({
                   })
 
                   // 단일 일정 만들기
-                  await axios.post(`/event`, {
+                  await http.post(`/event`, {
                     ...basePayload,
                     repeat: null,
                   })
@@ -128,7 +128,7 @@ export default function DraggableFixedEvent({
                   const cutEnd = prevDay(anchorDate)
 
                   // 기존 반복 일정 잘라내기
-                  await axios.patch(`/event/${id}`, {
+                  await http.patch(`/event/${id}`, {
                     repeat: {
                       ...ev.repeat,
                       endDate: cutEnd,
@@ -136,7 +136,7 @@ export default function DraggableFixedEvent({
                   })
 
                   // 이후 반복 일정 새로 만들기
-                  await axios.post(`/event`, {
+                  await http.post(`/event`, {
                     ...basePayload,
                     repeat: ev.repeat,
                   })
@@ -153,7 +153,7 @@ export default function DraggableFixedEvent({
         }
 
         // 🔥 일반 일정 PATCH (기존 Fixed 로직)
-        await axios.patch(`/event/${id}`, {
+        await http.patch(`/event/${id}`, {
           startDate: anchorDate,
           endDate: anchorDate,
           startTime: newStartTime,
