@@ -155,7 +155,7 @@ public class ReminderNotiService {
 
     public long deleteExpiredCompletedReminders() {
         LocalDateTime expiredBefore = LocalDateTime.now().minusDays(COMPLETED_RETENTION_DAYS);
-        return reminderNotiRepository.deleteByStatusAndUpdatedAtAfter(NotiStatus.COMPLETED, expiredBefore)
-                + reminderNotiRepository.deleteByStatusAndUpdatedAtAfter(NotiStatus.CANCELED, expiredBefore);
+        return reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.COMPLETED, expiredBefore)
+                + reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
     }
 }
