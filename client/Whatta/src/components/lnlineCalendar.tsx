@@ -76,7 +76,7 @@ export default function InlineCalendar({
   useEffect(() => {
     Animated.timing(animH, {
       toValue: open ? panelH : 0,
-      duration: 220,
+      duration: 120,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start()
@@ -142,6 +142,7 @@ export default function InlineCalendar({
     return (
       <Pressable
         onPress={() => onPress?.(date)}
+        hitSlop={6}
         style={{
           height: dayRowHeight,
           width: CELL_W,
@@ -169,6 +170,7 @@ export default function InlineCalendar({
         {isStart && (
           <>
             <View
+              pointerEvents="none"
               style={{
                 position: 'absolute',
                 top: TOP,
@@ -199,6 +201,7 @@ export default function InlineCalendar({
         {isEnd && (
           <>
             <View
+              pointerEvents="none"
               style={{
                 position: 'absolute',
                 top: TOP,

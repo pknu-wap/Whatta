@@ -301,35 +301,46 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
     setMemo(initialTask.content ?? '')
 
-    // 서버에서 받은 reminderNoti 초기 반영
+    setRemindOn(false)
+    setRemindValue(null)
+    setCustomOpen(false)
+    setRemindOpen(false)
+  }, [visible, initialTask])
+
+  // reminder preset 로딩/변경 시 리마인더 값만 동기화
+  useEffect(() => {
+    if (!visible) return
+    if (!initialTask) return
+
     const rn = initialTask.reminderNoti
-    if (rn && hasDateFlag && hasTimeFlag) {
-      // 날짜+시간 둘다 있어야만 on 가능
-      setRemindOn(true)
-
-      // preset에서 동일 값 찾기
-      const matched = reminderPresets.find(
-        (p) => p.day === rn.day && p.hour === rn.hour && p.minute === rn.minute,
-      )
-
-      if (matched) {
-        setRemindValue({
-          ...(matched as any),
-          label: formatCustomLabel(matched.hour, matched.minute),
-        })
-        setCustomOpen(false)
-      } else {
-        setRemindValue('custom')
-        setCustomHour(rn.hour ?? 0)
-        setCustomMinute(rn.minute ?? 0)
-        setCustomOpen(true)
-      }
-    } else {
+    if (!rn || !hasDate || !hasTime) {
       setRemindOn(false)
       setRemindValue(null)
       setCustomOpen(false)
+      setRemindOpen(false)
+      return
     }
-  }, [visible, initialTask, reminderPresets])
+
+    setRemindOn(true)
+
+    const matched = reminderPresets.find(
+      (p) => p.day === rn.day && p.hour === rn.hour && p.minute === rn.minute,
+    )
+
+    if (matched) {
+      setRemindValue({
+        ...(matched as any),
+        label: formatCustomLabel(matched.hour, matched.minute),
+      })
+      setCustomOpen(false)
+      return
+    }
+
+    setRemindValue('custom')
+    setCustomHour(rn.hour ?? 0)
+    setCustomMinute(rn.minute ?? 0)
+    setCustomOpen(true)
+  }, [visible, initialTask, reminderPresets, hasDate, hasTime])
 
   useEffect(() => {
     if (!visible) return
@@ -342,6 +353,15 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       return defaultLabel ? [defaultLabel.id] : prev
     })
   }, [visible, mode, labels])
+
+  // 팝업 열고 닫을 때 펼침 UI는 항상 닫힌 상태로 초기화
+  useEffect(() => {
+    setDateOpen(false)
+    setTimeOpen(false)
+    setRemindOpen(false)
+    setCustomOpen(false)
+    setLabelModalOpen(false)
+  }, [visible])
 
   // 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
   const remindEligible = hasDate && hasTime
@@ -401,7 +421,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 ref={scrollRef}
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: H_PAD }}
-                keyboardShouldPersistTaps="handled"
+                keyboardShouldPersistTaps="always"
                 bounces={false}
                 showsVerticalScrollIndicator={false}
                 automaticallyAdjustKeyboardInsets
