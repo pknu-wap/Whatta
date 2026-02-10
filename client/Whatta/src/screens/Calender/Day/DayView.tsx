@@ -35,8 +35,6 @@ import { token } from '@/lib/token'
 import { refreshTokens } from '@/api/auth'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
-import CheckOff from '@/assets/icons/check_off.svg'
-import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
@@ -49,13 +47,12 @@ import { createEvent } from '@/api/event_api'
 import { today, addDays, getDateOfWeek } from '@/utils/calender/date'
 import { computeTaskOverlap, groupTasksByOverlap, computeEventOverlap, } from '@/utils/calender/overlap'
 import type { DayViewTask } from '@/types/calender'
-import FullBleed from '@/components/dayview/FullBleed'
-import DraggableTaskBox from '@/components/dayview/DraggableTaskBox'
 import DraggableFixedEvent from '@/components/dayview/DraggableFixedEvent'
 import DraggableFlexibleEvent from '@/components/dayview/DraggableFlexibleEvent'
 import DraggableTaskGroupBox from '@/components/dayview/DraggableTaskGroupBox'
 import DayTaskLayer from '@/components/dayview/DayTaskLayer'
 import DayTaskBox from '@/components/dayview/DayTaskBox'
+import DayTaskGroupDetailPopup from '@/components/dayview/DayTaskGroupDetailPopup'
 
 const http = axios.create({
   baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
@@ -1023,65 +1020,14 @@ setEvents(overlapped.filter(filterEvent))
   setIsDraggingTask={setIsDraggingTask}
 />
 
-              {/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
-              {openGroupIndex !== null &&
-                (() => {
-                  const group = taskGroups[openGroupIndex]
-                  if (!group) return null
-                  const { tasks: list, startMin } = group
 
-                  return (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: startMin * PIXELS_PER_MIN + 52,
-                        left: 50 + 18,
-                        right: 18,
-                        backgroundColor: '#FFF',
-                        borderRadius: 10,
-                        borderColor: '#B3B3B3',
-                        borderWidth: 0.3,
-                        paddingVertical: 16,
-                        paddingHorizontal: 20,
-                        zIndex: 500,
-                      }}
-                    >
-                      {list.map((task) => (
-                        <Pressable
-                          key={task.id}
-                          onPress={() => openTaskPopupFromApi(task.id)}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            marginBottom: 18,
-                          }}
-                        >
-                          <View
-                            style={{
-                              width: 18,
-                              height: 18,
-                              borderWidth: 2,
-                              borderRadius: 2,
-                              borderColor: '#333',
-                              marginRight: 14,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              backgroundColor: '#FFF', // ⭐ 추가
-                            }}
-                          >
-                            {task.completed && (
-                              <Text style={{ fontSize: 12, color: '#333' }}>✓</Text>
-                            )}
-                          </View>
-
-                          <Text style={{ fontSize: 14, color: '#000' }}>
-                            {task.title}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )
-                })()}
+{openGroupIndex !== null && taskGroups[openGroupIndex] && (
+  <DayTaskGroupDetailPopup
+    tasks={taskGroups[openGroupIndex].tasks}
+    top={taskGroups[openGroupIndex].startMin * PIXELS_PER_MIN + 52}
+    onPressTask={openTaskPopupFromApi}
+  />
+)}
             </ScrollView>
           </Animated.View>
         </GestureDetector>
