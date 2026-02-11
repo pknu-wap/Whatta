@@ -16,7 +16,7 @@ import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import { useLabels } from '@/providers/LabelProvider'
-import { createLabel, type Label } from '@/api/label_api'
+import { createLabel } from '@/api/label_api'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import Arrow from '@/assets/icons/arrow.svg'
@@ -72,6 +72,7 @@ export default function EventDetailPopup({
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
   const [openStartTime, setOpenStartTime] = useState(false)
   const [openEndTime, setOpenEndTime] = useState(false)
+  const [isPickerTouching, setIsPickerTouching] = useState(false)
   const titleRef = useRef<TextInput>(null)
   const [saving, setSaving] = useState(false)
 
@@ -154,7 +155,11 @@ export default function EventDetailPopup({
     const body = [hh, mm].filter(Boolean).join(' ')
     return body.length ? `${body} 전` : '0분 전'
   }
-  const pickerTouchingRef = React.useRef(false)
+  const pickerTouchHandlers = {
+    onTouchStart: () => setIsPickerTouching(true),
+    onTouchEnd: () => setIsPickerTouching(false),
+    onTouchCancel: () => setIsPickerTouching(false),
+  }
 
   // 요일 한글
   const WEEKDAY = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
@@ -508,11 +513,6 @@ export default function EventDetailPopup({
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
   const labelBtnRef = useRef<View>(null)
-  const repeatBtnRef = useRef<View>(null)
-  const hasLabels = selectedLabelIds.length > 0
-  const btnBaseColor = hasLabels ? '#333' : '#B3B3B3'
-  const arrowColor = labelModalOpen ? '#B04FFF' : btnBaseColor
-  const btnText: string | undefined = hasLabels ? undefined : '없음'
   const { labels: globalLabels } = useLabels()
   const labels = globalLabels ?? []
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
@@ -535,9 +535,6 @@ export default function EventDetailPopup({
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [memo, setMemo] = useState('')
-  // mode / eventId props 기반 초기화
-  const [currentMode] = useState<'create' | 'edit'>(mode)
-  const [currentEventId] = useState<string | null>(eventId)
 
   /** 날짜 & 시간 */
   const [end, setEnd] = useState(new Date())
@@ -545,16 +542,6 @@ export default function EventDetailPopup({
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
   const [remindOn, setRemindOn] = useState(false)
-
-  /* Toggle 컴포넌트 */
-  const Toggle = ({ value, onChange }: ToggleProps) => (
-    <Pressable
-      onPress={() => onChange(!value)}
-      style={[styles.toggle, { backgroundColor: value ? '#9D7BFF' : '#ccc' }]}
-    >
-      <View style={[styles.thumb, { transform: [{ translateX: value ? 22 : 0 }] }]} />
-    </Pressable>
-  )
 
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
   const saveNormal = async () => {
@@ -722,7 +709,6 @@ export default function EventDetailPopup({
     }
   }
 
-  // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
     // 1) 반복 탭 저장
@@ -1105,15 +1091,6 @@ export default function EventDetailPopup({
     fetchEventDetail()
   }, [mode, eventId, initial]) // ← initial도 dependency에 추가
 
-  const isMultiDaySpan = React.useMemo(() => {
-    if (!start || !end) return false
-
-    // 날짜만 비교
-    const sd = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
-    const ed = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime()
-
-    return ed > sd
-  }, [start, end])
 
   useEffect(() => {
     if (visible && mode === 'create' && !initial) {
@@ -1301,19 +1278,10 @@ export default function EventDetailPopup({
             ]}
             pointerEvents="box-none"
           >
-            <Pressable
+            <View
               ref={sheetRef}
               style={[styles.box, { width: SHEET_W, height: SHEET_H }]}
-              onPress={(e) => e.stopPropagation()} // ⭐ box 내부 터치는 overlay로 전파 X
             >
-              {/* <View
-                style={{ flex: 1 }}
-                onStartShouldSetResponder={() => customOpen} // 피커 열렸을 때만 외부 탭 가로채기
-                onResponderRelease={() => {
-                  if (!customOpen) return
-                  if (pickerTouchingRef.current) return
-                }}
-              > */}
               {/* HEADER */}
               <View style={styles.header}>
                 <TouchableOpacity onPress={close} hitSlop={20}>
@@ -1342,6 +1310,8 @@ export default function EventDetailPopup({
                   style={{ flex: 1 }}
                   contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: 40 }}
                   keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  scrollEnabled={!isPickerTouching}
                   bounces={false}
                   showsVerticalScrollIndicator={true}
                   automaticallyAdjustKeyboardInsets={true} // iOS 15+
@@ -1569,7 +1539,7 @@ export default function EventDetailPopup({
                     </View>
                   )}
                   {timeOn && openTime && (
-                    <View style={[styles.timePickerBox]}>
+                    <View style={[styles.timePickerBox]} {...pickerTouchHandlers}>
                       {(() => {
                         const target = timeTarget === 'start' ? start : end
                         const hour24 = target.getHours()
@@ -1894,7 +1864,7 @@ export default function EventDetailPopup({
                                   </View>
                                 )}
                                 {k === 'custom' && repeatCustomOpen && (
-                                  <View style={styles.inlinePickerInList}>
+                                  <View style={styles.inlinePickerInList} {...pickerTouchHandlers}>
                                     <View style={{ height: 8, pointerEvents: 'none' }} />
                                     <View style={styles.inlinePickerRow}>
                                       {/* LEFT: 1~6 숫자 휠 */}
@@ -2165,7 +2135,7 @@ export default function EventDetailPopup({
                     )}
                     {/* 맞춤 설정 인라인 피커 */}
                     {customOpen && remindOn && (
-                      <View style={styles.remindPickerWrap}>
+                      <View style={styles.remindPickerWrap} {...pickerTouchHandlers}>
                         <View style={styles.remindPickerInner}>
                           {/* HOUR */}
                           <View style={styles.remindPickerBox}>
@@ -2356,7 +2326,7 @@ export default function EventDetailPopup({
                 )}
               </View>
               {/* </View> */}
-            </Pressable>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -2474,7 +2444,6 @@ const styles = StyleSheet.create({
   remindText: { marginLeft: 10, marginBottom: 5, fontSize: 13, color: '#888' },
   memoSection: {
     marginTop: 3,
-    flex: 1,
   },
 
   memoLabelRow: {
