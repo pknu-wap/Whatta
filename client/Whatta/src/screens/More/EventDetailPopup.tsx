@@ -844,34 +844,6 @@ export default function EventDetailPopup({
     pickingEndRef.current = true
   }
 
-  // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
-  useEffect(() => {
-    if (!visible) return
-    if (mode !== 'create') return // edit 모드에서는 절대 날짜 덮으면 안 됨
-    if (initial) return // initial 있으면 기존 일정 기반 → anchor 금지
-
-    const applyAnchor = (iso: string) => {
-      const [y, m, d] = iso.split('-').map(Number)
-      const anchor = new Date(y, m - 1, d)
-      setStart(anchor)
-      setEnd(anchor)
-      setRangeStart(anchor)
-      setRangePhase('start')
-    }
-
-    const onState = (st: { date?: string; mode?: string }) => {
-      if (st?.mode === 'day' && typeof st.date === 'string') {
-        // 반드시 day일 때만 anchor 적용
-        applyAnchor(st.date)
-      }
-    }
-
-    bus.on('calendar:state', onState)
-    bus.emit('calendar:request-sync', null)
-
-    return () => bus.off('calendar:state', onState)
-  }, [visible, mode])
-
   const marked = React.useMemo(() => buildMarked(start, end), [start, end])
   const [openTime, setOpenTime] = useState(false)
 
@@ -886,15 +858,18 @@ export default function EventDetailPopup({
   const [reminderPresets, setReminderPresets] = useState<
     { id: string; day: number; hour: number; minute: number }[]
   >([])
+  const reminderPresetLoadedRef = useRef(false)
   const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null)
 
   useEffect(() => {
     if (!visible) return
+    if (reminderPresetLoadedRef.current) return
 
     const fetchPresets = async () => {
       try {
         const res = await http.get('/user/setting/reminder')
         setReminderPresets(res.data.data)
+        reminderPresetLoadedRef.current = true
       } catch (err) {
         console.log('❌ 리마인드 preset 불러오기 실패:', err)
       }
@@ -1005,13 +980,15 @@ export default function EventDetailPopup({
     }
   }
   useEffect(() => {
+    if (!visible) return
     if (mode !== 'edit' || !eventId) return
+    let cancelled = false
 
     async function fetchEventDetail() {
       try {
         const res = await http.get(`/event/${eventId}`)
         const ev = res.data.data
-        if (!ev) return
+        if (!ev || cancelled) return
 
         const rawStartDate = ev.startDate // 원본 시작일 (YYYY-MM-DD)
         const rawEndDate = ev.endDate // 원본 종료일 (YYYY-MM-DD)
@@ -1084,12 +1061,16 @@ export default function EventDetailPopup({
         setSelectedColor('#' + ev.colorKey)
         setEventData(ev)
       } catch (err) {
+        if (cancelled) return
         console.error('❌ 일정 상세 불러오기 실패:', err)
       }
     }
 
     fetchEventDetail()
-  }, [mode, eventId, initial]) // ← initial도 dependency에 추가
+    return () => {
+      cancelled = true
+    }
+  }, [visible, mode, eventId, initial?.startDate]) // 발생일 변경 때만 재조회
 
 
   useEffect(() => {
