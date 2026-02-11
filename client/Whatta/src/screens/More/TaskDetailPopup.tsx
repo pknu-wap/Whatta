@@ -207,15 +207,24 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   // 피커 열림 상태
   const [dateOpen, setDateOpen] = useState(false)
   const [timeOpen, setTimeOpen] = useState(false)
+  const [isPickerTouching, setIsPickerTouching] = useState(false)
+  const reminderPresetLoadedRef = useRef(false)
+  const pickerTouchHandlers = {
+    onTouchStart: () => setIsPickerTouching(true),
+    onTouchEnd: () => setIsPickerTouching(false),
+    onTouchCancel: () => setIsPickerTouching(false),
+  }
 
   // 알림 preset 서버에서 불러오기
   useEffect(() => {
     if (!visible) return
+    if (reminderPresetLoadedRef.current) return
 
     const fetchPresets = async () => {
       try {
         const res = await http.get('/user/setting/reminder')
         setReminderPresets(res.data.data)
+        reminderPresetLoadedRef.current = true
       } catch (err) {
         console.log('❌ 리마인드 preset 불러오기 실패:', err)
       }
@@ -422,6 +431,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: H_PAD }}
                 keyboardShouldPersistTaps="always"
+                keyboardDismissMode="on-drag"
+                scrollEnabled={!isPickerTouching}
                 bounces={false}
                 showsVerticalScrollIndicator={false}
                 automaticallyAdjustKeyboardInsets
@@ -511,7 +522,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 {/* 시간 인라인 피커 */}
                 {hasTime && timeOpen && (
-                  <View style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}>
+                  <View
+                    style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}
+                    {...pickerTouchHandlers}
+                  >
                     <View style={{ flexDirection: 'row', gap: 5 }}>
                       {/* HOUR */}
                       <Picker
@@ -686,7 +700,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 {/* 맞춤 설정 인라인 피커 */}
                 {customOpen && remindOn && (
-                  <View style={styles.remindPickerWrap}>
+                  <View style={styles.remindPickerWrap} {...pickerTouchHandlers}>
                     <View style={styles.remindPickerInner}>
                       {/* HOUR */}
                       <View style={styles.remindPickerBox}>
@@ -1042,7 +1056,6 @@ const styles = StyleSheet.create({
 
   memoSection: {
     marginTop: 3,
-    flex: 1,
   },
   memoLabelRow: {
     flexDirection: 'row',
