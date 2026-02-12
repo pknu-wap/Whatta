@@ -70,4 +70,15 @@ public class Event {
     public boolean isPeriod() { return !startDate.equals(endDate); }
     public boolean hasTime() { return startTime!=null && endTime!=null; }
     public boolean isRepeat() { return repeat != null; }
+
+    public Event normalizeForTimeRules() {
+        if(this.startTime == null || this.endTime == null) {
+            return this.toBuilder()
+                    .startTime(null)
+                    .endTime(null)
+                    .reminderNotiAt(null)
+                    .build();
+        }
+        return this;
+    }
 }

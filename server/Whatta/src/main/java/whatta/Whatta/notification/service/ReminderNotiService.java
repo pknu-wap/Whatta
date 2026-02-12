@@ -31,7 +31,7 @@ public class ReminderNotiService {
 
     //event 생성/수정 시
     public void updateReminderNotification(Event event) {
-        if(event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
+        if(event.getStartTime() == null || event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
             cancelReminderNotification(event.getId());
             return;
         }
