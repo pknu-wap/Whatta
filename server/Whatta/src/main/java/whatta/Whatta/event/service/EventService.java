@@ -34,6 +34,7 @@ public class EventService {
     private final EventMapper eventMapper;
     private final ReminderNotiService scheduledNotiService;
 
+    @Transactional
     public EventResponse createEvent(String userId, EventCreateRequest request) {
 
         User user = userRepository.findUserById(userId)
@@ -87,6 +88,7 @@ public class EventService {
         return eventMapper.toEventDetailsResponse(event);
     }
 
+    @Transactional
     public EventResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
 
         Event originalEvent = eventRepository.findEventByIdAndUserId(eventId, userId)
