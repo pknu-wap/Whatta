@@ -5,7 +5,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
 import whatta.Whatta.global.repeat.payload.RepeatRequest;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
@@ -14,24 +13,33 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
-@Getter
-public class TaskCreateRequest {
+public record TaskCreateRequest (
 
-    private String title;//타이틀
-    private String content;//내용
+    @NotBlank(message = "제목은 필수입니다.")
+    @Schema(description = "할 일 제목", example = "장보기")
+    String title,
+
+    @NotNull(message = "내용은 null일 수 없습니다.")
+    @Schema(description = "할 일 내용 (빈 문자열 허용)", example = "우유, 계란, 미나리")
+    String content,
 
     @Size(max = 3, message = "선택할 수 있는 라벨의 개수는 최대 3개입니다.")
-    private List<Long> labels;//라벨
+    @Schema(description = "라벨 ID 목록")
+    List<Long> labels,
 
-    private LocalDate placementDate;//배치일
+    @Schema(description = "배치 날짜 (YYYY-MM-DD)", example = "2026-02-10")
+    LocalDate placementDate,
 
-    @Schema(type = "string", format = "time", example = "18:00:00")
-    private LocalTime placementTime;//배치시간
+    @Schema(description = "배치 시간 (HH:MM:SS)", example = "18:00:00")
+    LocalTime placementTime,
 
-    private LocalDateTime dueDateTime; //마감일, 마감시간
+    @Schema(description = "마감 일시", example = "2026-02-10T23:59:00")
+    LocalDateTime dueDateTime,
 
-    //@Valid
-    //private RepeatRequest repeat; //중첩객체 RepeatRequest를 포함
+    @Valid
+    @Schema(description = "반복 설정")
+    RepeatRequest repeat,
 
-    private ReminderNoti reminderNoti;
-}
+    @Schema(description = "알림 설정")
+    ReminderNoti reminderNoti
+) {}

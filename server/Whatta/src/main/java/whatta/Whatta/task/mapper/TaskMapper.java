@@ -1,7 +1,6 @@
 package whatta.Whatta.task.mapper;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.global.repeat.payload.RepeatResponse;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
@@ -14,15 +13,15 @@ public class TaskMapper {
 
         return Task.builder()
                 .userId(userSetting.getUserId())
-                .title(request.getTitle())
-                .content(request.getContent())
+                .title(request.title())
+                .content(request.content())
                 .completed(false)
                 .completedAt(null)
-                .placementDate(request.getPlacementDate())
-                .placementTime(request.getPlacementTime())
-                .dueDateTime(request.getDueDateTime())
+                .placementDate(request.placementDate())
+                .placementTime(request.placementTime())
+                .dueDateTime(request.dueDateTime())
                 //.repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
-                .reminderNotiAt((request.getPlacementTime() != null)? request.getReminderNoti() : null)
+                .reminderNotiAt((request.placementTime() != null)? request.reminderNoti() : null)
                 .build();
     }
 
