@@ -31,7 +31,7 @@ public class ReminderNotiService {
 
     //event 생성/수정 시
     public void updateReminderNotification(Event event) {
-        if(event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
+        if(event.getStartTime() == null || event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
             cancelReminderNotification(event.getId());
             return;
         }
@@ -41,7 +41,7 @@ public class ReminderNotiService {
 
     //task 생성/수정 시
     public void updateReminderNotification(Task task) {
-        if(task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
+        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
             cancelReminderNotification(task.getId());
             return;
         }

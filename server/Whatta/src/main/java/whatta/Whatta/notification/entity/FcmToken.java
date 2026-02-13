@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import whatta.Whatta.notification.enums.Platform;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 
 @Document("fcm_tokens")
 @AllArgsConstructor
+@NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
 public class FcmToken {

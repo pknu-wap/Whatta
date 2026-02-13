@@ -34,6 +34,7 @@ public class EventService {
     private final EventMapper eventMapper;
     private final ReminderNotiService scheduledNotiService;
 
+    @Transactional
     public EventResponse createEvent(String userId, EventCreateRequest request) {
 
         User user = userRepository.findUserById(userId)
@@ -64,7 +65,6 @@ public class EventService {
             eventBuilder.reminderNotiAt(request.reminderNoti());
         }
         Event newEvent = eventRepository.save(eventBuilder.build());
-        //알림 추가
         scheduledNotiService.updateReminderNotification(newEvent);
 
        return eventMapper.toEventDetailsResponse(newEvent);
@@ -85,10 +85,10 @@ public class EventService {
         Event event = eventRepository.findEventByIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
-        //System.out.println("get localTime :" + event.getStartTime() + " / " + event.getEndTime());
         return eventMapper.toEventDetailsResponse(event);
     }
 
+    @Transactional
     public EventResponse updateEvent(String userId, String eventId, EventUpdateRequest request) {
 
         Event originalEvent = eventRepository.findEventByIdAndUserId(eventId, userId)
@@ -154,8 +154,8 @@ public class EventService {
         }
         builder.editedAt(LocalDateTime.now());
 
-        Event updatedEvent = eventRepository.save(builder.build());
-        //알림 수정
+        Event normalizedEvent = builder.build().normalizeForTimeRules();
+        Event updatedEvent = eventRepository.save(normalizedEvent);
         scheduledNotiService.updateReminderNotification(updatedEvent);
 
         return eventMapper.toEventDetailsResponse(updatedEvent);
