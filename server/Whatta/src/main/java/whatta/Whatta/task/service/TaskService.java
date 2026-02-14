@@ -122,7 +122,7 @@ public class TaskService {
         if(request.placementDate() != null) builder.placementDate(request.placementDate());
         if(request.placementTime() != null) builder.placementTime(request.placementTime());
         if(request.dueDateTime() != null) builder.dueDateTime(request.dueDateTime());
-        //if(request.getRepeat() != null) builder.repeat(request.getRepeat().toEntity());
+        if(request.repeat() != null) builder.repeat(request.repeat().toEntity());
         if(request.sortNumber() != null) builder.sortNumber(request.sortNumber());
         if(request.reminderNoti() != null) builder.reminderNotiAt(request.reminderNoti());
 
@@ -149,9 +149,9 @@ public class TaskService {
                     case "dueDateTime":
                         builder.dueDateTime(null);
                         break;
-                    /*case "repeat":
+                    case "repeat":
                         builder.repeat(null);
-                        break;*/
+                        break;
                     case "reminderNoti":
                         builder.reminderNotiAt(null);
                         break;

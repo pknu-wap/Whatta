@@ -1,6 +1,7 @@
 package whatta.Whatta.task.mapper;
 
 import org.springframework.stereotype.Component;
+import whatta.Whatta.global.repeat.payload.RepeatResponse;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
@@ -20,7 +21,7 @@ public class TaskMapper {
                 .placementDate(request.placementDate())
                 .placementTime(request.placementTime())
                 .dueDateTime(request.dueDateTime())
-                //.repeat((request.getRepeat() == null)? null : request.getRepeat().toEntity()) //null 검사는 호출하는 쪽에서
+                .repeat((request.repeat() == null) ? null : request.repeat().toEntity())
                 .reminderNotiAt((request.placementTime() != null)? request.reminderNoti() : null)
                 .build();
     }
@@ -37,7 +38,7 @@ public class TaskMapper {
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
-                //.repeat(RepeatResponse.fromEntity(task.getRepeat()))
+                .repeat(RepeatResponse.fromEntity(task.getRepeat()))
                 .sortNumber(task.getSortNumber())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
@@ -46,14 +47,14 @@ public class TaskMapper {
     }
 
     public SidebarTaskResponse toSidebarResponse(Task task) {
-        return SidebarTaskResponse.builder()
-                .id(task.getId())
-                .title(task.getTitle())
-                .completed(task.getCompleted())
-                .completedAt(task.getCompletedAt())
-                .dueDateTime(task.getDueDateTime())
-                .sortNumber(task.getSortNumber())
-                .build();
+        return new SidebarTaskResponse(
+                task.getId(),
+                task.getTitle(),
+                task.getCompleted(),
+                task.getCompletedAt(),
+                task.getDueDateTime(),
+                task.getSortNumber()
+        );
 
     }
 

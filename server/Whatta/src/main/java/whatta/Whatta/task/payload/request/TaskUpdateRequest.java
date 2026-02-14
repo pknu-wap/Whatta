@@ -13,9 +13,11 @@ import java.util.List;
 
 public record TaskUpdateRequest (
 
+        @Size(max = 20, message = "제목은 20자 이내여야 합니다.")
         @Schema(description = "수정할 제목", example = "장보기 (수정)")
         String title,
 
+        @Size(max = 100, message = "내용은 100자 이내여야 합니다.")
         @Schema(description = "수정할 내용", example = "")
         String content,
 
