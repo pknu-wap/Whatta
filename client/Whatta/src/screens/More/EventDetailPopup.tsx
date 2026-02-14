@@ -148,12 +148,14 @@ export default function EventDetailPopup({
     )
   }
 
-  // h, m을 사람이 읽는 "h시간 m분 전"으로 (0인 항목은 생략)
-  const formatCustomLabel = (h: number, m: number) => {
+  // day, h, m
+  const formatCustomLabel = (h: number, m: number, day: number = 0) => {
+    const dayText = day === 1 ? '전날' : '당일'
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
-    return body.length ? `${body} 전` : '0분 전'
+    const timeText = body.length ? `${body} 전` : '0분 전'
+    return `${dayText} ${timeText}`
   }
   const pickerTouchHandlers = {
     onTouchStart: () => setIsPickerTouching(true),
@@ -859,29 +861,46 @@ export default function EventDetailPopup({
     { id: string; day: number; hour: number; minute: number }[]
   >([])
   const reminderPresetLoadedRef = useRef(false)
+  const [reminderPresetVersion, setReminderPresetVersion] = useState(0)
   const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null)
 
   useEffect(() => {
     if (!visible) return
     if (reminderPresetLoadedRef.current) return
+    let cancelled = false
 
     const fetchPresets = async () => {
       try {
         const res = await http.get('/user/setting/reminder')
+        if (cancelled) return
         setReminderPresets(res.data.data)
         reminderPresetLoadedRef.current = true
       } catch (err) {
+        if (cancelled) return
         console.log('❌ 리마인드 preset 불러오기 실패:', err)
       }
     }
 
     fetchPresets()
-  }, [visible])
+    return () => {
+      cancelled = true
+    }
+  }, [visible, reminderPresetVersion])
+
+  useEffect(() => {
+    const onReminderMutated = () => {
+      reminderPresetLoadedRef.current = false
+      setReminderPresetVersion((v) => v + 1)
+    }
+
+    bus.on('reminder:mutated', onReminderMutated)
+    return () => bus.off('reminder:mutated', onReminderMutated)
+  }, [])
   // 프리셋 + '맞춤 설정'
   const presetOptions = (reminderPresets ?? []).map((p) => ({
     type: 'preset' as const,
     ...p,
-    label: formatCustomLabel(p.hour, p.minute),
+    label: formatCustomLabel(p.hour, p.minute, p.day),
   }))
 
   const remindOptions = [
@@ -912,7 +931,7 @@ export default function EventDetailPopup({
   }
 
   // 현재 h,m 포맷
-  const customLabel = formatCustomLabel(customHour, customMinute)
+  const customLabel = formatCustomLabel(customHour, customMinute, 0)
   // 버튼에 보여줄 텍스트: 맞춤 설정이면 항상 실시간 표시
   const displayRemind = React.useMemo(() => {
     // 알림이 꺼져 있거나, 아직 선택 안 했으면 빈 문자열
@@ -924,7 +943,10 @@ export default function EventDetailPopup({
     }
 
     // preset이면 label 사용 (없으면 시간으로 만들어서 반환)
-    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+    return (
+      remindValue.label ??
+      formatCustomLabel(remindValue.hour, remindValue.minute, remindValue.day)
+    )
   }, [remindOn, remindValue, customLabel])
 
   // 반복 모드: monthly 세부 옵션 펼침 여부
