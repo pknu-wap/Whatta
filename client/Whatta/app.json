@@ -8,6 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
+      "image":"./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -65,8 +66,10 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b895d0bb-969a-4bde-bb79-27d84e2c27a7"
-      }
-    }
+        "projectId": "b9f60a36-178c-4e7d-a143-d6ee718eb26d"
+      },
+      "variant": "prod"
+    },
+    "owner": "dlslall1"
   }
 }
