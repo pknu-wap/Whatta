@@ -1,6 +1,7 @@
 name: Deploy DEV to Cloud Run
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - develop-server
