@@ -20,7 +20,8 @@
     "devTestFlight": {
       "distribution": "store",
       "autoIncrement": true,
-      "env": { "APP_VARIANT": "dev" }
+      "env": { "APP_VARIANT": "dev" },
+      "channel": "dev"
     }
   },
   "submit": {
