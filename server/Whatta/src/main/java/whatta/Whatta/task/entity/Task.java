@@ -24,6 +24,9 @@ import java.util.List;
 @Builder(toBuilder = true)
 public class Task {
 
+    public static final String DEFAULT_TITLE = "새로운 작업";
+    public static final String DEFAULT_CONTENT = "";
+
     @Id
     private String id;
 
@@ -32,11 +35,11 @@ public class Task {
 
     @NotBlank
     @Builder.Default
-    private String title = "새로운 작업";
+    private String title = DEFAULT_TITLE;
 
     @NotNull
     @Builder.Default
-    private String content = "";
+    private String content = DEFAULT_CONTENT;
 
     @NotNull
     @Builder.Default

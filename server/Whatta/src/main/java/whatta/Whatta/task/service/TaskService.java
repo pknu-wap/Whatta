@@ -62,36 +62,43 @@ public class TaskService {
             }
         }
 
-        LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
+        if (request.labels() != null && !request.labels().isEmpty()) {
+            LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
+        }
 
-        String title = (request.title() == null || request.title().isBlank())
-                ? "새로운 작업"
-                : request.title();
+        String title = (request.title() != null && !request.title().isBlank())
+                ? request.title()
+                : Task.DEFAULT_TITLE;
 
-        String content = (request.content() == null || request.content().isBlank())
-                ? ""
-                :request.content();
+        String content = (request.content() != null)
+                ? request.content()
+                : Task.DEFAULT_CONTENT;
 
-        List<Long> labels = (request.labels() == null || request.labels().isEmpty())
-                ? new ArrayList<>()
-                : request.labels();
+        List<Long> labels = (request.labels() != null)
+                ? request.labels()
+                : new ArrayList<>();
 
-
-        Task newTask = taskMapper.toEntity(request, userSetting).toBuilder()
+        Task newTask = Task.builder()
+                .userId(userId)
                 .title(title)
                 .content(content)
                 .labels(labels)
+                .completed(false)
+                .completedAt(null)
                 .sortNumber(newSortNumber)
+                .placementDate(request.placementDate())
+                .placementTime(request.placementTime())
+                .dueDateTime(request.dueDateTime())
+                .repeat((request.repeat() == null) ? null : request.repeat().toEntity())
+                .reminderNotiAt((request.placementTime() != null)? request.reminderNoti() : null)
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
-        //알림 추가
         scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
 
-    //task 업데이트
     public TaskResponse updateTask(String userId, String taskId, TaskUpdateRequest request) {
 
         Task originalTask = taskRepository.findByIdAndUserId(taskId, userId)
@@ -132,10 +139,10 @@ public class TaskService {
             for (String fieldName : request.fieldsToClear()) {
                 switch (fieldName) { //completed, orderByNumber는 null로 초기화안함
                     case "title":
-                        builder.title("새로운 작업");
+                        builder.title(Task.DEFAULT_TITLE);
                         break;
                     case "content":
-                        builder.content("");
+                        builder.content(Task.DEFAULT_CONTENT);
                         break;
                     case "labels":
                         builder.labels(new ArrayList<>());
@@ -162,13 +169,11 @@ public class TaskService {
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
-        //알림 수정
         scheduledNotiService.createScheduledNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
 
-    //task 삭제
     public void deleteTask(String userId, String taskId) {
         if(!taskRepository.existsByIdAndUserId(taskId, userId)) {
             throw new RestApiException(ErrorCode.TASK_NOT_FOUND);
@@ -208,7 +213,6 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    //재정렬
     private void rebalanceTasks(String userId) {
         List<Task> tasks = taskRepository.findByUserIdOrderBySortNumberAsc(userId);
 
