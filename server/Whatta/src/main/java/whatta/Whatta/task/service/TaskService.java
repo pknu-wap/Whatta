@@ -89,7 +89,7 @@ public class TaskService {
                 .placementDate(request.placementDate())
                 .placementTime(request.placementTime())
                 .dueDateTime(request.dueDateTime())
-                .repeat(request.repeat().toEntity())
+                .repeat(request.repeat() != null ? request.repeat().toEntity() : null)
                 .reminderNotiAt(request.reminderNoti())
                 .build();
 
