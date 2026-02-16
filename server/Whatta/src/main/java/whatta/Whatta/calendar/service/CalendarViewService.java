@@ -111,7 +111,7 @@ public class CalendarViewService {
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), event.startTime()),
                         event.repeat(),
                         date, date
                 );
@@ -246,7 +246,7 @@ public class CalendarViewService {
         for(CalendarTimedEventItem event : eventsResult.timedEvents() ) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), event.startTime()),
                         event.repeat(),
                         start, end
                 );
@@ -388,8 +388,10 @@ public class CalendarViewService {
         List<MonthSpanEvent> spanEvents = new ArrayList<>();
         for(CalendarMonthlyEventResult event : eventsResult) {
             if (event.repeat() != null) {
+                LocalTime startTime = (event.startTime() == null) ? LocalTime.NOON : event.startTime();
+
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), startTime),
                         event.repeat(),
                         start, end);
 
@@ -452,7 +454,6 @@ public class CalendarViewService {
     }
 
     private List<LabelItem> buildMonthlyLabelPalette(String userId, List<CalendarMonthlyEventResult> monthlyEvents, List<CalendarMonthlyTaskResult> taskResults) {
-        System.out.println("[getMonthly] userId = " + userId);
         Set<Long> labelIds = new LinkedHashSet<>();
         for (CalendarMonthlyEventResult event : monthlyEvents) {
             if (event.labels() != null && !event.labels().isEmpty()) {
@@ -468,7 +469,6 @@ public class CalendarViewService {
             return List.of();
         }
 
-        System.out.println("label Ids : " + labelIds);
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
 
@@ -499,9 +499,8 @@ public class CalendarViewService {
 
             LocalDate occDate = next.toLocalDate();
 
-            if (repeat.getExceptionDates() != null
-                    && repeat.getExceptionDates().contains(occDate)) {
-                cursor = occDate.plusDays(1).atStartOfDay();
+            if (repeat.getExceptionDates() != null && repeat.getExceptionDates().contains(occDate)) {
+                cursor = next.plusSeconds(1);
                 continue;
             }
 
@@ -509,7 +508,8 @@ public class CalendarViewService {
                 result.add(occDate);
             }
 
-            cursor = occDate.plusDays(1).atStartOfDay();
+            cursor = next.plusSeconds(1);
+
         }
         return result;
     }

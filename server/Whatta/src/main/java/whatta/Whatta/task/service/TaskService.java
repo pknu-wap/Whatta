@@ -94,7 +94,7 @@ public class TaskService {
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
-        scheduledNotiService.createScheduledNotification(savedTask);
+        scheduledNotiService.updateReminderNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -154,9 +154,9 @@ public class TaskService {
                     case "dueDateTime":
                         builder.dueDateTime(null);
                         break;
-                    case "repeat":
+                    /*case "repeat":
                         builder.repeat(null);
-                        break;
+                        break;*/
                     case "reminderNoti":
                         builder.reminderNotiAt(null);
                         break;
@@ -167,7 +167,7 @@ public class TaskService {
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
-        scheduledNotiService.createScheduledNotification(savedTask);
+        scheduledNotiService.updateReminderNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -177,7 +177,7 @@ public class TaskService {
             throw new RestApiException(ErrorCode.TASK_NOT_FOUND);
         }
 
-        scheduledNotiService.cancelScheduledNotification(taskId);
+        scheduledNotiService.cancelReminderNotification(taskId);
         taskRepository.deleteById(taskId);
     }
 

@@ -1,0 +1,197 @@
+import React from 'react'
+import {
+  Modal,
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  TouchableWithoutFeedback,
+} from 'react-native'
+
+import CameraIcon from '@/assets/icons/camera.svg'
+import PicIcon from '@/assets/icons/pic.svg'
+
+import * as ImagePicker from 'expo-image-picker'
+import { Alert, Linking } from 'react-native'
+
+interface Props {
+  visible: boolean
+  onClose: () => void
+  onTakePhoto?: (uri: string, base64: string, ext?: string) => void
+  onPickImage?: (uri: string, base64: string, ext?: string) => void
+}
+
+export default function AddImageSheet({
+  visible,
+  onClose,
+  onTakePhoto,
+  onPickImage,
+}: Props) {
+  /** 📌 공통: 권한 없으면 설정으로 이동시키는 Alert */
+  function showPermissionAlert(message: string) {
+    Alert.alert(
+      '권한이 꺼져 있어요',
+      message,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '설정 열기',
+          onPress: () => Linking.openSettings(),
+        },
+      ],
+      { cancelable: true },
+    )
+  }
+  /** 📸 카메라 */
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync()
+
+    if (status !== 'granted') {
+      showPermissionAlert('설정 > Whatta > 카메라에서 권한을 허용해야 촬영할 수 있어요.')
+      return
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 1,
+    })
+
+    if (!result.canceled) {
+      const asset = result.assets[0]
+      let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
+      if (ext === 'heic') ext = 'jpg'
+
+      const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
+      onTakePhoto?.(asset.uri, cleanBase64!, ext)
+    }
+  }
+
+  /** 🖼 갤러리 */
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+
+    if (status !== 'granted') {
+      showPermissionAlert(
+        '설정 > Whatta > 사진에서 권한을 허용해야 갤러리에서 이미지를 불러올 수 있어요.',
+      )
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 1,
+    })
+
+    if (!result.canceled) {
+      const asset = result.assets[0]
+      let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
+      if (ext === 'heic') ext = 'jpg'
+
+      const cleanBase64 = asset.base64?.replace(/^data:.*;base64,/, '')
+      onPickImage?.(asset.uri, cleanBase64!, ext)
+    }
+  }
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+      {/* Overlay */}
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={[StyleSheet.absoluteFill, styles.overlay]} />
+      </TouchableWithoutFeedback>
+
+      {/* Bottom Sheet */}
+      <View style={styles.sheet}>
+        <View style={styles.handle} />
+
+        <Text style={styles.title}>이미지로 추가</Text>
+
+        {/* 촬영하기
+<Pressable
+  style={styles.itemRow}
+  onPress={() => {
+    Alert.alert("준비중입니다", "해당 기능은 곧 업데이트될 예정이에요!")
+    onClose()
+  }}
+>
+  <CameraIcon width={24} height={24} style={styles.icon} />
+  <Text style={styles.label}>촬영하기</Text>
+</Pressable> */}
+
+        {/* 사진 불러오기 */}
+        <Pressable
+          style={styles.itemRow}
+          onPress={() => {
+            handlePickImage()
+            onClose()
+          }}
+        >
+          <PicIcon width={24} height={24} style={styles.icon} />
+          <Text style={styles.label}>사진 불러오기</Text>
+        </Pressable>
+
+        {/* 하단 여백 */}
+        <View style={{ height: 0 }} />
+      </View>
+    </Modal>
+  )
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    zIndex: 1,
+  },
+
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    height: '26%',
+    backgroundColor: 'white',
+    paddingTop: 17,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    zIndex: 2,
+  },
+
+  handle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#CFCFCF',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    lineHeight: 25,
+    letterSpacing: -0.45,
+    color: '#000',
+    marginLeft: 38,
+    marginBottom: 8,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 18,
+    paddingLeft: 20,
+  },
+  icon: {
+    marginRight: 20,
+    marginLeft: 16,
+  },
+  label: {
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '500',
+    lineHeight: 25,
+    letterSpacing: -0.45,
+  },
+})

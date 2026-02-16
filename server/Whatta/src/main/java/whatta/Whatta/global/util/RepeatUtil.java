@@ -32,24 +32,32 @@ public class RepeatUtil {
     }
 
     public static LocalDateTime findNextDaily(LocalDate baseDate, LocalTime startTime, int interval, LocalDate endDate, LocalDateTime from) {
-        LocalDate fromDate = from.toLocalDate();
-        LocalDate candidate = baseDate;
+        LocalDateTime baseAt = LocalDateTime.of(baseDate, startTime);
 
-        if (!fromDate.isBefore(baseDate)) { //fromDate >= baseDate 이면
-            long daysDiff = ChronoUnit.DAYS.between(baseDate, fromDate);
-            long step = (daysDiff / interval) * interval;
-            candidate = baseDate.plusDays(step);
-
-            while (candidate.isBefore(fromDate)) { //candidate < fromDate
-                candidate = candidate.plusDays(interval);
+        if (from.isBefore(baseAt)) {
+            if (endDate != null && baseDate.isAfter(endDate)) {
+                return null;
             }
+            return baseAt;
         }
 
-        if (endDate != null && candidate.isAfter(endDate)) {
+        /* 반복 조건에 맞는 가장 가까운 후보 날짜를 찾음 */
+        long daysDiff = ChronoUnit.DAYS.between(baseAt.toLocalDate(), from.toLocalDate());
+        long step = (daysDiff / interval) * interval;
+
+        LocalDate candidateDate = baseDate.plusDays(step);
+        LocalDateTime candidateAt = LocalDateTime.of(candidateDate, startTime);
+
+        while (!candidateAt.isAfter(from)) { //candidateAt 가 from 이후가 될 때까지
+            candidateDate = candidateDate.plusDays(interval);
+            candidateAt = LocalDateTime.of(candidateDate, startTime);
+        }
+
+        if (endDate != null && candidateDate.isAfter(endDate)) {
             return null;
         }
 
-        return LocalDateTime.of(candidate, startTime);
+        return candidateAt;
     }
 
     private static final Pattern WEEK_DAY = Pattern.compile("^(MON|TUE|WED|THU|FRI|SAT|SUN)$");
