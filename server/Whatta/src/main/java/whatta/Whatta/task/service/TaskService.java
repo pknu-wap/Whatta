@@ -154,9 +154,9 @@ public class TaskService {
                     case "dueDateTime":
                         builder.dueDateTime(null);
                         break;
-                    /*case "repeat":
+                    case "repeat":
                         builder.repeat(null);
-                        break;*/
+                        break;
                     case "reminderNoti":
                         builder.reminderNotiAt(null);
                         break;

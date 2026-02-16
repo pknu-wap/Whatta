@@ -29,7 +29,6 @@ public class ReminderNotiService {
 
     private static final int COMPLETED_RETENTION_DAYS = 7;
 
-    //event 생성/수정 시
     public void updateReminderNotification(Event event) {
         if(event.getStartTime() == null || event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
             cancelReminderNotification(event.getId());
@@ -39,7 +38,6 @@ public class ReminderNotiService {
         upsertActiveReminderNotification(event);
     }
 
-    //task 생성/수정 시
     public void updateReminderNotification(Task task) {
         if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
             cancelReminderNotification(task.getId());
