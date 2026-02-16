@@ -29,3 +29,11 @@ export async function fetchMonthly(ym: string) {
 
   return res.data?.data?.days ?? []
 }
+
+export async function fetchDaily(date: string) {
+  const res = await http.get('/calendar/daily', {
+    params: { date },
+  })
+
+  return res.data?.data
+}

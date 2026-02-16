@@ -25,13 +25,21 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { runOnJS } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 
+import { getTask } from '@/api/task'
+import { updateTask } from '@/api/task'
+import { deleteTask } from '@/api/task'
+import { createTask } from '@/api/task'
+import { fetchDaily } from '@/api/calendar'
+import { getMyLabels } from '@/api/label_api'
+import { getEvent } from '@/api/event_api'
+import { requestOCR } from '@/api/ocr'
+
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import { LinearGradient } from 'expo-linear-gradient'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { bus, EVENT } from '@/lib/eventBus'
 import axios from 'axios'
-import { http } from '@/lib/http'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
@@ -45,13 +53,10 @@ import OcrSplash from '@/screens/More/OcrSplash'
 import { createEvent } from '@/api/event_api'
 import { today, addDays, getDateOfWeek } from '@/utils/calender/date'
 import { computeTaskOverlap, groupTasksByOverlap, computeEventOverlap, } from '@/utils/calender/overlap'
-import type { DayViewTask } from '@/types/calender'
 import DraggableFixedEvent from '@/components/dayview/DraggableFixedEvent'
 import DraggableFlexibleEvent from '@/components/dayview/DraggableFlexibleEvent'
-import DraggableTaskGroupBox from '@/components/dayview/DraggableTaskGroupBox'
 import DayTaskLayer from '@/components/dayview/DayTaskLayer'
 import DayTaskBox from '@/components/dayview/DayTaskBox'
-import DayTaskGroupDetailPopup from '@/components/dayview/DayTaskGroupDetailPopup'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 
@@ -67,7 +72,6 @@ let draggingEventId: string | null = null
 
 export default function DayView() {
 
-  console.log('HTTP BASE:', http.defaults.baseURL)
 
   function getLabelName(labelId?: number) {
   if (!labelId) return ''
@@ -95,22 +99,18 @@ export default function DayView() {
       const lower = (ext ?? 'jpg').toLowerCase()
       const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
 
-      const res = await http.post(
-        '/ocr',
-        {
-          imageType: 'COLLEGE_TIMETABLE',
-          image: {
-            format,
-            name: `timetable.${format}`,
-            data: cleanBase64,
-          },
+      const data = await requestOCR({
+        imageType: 'COLLEGE_TIMETABLE',
+        image: {
+        format,
+        name: `timetable.${format}`,
+        data: cleanBase64,
         },
-        
-      )
+})
 
-      console.log('OCR 성공:', res.data)
+const events = data?.events ?? []
 
-      const events = res.data?.data?.events ?? []
+      console.log('OCR 성공:', data)
 
       const parsed = events
         .map((ev: any, idx: number) => {
@@ -204,19 +204,19 @@ export default function DayView() {
   }
 
   async function openEventDetail(ev: any) {
-    //객체로 받음
-    const res = await http.get(`/event/${ev.id}`)
+  const data = await getEvent(ev.id)
 
-    const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current)
+  const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current)
 
-    setEventPopupData({
-      ...res.data.data,
-      startDate,
-      endDate,
-    })
-    setEventPopupMode('edit')
-    setEventPopupVisible(true)
-  }
+  setEventPopupData({
+    ...data?.data,   // getEvent는 res.data 반환하니까
+    startDate,
+    endDate,
+  })
+  setEventPopupMode('edit')
+  setEventPopupVisible(true)
+}
+
   useEffect(() => {
     const h = (payload?: { source?: string }) => {
       if (payload?.source !== 'Day') return
@@ -391,19 +391,18 @@ export default function DayView() {
   }
 
   const [labelList, setLabelList] = useState<LabelItem[]>([])
-  const fetchLabels = async () => {
-    try {
-      const res = await http.get('/user/setting/label')
-      const labels = res.data?.data?.labels ?? []
-      setLabelList(labels)
-    } catch (err) {
-      console.error('❌ 라벨 조회 실패:', err)
-    }
+  const loadLabels = async () => {
+  try {
+    const labels = await getMyLabels()
+    setLabelList(labels)
+  } catch (err) {
+    console.error('❌ 라벨 조회 실패:', err)
   }
+}
 
   useEffect(() => {
-    fetchLabels()
-  }, [])
+  loadLabels()
+}, [])
 
   // Task 팝업 상태
   const [taskPopupVisible, setTaskPopupVisible] = useState(false)
@@ -414,8 +413,8 @@ export default function DayView() {
 
   // Task 상세 조회
   async function fetchTaskDetail(taskId: string) {
-    const res = await http.get(`/task/${taskId}`)
-    return res.data.data
+    const detail = await getTask(taskId)
+    return detail
   }
 
   async function handleTaskPress(taskId: string) {
@@ -432,8 +431,7 @@ export default function DayView() {
   // taskId 로 서버에서 Task 상세 조회해서 팝업 열기
   const openTaskPopupFromApi = async (taskId: string) => {
     try {
-      const res = await http.get(`/task/${taskId}`)
-      const data = res.data?.data
+      const data = await getTask(taskId)
       if (!data) return
       setTaskPopupMode('edit')
 
@@ -537,8 +535,7 @@ export default function DayView() {
   const fetchDailyEvents = useCallback(
     async (dateISO: string) => {
       try {
-        const res = await http.get('/calendar/daily', { params: { date: dateISO } })
-        const data = res.data.data
+        const data = await fetchDaily(dateISO)
 
         const timed = data.timedEvents || []
         const timedTasks = data.timedTasks || []
@@ -709,9 +706,7 @@ setEvents(overlapped.filter(filterEvent))
 
     // 서버에 보낼 값도 nextDone 사용
     try {
-      await http.patch(`/task/${id}`, {
-        completed: nextDone,
-      })
+      await updateTask(id, { completed: nextDone })
 
       bus.emit('calendar:mutated', {
         op: 'update',
@@ -756,7 +751,7 @@ setEvents(overlapped.filter(filterEvent))
 
         // ① 상단 박스 드롭: 날짜만 배치
         if (within(taskBox, x, y)) {
-          await http.patch(`/task/${id}`, {
+          await updateTask(id, {
             placementDate: dateISO,
             placementTime: null,
             date: dateISO,
@@ -783,7 +778,7 @@ setEvents(overlapped.filter(filterEvent))
           const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
           const mm = String(minSnap % 60).padStart(2, '0')
 
-          await http.patch(`/task/${id}`, {
+          await updateTask(id, {
             placementDate: dateISO,
             placementTime: `${hh}:${mm}:00`,
             date: dateISO,
@@ -826,8 +821,7 @@ setEvents(overlapped.filter(filterEvent))
         style: 'destructive',
         onPress: async () => {
           try {
-            //DELETE /task/{taskId}
-            await http.delete(`/task/${taskPopupId}`)
+            await deleteTask(taskPopupId)
 
             // 캘린더 쪽에 변경 알리기
             bus.emit('calendar:mutated', {
@@ -980,13 +974,65 @@ setEvents(overlapped.filter(filterEvent))
 />
 
 
-{openGroupIndex !== null && taskGroups[openGroupIndex] && (
-  <DayTaskGroupDetailPopup
-    tasks={taskGroups[openGroupIndex].tasks}
-    top={taskGroups[openGroupIndex].startMin * PIXELS_PER_MIN + 52}
-    onPressTask={openTaskPopupFromApi}
-  />
-)}
+             {/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
+              {openGroupIndex !== null &&
+                (() => {
+                  const group = taskGroups[openGroupIndex]
+                  if (!group) return null
+                  const { tasks: list, startMin } = group
+
+                  return (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: startMin * PIXELS_PER_MIN + 52,
+                        left: 50 + 18,
+                        right: 18,
+                        backgroundColor: '#FFF',
+                        borderRadius: 10,
+                        borderColor: '#B3B3B3',
+                        borderWidth: 0.3,
+                        paddingVertical: 16,
+                        paddingHorizontal: 20,
+                        zIndex: 500,
+                      }}
+                    >
+                      {list.map((task) => (
+                        <Pressable
+                          key={task.id}
+                          onPress={() => openTaskPopupFromApi(task.id)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            marginBottom: 18,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderWidth: 2,
+                              borderRadius: 2,
+                              borderColor: '#333',
+                              marginRight: 14,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              backgroundColor: '#FFF', // ⭐ 추가
+                            }}
+                          >
+                            {task.completed && (
+                              <Text style={{ fontSize: 12, color: '#333' }}>✓</Text>
+                            )}
+                          </View>
+
+                          <Text style={{ fontSize: 14, color: '#000' }}>
+                            {task.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )
+                })()}
             </ScrollView>
           </Animated.View>
         </GestureDetector>
@@ -1034,7 +1080,7 @@ setEvents(overlapped.filter(filterEvent))
               if (taskPopupMode === 'edit') {
                 if (!taskPopupId) return
 
-                await http.patch(`/task/${taskPopupId}`, {
+                await updateTask(taskPopupId, {
                   title: form.title,
                   content: form.memo,
                   labels: form.labels,
@@ -1050,7 +1096,7 @@ setEvents(overlapped.filter(filterEvent))
                 })
               } else {
                 // 새 테스크 생성 로직
-                const res = await http.post('/task', {
+                const newTask = await createTask({
                   title: form.title,
                   content: form.memo,
                   labels: form.labels,
@@ -1059,18 +1105,8 @@ setEvents(overlapped.filter(filterEvent))
                   reminderNoti,
                   date: targetDate,
                 })
-
-                console.log(
-                  'task: ' +
-                    form.time +
-                    placementDate +
-                    placementTime +
-                    reminderNoti?.hour +
-                    reminderNoti?.hour +
-                    reminderNoti?.minute,
-                )
-
-                const newId = res.data?.data?.id
+                
+                const newId = newTask?.id
 
                 bus.emit('calendar:mutated', {
                   op: 'create',
