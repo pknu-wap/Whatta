@@ -1,4 +1,4 @@
-language: 'ko-KR'
+language: 'ko'
 early_access: false
 reviews:
   profile: 'chill'
@@ -11,6 +11,6 @@ reviews:
     enabled: true
     drafts: false
     base_branches:
-      - "**"
+      - "*"
 chat:
   auto_reply: true
