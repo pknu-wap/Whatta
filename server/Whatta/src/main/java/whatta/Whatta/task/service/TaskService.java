@@ -53,7 +53,7 @@ public class TaskService {
 
             if (calculatedSortNumber < 1) {
                 log.info("Task 정렬 간격 재조정 실행 - userId: {}", userId);
-                rebalanceTasks(userId);
+                rebalanceSortOrder(userId);
                 topTask = taskRepository.findTopByUserIdOrderBySortNumberAsc(userId).orElseThrow();
                 newSortNumber = topTask.getSortNumber() / 2;
             }
@@ -89,8 +89,8 @@ public class TaskService {
                 .placementDate(request.placementDate())
                 .placementTime(request.placementTime())
                 .dueDateTime(request.dueDateTime())
-                .repeat((request.repeat() == null) ? null : request.repeat().toEntity())
-                .reminderNotiAt((request.placementTime() != null)? request.reminderNoti() : null)
+                .repeat(request.repeat().toEntity())
+                .reminderNotiAt(request.reminderNoti())
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
@@ -117,11 +117,9 @@ public class TaskService {
         }
         if(request.completed() != null) {
             builder.completed(request.completed());
-            //기존-미완료에서 완료로 변경시 현재 시간 적용
             if (Boolean.FALSE.equals(originalTask.getCompleted())
                     && Boolean.TRUE.equals(request.completed()))
                 builder.completedAt(LocalDateTime.now());
-            //기존-완료에서 미완료로 변경시 초기화
             else if (Boolean.TRUE.equals(originalTask.getCompleted())
                     && Boolean.FALSE.equals(request.completed()))
                 builder.completedAt(null);
@@ -183,18 +181,16 @@ public class TaskService {
         taskRepository.deleteById(taskId);
     }
 
-    //task 상세 조회
     @Transactional(readOnly = true)
-    public TaskResponse getTaskDetails(String userId, String taskId) {
+    public TaskResponse getTask(String userId, String taskId) {
         Task task = taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.TASK_NOT_FOUND));
 
         return taskMapper.toResponse(task);
     }
 
-    //task관리페이지 목록 조회
     @Transactional(readOnly = true)
-    public List<TaskResponse> findTasksByUser(String userId) {
+    public List<TaskResponse> getAllTasks(String userId) {
         List<Task> tasks = taskRepository.findByUserId(userId);
 
         return tasks.stream()
@@ -202,7 +198,6 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    //사이드바 task 목록 조회
     @Transactional(readOnly = true)
     public  List<SidebarTaskResponse> getSidebarTasks(String userId){
         List<Task> tasks = taskRepository.
@@ -213,7 +208,7 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    private void rebalanceTasks(String userId) {
+    private void rebalanceSortOrder(String userId) {
         List<Task> tasks = taskRepository.findByUserIdOrderBySortNumberAsc(userId);
 
         if(tasks.isEmpty()) return;
