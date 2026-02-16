@@ -57,13 +57,16 @@ public class ReminderNotiService {
 
     //2. task 생성/수정 시
     public void createScheduledNotification(Task task) {
-        if(task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
+        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
             cancelScheduledNotification(task.getId());
             return;
         }
 
         //알림 시각 계산
-        LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()), null, task.getReminderNotiAt());
+        LocalDateTime triggerAt = calculateTriggerAt(
+                LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()),
+                task.getRepeat(),
+                task.getReminderNotiAt());
 
         if(triggerAt == null) { return; }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
