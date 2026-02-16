@@ -29,10 +29,12 @@ import { getTask } from '@/api/task'
 import { updateTask } from '@/api/task'
 import { deleteTask } from '@/api/task'
 import { createTask } from '@/api/task'
-import { fetchDaily } from '@/api/calendar'
 import { getMyLabels } from '@/api/label_api'
 import { getEvent } from '@/api/event_api'
 import { requestOCR } from '@/api/ocr'
+import { createEvent } from '@/api/event_api'
+import EventDetailPopup from '@/screens/More/EventDetailPopup'
+import type { EventItem } from '@/api/event_api'
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
@@ -41,8 +43,6 @@ import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { bus, EVENT } from '@/lib/eventBus'
 import axios from 'axios'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
-import EventDetailPopup from '@/screens/More/EventDetailPopup'
-import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import type { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
@@ -50,13 +50,13 @@ import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import OcrSplash from '@/screens/More/OcrSplash'
-import { createEvent } from '@/api/event_api'
 import { today, addDays, getDateOfWeek } from '@/utils/calender/date'
-import { computeTaskOverlap, groupTasksByOverlap, computeEventOverlap, } from '@/utils/calender/overlap'
+import { computeTaskOverlap, groupTasksByOverlap } from '@/utils/calender/overlap'
 import DraggableFixedEvent from '@/components/dayview/DraggableFixedEvent'
 import DraggableFlexibleEvent from '@/components/dayview/DraggableFlexibleEvent'
 import DayTaskLayer from '@/components/dayview/DayTaskLayer'
 import DayTaskBox from '@/components/dayview/DayTaskBox'
+import useDayData from '@/hooks/useDayData'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 
@@ -81,8 +81,6 @@ export default function DayView() {
 
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [isDraggingTask, setIsDraggingTask] = useState(false)
-  const [tasks, setTasks] = useState<any[]>([])
-  const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
   const [openGroupIndex, setOpenGroupIndex] = useState<number | null>(null)
   // OCR 카드
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
@@ -178,9 +176,6 @@ const events = data?.events ?? []
       mode: 'day',
     })
   }, [anchorDate, isFocused])
-  const [checks, setChecks] = useState(INITIAL_CHECKS)
-  const [events, setEvents] = useState<any[]>([])
-  const [spanEvents, setSpanEvents] = useState<any[]>([])
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
@@ -532,105 +527,16 @@ const events = data?.events ?? []
   // 라벨 필터링
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
-  const fetchDailyEvents = useCallback(
-    async (dateISO: string) => {
-      try {
-        const data = await fetchDaily(dateISO)
+  const {
+  events,
+  spanEvents,
+  tasks,
+  checks,
+  fetchDailyEvents,
+  setChecks,
+} = useDayData(anchorDate, enabledLabelIds)
 
-        const timed = data.timedEvents || []
-        const timedTasks = data.timedTasks || []
-        const allDay = data.allDayTasks || []
-        const floating = data.floatingTasks || []
-        const allDaySpan = data.allDaySpanEvents || []
-        const allDayEvents = data.allDayEvents || []
-
-        // 이벤트 정리
-        const timelineEvents = timed.filter(
-          (e: any) =>
-            !e.isSpan &&
-            e.clippedEndTime !== '23:59:59.999999999' &&
-            e.clippedStartTime &&
-            e.clippedEndTime,
-        )
-
-        const span = [
-          ...timed.filter(
-            (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
-          ),
-          ...allDaySpan,
-          ...allDayEvents,
-        ]
-
-        const checksAll = [
-          ...allDay.map((t: any) => ({
-            id: t.id,
-            title: t.title,
-            done: t.completed ?? false,
-            labels: t.labels ?? [],
-          })),
-          ...floating.map((t: any) => ({
-            id: t.id,
-            title: t.title,
-            done: t.completed ?? false,
-            labels: t.labels ?? [],
-          })),
-        ]
-
-        // 필터 적용
-        const filterTask = (t: any) => {
-          if (!t.labels || t.labels.length === 0) return true
-          return t.labels.some((id: number) => enabledLabelIds.includes(id))
-        }
-
-        const filterEvent = (ev: any) => {
-          if (!ev.labels || ev.labels.length === 0) return true
-          return ev.labels.some((id: number) => enabledLabelIds.includes(id))
-        }
-
-        // 이제 필터 적용한 값으로 세팅
-        // 1) 이벤트 startMin / endMin 계산
-const parsedEvents = timelineEvents.map((e: any) => {
-  const [sh, sm] = e.clippedStartTime.split(':').map(Number)
-  const [eh, em] = e.clippedEndTime.split(':').map(Number)
-
-  return {
-    ...e,
-    startMin: sh * 60 + sm,
-    endMin: eh * 60 + em,
-  }
-})
-
-// 2) overlap 계산해서 column 정보 부여
-const overlapped = computeEventOverlap(parsedEvents)
-
-// 3) 필터 적용
-setEvents(overlapped.filter(filterEvent))
-
-        setSpanEvents(span.filter(filterEvent))
-        setTasks(timedTasks.filter(filterTask))
-        setChecks(checksAll.filter(filterTask))
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          console.log('code:', err.code)
-          console.log('message:', err.message)
-          console.log('toJSON:', err.toJSON?.())
-
-          // 네트워크/타임아웃 계열은 조용히 무시
-          if (err.message === 'Network Error' || err.code === 'ECONNABORTED') {
-            console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
-            return
-          }
-        }
-
-        console.error('❌ 일간 일정 불러오기 실패:', err)
-        alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
-      }
-    },
-    [enabledLabelIds],
-  )
-  useEffect(() => {
-    fetchDailyEvents(anchorDate)
-  }, [anchorDate, enabledLabelIds, fetchDailyEvents])
+  const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
   const measureLayouts = useCallback(() => {
     taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
