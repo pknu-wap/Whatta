@@ -8,6 +8,9 @@ module.exports = ({ config }) => {
     ios: {
       ...config.ios,
       bundleIdentifier: isDev ? "com.whatta.whatta.dev" : "com.whatta.whatta",
+      googleServicesFile: isDev
+        ? "./GoogleService-Info.dev.plist"
+        : "./GoogleService-Info.prod.plist",
     },
     android: {
       ...config.android,
