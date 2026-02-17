@@ -1,10 +1,15 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios'
+import Constants from 'expo-constants'
 import { token } from '@/lib/token'
 import { refreshTokens, guestLogin } from '@/api/auth'
 import { getInstallationId } from '@/lib/uuid'
 
+const API_BASE_URL =
+  (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ??
+  'https://whatta-server-741565423469.asia-northeast3.run.app/api'
+
 export const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
+  baseURL: API_BASE_URL,
 })
 
 http.interceptors.request.use((config) => {

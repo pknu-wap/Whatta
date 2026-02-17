@@ -16,6 +16,12 @@ module.exports = ({ config }) => {
       ...config.android,
       package: isDev ? "com.whatta.whatta.dev" : "com.whatta.whatta",
     },
-    extra: { ...config.extra, variant },
+    extra: {
+      ...config.extra,
+      variant,
+      apiBaseUrl: isDev
+        ? 'https://whatta-server-dev-741565423469.asia-northeast3.run.app/api'
+        : 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
+    },
   };
 };
