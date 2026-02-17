@@ -2,14 +2,11 @@ package whatta.Whatta.task.entity;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
+import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
-import whatta.Whatta.global.repeat.Repeat;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
@@ -20,6 +17,7 @@ import java.util.List;
 
 @Document(collection = "tasks")
 @AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Builder(toBuilder = true)
 public class Task {

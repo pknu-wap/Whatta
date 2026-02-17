@@ -1,7 +1,6 @@
 package whatta.Whatta.task.mapper;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.global.repeat.payload.RepeatResponse;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;

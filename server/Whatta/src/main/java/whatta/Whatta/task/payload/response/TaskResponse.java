@@ -2,7 +2,6 @@ package whatta.Whatta.task.payload.response;
 
 import lombok.Builder;
 
-import whatta.Whatta.global.repeat.payload.RepeatResponse;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;

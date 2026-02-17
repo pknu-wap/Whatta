@@ -158,7 +158,6 @@ public class TaskService {
                 }
             }
         }
-        builder.updatedAt(LocalDateTime.now());
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
