@@ -20,7 +20,6 @@ public class TaskMapper {
                 .placementDate(task.getPlacementDate())
                 .placementTime(task.getPlacementTime())
                 .dueDateTime(task.getDueDateTime())
-                .repeat(RepeatResponse.fromEntity(task.getRepeat()))
                 .sortNumber(task.getSortNumber())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())

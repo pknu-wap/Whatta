@@ -46,7 +46,7 @@ public class ReminderNotiService {
 
         LocalDateTime triggerAt = calculateTriggerAt(
                 LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime()),
-                task.getRepeat(),
+                null,
                 task.getReminderNotiAt());
 
         if(triggerAt == null) { return; }

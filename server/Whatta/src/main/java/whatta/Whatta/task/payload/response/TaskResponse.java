@@ -23,7 +23,6 @@ public record TaskResponse (
     LocalDate placementDate,
     LocalTime placementTime,
     LocalDateTime dueDateTime,
-    RepeatResponse repeat,
     Long sortNumber,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,

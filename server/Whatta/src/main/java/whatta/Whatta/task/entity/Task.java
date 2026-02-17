@@ -54,7 +54,6 @@ public class Task {
     private LocalDate placementDate; //null 유무로 배치 유무를 판단
     private LocalTime placementTime;
     private LocalDateTime dueDateTime;
-    private Repeat repeat;
 
     @NotNull
     @Builder.Default

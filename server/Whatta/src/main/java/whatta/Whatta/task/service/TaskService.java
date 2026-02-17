@@ -89,7 +89,6 @@ public class TaskService {
                 .placementDate(request.placementDate())
                 .placementTime(request.placementTime())
                 .dueDateTime(request.dueDateTime())
-                .repeat(request.repeat() != null ? request.repeat().toEntity() : null)
                 .reminderNotiAt(request.reminderNoti())
                 .build();
 
@@ -127,7 +126,6 @@ public class TaskService {
         if(request.placementDate() != null) builder.placementDate(request.placementDate());
         if(request.placementTime() != null) builder.placementTime(request.placementTime());
         if(request.dueDateTime() != null) builder.dueDateTime(request.dueDateTime());
-        if(request.repeat() != null) builder.repeat(request.repeat().toEntity());
         if(request.sortNumber() != null) builder.sortNumber(request.sortNumber());
         if(request.reminderNoti() != null) builder.reminderNotiAt(request.reminderNoti());
 
@@ -153,9 +151,6 @@ public class TaskService {
                         break;
                     case "dueDateTime":
                         builder.dueDateTime(null);
-                        break;
-                    case "repeat":
-                        builder.repeat(null);
                         break;
                     case "reminderNoti":
                         builder.reminderNotiAt(null);

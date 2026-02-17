@@ -37,10 +37,6 @@ public record TaskUpdateRequest (
         @Schema(description = "수정할 마감 일시", example = "2026-02-10T23:59:00")
         LocalDateTime dueDateTime,
 
-        @Valid
-        @Schema(description = "수정할 반복 설정")
-        RepeatRequest repeat,
-
         @Schema(description = "수정할 정렬 순서")
         Long sortNumber,
 

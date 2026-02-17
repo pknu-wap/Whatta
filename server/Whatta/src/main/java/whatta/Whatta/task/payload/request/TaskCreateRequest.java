@@ -34,10 +34,6 @@ public record TaskCreateRequest (
         @Schema(description = "마감 일시", example = "2026-02-10T23:59:00")
         LocalDateTime dueDateTime,
 
-        @Valid
-        @Schema(description = "반복 설정")
-        RepeatRequest repeat,
-
         @Schema(description = "알림 설정")
         ReminderNoti reminderNoti
 ) {}
