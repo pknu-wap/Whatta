@@ -66,14 +66,14 @@ public class TaskController {
     public ResponseEntity<?> getTaskById(
             @AuthenticationPrincipal String userId,
             @PathVariable String taskId) {
-        TaskResponse response = taskService.getTaskDetails(userId, taskId);
+        TaskResponse response = taskService.getTask(userId, taskId);
         return Response.ok("Task 상세 정보입니다.", response);
     }
 
     @GetMapping
     @Operation(summary = "Task 목록조회", description = "관리페이지의 모든 Task 목록을 조회합니다.")
     public ResponseEntity<?> getAllTasks(@AuthenticationPrincipal String userId) {
-        List<TaskResponse> response = taskService.findTasksByUser(userId);
+        List<TaskResponse> response = taskService.getAllTasks(userId);
         return Response.ok("관리페이지 Task 목록입니다.", response);
     }
 
