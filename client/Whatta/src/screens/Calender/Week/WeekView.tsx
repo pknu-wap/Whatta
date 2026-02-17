@@ -54,6 +54,11 @@ import {
   useWeekCalendarData,
   type DayBucket,
 } from '@/screens/Calender/Week/useWeekCalendarData'
+import {
+  cloneTaskToDateTimeAndDeleteOriginal,
+  moveTaskToDateTime,
+  updateTaskCompleted,
+} from '@/screens/Calender/Week/services/weekTaskService'
 
 import {
   addDays,
@@ -176,36 +181,6 @@ function getTaskTime(t: any): string {
   return '00:00:00'
 }
 
-/**
- * 서버 TaskUpdateRequest 스펙에 맞는 payload 생성 헬퍼
- */
-function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) {
-  if (!task) return overrides
-
-  const labels = Array.isArray(task.labels)
-    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
-    : undefined
-
-  const base: any = {
-    title: task.title,
-    content: task.content,
-    completed: task.completed,
-    placementDate: task.placementDate,
-    placementTime: task.placementTime,
-    dueDateTime: task.dueDateTime,
-    sortNumber: task.sortNumber,
-  }
-
-  if (labels) base.labels = labels
-  if (task.repeat) base.repeat = task.repeat
-  if (task.endDate) base.endDate = task.endDate
-
-  return {
-    ...base,
-    ...overrides,
-  }
-}
-
 /* -------------------------------------------------------------------------- */
 /* TaskGroupBox */
 /* -------------------------------------------------------------------------- */
@@ -307,12 +282,7 @@ function TaskGroupBox({
           localTasks.map(async (t: any) => {
             const taskId = String(t.id)
             try {
-              const payload = buildTaskUpdatePayload(t, {
-                placementDate: newDateISO,
-                placementTime: newTime,
-              })
-
-              await http.patch(`/task/${taskId}`, payload)
+              await moveTaskToDateTime(http, taskId, newDateISO, newTime)
 
               bus.emit('calendar:mutated', {
                 op: 'update',
@@ -427,15 +397,7 @@ function TaskGroupBox({
     const taskDateISO = dateISO
 
     try {
-      const full = await http.get(`/task/${taskId}`)
-      const fullTask = full.data.data
-
-      const payload = buildTaskUpdatePayload(fullTask, {
-        completed: newCompleted,
-        placementDate: fullTask.placementDate ?? taskDateISO,
-      })
-
-      await http.patch(`/task/${taskId}`, payload)
+      await updateTaskCompleted(http, taskId, newCompleted, taskDateISO)
 
       // 서버 반영 후에만 로컬 업데이트 (깜빡임 제거)
       setLocalTasks((prev) =>
@@ -699,11 +661,7 @@ function DraggableTaskBox({
     const next = !done
     setDone(next)
     try {
-      const full = await http.get(`/task/${id}`)
-      const task = full.data.data
-      const payload = buildTaskUpdatePayload(task, { completed: next })
-
-      await http.patch(`/task/${id}`, payload)
+      await updateTaskCompleted(http, id, next, dateISO)
 
       onLocalChange?.({ id, dateISO, completed: next })
 
@@ -748,14 +706,7 @@ function DraggableTaskBox({
 
       const newDateISO = addDays(dateISO, dayOffset)
 
-      const full = await http.get(`/task/${id}`)
-      const task = full.data.data
-      const payload = buildTaskUpdatePayload(task, {
-        placementDate: newDateISO,
-        placementTime: newTime,
-      })
-
-      await http.patch(`/task/${id}`, payload)
+      await moveTaskToDateTime(http, id, newDateISO, newTime)
 
       bus.emit('calendar:mutated', {
         op: 'update',
@@ -1649,34 +1600,12 @@ export default function WeekView() {
       placementTime: string | null,
     ) => {
       try {
-        const full = await http.get(`/task/${task.id}`)
-        const baseTask = full.data.data
-
-        const labelIds = Array.isArray(baseTask.labels)
-          ? baseTask.labels.map((l: any) =>
-              typeof l === 'number' ? l : (l.id ?? l.labelId ?? l),
-            )
-          : null
-
-        const createPayload: any = {
-          title: baseTask.title ?? task.title ?? '(제목 없음)',
-          content: baseTask.content ?? '',
-          labels: labelIds && labelIds.length ? labelIds : null,
-          placementDate: targetDate,
-          placementTime: placementTime,
-          dueDateTime: baseTask.dueDateTime ?? null,
-          repeat: baseTask.repeat ?? null,
-          reminderNoti: baseTask.reminderNoti ?? null,
-        }
-
-        const createRes = await http.post('/task', createPayload)
-        const created = createRes.data?.data
-
-        try {
-          await http.delete(`/task/${task.id}`)
-        } catch (delErr: any) {
-          console.warn('원본 삭제 실패(무시):', delErr)
-        }
+        const created = await cloneTaskToDateTimeAndDeleteOriginal(
+          http,
+          task,
+          targetDate,
+          placementTime,
+        )
 
         bus.emit('sidebar:remove-task', { id: task.id })
 
@@ -1734,13 +1663,7 @@ export default function WeekView() {
     try {
       const nextCompleted = !prevDone
 
-      const full = await http.get(`/task/${taskId}`)
-      const task = full.data.data
-      const payload = buildTaskUpdatePayload(task, {
-        completed: nextCompleted,
-      })
-
-      await http.patch(`/task/${taskId}`, payload)
+      await updateTaskCompleted(http, taskId, nextCompleted, dateISO)
 
       setWeekData((prev) => {
         const copy = { ...prev }
