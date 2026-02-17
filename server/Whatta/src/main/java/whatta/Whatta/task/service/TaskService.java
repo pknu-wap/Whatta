@@ -110,7 +110,7 @@ public class TaskService {
 
         if(request.title() != null && !request.title().isBlank()) builder.title(request.title());
         if(request.content() != null) builder.content(request.content());
-        if(request.labels() != null && !request.labels().isEmpty()) {
+        if(request.labels() != null) {
             LabelUtil.validateLabelsInUserSettings(userSetting, request.labels()); //라벨 유효성 검증
             builder.labels(request.labels());
         }
