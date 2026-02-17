@@ -63,8 +63,8 @@ import {
 import {
   addDays,
   getDateOfWeek,
+  parseDate,
   startOfWeek,
-  toDate,
   toISO,
   todayISO,
 } from '@/screens/Calender/Week/date'
@@ -1356,7 +1356,7 @@ export default function WeekView() {
     if (isZoomed) {
       // 5일뷰: anchorDate 기준 -2 ~ +2
       const centerDate = anchorDate
-      const base = toDate(centerDate)
+      const base = parseDate(centerDate)
 
       const arr = [
         toISO(new Date(base.getFullYear(), base.getMonth(), base.getDate() - 2)),
