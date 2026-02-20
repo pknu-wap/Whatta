@@ -12,8 +12,6 @@ import MyPageStack from '@/navigation/MyPageStack'
 import MonthView from '@/screens/Calender/Month/MonthView'
 import WeekView from '@/screens/Calender/Week/WeekView'
 import DayView from '@/screens/Calender/Day/DayView'
-import TaskScreen from '@/screens/More/TaskDetailScreen'
-
 import FabHybrid from '@/components/FloatingButton'
 
 import MyPageIcon from '@/assets/icons/mypage.svg'

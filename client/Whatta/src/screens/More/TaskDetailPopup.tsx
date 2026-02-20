@@ -186,12 +186,14 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     { id: string; day: number; hour: number; minute: number }[]
   >([])
 
-  // h,m을 사람이 읽는 "h시간 m분 전"
-  const formatCustomLabel = (h: number, m: number) => {
+  // day, h, m
+  const formatCustomLabel = (h: number, m: number, day: number = 0) => {
+    const dayText = day === 1 ? '전날' : '당일'
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
-    return body.length ? `${body} 전` : '0분 전'
+    const timeText = body.length ? `${body} 전` : '0분 전'
+    return `${dayText} ${timeText}`
   }
 
   // 라벨 피커 모달용
@@ -207,28 +209,54 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   // 피커 열림 상태
   const [dateOpen, setDateOpen] = useState(false)
   const [timeOpen, setTimeOpen] = useState(false)
+  const [isPickerTouching, setIsPickerTouching] = useState(false)
+  const reminderPresetLoadedRef = useRef(false)
+  const [reminderPresetVersion, setReminderPresetVersion] = useState(0)
+  const pickerTouchHandlers = {
+    onTouchStart: () => setIsPickerTouching(true),
+    onTouchEnd: () => setIsPickerTouching(false),
+    onTouchCancel: () => setIsPickerTouching(false),
+  }
 
   // 알림 preset 서버에서 불러오기
   useEffect(() => {
     if (!visible) return
+    if (reminderPresetLoadedRef.current) return
+    let cancelled = false
 
     const fetchPresets = async () => {
       try {
         const res = await http.get('/user/setting/reminder')
+        if (cancelled) return
         setReminderPresets(res.data.data)
+        reminderPresetLoadedRef.current = true
       } catch (err) {
+        if (cancelled) return
         console.log('❌ 리마인드 preset 불러오기 실패:', err)
       }
     }
 
     fetchPresets()
-  }, [visible])
+    return () => {
+      cancelled = true
+    }
+  }, [visible, reminderPresetVersion])
+
+  useEffect(() => {
+    const onReminderMutated = () => {
+      reminderPresetLoadedRef.current = false
+      setReminderPresetVersion((v) => v + 1)
+    }
+
+    bus.on('reminder:mutated', onReminderMutated)
+    return () => bus.off('reminder:mutated', onReminderMutated)
+  }, [])
 
   // preset + '맞춤 설정' 옵션 구성
   const presetOptions = (reminderPresets ?? []).map((p) => ({
     type: 'preset' as const,
     ...p,
-    label: formatCustomLabel(p.hour, p.minute),
+    label: formatCustomLabel(p.hour, p.minute, p.day),
   }))
 
   const remindOptions = [
@@ -256,13 +284,16 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }
 
   // 현재 custom 라벨
-  const customLabel = formatCustomLabel(customHour, customMinute)
+  const customLabel = formatCustomLabel(customHour, customMinute, 0)
 
   // 버튼에 뜨는 표시용 텍스트
   const displayRemind = React.useMemo(() => {
     if (!remindOn || !remindValue) return ''
     if (remindValue === 'custom') return customLabel
-    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+    return (
+      remindValue.label ??
+      formatCustomLabel(remindValue.hour, remindValue.minute, remindValue.day)
+    )
   }, [remindOn, remindValue, customLabel])
 
   // visible / initialTask 바뀔 때마다 폼 초기화
@@ -330,7 +361,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     if (matched) {
       setRemindValue({
         ...(matched as any),
-        label: formatCustomLabel(matched.hour, matched.minute),
+        label: formatCustomLabel(matched.hour, matched.minute, matched.day),
       })
       setCustomOpen(false)
       return
@@ -422,6 +453,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: H_PAD }}
                 keyboardShouldPersistTaps="always"
+                keyboardDismissMode="on-drag"
+                scrollEnabled={!isPickerTouching}
                 bounces={false}
                 showsVerticalScrollIndicator={false}
                 automaticallyAdjustKeyboardInsets
@@ -511,7 +544,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 {/* 시간 인라인 피커 */}
                 {hasTime && timeOpen && (
-                  <View style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}>
+                  <View
+                    style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}
+                    {...pickerTouchHandlers}
+                  >
                     <View style={{ flexDirection: 'row', gap: 5 }}>
                       {/* HOUR */}
                       <Picker
@@ -579,6 +615,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                   <View style={styles.rowRight}>
                     <Pressable
                       style={styles.alarmButton}
+                      disabled={!remindOn}
                       onPress={() => {
                         if (!remindOn) return
                         setRemindOpen((v) => !v)
@@ -686,7 +723,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 {/* 맞춤 설정 인라인 피커 */}
                 {customOpen && remindOn && (
-                  <View style={styles.remindPickerWrap}>
+                  <View style={styles.remindPickerWrap} {...pickerTouchHandlers}>
                     <View style={styles.remindPickerInner}>
                       {/* HOUR */}
                       <View style={styles.remindPickerBox}>
@@ -1042,7 +1079,6 @@ const styles = StyleSheet.create({
 
   memoSection: {
     marginTop: 3,
-    flex: 1,
   },
   memoLabelRow: {
     flexDirection: 'row',
