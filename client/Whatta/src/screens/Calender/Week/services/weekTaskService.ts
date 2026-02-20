@@ -1,3 +1,4 @@
+// api 호출, 페이로더 생성
 type HttpClient = {
   get: (url: string, config?: any) => Promise<any>
   patch: (url: string, data?: any, config?: any) => Promise<any>

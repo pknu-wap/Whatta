@@ -31,9 +31,7 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import colors from '@/styles/colors'
-import axios from 'axios'
-import { token } from '@/lib/token'
-import { refreshTokens } from '@/api/auth'
+import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
@@ -59,6 +57,11 @@ import {
   moveTaskToDateTime,
   updateTaskCompleted,
 } from '@/screens/Calender/Week/services/weekTaskService'
+import {
+  getEventDetail,
+  isRepeatEvent,
+  moveEventToDateTime,
+} from '@/screens/Calender/Week/services/weekEventService'
 
 import {
   addDays,
@@ -74,47 +77,6 @@ import {
   getDayColWidth,
   resetLayoutDayEventsCache,
 } from '@/screens/Calender/Week/layout'
-
-/* -------------------------------------------------------------------------- */
-/* Axios 설정 */
-/* -------------------------------------------------------------------------- */
-
-const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 8000,
-})
-
-http.interceptors.request.use(
-  (config) => {
-    const access = token.getAccess()
-    if (access) {
-      config.headers.Authorization = `Bearer ${access}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-http.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      try {
-        await refreshTokens()
-        const newAccess = token.getAccess()
-        if (newAccess) {
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`
-          return http(originalRequest)
-        }
-      } catch (err) {
-        console.error('[❌ 토큰 갱신 실패]', err)
-      }
-    }
-    return Promise.reject(error)
-  },
-)
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
@@ -958,24 +920,23 @@ function DraggableFlexalbeEvent({
 
         const newDateISO = addDays(dateISO, dayOffset)
 
-        const full = await http.get(`/event/${id}`)
-        const eventData = full.data.data
+        const eventData = await getEventDetail(http, id)
 
         let applyMode: 'single' | 'future' = 'single'
 
         // 이벤트가 반복일 경우에만 선택창 띄우기
-        if (eventData.isRepeat || eventData.repeat) {
+        if (isRepeatEvent(eventData)) {
           const choice = await askRepeatAction()
           if (choice === 'cancel') return // 취소 시 아무것도 안 함
           applyMode = choice
         }
 
-        await http.patch(`/event/${id}`, {
-          startDate: newDateISO,
-          endDate: newDateISO,
+        await moveEventToDateTime(http, {
+          eventId: id,
+          dateISO: newDateISO,
           startTime: nextStartTime,
           endTime: nextEndTime,
-          applyMode, // 서버가 이걸 보고 이후 반복 포함 여부 결정
+          applyMode, // 반복 포함 여부 결정
         })
 
         bus.emit('calendar:mutated', {
@@ -1319,8 +1280,7 @@ export default function WeekView() {
     setSelectedEventId(eventId)
 
     try {
-      const res = await http.get(`/event/${eventId}`)
-      const data = res.data.data
+      const data = await getEventDetail(http, eventId)
       if (!data) return
 
       setEventPopupMode('edit')
