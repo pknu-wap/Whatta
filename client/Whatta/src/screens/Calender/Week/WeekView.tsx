@@ -31,9 +31,7 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import colors from '@/styles/colors'
-import axios from 'axios'
-import { token } from '@/lib/token'
-import { refreshTokens } from '@/api/auth'
+import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
@@ -74,47 +72,6 @@ import {
   getDayColWidth,
   resetLayoutDayEventsCache,
 } from '@/screens/Calender/Week/layout'
-
-/* -------------------------------------------------------------------------- */
-/* Axios 설정 */
-/* -------------------------------------------------------------------------- */
-
-const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 8000,
-})
-
-http.interceptors.request.use(
-  (config) => {
-    const access = token.getAccess()
-    if (access) {
-      config.headers.Authorization = `Bearer ${access}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-http.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      try {
-        await refreshTokens()
-        const newAccess = token.getAccess()
-        if (newAccess) {
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`
-          return http(originalRequest)
-        }
-      } catch (err) {
-        console.error('[❌ 토큰 갱신 실패]', err)
-      }
-    }
-    return Promise.reject(error)
-  },
-)
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
