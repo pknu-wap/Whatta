@@ -147,12 +147,12 @@ public class BusApiClient {
 
             if(response == null || response.getHeader() == null || !"00".equals(response.getHeader().getResultCode())) {
                 log.warn("공공데이터 API 호출 실패: uri={}", uri);
-                throw new RestApiException(ErrorCode.PUBLIC_API_FAILED);
+                throw new RestApiException(ErrorCode.PUBLIC_BUS_API_FAILED);
             }
             return response;
         } catch (Exception e) {
             log.error("API 호출 중 예외 발생: {}", e.getMessage());
-            throw new RestApiException(ErrorCode.PUBLIC_API_FAILED);
+            throw new RestApiException(ErrorCode.PUBLIC_BUS_API_FAILED);
         }
     }
 

@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import whatta.Whatta.global.exception.ErrorCode;
+import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
@@ -70,14 +72,30 @@ public class Event {
     public boolean hasTime() { return startTime!=null && endTime!=null; }
     public boolean isRepeat() { return repeat != null; }
 
-    public Event normalizeForTimeRules() {
+    public Event normalizeAndValidateDateTimeOrder() {
+        normalizeForTimeRules();
+        validateDateTimeOrder();
+        return this;
+    }
+
+    private void normalizeForTimeRules() {
         if(this.startTime == null || this.endTime == null) {
-            return this.toBuilder()
+            this.toBuilder()
                     .startTime(null)
                     .endTime(null)
                     .reminderNotiAt(null)
                     .build();
         }
-        return this;
+    }
+
+    private void validateDateTimeOrder() {
+        if(startDate.isAfter(endDate)) {
+            throw new RestApiException(ErrorCode.DATE_ORDER_INVALID);
+        }
+        if(startDate.equals(endDate) && startTime != null && endTime != null) {
+            if(startTime.isAfter(endTime)) {
+                throw new RestApiException(ErrorCode.TIME_ORDER_INVALID);
+            }
+        }
     }
 }

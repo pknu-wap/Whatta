@@ -1,6 +1,7 @@
 package whatta.Whatta.global.util;
 
 import whatta.Whatta.event.entity.Repeat;
+import whatta.Whatta.event.enums.RepeatUnit;
 
 import java.time.*;
 import java.time.temporal.ChronoUnit;
@@ -15,16 +16,16 @@ public class RepeatUtil {
     public static LocalDateTime findNextOccurrenceStartAfter(LocalDateTime startAt, Repeat repeat, LocalDateTime from) {
         RepeatUnit unit = repeat.getUnit();
         int interval = repeat.getInterval();
-        LocalDate endDate = repeat.getEndDate();
+        LocalDate deadline = repeat.getEndDate();
         LocalTime startTime = startAt.toLocalTime();
 
         switch (unit) {
             case DAY:
-                return findNextDaily(startAt.toLocalDate(), startTime, interval, endDate, from);
+                return findNextDaily(startAt.toLocalDate(), startTime, interval, deadline, from);
             case WEEK:
-                return findNextWeekly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
+                return findNextWeekly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), deadline, from);
             case MONTH:
-                return findNextMonthly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), endDate, from);
+                return findNextMonthly(startAt.toLocalDate(), startTime, interval, repeat.getOn(), deadline, from);
             default:
                 throw new IllegalArgumentException("Unsupported RepeatUnit: " + unit);
         }

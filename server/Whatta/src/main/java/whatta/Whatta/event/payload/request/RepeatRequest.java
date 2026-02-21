@@ -2,7 +2,7 @@ package whatta.Whatta.event.payload.request;
 
 import whatta.Whatta.global.anotation.ValidRepeat;
 import whatta.Whatta.event.entity.Repeat;
-import whatta.Whatta.global.util.RepeatUnit;
+import whatta.Whatta.event.enums.RepeatUnit;
 
 import java.time.LocalDate;
 import java.util.List;

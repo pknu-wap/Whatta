@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
+import whatta.Whatta.event.enums.EventClearField;
 import whatta.Whatta.event.mapper.EventMapper;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
 import whatta.Whatta.event.payload.request.EventUpdateRequest;
@@ -19,10 +20,10 @@ import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 
 @Service
 @AllArgsConstructor
@@ -43,41 +44,27 @@ public class EventService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
-        //유저의 라벨 목록에 있는 라벨인지
         LabelUtil.validateLabelsInUserSettings(userSetting, request.labels());
-
-        LocalTime startTime = LocalTimeUtil.stringToLocalTime(request.startTime());
-        LocalTime endTime = LocalTimeUtil.stringToLocalTime(request.endTime());
-        validateDateTimeOrder(request.startDate(), request.endDate(), startTime, endTime);
 
         Event.EventBuilder eventBuilder = Event.builder()
                 .userId(user.getId())
                 .startDate(request.startDate())
                 .endDate(request.endDate())
-                .repeat((request.repeat() == null) ? null : request.repeat().toEntity())
+                .repeat(request.repeat().toEntity())
                 .colorKey(request.colorKey());
         if(request.title() != null && !request.title().isBlank()) eventBuilder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(request.labels());
-        if(request.startTime() != null && request.endTime() != null) {
-            eventBuilder.startTime(startTime);
-            eventBuilder.endTime(endTime);
-            eventBuilder.reminderNotiAt(request.reminderNoti());
-        }
-        Event newEvent = eventRepository.save(eventBuilder.build());
+        eventBuilder.startTime(LocalTimeUtil.stringToLocalTime(request.startTime()));
+        eventBuilder.endTime(LocalTimeUtil.stringToLocalTime(request.endTime()));
+        eventBuilder.reminderNotiAt(request.reminderNoti());
+
+        Event event = eventBuilder.build().normalizeAndValidateDateTimeOrder();
+
+        Event newEvent = eventRepository.save(event);
         scheduledNotiService.updateReminderNotification(newEvent);
 
        return eventMapper.toEventDetailsResponse(newEvent);
-    }
-    private void validateDateTimeOrder(LocalDate startDate, LocalDate endDate, LocalTime startTime, LocalTime endTime) {
-        if(startDate.isAfter(endDate)) {
-            throw new RestApiException(ErrorCode.DATE_ORDER_INVALID);
-        }
-        if(startDate.equals(endDate) && startTime != null && endTime != null) {
-            if(startTime.isAfter(endTime)) {
-                throw new RestApiException(ErrorCode.TIME_ORDER_INVALID);
-            }
-        }
     }
 
     public EventResponse getEventDetails(String userId, String eventId) {
@@ -97,16 +84,6 @@ public class EventService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
-        LocalTime ReqStartTime = LocalTimeUtil.stringToLocalTime(request.startTime());
-        LocalTime ReqEndTime = LocalTimeUtil.stringToLocalTime(request.endTime());
-
-        LocalDate startDate = (request.startDate() == null) ? originalEvent.getStartDate() : request.startDate();
-        LocalDate endDate = (request.endDate() == null) ? originalEvent.getEndDate() : request.endDate();
-        LocalTime startTime = (ReqStartTime == null) ? originalEvent.getStartTime() : ReqStartTime;
-        LocalTime endTime = (ReqEndTime == null) ? originalEvent.getEndTime() : ReqEndTime;
-
-        validateDateTimeOrder(startDate, endDate, startTime, endTime); //TODO: fieldsToClear에 time이 null로 초기화 됐을 때 검증을 반영할 수 없음 -> 추후 수정해야 함
-
         //수정
         Event.EventBuilder builder = originalEvent.toBuilder();
         if(request.title() != null && !request.title().isBlank()) builder.title(request.title());
@@ -117,48 +94,47 @@ public class EventService {
         }
         if(request.startDate() != null) builder.startDate(request.startDate());
         if(request.endDate() != null) builder.endDate(request.endDate());
-        if(request.startTime() != null) builder.startTime(startTime);
-        if(request.endTime() != null) builder.endTime(endTime);
-        if(request.repeat() != null) builder.repeat(request.repeat().toEntity());
+        if(request.startTime() != null)
+            builder.startTime(stringToLocalTime(request.startTime()));
+        if(request.endTime() != null)
+            builder.endTime(stringToLocalTime(request.endTime()));
+        if(request.repeat() != null)
+            builder.repeat(request.repeat().toEntity());
         if(request.colorKey() != null) builder.colorKey(request.colorKey());
-        if(request.reminderNoti() != null) builder.reminderNotiAt(request.reminderNoti()); //TODO: 추후 검증 추가
+        if(request.reminderNoti() != null)
+            builder.reminderNotiAt(request.reminderNoti());
 
-        //명시된 field를 초기화
-        //혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨
-        if(request.fieldsToClear() != null && !request.fieldsToClear().isEmpty()) {
+        /* 명시된 field를 초기화
+        혹시라도 특정필드 수정요청과 초기화를 같이 모순되게 보낼경우 초기화가 우선됨 */
+        EnumSet<EventClearField> clearFields = EnumSet.noneOf(EventClearField.class);
+        if (request.fieldsToClear() != null && !request.fieldsToClear().isEmpty()) {
             for (String fieldName : request.fieldsToClear()) {
-                switch (fieldName) { //date와 colorkey는 null로 초기화 안함
-                    case "title": //TODO: enum
-                        builder.title("새로운 일정");
-                        break;
-                    case "content":
-                        builder.content("");
-                        break;
-                    case "labels":
-                        builder.labels(new ArrayList<>());
-                        break;
-                    case "startTime":
-                        builder.startTime(null);
-                        break;
-                    case "endTime":
-                        builder.endTime(null);
-                        break;
-                    case "repeat":
-                        builder.repeat(null);
-                        break;
-                    case "reminderNoti":
-                        builder.reminderNotiAt(null);
-                        break;
-                }
+                clearFields.add(EventClearField.parse(fieldName));
+            }
+        }
+        for (EventClearField fieldName : clearFields) {
+            switch (fieldName) { //date와 colorkey는 null로 초기화 안함
+                case TITLE -> builder.title("새로운 일정");
+                case CONTENT -> builder.content("");
+                case LABELS -> builder.labels(new ArrayList<>());
+                case START_TIME -> builder.startTime(null);
+                case END_TIME -> builder.endTime(null);
+                case REPEAT -> builder.repeat(null);
+                case REMINDER_NOTI -> builder.reminderNotiAt(null);
             }
         }
         builder.editedAt(LocalDateTime.now());
 
-        Event normalizedEvent = builder.build().normalizeForTimeRules();
-        Event updatedEvent = eventRepository.save(normalizedEvent);
+        Event event = builder.build().normalizeAndValidateDateTimeOrder();
+
+        Event updatedEvent = eventRepository.save(event);
         scheduledNotiService.updateReminderNotification(updatedEvent);
 
         return eventMapper.toEventDetailsResponse(updatedEvent);
+    }
+
+    private LocalTime stringToLocalTime(String time) {
+        return LocalTimeUtil.stringToLocalTime(time);
     }
 
     @Transactional

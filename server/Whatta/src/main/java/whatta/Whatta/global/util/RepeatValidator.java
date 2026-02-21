@@ -20,9 +20,7 @@ public class RepeatValidator implements ConstraintValidator<ValidRepeat, RepeatR
 
         switch (repeatRequest.unit()) {
             case DAY:
-                if(repeatRequest.on() != null && !repeatRequest.on().isEmpty())
-                    return false;
-                return true;
+                return repeatRequest.on() == null || repeatRequest.on().isEmpty();
             case WEEK:
                 if(repeatRequest.on() == null || repeatRequest.on().isEmpty())
                     return false;
@@ -37,12 +35,9 @@ public class RepeatValidator implements ConstraintValidator<ValidRepeat, RepeatR
                     return false;
                 String token = repeatRequest.on().get(0);
                 if (token == null) return false;
-                if(!(MONTH_DAY.matcher(token).matches()
-                || MONTH_NTH.matcher(token).matches()
-                || MONTH_LAST.matcher(token).matches())) {
-                    return false;
-                }
-                return true;
+                return MONTH_DAY.matcher(token).matches()
+                        || MONTH_NTH.matcher(token).matches()
+                        || MONTH_LAST.matcher(token).matches();
         }
         return false;
     }
