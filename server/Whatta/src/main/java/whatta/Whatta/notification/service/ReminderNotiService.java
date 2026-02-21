@@ -7,7 +7,7 @@ import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;

@@ -13,7 +13,7 @@ import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
-import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;

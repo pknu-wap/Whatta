@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import whatta.Whatta.global.repeat.Repeat;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;

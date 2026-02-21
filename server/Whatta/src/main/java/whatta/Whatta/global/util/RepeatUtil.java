@@ -1,7 +1,6 @@
 package whatta.Whatta.global.util;
 
-import whatta.Whatta.global.repeat.Repeat;
-import whatta.Whatta.global.repeat.RepeatUnit;
+import whatta.Whatta.event.entity.Repeat;
 
 import java.time.*;
 import java.time.temporal.ChronoUnit;
