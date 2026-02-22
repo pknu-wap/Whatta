@@ -2,31 +2,25 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Pressable,
-  Platform,
   Dimensions,
   Alert,
   Modal
 } from 'react-native'
 
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
+
 } from 'react-native-reanimated'
+
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useFocusEffect, useIsFocused } from '@react-navigation/native'
-import { runOnJS } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
-import { bus, EVENT } from '@/lib/eventBus'
-import { http } from '@/lib/http'
+import { bus } from '@/lib/eventBus'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import CheckOff from '@/assets/icons/check_off.svg'
@@ -34,15 +28,15 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import type { EventItem } from '@/api/event_api'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
-import type { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+
 import OcrSplash from '@/screens/More/OcrSplash'
 import { DraggableTaskBox } from './DayViewItems'
 import { DraggableTaskGroupBox } from './DayViewItems'
 import { DraggableFixedEvent } from './DayViewItems'
 import { DraggableFlexalbeEvent } from './DayViewItems'
-import { ROW_H, PIXELS_PER_MIN } from './constants'
+import { PIXELS_PER_MIN } from './constants'
 import S from './S'
 import { useDayData } from './dataUtil'
 import { useDaySwipe } from './swipeUtils'
@@ -50,8 +44,6 @@ import { useDayOCR } from './ocrUtils'
 import {
   createEvent,
   getEvent,
-  updateEvent,
-  deleteEvent,
 } from '@/api/event_api'
 import {
   getTask,
@@ -60,19 +52,13 @@ import {
   deleteTask,
 } from '@/api/task'
 import {
-  computeTaskOverlap,
   groupTasksByOverlap,
-  computeEventOverlap,
 } from './overlapUtils'
 import {
-  pad2,
   today,
-  addDays,
-  getDateOfWeek,
   getInstanceDates,
 } from './dateUtils'
-
-const { width: SCREEN_W } = Dimensions.get('window')
+import { getMyLabels } from '@/api/label_api'
 
 function FullBleed({
   children,
@@ -326,14 +312,13 @@ export default function DayView() {
 
   const [labelList, setLabelList] = useState<LabelItem[]>([])
   const fetchLabels = async () => {
-    try {
-      const res = await http.get('/user/setting/label')
-      const labels = res.data?.data?.labels ?? []
-      setLabelList(labels)
-    } catch (err) {
-      console.error('❌ 라벨 조회 실패:', err)
-    }
+  try {
+    const labels = await getMyLabels()
+    setLabelList(labels)
+  } catch (err) {
+    console.error('❌ 라벨 조회 실패:', err)
   }
+}
 
   useEffect(() => {
     fetchLabels()
