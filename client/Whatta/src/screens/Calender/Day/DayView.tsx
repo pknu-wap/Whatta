@@ -65,7 +65,7 @@ import {
   computeTaskOverlap,
   groupTasksByOverlap,
   computeEventOverlap,
-} from './DayView.utils'
+} from './overlapUtils'
 import {
   pad2,
   today,

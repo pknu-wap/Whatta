@@ -12,7 +12,7 @@ import CheckOn from '@/assets/icons/check_on.svg'
 import CheckOff from '@/assets/icons/check_off.svg'
 import { updateTask } from '@/api/task'
 import { bus } from '@/lib/eventBus'
-import { DayViewTask } from './DayView.utils'
+import { DayViewTask } from './overlapUtils'
 import { updateEvent, getEvent, createEvent } from '@/api/event_api'
 import { Alert } from 'react-native'
 
