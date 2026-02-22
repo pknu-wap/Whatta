@@ -41,6 +41,7 @@ import S from './S'
 import { useDayData } from './dataUtil'
 import { useDaySwipe } from './swipeUtils'
 import { useDayOCR } from './ocrUtils'
+import { useDayDrag } from './dragUtils'
 import {
   createEvent,
   getEvent,
@@ -198,8 +199,6 @@ export default function DayView() {
   const [taskBoxTop, setTaskBoxTop] = useState(0)
   const [gridTop, setGridTop] = useState(0)
   const [gridScrollY, setGridScrollY] = useState(0)
-  const draggingTaskIdRef = useRef<string | null>(null)
-  const dragReadyRef = useRef(false)
 
   const [taskBoxRect, setTaskBoxRect] = useState({
     left: 0,
@@ -281,20 +280,6 @@ export default function DayView() {
   useEffect(() => {
     gridRectRef.current = gridRect
   }, [gridRect])
-
-  useEffect(() => {
-    const onReady = () => (dragReadyRef.current = true)
-    const onCancel = () => {
-      draggingTaskIdRef.current = null // 드래그 취소
-      dragReadyRef.current = false
-    }
-    bus.on('xdrag:ready', onReady)
-    bus.on('xdrag:cancel', onCancel)
-    return () => {
-      bus.off('xdrag:ready', onReady)
-      bus.off('xdrag:cancel', onCancel)
-    }
-  }, [])
 
   // ✅ 라이브바 위치 계산
   const [nowTop, setNowTop] = useState<number | null>(null)
@@ -451,18 +436,7 @@ export default function DayView() {
   // 라벨 필터링
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
-  const {
-  events,
-  spanEvents,
-  tasks,
-  checks,
-  setChecks,
-  fetchDailyEvents,
-} = useDayData(anchorDate, enabledLabelIds)
-
-const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
-
-  const measureLayouts = useCallback(() => {
+    const measureLayouts = useCallback(() => {
     taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
       setTaskBoxTop(py) // 기존 코드 유지
       setTaskBoxRect({ left: px, top: py, right: px + w, bottom: py + h })
@@ -472,6 +446,26 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
       setGridRect({ left: px, top: py, right: px + w, bottom: py + h })
     })
   }, [])
+
+  const {
+  events,
+  spanEvents,
+  tasks,
+  checks,
+  setChecks,
+  fetchDailyEvents,
+} = useDayData(anchorDate, enabledLabelIds)
+
+useDayDrag({
+  anchorDateRef,
+  fetchDailyEvents,
+  measureLayouts,
+  taskBoxRectRef,
+  gridRectRef,
+  gridScrollYRef,
+})
+
+const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
   useEffect(() => {
     // 사이드바 닫힐 때 레이아웃 재측정
@@ -547,136 +541,40 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
     }
   }
 
-  useEffect(() => {
-    const onStart = ({ task }: any) => {
-      draggingTaskIdRef.current = task?.id ?? null
-    }
-    bus.on('xdrag:start', onStart)
-    return () => bus.off('xdrag:start', onStart)
-  }, [])
-
-  useEffect(() => {
-    const within = (r: any, x: number, y: number) =>
-      x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
-
-    // 기존 onDrop 핸들러 내부의 gridRect/innerY 계산 직전 로직을 아래처럼 교체
-    const onDrop = async ({ x, y }: any) => {
-      const id = draggingTaskIdRef.current
-      if (!id) return
-      if (!dragReadyRef.current) {
-        draggingTaskIdRef.current = null
-        return
-      }
-
-      // ✅ 드롭 순간 좌표 기준으로 바로 처리
-      measureLayouts()
-      requestAnimationFrame(async () => {
-        const dateISO = anchorDateRef.current
-        const taskBox = taskBoxRectRef.current
-        const gridBox = gridRectRef.current
-        const scrollY = gridScrollYRef.current
-
-        const within = (r: any, px: number, py: number) =>
-          px >= r.left && px <= r.right && py >= r.top && py <= r.bottom
-
-        // ① 상단 박스 드롭: 날짜만 배치
-        if (within(taskBox, x, y)) {
-          await updateTask(id, {
-            placementDate: dateISO,
-            placementTime: null,
-            date: dateISO,
-          })
-          bus.emit('sidebar:remove-task', { id })
-          bus.emit('calendar:mutated', {
-            op: 'update',
-            item: { id, isTask: true, date: anchorDateRef.current },
-          })
-          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents()
-          draggingTaskIdRef.current = null
-          return
-        }
-
-        // ② 시간 그리드 드롭: 5분 스냅
-        if (within(gridBox, x, y)) {
-          // ✅ 여기서는 scrollY 더해도 되고 / 안 더해도 되는 건 레이아웃 기준에 따라 선택,
-          // 아까 말한 대로 현재 구조면 scrollY 빼고 하는 게 정확함
-          const innerY = Math.max(0, y - gridBox.top) // ← scrollY 더하지 말기
-
-          const minRaw = innerY / PIXELS_PER_MIN
-          const minSnap = Math.round(minRaw / 5) * 5
-          const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
-          const mm = String(minSnap % 60).padStart(2, '0')
-
-          await updateTask(id, {
-            placementDate: dateISO,
-            placementTime: `${hh}:${mm}:00`,
-            date: dateISO,
-          })
-
-          bus.emit('sidebar:remove-task', { id })
-          bus.emit('calendar:mutated', {
-            op: 'update',
-            item: {
-              id,
-              isTask: true,
-              placementDate: dateISO,
-              placementTime: `${hh}:${mm}:00`,
-              date: dateISO,
-            },
-          })
-          bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents()
-          draggingTaskIdRef.current = null
-          return
-        }
-
-        // ③ 영역 밖: 취소
-        draggingTaskIdRef.current = null
-      })
-    }
-
-    bus.on('xdrag:drop', onDrop)
-    return () => bus.off('xdrag:drop', onDrop)
-  }, [anchorDate, fetchDailyEvents, gridScrollY, taskBoxRect, gridRect])
-  const popupTaskMemo = useMemo(() => taskPopupTask, [taskPopupTask])
-
   const handleDeleteTask = async () => {
-    if (!taskPopupId) return
+  if (!taskPopupId) return
 
-    Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteTask(taskPopupId)
+  Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
+    { text: '취소', style: 'cancel' },
+    {
+      text: '삭제',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          await deleteTask(taskPopupId)
 
-            // 캘린더 쪽에 변경 알리기
-            bus.emit('calendar:mutated', {
-              op: 'delete',
-              item: { id: taskPopupId, date: anchorDate },
-            })
-            bus.emit('calendar:invalidate', {
-              ym: anchorDate.slice(0, 7),
-            })
+          bus.emit('calendar:mutated', {
+            op: 'delete',
+            item: { id: taskPopupId, date: anchorDate },
+          })
 
-            // 일간뷰 즉시 새로고침
-            await fetchDailyEvents()
+          bus.emit('calendar:invalidate', {
+            ym: anchorDate.slice(0, 7),
+          })
 
-            // 팝업 닫기 + 상태 정리
-            setTaskPopupVisible(false)
-            setTaskPopupId(null)
-            setTaskPopupTask(null)
-          } catch (err) {
-            console.error('❌ 테스크 삭제 실패:', err)
-            Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
-          }
-        },
+          await fetchDailyEvents()
+
+          setTaskPopupVisible(false)
+          setTaskPopupId(null)
+          setTaskPopupTask(null)
+        } catch (err) {
+          console.error('❌ 테스크 삭제 실패:', err)
+          Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+        }
       },
-    ])
-  } 
+    },
+  ])
+}
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
