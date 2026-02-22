@@ -45,7 +45,12 @@ import EventPopupSlider from '@/screens/More/EventPopupSlider'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import OcrSplash from '@/screens/More/OcrSplash'
-import { createEvent } from '@/api/event_api'
+import {
+  createEvent,
+  getEvent,
+  updateEvent,
+  deleteEvent,
+} from '@/api/event_api'
 import {
   getTask,
   updateTask,
@@ -438,13 +443,13 @@ export default function DayView() {
   }
 
   async function openEventDetail(ev: any) {
-    //객체로 받음
-    const res = await http.get(`/event/${ev.id}`)
+
+    const data = await getEvent(ev.id)
 
     const { startDate, endDate } = getInstanceDates(ev, anchorDateRef.current)
 
     setEventPopupData({
-      ...res.data.data,
+      ...data.data,
       startDate,
       endDate,
     })
@@ -1637,7 +1642,7 @@ function DraggableFixedEvent({
         const newEndTime = fmt(newEnd)
 
         // 🔥 반복 일정 팝업 적용
-        const detailRes = await http.get(`/event/${id}`)
+        const detailRes = await getEvent(id)
         const ev = detailRes.data.data
 
         if (ev?.repeat) {
@@ -1671,7 +1676,7 @@ function DraggableFixedEvent({
                   const next = prev.includes(occ) ? prev : [...prev, occ]
 
                   // 기존 반복 일정에서 제외
-                  await http.patch(`/event/${id}`, {
+                  await updateEvent(id, {
                     repeat: {
                       ...ev.repeat,
                       exceptionDates: next,
@@ -1679,7 +1684,7 @@ function DraggableFixedEvent({
                   })
 
                   // 단일 일정 만들기
-                  await http.post(`/event`, {
+                  await createEvent({
                     ...basePayload,
                     repeat: null,
                   })
@@ -1698,7 +1703,7 @@ function DraggableFixedEvent({
                   const cutEnd = prevDay(anchorDate)
 
                   // 기존 반복 일정 잘라내기
-                  await http.patch(`/event/${id}`, {
+                  await updateEvent(id, {
                     repeat: {
                       ...ev.repeat,
                       endDate: cutEnd,
@@ -1706,7 +1711,7 @@ function DraggableFixedEvent({
                   })
 
                   // 이후 반복 일정 새로 만들기
-                  await http.post(`/event`, {
+                  await createEvent({
                     ...basePayload,
                     repeat: ev.repeat,
                   })
@@ -1723,7 +1728,7 @@ function DraggableFixedEvent({
         }
 
         // 🔥 일반 일정 PATCH (기존 Fixed 로직)
-        await http.patch(`/event/${id}`, {
+        await updateEvent(id, {
           startDate: anchorDate,
           endDate: anchorDate,
           startTime: newStartTime,
@@ -2273,11 +2278,11 @@ function DraggableFlexalbeEvent({
 
         // 반복 일정 처리
         if (isRepeat) {
-          const detailRes = await http.get(`/event/${id}`)
-          const ev = detailRes.data.data
+          const detailRes = await getEvent(id)
+          const ev = detailRes.data
           if (!ev?.repeat) {
             // repeat 데이터가 없으면 그냥 일반 PATCH로 fallback
-            await http.patch(`/event/${id}`, {
+            await updateEvent(id, {
               startDate: dateISO,
               endDate: dateISO,
               startTime: newStartTime,
@@ -2332,7 +2337,7 @@ function DraggableFlexalbeEvent({
                   const next = prev.includes(occDate) ? prev : [...prev, occDate]
 
                   // 1) 기존 반복 일정에 exceptionDates 패치
-                  await http.patch(`/event/${id}`, {
+                  await updateEvent(id, {
                     repeat: {
                       ...ev.repeat,
                       exceptionDates: next,
@@ -2363,7 +2368,7 @@ function DraggableFlexalbeEvent({
                   const cutEnd = prevDay(dateISO)
 
                   // 1) 기존 반복 일정 끝을 전날로 자름
-                  await http.patch(`/event/${id}`, {
+                  await updateEvent(id, {
                     repeat: {
                       ...ev.repeat,
                       endDate: cutEnd,
@@ -2371,7 +2376,7 @@ function DraggableFlexalbeEvent({
                   })
 
                   // 2) 이후 구간 새 반복 일정 생성
-                  await http.post('/event', {
+                  await createEvent({
                     ...basePayload,
                     repeat: ev.repeat,
                   })
@@ -2391,7 +2396,7 @@ function DraggableFlexalbeEvent({
           return
         }
 
-        await http.patch(`/event/${id}`, {
+        await updateEvent(id, {
           startDate: dateISO,
           endDate: dateISO,
           startTime: newStartTime,
