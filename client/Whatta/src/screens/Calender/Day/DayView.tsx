@@ -46,6 +46,12 @@ import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import OcrSplash from '@/screens/More/OcrSplash'
 import { createEvent } from '@/api/event_api'
+import {
+  getTask,
+  updateTask,
+  createTask,
+  deleteTask,
+} from '@/api/task'
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const today = () => {
@@ -642,8 +648,7 @@ export default function DayView() {
 
   // Task 상세 조회
   async function fetchTaskDetail(taskId: string) {
-    const res = await http.get(`/task/${taskId}`)
-    return res.data.data
+    return await getTask(taskId)
   }
 
   async function handleTaskPress(taskId: string) {
@@ -660,8 +665,7 @@ export default function DayView() {
   // taskId 로 서버에서 Task 상세 조회해서 팝업 열기
   const openTaskPopupFromApi = async (taskId: string) => {
     try {
-      const res = await http.get(`/task/${taskId}`)
-      const data = res.data?.data
+      const data = await getTask(taskId)
       if (!data) return
       setTaskPopupMode('edit')
 
@@ -930,9 +934,7 @@ setEvents(overlapped.filter(filterEvent))
 
     // 서버에 보낼 값도 nextDone 사용
     try {
-      await http.patch(`/task/${id}`, {
-        completed: nextDone,
-      })
+      await updateTask(id, { completed: nextDone })
 
       bus.emit('calendar:mutated', {
         op: 'update',
@@ -977,7 +979,7 @@ setEvents(overlapped.filter(filterEvent))
 
         // ① 상단 박스 드롭: 날짜만 배치
         if (within(taskBox, x, y)) {
-          await http.patch(`/task/${id}`, {
+          await updateTask(id, {
             placementDate: dateISO,
             placementTime: null,
             date: dateISO,
@@ -1004,7 +1006,7 @@ setEvents(overlapped.filter(filterEvent))
           const hh = String(Math.floor(minSnap / 60)).padStart(2, '0')
           const mm = String(minSnap % 60).padStart(2, '0')
 
-          await http.patch(`/task/${id}`, {
+          await updateTask(id, {
             placementDate: dateISO,
             placementTime: `${hh}:${mm}:00`,
             date: dateISO,
@@ -1047,8 +1049,7 @@ setEvents(overlapped.filter(filterEvent))
         style: 'destructive',
         onPress: async () => {
           try {
-            //DELETE /task/{taskId}
-            await http.delete(`/task/${taskPopupId}`)
+            await deleteTask(taskPopupId)
 
             // 캘린더 쪽에 변경 알리기
             bus.emit('calendar:mutated', {
@@ -1465,7 +1466,7 @@ setEvents(overlapped.filter(filterEvent))
               if (taskPopupMode === 'edit') {
                 if (!taskPopupId) return
 
-                await http.patch(`/task/${taskPopupId}`, {
+                await updateTask(taskPopupId, {
                   title: form.title,
                   content: form.memo,
                   labels: form.labels,
@@ -1481,7 +1482,7 @@ setEvents(overlapped.filter(filterEvent))
                 })
               } else {
                 // 새 테스크 생성 로직
-                const res = await http.post('/task', {
+                const res = await createTask({
                   title: form.title,
                   content: form.memo,
                   labels: form.labels,
@@ -1879,7 +1880,7 @@ function DraggableTaskBox({
 
   const handleDrop = async (newTime: string) => {
     try {
-      await http.patch(`/task/${id}`, {
+      await updateTask(id, {
         placementDate: anchorDate,
         placementTime: newTime,
         date: anchorDate,
@@ -1997,8 +1998,7 @@ if (isOverlapWithEvent) {
             const next = !done
             setDone(next)
 
-            http
-              .patch(`/task/${id}`, {
+            updateTask(id, {
                 completed: next,
               })
               .catch((err) => console.error('❌ 테스크 체크 상태 업데이트 실패:', err))
@@ -2092,7 +2092,7 @@ function DraggableTaskGroupBox({
             const newM = newMin % 60
             const newTime = `${fmt(newH)}:${fmt(newM)}:00`
 
-            return http.patch(`/task/${t.id}`, {
+            return updateTask(t.id, {
               placementDate: anchorDate,
               placementTime: newTime,
               date: anchorDate,
