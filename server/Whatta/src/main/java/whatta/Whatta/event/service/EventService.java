@@ -125,6 +125,9 @@ public class EventService {
 
         Event event = builder.build();
 
+        /* 현재 프론트에서 "이후 일정 모두 수정/삭제" 요청 시,
+        반복 마감일(endDate)을 전개 기준 날짜 -1일로 전달하므로,
+        startDate > repeat.endDate 상태가 발생할 수 있어 이를 삭제로 처리하는 임시 조치 */
         if (shouldDeleteBecauseStartAfterRepeatEnd(event)) { //TODO: 앱 프론트 코드 수정 후 삭제 + 유효성 검증 추가
             scheduledNotiService.cancelReminderNotification(eventId);
             eventRepository.delete(originalEvent);
