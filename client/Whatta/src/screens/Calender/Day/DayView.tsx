@@ -49,6 +49,7 @@ import { DraggableTaskBox } from './DayViewItems'
 import { DraggableTaskGroupBox } from './DayViewItems'
 import { DraggableFixedEvent } from './DayViewItems'
 import { DraggableFlexalbeEvent } from './DayViewItems'
+import { ROW_H, PIXELS_PER_MIN } from './constants'
 import {
   createEvent,
   getEvent,
@@ -106,10 +107,6 @@ function FullBleed({
 const INITIAL_CHECKS: any[] = []
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
-
-const ROW_H = 48
-const PIXELS_PER_HOUR = ROW_H
-const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 
 let draggingEventId: string | null = null
 

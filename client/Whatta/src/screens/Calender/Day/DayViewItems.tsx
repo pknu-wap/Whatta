@@ -15,11 +15,8 @@ import { bus } from '@/lib/eventBus'
 import { DayViewTask } from './overlapUtils'
 import { updateEvent, getEvent, createEvent } from '@/api/event_api'
 import { Alert } from 'react-native'
+import { ROW_H, PIXELS_PER_MIN } from './constants'
 
-
-const ROW_H = 48
-const PIXELS_PER_HOUR = ROW_H
-const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
 const { width: SCREEN_W } = Dimensions.get('window')
 
 let draggingEventId: string | null = null
