@@ -60,7 +60,7 @@ public class CalendarViewService {
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), LocalTime.NOON),
                         event.repeat(),
                         date, date
                 );
@@ -197,7 +197,7 @@ public class CalendarViewService {
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), LocalTime.NOON),
                         event.repeat(),
                         start, end);
 
