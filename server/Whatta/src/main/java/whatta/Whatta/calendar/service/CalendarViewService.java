@@ -42,7 +42,6 @@ public class CalendarViewService {
 
     public DailyResponse getDaily(String userId, LocalDate date) {
 
-        //db 조회를 병렬로
         CompletableFuture<CalendarEventsResult> eventsFuture =
                 CompletableFuture.supplyAsync(() -> calendarEventsRepository.getDailyViewByUserId(userId,date), calendarExecutor);
         CompletableFuture<CalendarTasksResult> tasksFuture =
@@ -52,11 +51,10 @@ public class CalendarViewService {
         CalendarEventsResult eventsResult = eventsFuture.join();
         CalendarTasksResult tasksResult = tasksFuture.join();
 
-        //라벨 리스트
         List<LabelItem> labelPalette = buildLabelPalette(userId, eventsResult, tasksResult);
 
-        List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
-        List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event
+        List<AllDaySpanEvent> spanEvents = new ArrayList<>();
+        List<AllDayEvent> allDayEvents = new ArrayList<>();
 
         //시간지정 없는 event ---------------------------------------------------------------
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
@@ -483,7 +481,7 @@ public class CalendarViewService {
         return dates;
     }
 
-    private List<LocalDate> expandRepeatDates(LocalDateTime startAt, Repeat repeat,
+    private List<LocalDate> expandRepeatDates(LocalDateTime rootStartAt, Repeat repeat,
                                               LocalDate rangeStart, LocalDate rangeEnd) {
         List<LocalDate> result = new ArrayList<>();
         if (repeat == null) return result;
@@ -494,7 +492,7 @@ public class CalendarViewService {
         int safeGuard = 0;
         while (safeGuard++ < 1000) {
 
-            LocalDateTime next = findNextOccurrenceStartAfter(startAt, repeat, cursor);
+            LocalDateTime next = findNextOccurrenceStartAfter(rootStartAt, repeat, cursor);
             if (next == null || next.isAfter(rangeEndTime)) break;
 
             LocalDate occDate = next.toLocalDate();
