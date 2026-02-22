@@ -49,7 +49,7 @@ public class EventService {
                 .userId(user.getId())
                 .startDate(request.startDate())
                 .endDate(request.endDate())
-                .repeat(request.repeat().toEntity())
+                .repeat((request.repeat() == null) ? null : request.repeat().toEntity())
                 .colorKey(request.colorKey());
         if(request.title() != null && !request.title().isBlank()) eventBuilder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());

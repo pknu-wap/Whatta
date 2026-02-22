@@ -75,19 +75,20 @@ public class Event {
     public boolean isRepeat() { return repeat != null; }
 
     public Event normalizeAndValidateDateTimeOrder() {
-        normalizeForTimeRules();
-        validateDateTimeOrder();
-        return this;
+        Event normalized = normalizeForTimeRules();
+        normalized.validateDateTimeOrder();
+        return normalized;
     }
 
-    private void normalizeForTimeRules() {
+    private Event normalizeForTimeRules() {
         if(this.startTime == null || this.endTime == null) {
-            this.toBuilder()
+            return this.toBuilder()
                     .startTime(null)
                     .endTime(null)
                     .reminderNotiAt(null)
                     .build();
         }
+        return this;
     }
 
     private void validateDateTimeOrder() {

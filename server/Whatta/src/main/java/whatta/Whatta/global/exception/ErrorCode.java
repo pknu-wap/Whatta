@@ -26,7 +26,7 @@ public enum ErrorCode {
     LABEL_NOT_FOUND(HttpStatus.NOT_FOUND, "701-2", "요청 라벨이 사용자의 라벨 목록에 없습니다."),
     TOO_MANY_LABELS(HttpStatus.BAD_REQUEST, "701-3", "라벨은 최대 3개까지 설정할 수 있습니다."),
     ALREADY_EXIST_REMINDER(HttpStatus.BAD_REQUEST, "701-4", "이미 존재하는 리마인드 프리셋입니다."),
-    REMINDER_NOT_FOUND(HttpStatus.NOT_FOUND, "704", "요청 리마인드 프리셋이 사용자의 프리셋 목록에 없습니다."),
+    REMINDER_NOT_FOUND(HttpStatus.NOT_FOUND, "701-5", "요청 리마인드 프리셋이 사용자의 프리셋 목록에 없습니다."),
 
     //800-xx : 교통 api 관련 오류
     PUBLIC_BUS_API_FAILED(HttpStatus.BAD_REQUEST, "800-1", "공공데이터 API 호출에 실패했습니다."),
