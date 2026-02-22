@@ -30,7 +30,7 @@ import { ts } from '@/styles/typography'
 import { LinearGradient } from 'expo-linear-gradient'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { bus, EVENT } from '@/lib/eventBus'
-import axios from 'axios'
+import { http } from '@/lib/http'
 import { token } from '@/lib/token'
 import { refreshTokens } from '@/api/auth'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
@@ -46,46 +46,6 @@ import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import OcrSplash from '@/screens/More/OcrSplash'
 import { createEvent } from '@/api/event_api'
-
-const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 0,
-  withCredentials: false,
-})
-
-// 요청 인터셉터
-http.interceptors.request.use(
-  (config) => {
-    const access = token.getAccess()
-    if (access) {
-      config.headers.Authorization = `Bearer ${access}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-// 응답 인터셉터
-http.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      try {
-        await refreshTokens()
-        const newAccess = token.getAccess()
-        if (newAccess) {
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`
-          return http(originalRequest)
-        }
-      } catch (err) {
-        console.error('[❌ 토큰 갱신 실패]', err)
-      }
-    }
-    return Promise.reject(error)
-  },
-)
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const today = () => {
@@ -880,22 +840,15 @@ setEvents(overlapped.filter(filterEvent))
         setSpanEvents(span.filter(filterEvent))
         setTasks(timedTasks.filter(filterTask))
         setChecks(checksAll.filter(filterTask))
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          console.log('code:', err.code)
-          console.log('message:', err.message)
-          console.log('toJSON:', err.toJSON?.())
+      } catch (err: any) {
+  if (err?.message === 'Network Error' || err?.code === 'ECONNABORTED') {
+    console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
+    return
+  }
 
-          // 네트워크/타임아웃 계열은 조용히 무시
-          if (err.message === 'Network Error' || err.code === 'ECONNABORTED') {
-            console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
-            return
-          }
-        }
-
-        console.error('❌ 일간 일정 불러오기 실패:', err)
-        alert('일간 일정 불러오기 실패') // 진짜 이상한 경우만 알림
-      }
+  console.error('❌ 일간 일정 불러오기 실패:', err)
+  alert('일간 일정 불러오기 실패')
+}
     },
     [enabledLabelIds],
   )
