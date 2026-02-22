@@ -21,11 +21,27 @@ public class RepeatUtil {
     //strictly after
     public static LocalDateTime findNextOccurrenceStartAfter(LocalDateTime rootStartAt, Repeat repeat, LocalDateTime from) {
         if (repeat == null) return null;
-        return switch (repeat.getUnit()) {
-            case DAY -> findNextDaily(rootStartAt, repeat, from);
-            case WEEK -> findNextWeekly(rootStartAt, repeat, from);
-            case MONTH -> findNextMonthly(rootStartAt, repeat, from);
-        };
+
+        LocalDateTime cursor = from;
+
+        int safeGuard = 0;
+        while (safeGuard++ < 1000) {
+
+            LocalDateTime candidate =  switch (repeat.getUnit()) {
+                case DAY -> findNextDaily(rootStartAt, repeat, cursor);
+                case WEEK -> findNextWeekly(rootStartAt, repeat, cursor);
+                case MONTH -> findNextMonthly(rootStartAt, repeat, cursor);
+            };
+
+            if (candidate == null ) return null;
+
+            if (repeat.getExceptionDates() != null && repeat.getExceptionDates().contains(candidate.toLocalDate())) {
+                cursor = candidate.plusSeconds(1);
+                continue;
+            }
+            return candidate;
+        }
+        return null;
     }
 
     public static LocalDateTime findNextDaily(LocalDateTime rootStartAt, Repeat repeat, LocalDateTime from) {
@@ -132,7 +148,7 @@ public class RepeatUtil {
         };
     }
 
-    private static LocalDate calculateWeeklySearchEndDate(LocalDate cursorDate, LocalDate deadline) { // [추가]
+    private static LocalDate calculateWeeklySearchEndDate(LocalDate cursorDate, LocalDate deadline) {
         if (deadline != null) {
             return deadline;
         }

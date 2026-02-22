@@ -497,12 +497,7 @@ public class CalendarViewService {
 
             LocalDate occDate = next.toLocalDate();
 
-            if (repeat.getExceptionDates() != null && repeat.getExceptionDates().contains(occDate)) {
-                cursor = next.plusSeconds(1);
-                continue;
-            }
-
-            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) {
+            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) { //rangeStart <= occDate <= rangeEnd
                 result.add(occDate);
             }
 
