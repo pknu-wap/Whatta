@@ -4,7 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;
@@ -31,8 +33,8 @@ public class ReminderNotification {
 
     private LocalDateTime triggerAt;
 
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
-    @Builder.Default
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    @CreatedDate
+    private LocalDateTime createdAt;
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
 }

@@ -84,7 +84,6 @@ public class EventService {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.USER_SETTING_NOT_FOUND));
 
-        //수정
         Event.EventBuilder builder = originalEvent.toBuilder();
         if(request.title() != null && !request.title().isBlank()) builder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) builder.content(request.content());
@@ -123,7 +122,6 @@ public class EventService {
                 case REMINDER_NOTI -> builder.reminderNotiAt(null);
             }
         }
-        builder.editedAt(LocalDateTime.now());
 
         Event event = builder.build().normalizeAndValidateDateTimeOrder();
 

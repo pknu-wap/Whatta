@@ -7,7 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
@@ -63,10 +65,10 @@ public class Event {
     @Builder.Default
     private ReminderNoti reminderNotiAt = null;
 
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
-    @Builder.Default
-    private LocalDateTime editedAt = LocalDateTime.now();
+    @CreatedDate
+    private LocalDateTime createdAt;
+    @LastModifiedDate
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
     public boolean isPeriod() { return !startDate.equals(endDate); }
     public boolean hasTime() { return startTime!=null && endTime!=null; }
