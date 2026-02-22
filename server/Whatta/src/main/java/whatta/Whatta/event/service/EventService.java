@@ -123,9 +123,16 @@ public class EventService {
             }
         }
 
-        Event event = builder.build().normalizeAndValidateDateTimeOrder();
+        Event event = builder.build();
 
-        Event updatedEvent = eventRepository.save(event);
+        if (shouldDeleteBecauseStartAfterRepeatEnd(event)) { //TODO: 앱 프론트 코드 수정 후 삭제 + 유효성 검증 추가
+            scheduledNotiService.cancelReminderNotification(eventId);
+            eventRepository.delete(originalEvent);
+
+            return eventMapper.toEventDetailsResponse(originalEvent);
+        }
+
+        Event updatedEvent = eventRepository.save(event.normalizeAndValidateDateTimeOrder());
         scheduledNotiService.updateReminderNotification(updatedEvent);
 
         return eventMapper.toEventDetailsResponse(updatedEvent);
@@ -133,6 +140,12 @@ public class EventService {
 
     private LocalTime stringToLocalTime(String time) {
         return LocalTimeUtil.stringToLocalTime(time);
+    }
+
+    private boolean shouldDeleteBecauseStartAfterRepeatEnd(Event event) {
+        if (event.getRepeat() == null) return false;
+        if (event.getRepeat().getEndDate() == null) return false;
+        return event.getStartDate().isAfter(event.getRepeat().getEndDate());
     }
 
     @Transactional
