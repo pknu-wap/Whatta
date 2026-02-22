@@ -44,6 +44,9 @@ import { DraggableFixedEvent } from './DayViewItems'
 import { DraggableFlexalbeEvent } from './DayViewItems'
 import { ROW_H, PIXELS_PER_MIN } from './constants'
 import S from './S'
+import { useDayData } from './dataUtil'
+import { useDaySwipe } from './swipeUtils'
+import { useDayOCR } from './ocrUtils'
 import {
   createEvent,
   getEvent,
@@ -128,85 +131,26 @@ export default function DayView() {
   return found ? found.title : ''
 }
 
-  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [isDraggingTask, setIsDraggingTask] = useState(false)
-  const [tasks, setTasks] = useState<any[]>([])
-  const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
   const [openGroupIndex, setOpenGroupIndex] = useState<number | null>(null)
-  // OCR 카드
-  const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
-
-  // 📌 이미지 추가 모달 열기
-  const [imagePopupVisible, setImagePopupVisible] = useState(false)
-
-  const sendToOCR = async (base64: string, ext?: string) => {
-    try {
-      setOcrSplashVisible(true)
-      
-      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
-      const lower = (ext ?? 'jpg').toLowerCase()
-      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
-
-      const res = await http.post(
-        '/ocr',
-        {
-          imageType: 'COLLEGE_TIMETABLE',
-          image: {
-            format,
-            name: `timetable.${format}`,
-            data: cleanBase64,
-          },
-        },
-        
-      )
-
-      console.log('OCR 성공:', res.data)
-
-      const events = res.data?.data?.events ?? []
-
-      const parsed = events
-        .map((ev: any, idx: number) => {
-          console.log('🔎 OCR raw weekDay:', ev.weekDay)
-          console.log('🔎 Converted date:', getDateOfWeek(ev.weekDay))
-
-          return {
-            id: String(idx),
-            title: ev.title ?? '',
-            content: ev.content ?? '',
-            weekDay: ev.weekDay ?? '',
-            date: getDateOfWeek(ev.weekDay),
-            startTime: ev.startTime ?? '',
-            endTime: ev.endTime ?? '',
-          }
-        })
-        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
-
-      setOcrEvents(parsed)
-      
-        // OCR 성공한 시점에서 스플래쉬 끄기
-  setOcrSplashVisible(false)
-
-  // 바로 카드 켜기
-  setOcrModalVisible(true)
-
-  } catch (err) {
-    Alert.alert('오류', 'OCR 처리 실패')
-  }
-}
-
-  useEffect(() => {
-    const handler = (payload?: { source?: string }) => {
-      if (payload?.source !== 'Day') return
-      setImagePopupVisible(true)
-    }
-
-    bus.on('popup:image:create', handler)
-    return () => bus.off('popup:image:create', handler)
-  }, [])
 
   const isFocused = useIsFocused()
+
   const [anchorDate, setAnchorDate] = useState<string>(today())
+
+  const { swipeGesture, swipeStyle } =
+  useDaySwipe(setAnchorDate)
+
+  const {
+  ocrSplashVisible,
+  ocrModalVisible,
+  ocrEvents,
+  imagePopupVisible,
+  setImagePopupVisible,
+  setOcrModalVisible,
+  sendToOCR,
+} = useDayOCR()
+
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
     anchorDateRef.current = anchorDate
@@ -231,9 +175,6 @@ export default function DayView() {
       mode: 'day',
     })
   }, [anchorDate, isFocused])
-  const [checks, setChecks] = useState(INITIAL_CHECKS)
-  const [events, setEvents] = useState<any[]>([])
-  const [spanEvents, setSpanEvents] = useState<any[]>([])
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
@@ -263,48 +204,6 @@ export default function DayView() {
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
   }, [])
-
-  // ✅ DayView 좌우 스와이프 애니메이션 (WeekView와 비슷한 구조, ±1일 이동)
-  const swipeTranslateX = useSharedValue(0)
-
-  const handleSwipe = useCallback((dir: 'prev' | 'next') => {
-    setAnchorDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
-  }, [])
-
-  const swipeGesture = Gesture.Pan()
-    .activeOffsetX([-10, 10])
-    .failOffsetY([-10, 10])
-    .onUpdate((e) => {
-      'worklet'
-      let nx = e.translationX
-      const max = SCREEN_W * 0.15
-      if (nx > max) nx = max
-      if (nx < -max) nx = -max
-      swipeTranslateX.value = nx
-    })
-    .onEnd(() => {
-      'worklet'
-      const cur = swipeTranslateX.value
-      const th = SCREEN_W * 0.06
-
-      if (cur > th) {
-        swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('prev') // 왼→오 스와이프: 이전 날
-          swipeTranslateX.value = withTiming(0, { duration: 160 })
-        })
-      } else if (cur < -th) {
-        swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
-          runOnJS(handleSwipe)('next') // 오→왼 스와이프: 다음 날
-          swipeTranslateX.value = withTiming(0, { duration: 160 })
-        })
-      } else {
-        swipeTranslateX.value = withTiming(0, { duration: 150 })
-      }
-    })
-
-  const swipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: swipeTranslateX.value }],
-  }))
 
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
 
@@ -567,99 +466,16 @@ export default function DayView() {
   // 라벨 필터링
   const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
 
-  const fetchDailyEvents = useCallback(
-    async (dateISO: string) => {
-      try {
-        const res = await http.get('/calendar/daily', { params: { date: dateISO } })
-        const data = res.data.data
+  const {
+  events,
+  spanEvents,
+  tasks,
+  checks,
+  setChecks,
+  fetchDailyEvents,
+} = useDayData(anchorDate, enabledLabelIds)
 
-        const timed = data.timedEvents || []
-        const timedTasks = data.timedTasks || []
-        const allDay = data.allDayTasks || []
-        const floating = data.floatingTasks || []
-        const allDaySpan = data.allDaySpanEvents || []
-        const allDayEvents = data.allDayEvents || []
-
-        // 이벤트 정리
-        const timelineEvents = timed.filter(
-          (e: any) =>
-            !e.isSpan &&
-            e.clippedEndTime !== '23:59:59.999999999' &&
-            e.clippedStartTime &&
-            e.clippedEndTime,
-        )
-
-        const span = [
-          ...timed.filter(
-            (e: any) => e.isSpan || e.clippedEndTime === '23:59:59.999999999',
-          ),
-          ...allDaySpan,
-          ...allDayEvents,
-        ]
-
-        const checksAll = [
-          ...allDay.map((t: any) => ({
-            id: t.id,
-            title: t.title,
-            done: t.completed ?? false,
-            labels: t.labels ?? [],
-          })),
-          ...floating.map((t: any) => ({
-            id: t.id,
-            title: t.title,
-            done: t.completed ?? false,
-            labels: t.labels ?? [],
-          })),
-        ]
-
-        // 필터 적용
-        const filterTask = (t: any) => {
-          if (!t.labels || t.labels.length === 0) return true
-          return t.labels.some((id: number) => enabledLabelIds.includes(id))
-        }
-
-        const filterEvent = (ev: any) => {
-          if (!ev.labels || ev.labels.length === 0) return true
-          return ev.labels.some((id: number) => enabledLabelIds.includes(id))
-        }
-
-        // 이제 필터 적용한 값으로 세팅
-        // 1) 이벤트 startMin / endMin 계산
-const parsedEvents = timelineEvents.map((e: any) => {
-  const [sh, sm] = e.clippedStartTime.split(':').map(Number)
-  const [eh, em] = e.clippedEndTime.split(':').map(Number)
-
-  return {
-    ...e,
-    startMin: sh * 60 + sm,
-    endMin: eh * 60 + em,
-  }
-})
-
-// 2) overlap 계산해서 column 정보 부여
-const overlapped = computeEventOverlap(parsedEvents)
-
-// 3) 필터 적용
-setEvents(overlapped.filter(filterEvent))
-
-        setSpanEvents(span.filter(filterEvent))
-        setTasks(timedTasks.filter(filterTask))
-        setChecks(checksAll.filter(filterTask))
-      } catch (err: any) {
-  if (err?.message === 'Network Error' || err?.code === 'ECONNABORTED') {
-    console.warn('일간 일정 네트워크 이슈, 잠시 후 자동 재시도 예정', err)
-    return
-  }
-
-  console.error('❌ 일간 일정 불러오기 실패:', err)
-  alert('일간 일정 불러오기 실패')
-}
-    },
-    [enabledLabelIds],
-  )
-  useEffect(() => {
-    fetchDailyEvents(anchorDate)
-  }, [anchorDate, enabledLabelIds, fetchDailyEvents])
+const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
   const measureLayouts = useCallback(() => {
     taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
@@ -692,7 +508,7 @@ setEvents(overlapped.filter(filterEvent))
       const itemDateISO = date.slice(0, 10)
 
       if (itemDateISO === anchorDate && payload.item.id !== draggingEventId) {
-        fetchDailyEvents(anchorDate)
+        fetchDailyEvents()
       } else {
         draggingEventId = null
       }
@@ -791,7 +607,7 @@ setEvents(overlapped.filter(filterEvent))
             item: { id, isTask: true, date: anchorDateRef.current },
           })
           bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents(dateISO)
+          fetchDailyEvents()
           draggingTaskIdRef.current = null
           return
         }
@@ -825,7 +641,7 @@ setEvents(overlapped.filter(filterEvent))
             },
           })
           bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-          fetchDailyEvents(dateISO)
+          fetchDailyEvents()
           draggingTaskIdRef.current = null
           return
         }
@@ -862,7 +678,7 @@ setEvents(overlapped.filter(filterEvent))
             })
 
             // 일간뷰 즉시 새로고침
-            await fetchDailyEvents(anchorDate)
+            await fetchDailyEvents()
 
             // 팝업 닫기 + 상태 정리
             setTaskPopupVisible(false)
@@ -1312,7 +1128,7 @@ setEvents(overlapped.filter(filterEvent))
               }
 
               // 💥 DayView 화면 즉시 갱신
-              await fetchDailyEvents(anchorDate)
+              await fetchDailyEvents()
 
               // 팝업 닫기
               setTaskPopupVisible(false)
@@ -1334,7 +1150,7 @@ setEvents(overlapped.filter(filterEvent))
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
-            fetchDailyEvents(anchorDate) // 일정 새로 반영
+            fetchDailyEvents() // 일정 새로 반영
           }}
         />
         <Modal
@@ -1360,7 +1176,7 @@ setEvents(overlapped.filter(filterEvent))
   onAddEvent={async (payload) => {
     try {
       await createEvent(payload)
-      await fetchDailyEvents(anchorDate)
+      await fetchDailyEvents()
       bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
     } catch (err) {
       console.error(err)
@@ -1369,7 +1185,7 @@ setEvents(overlapped.filter(filterEvent))
 
   // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
   onSaveAll={async () => {
-    await fetchDailyEvents(anchorDate)
+    await fetchDailyEvents()
     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
     setOcrModalVisible(false)
   }}
