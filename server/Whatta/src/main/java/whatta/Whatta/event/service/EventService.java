@@ -20,7 +20,6 @@ import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserRepository;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -126,7 +125,7 @@ public class EventService {
         Event event = builder.build();
 
         /* 현재 프론트에서 "이후 일정 모두 수정/삭제" 요청 시,
-        반복 마감일(endDate)을 전개 기준 날짜 -1일로 전달하므로,
+        반복 마감일(deadline)을 전개 기준 날짜 -1일로 전달하므로,
         startDate > repeat.endDate 상태가 발생할 수 있어 이를 삭제로 처리하는 임시 조치 */
         if (shouldDeleteBecauseStartAfterRepeatEnd(event)) { //TODO: 앱 프론트 코드 수정 후 삭제 + 유효성 검증 추가
             scheduledNotiService.cancelReminderNotification(eventId);
@@ -147,8 +146,8 @@ public class EventService {
 
     private boolean shouldDeleteBecauseStartAfterRepeatEnd(Event event) {
         if (event.getRepeat() == null) return false;
-        if (event.getRepeat().getEndDate() == null) return false;
-        return event.getStartDate().isAfter(event.getRepeat().getEndDate());
+        if (event.getRepeat().getDeadline() == null) return false;
+        return event.getStartDate().isAfter(event.getRepeat().getDeadline());
     }
 
     @Transactional

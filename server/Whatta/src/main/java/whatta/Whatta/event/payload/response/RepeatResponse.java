@@ -14,7 +14,7 @@ public record RepeatResponse (
         int interval,
         RepeatUnit unit,
         List<String> on,
-        LocalDate endDate,
+        LocalDate endDate, //TODO: 프론트 코드와 함께 변경
         List<LocalDate> exceptionDates
 ){
     public static RepeatResponse fromEntity(Repeat repeat){ //변환로직은 추후에 서비스로 이동
@@ -23,7 +23,7 @@ public record RepeatResponse (
                 .interval(repeat.getInterval())
                 .unit(repeat.getUnit())
                 .on(repeat.getOn())
-                .endDate(repeat.getEndDate())
+                .endDate(repeat.getDeadline())
                 .exceptionDates(repeat.getExceptionDates())
                 .build();
     }

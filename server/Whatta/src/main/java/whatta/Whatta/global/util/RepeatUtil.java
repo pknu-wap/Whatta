@@ -49,7 +49,7 @@ public class RepeatUtil {
         LocalTime baseTime = rootStartAt.toLocalTime();
 
         int interval = repeat.getInterval();
-        LocalDate deadline = repeat.getEndDate();
+        LocalDate deadline = repeat.getDeadline();
 
         if (from.isBefore(rootStartAt)) {
             if (deadline != null && baseDate.isAfter(deadline)) {
@@ -85,7 +85,7 @@ public class RepeatUtil {
 
         int interval = repeat.getInterval();
         List<String> on = repeat.getOn();
-        LocalDate deadline = repeat.getEndDate();
+        LocalDate deadline = repeat.getDeadline();
 
         List<DayOfWeek> daysOfWeek = parseWeekDays(on);
         if (daysOfWeek.isEmpty()) {
@@ -169,7 +169,7 @@ public class RepeatUtil {
 
         int interval = repeat.getInterval();
         String on = repeat.getOn().get(0);
-        LocalDate deadline = repeat.getEndDate();
+        LocalDate deadline = repeat.getDeadline();
 
         MonthRule rule = parseMonthRules(on);
 

@@ -21,7 +21,7 @@ public class Repeat {
 
     private List<String> on;
 
-    private LocalDate endDate;
+    private LocalDate deadline;
 
     private List<LocalDate> exceptionDates;
 }

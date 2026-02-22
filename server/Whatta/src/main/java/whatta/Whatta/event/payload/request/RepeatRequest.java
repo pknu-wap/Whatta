@@ -12,7 +12,7 @@ public record RepeatRequest (
     int interval,
     RepeatUnit unit,
     List<String> on,
-    LocalDate endDate,
+    LocalDate endDate, //TODO: 프론트 코드와 함께 변경
     List<LocalDate> exceptionDates
 ){
     public Repeat toEntity() { //변환로직은 추후에 서비스로 이동
@@ -20,7 +20,7 @@ public record RepeatRequest (
                 .interval(interval)
                 .unit(unit)
                 .on(on)
-                .endDate((endDate == null)? LocalDate.of(2999, 12, 31) : endDate)
+                .deadline((endDate == null)? LocalDate.of(2999, 12, 31) : endDate)
                 .exceptionDates(exceptionDates)
                 .build();
     }
