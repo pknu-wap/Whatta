@@ -218,6 +218,22 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     onTouchCancel: () => setIsPickerTouching(false),
   }
 
+  // 피커가 터치 중 닫히면 스크롤 잠금이 남을 수 있음
+  // 1. 팝업 전체 visible 꺼질 때
+  useEffect(() => {
+    if (!visible) setIsPickerTouching(false)
+  }, [visible])
+
+  // 2. 시간 피커 timeOpen 닫힐 때
+  useEffect(() => {
+    if (!timeOpen) setIsPickerTouching(false)
+  }, [timeOpen])
+
+  // 3. 알림 맞춤 피커 customOpen 닫히거나 remindOn 꺼질 때
+  useEffect(() => {
+    if (!customOpen || !remindOn) setIsPickerTouching(false)
+  }, [customOpen, remindOn])
+
   // 알림 preset 서버에서 불러오기
   useEffect(() => {
     if (!visible) return
