@@ -34,7 +34,7 @@ public class CalendarEventsRepositoryCustom {
 
         Criteria hasRepeat = new Criteria().andOperator(
                 Criteria.where("repeat").ne(null),
-                Criteria.where("repeat.endDate").gte(date)
+                Criteria.where("repeat.deadline").gte(date)
         );
 
         AggregationOperation commonMatch = Aggregation.match(
@@ -105,7 +105,7 @@ public class CalendarEventsRepositoryCustom {
 
         Criteria hasRepeat = new Criteria().andOperator(
                 Criteria.where("repeat").ne(null),
-                Criteria.where("repeat.endDate").gte(start)
+                Criteria.where("repeat.deadline").gte(start)
         );
 
         AggregationOperation commonMatch = Aggregation.match(
@@ -177,7 +177,7 @@ public class CalendarEventsRepositoryCustom {
 
         Criteria hasRepeat = new Criteria().andOperator(
                 Criteria.where("repeat").ne(null),
-                Criteria.where("repeat.endDate").gte(start)
+                Criteria.where("repeat.deadline").gte(start)
         );
 
         AggregationOperation commonMatch = Aggregation.match(
