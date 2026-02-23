@@ -1824,7 +1824,7 @@ export default function WeekView() {
                 scrollOffsetRef.current = offsetY
               }}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
-              DraggableFlexalbeEventComponent={DraggableFlexalbeEvent}
+              DraggableFlexibleEventComponent={DraggableFlexalbeEvent}
               TaskGroupBoxComponent={TaskGroupBox}
               DraggableTaskBoxComponent={DraggableTaskBox}
             />

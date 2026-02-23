@@ -92,6 +92,10 @@ export async function cloneTaskToDateTimeAndDeleteOriginal(
   const createRes = await http.post('/task', createPayload)
   const created = createRes.data?.data
 
+  if (!created?.id) {
+    throw new Error('복제된 task 응답이 유효하지 않습니다.')
+  }
+
   try {
     await http.delete(`/task/${task.id}`)
   } catch {
