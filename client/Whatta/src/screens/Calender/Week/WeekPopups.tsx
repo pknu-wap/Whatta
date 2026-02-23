@@ -97,7 +97,7 @@ export default function WeekPopups({
           }
 
           const reminderNoti = form.reminderNoti ?? null
-          if (!reminderNoti) fieldsToClear.push('reminderNoti')
+          if (reminderNoti === null || reminderNoti === undefined) fieldsToClear.push('reminderNoti')
 
           try {
             if (taskPopupMode === 'edit') {
@@ -182,12 +182,18 @@ export default function WeekPopups({
             bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
           } catch (err) {
             console.error(err)
+            Alert.alert('오류', '일정을 추가하지 못했습니다.')
           }
         }}
         onSaveAll={async () => {
-          await fetchWeek(weekDates)
-          bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-          setOcrModalVisible(false)
+          try {
+            await fetchWeek(weekDates)
+            bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+          } catch (err) {
+            console.error('OCR 저장 후 새로고침 실패:', err)
+          } finally {
+            setOcrModalVisible(false)
+          }
         }}
       />
     </>
