@@ -8,6 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,7 +20,7 @@
       "bundleIdentifier": "com.whatta.whatta",
       "buildNumber": "20",
       "supportsTablet": false,
-      "googleServicesFile": "./GoogleService-Info.plist",
+      "googleServicesFile": "./GoogleService-Info.prod.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "사진 촬영을 위해 카메라 접근 권한이 필요합니다.",
@@ -65,8 +66,16 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b895d0bb-969a-4bde-bb79-27d84e2c27a7"
-      }
+        "projectId": "b9f60a36-178c-4e7d-a143-d6ee718eb26d"
+      },
+      "variant": "prod"
+    },
+    "owner": "dlslall1",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b9f60a36-178c-4e7d-a143-d6ee718eb26d"
     }
   }
 }
