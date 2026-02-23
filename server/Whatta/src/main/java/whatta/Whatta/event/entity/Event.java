@@ -68,7 +68,7 @@ public class Event {
     @CreatedDate
     private LocalDateTime createdAt;
     @LastModifiedDate
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime updatedAt;
 
     public boolean isPeriod() { return !startDate.equals(endDate); }
     public boolean hasTime() { return startTime!=null && endTime!=null; }

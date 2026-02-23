@@ -17,9 +17,9 @@ public enum ErrorCode {
     TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "601-1", "해당 작업이 존재하지 않습니다."),
 
     //700-xx : 사용자 계정/토큰 관련 오류
-    USER_NOT_EXIST(HttpStatus.BAD_REQUEST, "700-1", "존재하지 않는 계정입니다."),
-    INVALID_TOKEN(HttpStatus.BAD_REQUEST, "700-2", "유효하지 않은 토큰입니다."),
-    EXPIRED_TOKEN(HttpStatus.BAD_REQUEST, "700-3", "만료된 토큰입니다."),
+    USER_NOT_EXIST(HttpStatus.NOT_FOUND, "700-1", "해당 계정이 존재하지 않습니다."),
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "700-2", "유효하지 않은 토큰입니다."),
+    EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "700-3", "만료된 토큰입니다."),
 
     //701-xx : 사용자 설정 관련 오류
     USER_SETTING_NOT_FOUND(HttpStatus.NOT_FOUND, "701-1", "해당 계정의 설정이 존재하지 않습니다."),
@@ -29,7 +29,7 @@ public enum ErrorCode {
     REMINDER_NOT_FOUND(HttpStatus.NOT_FOUND, "701-5", "요청 리마인드 프리셋이 사용자의 프리셋 목록에 없습니다."),
 
     //800-xx : 교통 api 관련 오류
-    PUBLIC_BUS_API_FAILED(HttpStatus.BAD_REQUEST, "800-1", "공공데이터 API 호출에 실패했습니다."),
+    PUBLIC_BUS_API_FAILED(HttpStatus.BAD_GATEWAY, "800-1", "공공데이터 API 호출에 실패했습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "800-2", "해당 노선은 존재하지 않습니다.");
 
 
