@@ -6,9 +6,9 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import static whatta.Whatta.global.util.RepeatRulePatterns.*;
 
 /**
  * Repeat 은 엔티티 생성 시점에 유효성 검증이 완료된 상태를 전제로 한다.
@@ -77,8 +77,6 @@ public class RepeatUtil {
         return candidateAt;
     }
 
-    private static final Pattern WEEK_DAY = Pattern.compile("^(MON|TUE|WED|THU|FRI|SAT|SUN)$");
-
     public static LocalDateTime findNextWeekly(LocalDateTime rootStartAt, Repeat repeat, LocalDateTime from) {
         LocalDate baseDate = rootStartAt.toLocalDate();
         LocalTime baseTime = rootStartAt.toLocalTime();
@@ -124,7 +122,7 @@ public class RepeatUtil {
 
         for (String token : on) {
             if (token == null) continue;
-            String upper = token.toUpperCase(Locale.ROOT).replace(" ", "");
+            String upper = normalizeToken(token);
             if (!WEEK_DAY.matcher(upper).matches()) continue;
             DayOfWeek dow = toDayOfWeek(upper);
 
@@ -135,19 +133,6 @@ public class RepeatUtil {
         return result;
     }
 
-    private static DayOfWeek toDayOfWeek(String token) {
-        return switch (token) {
-            case "MON" -> DayOfWeek.MONDAY;
-            case "TUE" -> DayOfWeek.TUESDAY;
-            case "WED" -> DayOfWeek.WEDNESDAY;
-            case "THU" -> DayOfWeek.THURSDAY;
-            case "FRI" -> DayOfWeek.FRIDAY;
-            case "SAT" -> DayOfWeek.SATURDAY;
-            case "SUN" -> DayOfWeek.SUNDAY;
-            default -> throw new IllegalArgumentException("Unknown day of the week: " + token);
-        };
-    }
-
     private static LocalDate calculateWeeklySearchEndDate(LocalDate cursorDate, LocalDate deadline) {
         if (deadline != null) {
             return deadline;
@@ -155,13 +140,9 @@ public class RepeatUtil {
         return cursorDate.plusDays(MAX_WEEK_SEARCH_DAYS);
     }
 
-    private enum MonthRuleType { DAY, NTH, LAST }
+    private enum MonthRuleType { DAY, NTH, LAST, LAST_DAY }
 
     private record MonthRule(MonthRuleType type, Integer dayOfMonth, Integer nth, DayOfWeek dow) { }
-
-    private static final Pattern MONTH_DAY = Pattern.compile("^D([1-9]|[12][0-9]|3[01])$"); //D1 ~ D31
-    private static final Pattern MONTH_NTH = Pattern.compile("^([1-4])(MON|TUE|WED|THU|FRI|SAT|SUN)$"); //4WED 4번째 주 수요일
-    private static final Pattern MONTH_LAST = Pattern.compile("^LAST(MON|TUE|WED|THU|FRI|SAT|SUN)$"); //LASTWED 마지막 주 수요일
 
     public static LocalDateTime findNextMonthly(LocalDateTime rootStartAt, Repeat repeat, LocalDateTime from) {
         LocalDate baseDate = rootStartAt.toLocalDate();
@@ -181,32 +162,36 @@ public class RepeatUtil {
         long step = monthsDiff <= 0 ? 0 : ((monthsDiff + interval - 1) / interval) * interval; // interval 배수로 ceil
         YearMonth ym = baseYm.plusMonths(step);
 
-        while (true) {
+        int safeGuard = 0;
+        while (safeGuard++ < 1000) {
             if (deadline != null && ym.atDay(1).isAfter(deadline)) {
                 return null;
             }
 
             LocalDateTime candidate = switch (rule.type()) {
-                case DAY  -> candidateForDayOfMonth(ym, baseTime, rule.dayOfMonth());
-                case NTH  -> candidateForNthWeekday(ym, baseTime, rule.nth(), rule.dow());
+                case DAY -> candidateForDayOfMonth(ym, baseTime, rule.dayOfMonth());
+                case NTH -> candidateForNthWeekday(ym, baseTime, rule.nth(), rule.dow());
                 case LAST -> candidateForLastWeekday(ym, baseTime, rule.dow());
+                case LAST_DAY -> candidateForLastDayOfMonth(ym, baseTime);
             };
 
             if (candidate != null) {
                 if (deadline != null && candidate.toLocalDate().isAfter(deadline)) {
                     return null;
                 }
-
                 if (candidate.isAfter(from)) {
                     return candidate;
                 }
             }
             ym = ym.plusMonths(interval);
         }
+        throw new IllegalStateException(
+                "Monthly repeat expansion exceeded max steps. " +
+                        "This usually indicates invalid MONTH rule or corrupted data. on=" + repeat.getOn());
     }
 
     private static MonthRule parseMonthRules(String on) {
-        String token = on.toUpperCase(Locale.ROOT).replace(" ", "");
+        String token = normalizeToken(on);
         Matcher mDay = MONTH_DAY.matcher(token);
         if (mDay.matches()) {
             int day = Integer.parseInt(mDay.group(1));
@@ -224,6 +209,11 @@ public class RepeatUtil {
         if (mLast.matches()) {
             DayOfWeek dow = toDayOfWeek(mLast.group(1)); //MON~SUN
             return new MonthRule(MonthRuleType.LAST, null, null, dow);
+        }
+
+        Matcher mLastDay = MONTH_LAST_DAY.matcher(token);
+        if (mLastDay.matches()) {
+            return new MonthRule(MonthRuleType.LAST_DAY, null, null, null);
         }
 
         throw new IllegalStateException("Invalid MONTH repeat rule token: " + on);
@@ -262,5 +252,9 @@ public class RepeatUtil {
         LocalDate date = last.minusDays(diff);
 
         return LocalDateTime.of(date, startTime);
+    }
+
+    private static LocalDateTime candidateForLastDayOfMonth(YearMonth ym, LocalTime startTime) {
+        return LocalDateTime.of(ym.atEndOfMonth(), startTime);
     }
 }
