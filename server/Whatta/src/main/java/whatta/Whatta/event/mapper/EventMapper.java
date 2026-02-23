@@ -3,7 +3,7 @@ package whatta.Whatta.event.mapper;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.payload.response.EventResponse;
-import whatta.Whatta.global.repeat.payload.RepeatResponse;
+import whatta.Whatta.event.payload.response.RepeatResponse;
 import whatta.Whatta.global.util.LocalTimeUtil;
 
 @Component

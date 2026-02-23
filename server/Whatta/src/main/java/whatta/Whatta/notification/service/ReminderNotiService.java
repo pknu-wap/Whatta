@@ -7,7 +7,7 @@ import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;
@@ -39,7 +39,7 @@ public class ReminderNotiService {
     }
 
     public void updateReminderNotification(Task task) {
-        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) { //알림 off: 기존 스케줄 있으면 취소
+        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
             cancelReminderNotification(task.getId());
             return;
         }
@@ -62,7 +62,6 @@ public class ReminderNotiService {
 
         reminderNotiRepository.save(base.toBuilder()
                 .triggerAt(triggerAt)
-                .updatedAt(LocalDateTime.now())
                 .build());
     }
 
@@ -71,7 +70,6 @@ public class ReminderNotiService {
                 .ifPresent(schedule -> {
                     ReminderNotification canceled = schedule.toBuilder()
                             .status(NotiStatus.CANCELED)
-                            .updatedAt(LocalDateTime.now())
                             .build();
                     reminderNotiRepository.save(canceled);
                 });
@@ -119,7 +117,6 @@ public class ReminderNotiService {
     public void completeAndScheduleNextReminder(ReminderNotification noti) {
         ReminderNotification updated = noti.toBuilder()
                 .status(NotiStatus.COMPLETED)
-                .updatedAt(LocalDateTime.now())
                 .build();
 
         reminderNotiRepository.save(updated);
@@ -150,7 +147,6 @@ public class ReminderNotiService {
 
         reminderNotiRepository.save(base.toBuilder()
                 .triggerAt(triggerAt)
-                .updatedAt(LocalDateTime.now())
                 .build());
     }
 

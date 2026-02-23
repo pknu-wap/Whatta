@@ -13,7 +13,7 @@ import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
-import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.user.entity.UserSetting;
 import whatta.Whatta.user.repository.UserSettingRepository;
@@ -42,7 +42,6 @@ public class CalendarViewService {
 
     public DailyResponse getDaily(String userId, LocalDate date) {
 
-        //db 조회를 병렬로
         CompletableFuture<CalendarEventsResult> eventsFuture =
                 CompletableFuture.supplyAsync(() -> calendarEventsRepository.getDailyViewByUserId(userId,date), calendarExecutor);
         CompletableFuture<CalendarTasksResult> tasksFuture =
@@ -52,17 +51,16 @@ public class CalendarViewService {
         CalendarEventsResult eventsResult = eventsFuture.join();
         CalendarTasksResult tasksResult = tasksFuture.join();
 
-        //라벨 리스트
         List<LabelItem> labelPalette = buildLabelPalette(userId, eventsResult, tasksResult);
 
-        List<AllDaySpanEvent> spanEvents = new ArrayList<>(); //시간지정 없는 기간 event
-        List<AllDayEvent> allDayEvents = new ArrayList<>(); //시간지정 없고 기간도 없는 event
+        List<AllDaySpanEvent> spanEvents = new ArrayList<>();
+        List<AllDayEvent> allDayEvents = new ArrayList<>();
 
         //시간지정 없는 event ---------------------------------------------------------------
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), LocalTime.NOON),
                         event.repeat(),
                         date, date
                 );
@@ -199,7 +197,7 @@ public class CalendarViewService {
         for(CalendarAllDayEventItem event : eventsResult.allDayEvents()) {
             if (event.repeat() != null) {
                 List<LocalDate> instanceDates = expandRepeatDates(
-                        LocalDateTime.of(event.startDate(), LocalTime.MIDNIGHT),
+                        LocalDateTime.of(event.startDate(), LocalTime.NOON),
                         event.repeat(),
                         start, end);
 
@@ -483,7 +481,7 @@ public class CalendarViewService {
         return dates;
     }
 
-    private List<LocalDate> expandRepeatDates(LocalDateTime startAt, Repeat repeat,
+    private List<LocalDate> expandRepeatDates(LocalDateTime rootStartAt, Repeat repeat,
                                               LocalDate rangeStart, LocalDate rangeEnd) {
         List<LocalDate> result = new ArrayList<>();
         if (repeat == null) return result;
@@ -494,17 +492,12 @@ public class CalendarViewService {
         int safeGuard = 0;
         while (safeGuard++ < 1000) {
 
-            LocalDateTime next = findNextOccurrenceStartAfter(startAt, repeat, cursor);
+            LocalDateTime next = findNextOccurrenceStartAfter(rootStartAt, repeat, cursor);
             if (next == null || next.isAfter(rangeEndTime)) break;
 
             LocalDate occDate = next.toLocalDate();
 
-            if (repeat.getExceptionDates() != null && repeat.getExceptionDates().contains(occDate)) {
-                cursor = next.plusSeconds(1);
-                continue;
-            }
-
-            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) {
+            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) { //rangeStart <= occDate <= rangeEnd
                 result.add(occDate);
             }
 

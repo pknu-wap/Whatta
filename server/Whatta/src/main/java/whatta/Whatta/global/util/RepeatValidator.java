@@ -3,16 +3,12 @@ package whatta.Whatta.global.util;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import whatta.Whatta.global.anotation.ValidRepeat;
-import whatta.Whatta.global.repeat.payload.RepeatRequest;
+import whatta.Whatta.event.payload.request.RepeatRequest;
 
-import java.util.regex.Pattern;
+import static whatta.Whatta.global.util.RepeatRulePatterns.*;
+
 
 public class RepeatValidator implements ConstraintValidator<ValidRepeat, RepeatRequest> {
-
-    private static final Pattern WEEK_DAY = Pattern.compile("^(MON|TUE|WED|THU|FRI|SAT|SUN)$");
-    private static final Pattern MONTH_DAY = Pattern.compile("^D([1-9]|[12][0-9]|3[01])$"); //D1 ~ D31
-    private static final Pattern MONTH_NTH = Pattern.compile("^([1-4])(MON|TUE|WED|THU|FRI|SAT|SUN)$"); //4WED 4번째 주 수요일
-    private static final Pattern MONTH_LAST = Pattern.compile("^LAST(MON|TUE|WED|THU|FRI|SAT|SUN)$"); //LASTWED 마지막 주 수요일
 
     @Override
     public boolean isValid(RepeatRequest repeatRequest, ConstraintValidatorContext constraintValidatorContext) {
@@ -20,29 +16,25 @@ public class RepeatValidator implements ConstraintValidator<ValidRepeat, RepeatR
 
         switch (repeatRequest.unit()) {
             case DAY:
-                if(repeatRequest.on() != null && !repeatRequest.on().isEmpty())
-                    return false;
-                return true;
+                return repeatRequest.on() == null || repeatRequest.on().isEmpty();
             case WEEK:
-                if(repeatRequest.on() == null || repeatRequest.on().isEmpty())
+                if (repeatRequest.on() == null || repeatRequest.on().isEmpty())
                     return false;
-                for(String token : repeatRequest.on()) {
-                    if(token == null || !WEEK_DAY.matcher(token).matches()) {
+                for (String token : repeatRequest.on()) {
+                    if (token == null || !WEEK_DAY.matcher(token).matches()) {
                         return false;
                     }
                 }
                 return true;
             case MONTH:
-                if(repeatRequest.on() == null || repeatRequest.on().size() != 1)
+                if (repeatRequest.on() == null || repeatRequest.on().size() != 1)
                     return false;
                 String token = repeatRequest.on().get(0);
                 if (token == null) return false;
-                if(!(MONTH_DAY.matcher(token).matches()
-                || MONTH_NTH.matcher(token).matches()
-                || MONTH_LAST.matcher(token).matches())) {
-                    return false;
-                }
-                return true;
+                return MONTH_DAY.matcher(token).matches()
+                        || MONTH_NTH.matcher(token).matches()
+                        || MONTH_LAST.matcher(token).matches()
+                        || MONTH_LAST_DAY.matcher(token).matches();
         }
         return false;
     }
