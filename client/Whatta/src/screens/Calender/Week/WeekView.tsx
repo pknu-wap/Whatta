@@ -1564,25 +1564,30 @@ export default function WeekView() {
         bus.emit('sidebar:remove-task', { id: task.id })
 
         setWeekData((prev) => {
-          const next = { ...prev }
-          const targetBucket: DayBucket = next[targetDate] ?? {
+          const prevBucket = prev[targetDate]
+          const baseBucket: DayBucket = prevBucket ?? {
             spanEvents: [],
             timelineEvents: [],
             checks: [],
             timedTasks: [],
           }
 
-          targetBucket.timedTasks = (targetBucket.timedTasks || []).filter(
+          const nextTimedTasks = (baseBucket.timedTasks || []).filter(
             (t: any) => String(t.id) !== String(created?.id),
           )
-
-          targetBucket.timedTasks.push({
+          nextTimedTasks.push({
             ...created,
             placementDate: targetDate,
             placementTime: placementTime,
           })
-          next[targetDate] = targetBucket
-          return next
+
+          return {
+            ...prev,
+            [targetDate]: {
+              ...baseBucket,
+              timedTasks: nextTimedTasks,
+            },
+          }
         })
 
         bus.emit('calendar:mutated', {
@@ -1620,25 +1625,31 @@ export default function WeekView() {
       await updateTaskCompleted(http, taskId, nextCompleted, dateISO)
 
       setWeekData((prev) => {
-        const copy = { ...prev }
-        const bucket = copy[dateISO]
-        if (!bucket) return copy
+        const bucket = prev[dateISO]
+        if (!bucket) return prev
 
-        bucket.spanEvents = bucket.spanEvents.map((e: any) => {
+        const spanEvents = bucket.spanEvents.map((e: any) => {
           if (String(e.id) === String(taskId)) {
             return { ...e, done: nextCompleted }
           }
           return e
         })
 
-        bucket.checks = bucket.checks.map((c) => {
+        const checks = bucket.checks.map((c) => {
           if (String(c.id) === String(taskId)) {
             return { ...c, done: nextCompleted }
           }
           return c
         })
 
-        return copy
+        return {
+          ...prev,
+          [dateISO]: {
+            ...bucket,
+            spanEvents,
+            checks,
+          },
+        }
       })
 
       bus.emit('calendar:mutated', {
@@ -1731,14 +1742,20 @@ export default function WeekView() {
       completed: boolean
     }) => {
       setWeekData((prev) => {
-        const copy = { ...prev }
-        const bucket = copy[dateISO]
-        if (!bucket) return copy
+        const bucket = prev[dateISO]
+        if (!bucket) return prev
 
-        bucket.timedTasks = (bucket.timedTasks || []).map((t: any) =>
+        const timedTasks = (bucket.timedTasks || []).map((t: any) =>
           String(t.id) === String(id) ? { ...t, completed } : t,
         )
-        return copy
+
+        return {
+          ...prev,
+          [dateISO]: {
+            ...bucket,
+            timedTasks,
+          },
+        }
       })
     },
     [],
