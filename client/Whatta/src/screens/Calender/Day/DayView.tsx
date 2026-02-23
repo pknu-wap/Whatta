@@ -30,6 +30,7 @@ import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import type { TaskDTO } from '@/api/task'
 
 import OcrSplash from '@/screens/More/OcrSplash'
 import { DraggableTaskBox } from './DayViewItems'
@@ -88,8 +89,6 @@ function FullBleed({
   )
 }
 
-const INITIAL_CHECKS: any[] = []
-
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 let draggingEventId: string | null = null
@@ -120,6 +119,7 @@ export default function DayView() {
 
   const [isDraggingTask, setIsDraggingTask] = useState(false)
   const [openGroupIndex, setOpenGroupIndex] = useState<number | null>(null)
+  const [selectedTask, setSelectedTask] = useState<TaskDTO | null>(null)
 
   const isFocused = useIsFocused()
 
@@ -284,7 +284,6 @@ export default function DayView() {
   // ✅ 라이브바 위치 계산
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
-  const ROW_H_LOCAL = 48
 
   // 라벨
 
@@ -313,7 +312,6 @@ export default function DayView() {
   const [taskPopupVisible, setTaskPopupVisible] = useState(false)
   const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
   const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
-  const [selectedTask, setSelectedTask] = useState(null)
   const [popupVisible, setPopupVisible] = useState(false)
 
   // Task 상세 조회
@@ -1002,7 +1000,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                     reminderNoti?.minute,
                 )
 
-                const newId = res.data?.data?.id
+                const newId = res.id
 
                 bus.emit('calendar:mutated', {
                   op: 'create',
