@@ -68,43 +68,18 @@ export function useCalendarSync({
     })
   }, [dayColWidth, isFocused, rowH, weekDates])
 
-  useEffect(() => {
-    const onReq = () => {
-      if (!isFocused) return
-
-      bus.emit('calendar:state', {
-        date: anchorDateRef.current,
-        mode: 'week',
-        days: weekDates.length,
-        rangeStart: weekDates[0],
-        rangeEnd: weekDates[weekDates.length - 1],
-      })
-    }
-
-    const onState = (payload: any) => {
-      if (isFocused && payload.mode !== 'week') return
-      if (payload.mode !== 'week' && payload.date) {
-        setAnchorDate((prev) => (prev === payload.date ? prev : payload.date))
-      }
-    }
-
-    const onSet = (iso: string) => {
-      setAnchorDate((prev) => (prev === iso ? prev : iso))
-    }
-
-    bus.on('calendar:request-sync', onReq)
-    bus.on('calendar:state', onState)
-    bus.on('calendar:set-date', onSet)
-
-    return () => {
-      bus.off('calendar:request-sync', onReq)
-      bus.off('calendar:state', onState)
-      bus.off('calendar:set-date', onSet)
-    }
-  }, [anchorDateRef, isFocused, setAnchorDate, weekDates])
-
   useFocusEffect(
     useCallback(() => {
+      const onReq = () => {
+        bus.emit('calendar:state', {
+          date: anchorDateRef.current,
+          mode: 'week',
+          days: weekDates.length,
+          rangeStart: weekDates[0],
+          rangeEnd: weekDates[weekDates.length - 1],
+        })
+      }
+
       const onSet = (iso: string) => {
         setAnchorDate((prev) => (prev === iso ? prev : iso))
       }
@@ -115,15 +90,17 @@ export function useCalendarSync({
         }
       }
 
+      bus.on('calendar:request-sync', onReq)
       bus.on('calendar:set-date', onSet)
       bus.on('calendar:state', onState)
       bus.emit('calendar:request-sync')
 
       return () => {
+        bus.off('calendar:request-sync', onReq)
         bus.off('calendar:set-date', onSet)
         bus.off('calendar:state', onState)
       }
-    }, [setAnchorDate]),
+    }, [anchorDateRef, setAnchorDate, weekDates]),
   )
 
   useEffect(() => {
