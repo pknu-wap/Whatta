@@ -10,7 +10,9 @@ export function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) 
   if (!task) return overrides
 
   const labels = Array.isArray(task.labels)
-    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
+    ? task.labels
+      .map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? null)))
+      .filter((id: any) => id !== null)
     : undefined
 
   const base: any = {
@@ -75,7 +77,9 @@ export async function cloneTaskToDateTimeAndDeleteOriginal(
   const baseTask = full.data.data
 
   const labelIds = Array.isArray(baseTask.labels)
-    ? baseTask.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
+    ? baseTask.labels
+        .map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? null)))
+        .filter((id: any) => id !== null)
     : null
 
   const createPayload: any = {
@@ -86,6 +90,7 @@ export async function cloneTaskToDateTimeAndDeleteOriginal(
     placementTime,
     dueDateTime: baseTask.dueDateTime ?? null,
     repeat: baseTask.repeat ?? null,
+    endDate: baseTask.endDate ?? null,
     reminderNoti: baseTask.reminderNoti ?? null,
   }
 
