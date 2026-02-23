@@ -319,14 +319,14 @@ export default function EventDetailPopup({
       const { nth } = getWeekIndexOfMonth(start)
 
       if (monthlyOpt === 'byDate') {
-        // 매월 10일 처럼 "날짜 기준" → on = null
-        on = null
+        // MONTH는 on 1개 필수, 날짜 기준은 "D10" 포맷
+        on = [`D${start.getDate()}`]
       } else if (monthlyOpt === 'byNthWeekday') {
         // 매월 2번째 수요일 → "2WED"
         on = [`${nth}${wd}`]
       } else {
-        // 매월 마지막주 수요일 → "LAST_WED"
-        on = [`LAST_${wd}`]
+        // "LASTWED" (언더스코어 없음)
+        on = [`LAST${wd}`]
       }
     }
 
@@ -397,7 +397,10 @@ export default function EventDetailPopup({
         nextMonthlyOpt = 'byDate'
       } else {
         const token = r.on[0] // 예: "2WED" 또는 "LAST_WED"
-        if (token.startsWith('LAST_')) {
+        if (/^D\d{1,2}$/.test(token)) {
+          nextRepeatMode = 'monthly'
+          nextMonthlyOpt = 'byDate'
+        } else if (token.startsWith('LAST_') || /^LAST(MON|TUE|WED|THU|FRI|SAT|SUN)$/.test(token)) {
           nextRepeatMode = 'monthly'
           nextMonthlyOpt = 'byLastWeekday'
         } else {
@@ -1242,7 +1245,7 @@ export default function EventDetailPopup({
         },
       })
 
-      const ym = start.toISOString().slice(0, 7)
+      const ym = ymdLocal(start).slice(0, 7)
       bus.emit('calendar:invalidate', { ym })
 
       onClose()

@@ -154,6 +154,13 @@ export default function MonthView() {
     return () => bus.off('calendar:invalidate', onInvalidate)
   }, [fetchFresh])
 
+  useFocusEffect(
+    React.useCallback(() => {
+      // 다른 뷰에서 발생한 변경 이벤트를 놓쳤을 수 있으므로 포커스 복귀 시 현재 월 재조회
+      void fetchFresh(ym)
+    }, [fetchFresh, ym]),
+  )
+
   useEffect(() => {
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
       fetchFresh(ym)
