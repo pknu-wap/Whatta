@@ -1,6 +1,7 @@
 import React, { useLayoutEffect } from 'react'
 import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import Constants from 'expo-constants'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
 import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/contants'
 import colors from '@/styles/colors'
@@ -67,6 +68,11 @@ function SimpleHeader() {
 }
 
 export default function MyPageScreen({ navigation }: Props) {
+  const variant = String(Constants.expoConfig?.extra?.variant ?? 'unknown').toUpperCase()
+  const apiBaseUrl = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '')
+  const serverLabel = apiBaseUrl.includes('-dev-') ? 'DEV' : 'PROD'
+  const showEnvBadge = variant === 'DEV' || serverLabel === 'DEV'
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
@@ -111,7 +117,14 @@ export default function MyPageScreen({ navigation }: Props) {
           <View style={S.profileCard}>
             <View style={S.avatar} />
             <View style={{ flex: 1 }}>
-              <Text style={S.profileName}>사용자님</Text>
+              <View style={S.profileNameRow}>
+                <Text style={S.profileName}>사용자님</Text>
+                {showEnvBadge ? (
+                  <View style={[S.envBadge, S.envBadgeDev]}>
+                    <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
+                  </View>
+                ) : null}
+              </View>
               {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
             </View>
             {/* <Text style={S.editLink}>편집</Text> */}
@@ -226,6 +239,30 @@ const S = StyleSheet.create({
     fontWeight: '700',
     color: colors.text.title,
     marginTop: 3,
+  },
+  profileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 3,
+  },
+  envBadge: {
+    minWidth: 64,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  envBadgeDev: {
+    backgroundColor: '#E8FFF0',
+    borderWidth: 1,
+    borderColor: '#22C55E',
+  },
+  envBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#333',
   },
   profileMeta: { fontSize: 14, color: colors.text.body, marginTop: 7 },
   editLink: { color: '#333', fontWeight: '600' },

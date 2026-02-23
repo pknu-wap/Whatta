@@ -646,7 +646,7 @@ export default function EventDetailPopup({
     } catch (err) {
       console.log('반복 일정 단일 수정 실패:', err)
       console.log('responseBody:', (err as any)?.response?.data)
-      alert('저장 실패')
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
     } finally {
       setSaving(false)
     }
@@ -714,7 +714,7 @@ export default function EventDetailPopup({
     } catch (err) {
       console.log('반복 일정 전체 수정 실패:', err)
       console.log('responseBody:', (err as any)?.response?.data)
-      alert('저장 실패')
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
     } finally {
       setSaving(false)
     }
@@ -793,7 +793,7 @@ export default function EventDetailPopup({
         console.log('반복 일정 저장 실패:', err)
         console.log('responseBody:', (err as any)?.response?.data)
         console.log('requestBody: ', finalPayload)
-        alert('저장 실패')
+        Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
       } finally {
         setSaving(false)
       }
