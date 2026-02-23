@@ -188,7 +188,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
   // day, h, m
   const formatCustomLabel = (h: number, m: number, day: number = 0) => {
-    const dayText = day === 1 ? '전날' : '당일'
+    const dayText = day >= 2 ? `${day}일 전` : day === 1 ? '전날' : '당일'
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
