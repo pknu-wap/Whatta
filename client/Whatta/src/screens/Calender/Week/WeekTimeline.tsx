@@ -104,7 +104,7 @@ export default function WeekTimeline({
                 timedTasks: [],
               }
               const isTodayCol = d === todayISO
-              const layoutEvents = layoutDayEvents(bucket.timelineEvents || [])
+              const layoutEvents = layoutDayEvents(bucket.timelineEvents || [], d)
               const timedTasks = (bucket.timedTasks || []).filter((t: any) =>
                 (t.labels ?? []).some((lid: number) => enabledLabelIds.includes(lid)),
               )

@@ -27,10 +27,6 @@ export const parseDate = (iso: string) => {
 export const toISO = (dt: Date) =>
   `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`
 
-export const toDate = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
 
 export function getDateOfWeek(weekDay: string): string {
   if (!weekDay) return todayISO()

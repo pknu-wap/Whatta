@@ -30,12 +30,12 @@ export type WeekSpanEvent = {
   isRepeat?: boolean
 }
 
-// 이전 렌더의 겹침 배치 결과를 캐시해 이벤트 박스 위치 튐 줄임
-let prevLayoutMap: Record<string, LayoutedEvent> = {}
+// 이전 렌더의 겹침 배치 결과를 날짜별로 캐시해 이벤트 박스 위치 튐 줄임
+let prevLayoutMapByDay: Record<string, Record<string, LayoutedEvent>> = {}
 
 // 주/화면 전환 시 겹침 캐시를 초기화
 export function resetLayoutDayEventsCache() {
-  prevLayoutMap = {}
+  prevLayoutMapByDay = {}
 }
 
 export function getDayColWidth(
@@ -70,8 +70,13 @@ export function mixWhite(hex: string, whitePercent: number) {
 }
 
 // 겹침 규칙에 배치
-export function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
+export function layoutDayEvents(
+  events: DayTimelineEvent[],
+  dateKey = '__global__',
+): LayoutedEvent[] {
   if (!events.length) return []
+
+  const prevLayoutMap = prevLayoutMapByDay[dateKey] || {}
 
   const sorted = [...events].sort((a, b) => {
     if (a.startMin !== b.startMin) return a.startMin - b.startMin
@@ -106,7 +111,11 @@ export function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
 
     const overlappingGroup = sorted.filter(
       (other) =>
-        other.id !== ev.id && other.startMin < ev.endMin && other.endMin > ev.startMin,
+        // 이미 배치된 이벤트 재사용 금지 
+        other.id !== ev.id &&
+        !used.has(other.id) &&
+        other.startMin < ev.endMin &&
+        other.endMin > ev.startMin,
     )
 
     const hasOverlap = overlappingGroup.length > 0
@@ -143,7 +152,7 @@ export function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
     })
   }
 
-  prevLayoutMap = Object.fromEntries(layout.map((ev) => [ev.id, ev]))
+  prevLayoutMapByDay[dateKey] = Object.fromEntries(layout.map((ev) => [ev.id, ev]))
   return layout
 }
 
