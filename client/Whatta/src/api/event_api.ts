@@ -131,3 +131,22 @@ export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
 
   return normalized
 }
+
+export async function updateEvent(
+  eventId: string,
+  payload: Partial<CreateEventPayload> & {
+    startDate?: string
+    endDate?: string
+    startTime?: string | null
+    endTime?: string | null
+    repeat?: RepeatRule | null
+  }
+) {
+  const res = await http.patch(`/event/${eventId}`, payload)
+  return res.data
+}
+
+export async function deleteEvent(eventId: string) {
+  const res = await http.delete(`/event/${eventId}`)
+  return res.data
+}
