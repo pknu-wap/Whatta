@@ -228,7 +228,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       try {
         const res = await http.get('/user/setting/reminder')
         if (cancelled) return
-        setReminderPresets(res.data.data)
+        const presets = Array.isArray(res.data?.data) ? res.data.data : []
+        setReminderPresets(presets)
         reminderPresetLoadedRef.current = true
       } catch (err) {
         if (cancelled) return
