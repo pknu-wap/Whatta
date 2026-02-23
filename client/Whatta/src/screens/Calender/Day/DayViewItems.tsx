@@ -16,10 +16,9 @@ import { DayViewTask } from './overlapUtils'
 import { updateEvent, getEvent, createEvent } from '@/api/event_api'
 import { Alert } from 'react-native'
 import { ROW_H, PIXELS_PER_MIN } from './constants'
+let draggingEventId: string | null = null
 
 const { width: SCREEN_W } = Dimensions.get('window')
-
-let draggingEventId: string | null = null
 
 type DraggableTaskBoxProps = {
   id: string
@@ -63,7 +62,6 @@ export function DraggableTaskBox({
       await updateTask(id, {
         placementDate: anchorDate,
         placementTime: newTime,
-        date: anchorDate,
       })
 
       bus.emit('calendar:mutated', {
@@ -132,10 +130,6 @@ const endMin = startMin + 60
 const overlappingEvents = events.filter(ev => {
   return !(ev.endMin <= startMin || ev.startMin >= endMin)
 })
-
-// 이벤트 겹침 오프셋
-const EVENT_STAGGER = 14  
-const eventOffset = overlappingEvents.length * EVENT_STAGGER
 
 const widthPercent = 1 / safeTotalColumns
   
@@ -210,8 +204,6 @@ if (isOverlapWithEvent) {
             {title}
           </Text>
         </Pressable>
-
-        <View></View>
       </Animated.View>
     </GestureDetector>
   )
@@ -268,7 +260,6 @@ export function DraggableTaskGroupBox({
             return updateTask(t.id, {
               placementDate: anchorDate,
               placementTime: newTime,
-              date: anchorDate,
             })
           }),
         )
@@ -427,9 +418,8 @@ export function DraggableFixedEvent({
         const newStartTime = fmt(newStart)
         const newEndTime = fmt(newEnd)
 
-        // 🔥 반복 일정 팝업 적용
         const detailRes = await getEvent(id)
-        const ev = detailRes.data.data
+        const ev = detailRes.data
 
         if (ev?.repeat) {
           const basePayload = {

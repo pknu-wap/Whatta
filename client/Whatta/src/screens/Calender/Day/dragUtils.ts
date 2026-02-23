@@ -18,7 +18,6 @@ export function useDayDrag({
   measureLayouts,
   taskBoxRectRef,
   gridRectRef,
-  gridScrollYRef,
 }: Params) {
   const draggingTaskIdRef = useRef<string | null>(null)
   const dragReadyRef = useRef(false)
@@ -74,7 +73,6 @@ export function useDayDrag({
           await updateTask(id, {
             placementDate: dateISO,
             placementTime: null,
-            date: dateISO,
           })
 
           bus.emit('calendar:mutated', {
@@ -99,7 +97,6 @@ export function useDayDrag({
           await updateTask(id, {
             placementDate: dateISO,
             placementTime: `${hh}:${mm}:00`,
-            date: dateISO,
           })
 
           bus.emit('calendar:mutated', {

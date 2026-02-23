@@ -11,29 +11,31 @@ export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
   const fetchDailyEvents = useCallback(async () => {
     try {
       const res = await http.get('/calendar/daily', {
-        params: { date: anchorDate },
-      })
+  params: { date: anchorDate },
+})
 
-      const data = res.data.data
+const data = res?.data?.data ?? {}
 
-      const timed = data.timedEvents || []
-      const timedTasks = data.timedTasks || []
-      const allDay = data.allDayTasks || []
-      const floating = data.floatingTasks || []
-      const allDaySpan = data.allDaySpanEvents || []
-      const allDayEvents = data.allDayEvents || []
+const timed = data?.timedEvents ?? []
+const timedTasks = data?.timedTasks ?? []
+const allDay = data?.allDayTasks ?? []
+const floating = data?.floatingTasks ?? []
+const allDaySpan = data?.allDaySpanEvents ?? []
+const allDayEvents = data?.allDayEvents ?? []
 
-      // 이벤트 시간 계산
-      const parsedEvents = timed.map((e: any) => {
-        const [sh, sm] = e.clippedStartTime.split(':').map(Number)
-        const [eh, em] = e.clippedEndTime.split(':').map(Number)
+// 이벤트 시간 계산 (시간 없는 건 제외)
+const parsedEvents = timed
+  .filter((e: any) => e?.clippedStartTime && e?.clippedEndTime)
+  .map((e: any) => {
+    const [sh = 0, sm = 0] = e.clippedStartTime.split(':').map(Number)
+    const [eh = 0, em = 0] = e.clippedEndTime.split(':').map(Number)
 
-        return {
-          ...e,
-          startMin: sh * 60 + sm,
-          endMin: eh * 60 + em,
-        }
-      })
+    return {
+      ...e,
+      startMin: sh * 60 + sm,
+      endMin: eh * 60 + em,
+    }
+  })
 
       const overlapped = computeEventOverlap(parsedEvents)
 
