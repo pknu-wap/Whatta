@@ -28,13 +28,15 @@ export function useCalendarSync({
     useCallback(() => {
       currentCalendarView.set('week')
 
-      bus.emit('calendar:state', {
-        date: anchorDateRef.current,
-        mode: 'week',
-        days: weekDates.length,
-        rangeStart: weekDates[0],
-        rangeEnd: weekDates[weekDates.length - 1],
-      })
+      if (weekDates.length > 0) {
+        bus.emit('calendar:state', {
+          date: anchorDateRef.current,
+          mode: 'week',
+          days: weekDates.length,
+          rangeStart: weekDates[0],
+          rangeEnd: weekDates[weekDates.length - 1],
+        })
+      }
 
       bus.emit('calendar:meta', {
         mode: 'week',
@@ -71,6 +73,8 @@ export function useCalendarSync({
   useFocusEffect(
     useCallback(() => {
       const onReq = () => {
+        if (!weekDates.length) return
+
         bus.emit('calendar:state', {
           date: anchorDateRef.current,
           mode: 'week',
