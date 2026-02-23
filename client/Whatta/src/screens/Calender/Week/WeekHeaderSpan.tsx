@@ -167,7 +167,7 @@ export default function WeekHeaderSpan({
                 const left = timeColWidth + s.startIdx * dayColWidth
                 const width = (s.endIdx - s.startIdx + 1) * dayColWidth
                 const isSingleDay = s.startISO === s.endISO
-                const isTask = s.color === '#000000'
+                const isTask = !!s.isTask
 
                 if (isTask) {
                   return (

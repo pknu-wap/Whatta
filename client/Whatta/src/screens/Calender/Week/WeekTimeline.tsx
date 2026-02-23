@@ -32,7 +32,7 @@ type WeekTimelineProps = {
     dateISO: string
     completed: boolean
   }) => void
-  DraggableFlexalbeEventComponent: React.ComponentType<any>
+  DraggableFlexibleEventComponent: React.ComponentType<any>
   TaskGroupBoxComponent: React.ComponentType<any>
   DraggableTaskBoxComponent: React.ComponentType<any>
 }
@@ -55,7 +55,7 @@ export default function WeekTimeline({
   openTaskPopupFromApi,
   onGridScroll,
   onTimedTaskCompletedChange,
-  DraggableFlexalbeEventComponent,
+  DraggableFlexibleEventComponent,
   TaskGroupBoxComponent,
   DraggableTaskBoxComponent,
 }: WeekTimelineProps) {
@@ -132,7 +132,7 @@ export default function WeekTimeline({
                   )}
 
                   {layoutEvents.map((ev, i) => (
-                    <DraggableFlexalbeEventComponent
+                    <DraggableFlexibleEventComponent
                       key={`ev-${ev.id}-${i}`}
                       id={ev.id}
                       title={ev.title}

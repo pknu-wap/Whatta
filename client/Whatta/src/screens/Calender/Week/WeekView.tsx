@@ -10,7 +10,6 @@ import {
   Vibration,
   Alert,
   LayoutAnimation,
-  Modal,
 } from 'react-native'
 
 import {
@@ -35,17 +34,12 @@ import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
-import { createEvent } from '@/api/event_api'
-
-import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
-import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
-import AddImageSheet from '@/screens/More/Ocr'
-import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
-import OcrSplash from '@/screens/More/OcrSplash'
+import { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import WeekHeaderSpan from '@/screens/Calender/Week/WeekHeaderSpan'
 import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
+import WeekPopups from '@/screens/Calender/Week/WeekPopups'
 import { useCalendarSync } from '@/screens/Calender/Week/useCalendarSync'
 import { useWeekGestures } from '@/screens/Calender/Week/useWeekGestures'
 import {
@@ -57,6 +51,11 @@ import {
   moveTaskToDateTime,
   updateTaskCompleted,
 } from '@/screens/Calender/Week/services/weekTaskService'
+import {
+  getEventDetail,
+  isRepeatEvent,
+  moveEventToDateTime,
+} from '@/screens/Calender/Week/services/weekEventService'
 
 import {
   addDays,
@@ -915,24 +914,23 @@ function DraggableFlexalbeEvent({
 
         const newDateISO = addDays(dateISO, dayOffset)
 
-        const full = await http.get(`/event/${id}`)
-        const eventData = full.data.data
+        const eventData = await getEventDetail(http, id)
 
         let applyMode: 'single' | 'future' = 'single'
 
         // 이벤트가 반복일 경우에만 선택창 띄우기
-        if (eventData.isRepeat || eventData.repeat) {
+        if (isRepeatEvent(eventData)) {
           const choice = await askRepeatAction()
           if (choice === 'cancel') return // 취소 시 아무것도 안 함
           applyMode = choice
         }
 
-        await http.patch(`/event/${id}`, {
-          startDate: newDateISO,
-          endDate: newDateISO,
+        await moveEventToDateTime(http, {
+          eventId: id,
+          dateISO: newDateISO,
           startTime: nextStartTime,
           endTime: nextEndTime,
-          applyMode, // 서버가 이걸 보고 이후 반복 포함 여부 결정
+          applyMode, // 반복 포함 여부 결정
         })
 
         bus.emit('calendar:mutated', {
@@ -1276,8 +1274,7 @@ export default function WeekView() {
     setSelectedEventId(eventId)
 
     try {
-      const res = await http.get(`/event/${eventId}`)
-      const data = res.data.data
+      const data = await getEventDetail(http, eventId)
       if (!data) return
 
       setEventPopupMode('edit')
@@ -1567,25 +1564,30 @@ export default function WeekView() {
         bus.emit('sidebar:remove-task', { id: task.id })
 
         setWeekData((prev) => {
-          const next = { ...prev }
-          const targetBucket: DayBucket = next[targetDate] ?? {
+          const prevBucket = prev[targetDate]
+          const baseBucket: DayBucket = prevBucket ?? {
             spanEvents: [],
             timelineEvents: [],
             checks: [],
             timedTasks: [],
           }
 
-          targetBucket.timedTasks = (targetBucket.timedTasks || []).filter(
+          const nextTimedTasks = (baseBucket.timedTasks || []).filter(
             (t: any) => String(t.id) !== String(created?.id),
           )
-
-          targetBucket.timedTasks.push({
+          nextTimedTasks.push({
             ...created,
             placementDate: targetDate,
             placementTime: placementTime,
           })
-          next[targetDate] = targetBucket
-          return next
+
+          return {
+            ...prev,
+            [targetDate]: {
+              ...baseBucket,
+              timedTasks: nextTimedTasks,
+            },
+          }
         })
 
         bus.emit('calendar:mutated', {
@@ -1623,25 +1625,31 @@ export default function WeekView() {
       await updateTaskCompleted(http, taskId, nextCompleted, dateISO)
 
       setWeekData((prev) => {
-        const copy = { ...prev }
-        const bucket = copy[dateISO]
-        if (!bucket) return copy
+        const bucket = prev[dateISO]
+        if (!bucket) return prev
 
-        bucket.spanEvents = bucket.spanEvents.map((e: any) => {
+        const spanEvents = bucket.spanEvents.map((e: any) => {
           if (String(e.id) === String(taskId)) {
             return { ...e, done: nextCompleted }
           }
           return e
         })
 
-        bucket.checks = bucket.checks.map((c) => {
+        const checks = bucket.checks.map((c) => {
           if (String(c.id) === String(taskId)) {
             return { ...c, done: nextCompleted }
           }
           return c
         })
 
-        return copy
+        return {
+          ...prev,
+          [dateISO]: {
+            ...bucket,
+            spanEvents,
+            checks,
+          },
+        }
       })
 
       bus.emit('calendar:mutated', {
@@ -1734,14 +1742,20 @@ export default function WeekView() {
       completed: boolean
     }) => {
       setWeekData((prev) => {
-        const copy = { ...prev }
-        const bucket = copy[dateISO]
-        if (!bucket) return copy
+        const bucket = prev[dateISO]
+        if (!bucket) return prev
 
-        bucket.timedTasks = (bucket.timedTasks || []).map((t: any) =>
+        const timedTasks = (bucket.timedTasks || []).map((t: any) =>
           String(t.id) === String(id) ? { ...t, completed } : t,
         )
-        return copy
+
+        return {
+          ...prev,
+          [dateISO]: {
+            ...bucket,
+            timedTasks,
+          },
+        }
       })
     },
     [],
@@ -1810,146 +1824,37 @@ export default function WeekView() {
                 scrollOffsetRef.current = offsetY
               }}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
-              DraggableFlexalbeEventComponent={DraggableFlexalbeEvent}
+              DraggableFlexibleEventComponent={DraggableFlexalbeEvent}
               TaskGroupBoxComponent={TaskGroupBox}
               DraggableTaskBoxComponent={DraggableTaskBox}
             />
           </Animated.View>
         </GestureDetector>
-        {/* ✅ (merge) TaskDetailPopup 그대로 유지 */}
-        <TaskDetailPopup
-          visible={taskPopupVisible}
-          mode={taskPopupMode}
-          taskId={taskPopupId ?? undefined}
-          initialTask={taskPopupTask}
-          onClose={() => {
-            setTaskPopupVisible(false)
-            setTaskPopupId(null)
-            setTaskPopupTask(null)
-          }}
-          onSave={async (form) => {
-            const pad = (n: number) => String(n).padStart(2, '0')
-
-            let placementDate: string | null = null
-            let placementTime: string | null = null
-            const fieldsToClear: string[] = []
-
-            if (form.hasDate && form.date) {
-              const d = form.date
-              placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-            } else {
-              fieldsToClear.push('placementDate')
-            }
-
-            if (form.hasTime && form.time) {
-              const t = form.time
-              placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
-                t.getSeconds(),
-              )}`
-            } else {
-              fieldsToClear.push('placementTime')
-            }
-
-            const reminderNoti = form.reminderNoti ?? null // ✅ (merge) 알림 연동
-            if (!reminderNoti) fieldsToClear.push('reminderNoti')
-
-            try {
-              if (taskPopupMode === 'edit') {
-                if (!taskPopupId) return
-
-                await http.patch(`/task/${taskPopupId}`, {
-                  title: form.title,
-                  content: form.memo,
-                  labels: form.labels,
-                  placementDate,
-                  placementTime,
-                  reminderNoti,
-                  fieldsToClear,
-                })
-
-                bus.emit('calendar:mutated', {
-                  op: 'update',
-                  item: { id: taskPopupId },
-                })
-              } else {
-                const res = await http.post('/task', {
-                  title: form.title,
-                  content: form.memo,
-                  labels: form.labels,
-                  placementDate,
-                  placementTime,
-                  reminderNoti,
-                  date: placementDate ?? anchorDate,
-                })
-
-                const newId = res.data?.data?.id
-
-                bus.emit('calendar:mutated', {
-                  op: 'create',
-                  item: { id: newId },
-                })
-              }
-
-              await fetchWeek(weekDates)
-
-              setTaskPopupVisible(false)
-              setTaskPopupId(null)
-              setTaskPopupTask(null)
-            } catch (err) {
-              console.error('❌ 테스크 저장 실패:', err)
-              Alert.alert('오류', '테스크를 저장하지 못했습니다.')
-            }
-          }}
-          onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
+        <WeekPopups
+          taskPopupVisible={taskPopupVisible}
+          taskPopupMode={taskPopupMode}
+          taskPopupId={taskPopupId}
+          taskPopupTask={taskPopupTask}
+          setTaskPopupVisible={setTaskPopupVisible}
+          setTaskPopupId={setTaskPopupId}
+          setTaskPopupTask={setTaskPopupTask}
+          onDeleteTask={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
+          eventPopupVisible={eventPopupVisible}
+          eventPopupMode={eventPopupMode}
+          eventPopupData={eventPopupData}
+          setEventPopupVisible={setEventPopupVisible}
+          setEventPopupData={setEventPopupData}
+          imagePopupVisible={imagePopupVisible}
+          setImagePopupVisible={setImagePopupVisible}
+          ocrSplashVisible={ocrSplashVisible}
+          ocrModalVisible={ocrModalVisible}
+          ocrEvents={ocrEvents}
+          setOcrModalVisible={setOcrModalVisible}
+          sendToOCR={sendToOCR}
+          fetchWeek={fetchWeek}
+          weekDates={weekDates}
+          anchorDate={anchorDate}
         />
-        <EventDetailPopup
-          visible={eventPopupVisible}
-          eventId={eventPopupData?.id ?? null}
-          mode={eventPopupMode}
-          initial={eventPopupData ?? undefined}
-          onClose={() => {
-            setEventPopupVisible(false)
-            setEventPopupData(null)
-            fetchWeek(weekDates)
-          }}
-        />
-        <AddImageSheet
-          visible={imagePopupVisible}
-          onClose={() => setImagePopupVisible(false)}
-          onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
-          onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
-        />
-        <Modal
-  visible={ocrSplashVisible}
-  transparent
-  animationType="fade"
-  statusBarTranslucent
->
-  <OcrSplash />
-</Modal>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-
-  // ✔ 단일 저장
-  onAddEvent={async (payload) => {
-    try {
-      await createEvent(payload)
-      await fetchWeek(weekDates)
-      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-    } catch (err) {
-      console.error(err)
-    }
-  }}
-
-  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
-  onSaveAll={async () => {
-    await fetchWeek(weekDates)
-    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-    setOcrModalVisible(false)
-  }}
-/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )

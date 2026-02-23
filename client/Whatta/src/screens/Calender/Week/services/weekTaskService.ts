@@ -1,3 +1,4 @@
+// api 호출, 페이로더 생성
 type HttpClient = {
   get: (url: string, config?: any) => Promise<any>
   patch: (url: string, data?: any, config?: any) => Promise<any>
@@ -9,7 +10,9 @@ export function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) 
   if (!task) return overrides
 
   const labels = Array.isArray(task.labels)
-    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
+    ? task.labels
+      .map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? null)))
+      .filter((id: any) => id !== null)
     : undefined
 
   const base: any = {
@@ -74,7 +77,9 @@ export async function cloneTaskToDateTimeAndDeleteOriginal(
   const baseTask = full.data.data
 
   const labelIds = Array.isArray(baseTask.labels)
-    ? baseTask.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
+    ? baseTask.labels
+        .map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? null)))
+        .filter((id: any) => id !== null)
     : null
 
   const createPayload: any = {
@@ -85,11 +90,16 @@ export async function cloneTaskToDateTimeAndDeleteOriginal(
     placementTime,
     dueDateTime: baseTask.dueDateTime ?? null,
     repeat: baseTask.repeat ?? null,
+    endDate: baseTask.endDate ?? null,
     reminderNoti: baseTask.reminderNoti ?? null,
   }
 
   const createRes = await http.post('/task', createPayload)
   const created = createRes.data?.data
+
+  if (!created?.id) {
+    throw new Error('복제된 task 응답이 유효하지 않습니다.')
+  }
 
   try {
     await http.delete(`/task/${task.id}`)
