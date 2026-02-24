@@ -186,12 +186,14 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     { id: string; day: number; hour: number; minute: number }[]
   >([])
 
-  // h,m을 사람이 읽는 "h시간 m분 전"
-  const formatCustomLabel = (h: number, m: number) => {
+  // day, h, m
+  const formatCustomLabel = (h: number, m: number, day: number = 0) => {
+    const dayText = day >= 2 ? `${day}일 전` : day === 1 ? '전날' : '당일'
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
-    return body.length ? `${body} 전` : '0분 전'
+    const timeText = body.length ? `${body} 전` : '0분 전'
+    return `${dayText} ${timeText}`
   }
 
   // 라벨 피커 모달용
@@ -207,28 +209,71 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   // 피커 열림 상태
   const [dateOpen, setDateOpen] = useState(false)
   const [timeOpen, setTimeOpen] = useState(false)
+  const [isPickerTouching, setIsPickerTouching] = useState(false)
+  const reminderPresetLoadedRef = useRef(false)
+  const [reminderPresetVersion, setReminderPresetVersion] = useState(0)
+  const pickerTouchHandlers = {
+    onTouchStart: () => setIsPickerTouching(true),
+    onTouchEnd: () => setIsPickerTouching(false),
+    onTouchCancel: () => setIsPickerTouching(false),
+  }
+
+  // 피커가 터치 중 닫히면 스크롤 잠금이 남을 수 있음
+  // 1. 팝업 전체 visible 꺼질 때
+  useEffect(() => {
+    if (!visible) setIsPickerTouching(false)
+  }, [visible])
+
+  // 2. 시간 피커 timeOpen 닫힐 때
+  useEffect(() => {
+    if (!timeOpen) setIsPickerTouching(false)
+  }, [timeOpen])
+
+  // 3. 알림 맞춤 피커 customOpen 닫히거나 remindOn 꺼질 때
+  useEffect(() => {
+    if (!customOpen || !remindOn) setIsPickerTouching(false)
+  }, [customOpen, remindOn])
 
   // 알림 preset 서버에서 불러오기
   useEffect(() => {
     if (!visible) return
+    if (reminderPresetLoadedRef.current) return
+    let cancelled = false
 
     const fetchPresets = async () => {
       try {
         const res = await http.get('/user/setting/reminder')
-        setReminderPresets(res.data.data)
+        if (cancelled) return
+        const presets = Array.isArray(res.data?.data) ? res.data.data : []
+        setReminderPresets(presets)
+        reminderPresetLoadedRef.current = true
       } catch (err) {
+        if (cancelled) return
         console.log('❌ 리마인드 preset 불러오기 실패:', err)
       }
     }
 
     fetchPresets()
-  }, [visible])
+    return () => {
+      cancelled = true
+    }
+  }, [visible, reminderPresetVersion])
+
+  useEffect(() => {
+    const onReminderMutated = () => {
+      reminderPresetLoadedRef.current = false
+      setReminderPresetVersion((v) => v + 1)
+    }
+
+    bus.on('reminder:mutated', onReminderMutated)
+    return () => bus.off('reminder:mutated', onReminderMutated)
+  }, [])
 
   // preset + '맞춤 설정' 옵션 구성
   const presetOptions = (reminderPresets ?? []).map((p) => ({
     type: 'preset' as const,
     ...p,
-    label: formatCustomLabel(p.hour, p.minute),
+    label: formatCustomLabel(p.hour, p.minute, p.day),
   }))
 
   const remindOptions = [
@@ -256,13 +301,16 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }
 
   // 현재 custom 라벨
-  const customLabel = formatCustomLabel(customHour, customMinute)
+  const customLabel = formatCustomLabel(customHour, customMinute, 0)
 
   // 버튼에 뜨는 표시용 텍스트
   const displayRemind = React.useMemo(() => {
     if (!remindOn || !remindValue) return ''
     if (remindValue === 'custom') return customLabel
-    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+    return (
+      remindValue.label ??
+      formatCustomLabel(remindValue.hour, remindValue.minute, remindValue.day)
+    )
   }, [remindOn, remindValue, customLabel])
 
   // visible / initialTask 바뀔 때마다 폼 초기화
@@ -301,35 +349,46 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
     setMemo(initialTask.content ?? '')
 
-    // 서버에서 받은 reminderNoti 초기 반영
+    setRemindOn(false)
+    setRemindValue(null)
+    setCustomOpen(false)
+    setRemindOpen(false)
+  }, [visible, initialTask])
+
+  // reminder preset 로딩/변경 시 리마인더 값만 동기화
+  useEffect(() => {
+    if (!visible) return
+    if (!initialTask) return
+
     const rn = initialTask.reminderNoti
-    if (rn && hasDateFlag && hasTimeFlag) {
-      // 날짜+시간 둘다 있어야만 on 가능
-      setRemindOn(true)
-
-      // preset에서 동일 값 찾기
-      const matched = reminderPresets.find(
-        (p) => p.day === rn.day && p.hour === rn.hour && p.minute === rn.minute,
-      )
-
-      if (matched) {
-        setRemindValue({
-          ...(matched as any),
-          label: formatCustomLabel(matched.hour, matched.minute),
-        })
-        setCustomOpen(false)
-      } else {
-        setRemindValue('custom')
-        setCustomHour(rn.hour ?? 0)
-        setCustomMinute(rn.minute ?? 0)
-        setCustomOpen(true)
-      }
-    } else {
+    if (!rn || !hasDate || !hasTime) {
       setRemindOn(false)
       setRemindValue(null)
       setCustomOpen(false)
+      setRemindOpen(false)
+      return
     }
-  }, [visible, initialTask, reminderPresets])
+
+    setRemindOn(true)
+
+    const matched = reminderPresets.find(
+      (p) => p.day === rn.day && p.hour === rn.hour && p.minute === rn.minute,
+    )
+
+    if (matched) {
+      setRemindValue({
+        ...(matched as any),
+        label: formatCustomLabel(matched.hour, matched.minute, matched.day),
+      })
+      setCustomOpen(false)
+      return
+    }
+
+    setRemindValue('custom')
+    setCustomHour(rn.hour ?? 0)
+    setCustomMinute(rn.minute ?? 0)
+    setCustomOpen(true)
+  }, [visible, initialTask, reminderPresets, hasDate, hasTime])
 
   useEffect(() => {
     if (!visible) return
@@ -342,6 +401,15 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       return defaultLabel ? [defaultLabel.id] : prev
     })
   }, [visible, mode, labels])
+
+  // 팝업 열고 닫을 때 펼침 UI는 항상 닫힌 상태로 초기화
+  useEffect(() => {
+    setDateOpen(false)
+    setTimeOpen(false)
+    setRemindOpen(false)
+    setCustomOpen(false)
+    setLabelModalOpen(false)
+  }, [visible])
 
   // 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
   const remindEligible = hasDate && hasTime
@@ -401,7 +469,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 ref={scrollRef}
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: H_PAD }}
-                keyboardShouldPersistTaps="handled"
+                keyboardShouldPersistTaps="always"
+                keyboardDismissMode="on-drag"
+                scrollEnabled={!isPickerTouching}
                 bounces={false}
                 showsVerticalScrollIndicator={false}
                 automaticallyAdjustKeyboardInsets
@@ -491,7 +561,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 {/* 시간 인라인 피커 */}
                 {hasTime && timeOpen && (
-                  <View style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}>
+                  <View
+                    style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}
+                    {...pickerTouchHandlers}
+                  >
                     <View style={{ flexDirection: 'row', gap: 5 }}>
                       {/* HOUR */}
                       <Picker
@@ -559,6 +632,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                   <View style={styles.rowRight}>
                     <Pressable
                       style={styles.alarmButton}
+                      disabled={!remindOn}
                       onPress={() => {
                         if (!remindOn) return
                         setRemindOpen((v) => !v)
@@ -666,7 +740,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
                 {/* 맞춤 설정 인라인 피커 */}
                 {customOpen && remindOn && (
-                  <View style={styles.remindPickerWrap}>
+                  <View style={styles.remindPickerWrap} {...pickerTouchHandlers}>
                     <View style={styles.remindPickerInner}>
                       {/* HOUR */}
                       <View style={styles.remindPickerBox}>
@@ -1022,7 +1096,6 @@ const styles = StyleSheet.create({
 
   memoSection: {
     marginTop: 3,
-    flex: 1,
   },
   memoLabelRow: {
     flexDirection: 'row',
