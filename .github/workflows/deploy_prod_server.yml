@@ -1,14 +1,15 @@
-name: Deploy DEV to Cloud Run
+name: Deploy PROD to Cloud Run
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - develop-server
+      - main
     paths:
       - "server/**"
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
 
@@ -38,12 +39,11 @@ jobs:
       - name: Configure Docker to use gcloud
         run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
-      - name: Compute Dev tag
+      - name: Compute PROD tag
         id: meta
         shell: bash
         run: |
-          DATE=$(date +%Y%m%d)
-          TAG="dev-${DATE}-${GITHUB_SHA:0:7}"
+          TAG="prod-${GITHUB_SHA:0:7}"
           IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}:${TAG}"
           echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
@@ -58,6 +58,7 @@ jobs:
         run: docker push "${{ steps.meta.outputs.image_uri }}"
 
 
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -65,7 +66,7 @@ jobs:
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       REGION: ${{ secrets.GCP_REGION }}
-      DEV_SERVICE: ${{ secrets.CLOUDRUN_SERVICE_DEV }}
+      PROD_SERVICE: ${{ secrets.CLOUDRUN_SERVICE_PROD }}
 
     steps:
       - name: Authenticate to Google Cloud
@@ -78,9 +79,9 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Deploy to Cloud Run (DEV)
+      - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy "${DEV_SERVICE}" \
+          gcloud run deploy "${PROD_SERVICE}" \
             --image "${{ needs.build.outputs.image_uri }}" \
             --region "${REGION}" \
             --platform managed
