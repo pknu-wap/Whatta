@@ -39,6 +39,24 @@ import { ScheduleItem, TaskSummaryBox, UISchedule } from './MonthViewItems'
 
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
 
+const getOccurrenceDedupKey = (item: UISchedule) => {
+  const prefix = item.isTask ? 'TASK' : 'EVENT'
+  const occurrenceKey =
+    item.multiDayStart && item.multiDayEnd
+      ? `${item.multiDayStart}_${item.multiDayEnd}`
+      : item.date
+  return `${prefix}-${item.id}-${occurrenceKey}`
+}
+
+const dedupeSchedules = (items: UISchedule[]) => {
+  const dedup = new Map<string, UISchedule>()
+  for (const item of items) {
+    const key = getOccurrenceDedupKey(item)
+    if (!dedup.has(key)) dedup.set(key, item)
+  }
+  return Array.from(dedup.values())
+}
+
 
 export default function MonthView() {
 
@@ -127,16 +145,7 @@ export default function MonthView() {
          }),
        ) 
 
-       
-       const dedup = new Map<string, UISchedule>() 
-       for (const item of mergedRaw) {             
-         const prefix = item.isTask ? 'TASK' : 'EVENT' 
-         const key = `${prefix}-${item.id}`          
-         if (!dedup.has(key)) {
-           dedup.set(key, item)
-         }
-       }
-       const merged = Array.from(dedup.values())    
+       const merged = dedupeSchedules(mergedRaw)
 
         cacheRef.current.set(targetYM, { days: fresh.days, schedules: merged })
         if (targetYM === ym) {
@@ -153,6 +162,19 @@ export default function MonthView() {
     bus.on('calendar:invalidate', onInvalidate)
     return () => bus.off('calendar:invalidate', onInvalidate)
   }, [fetchFresh])
+
+  const isFirstFocusRef = useRef(true)
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // 다른 뷰에서 발생한 변경 이벤트를 놓쳤을 수 있으므로 포커스 복귀 시 현재 월 재조회
+      if (isFirstFocusRef.current) {
+        isFirstFocusRef.current = false
+        return
+      }
+      void fetchFresh(ym)
+    }, [fetchFresh, ym]),
+  )
 
   useEffect(() => {
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
@@ -595,17 +617,9 @@ const displayItemsByWeek = useMemo(() => {
           console.warn('[MonthView] fetchTasksForMonth 실패, 일정만 표시합니다.', err)
         }
 
-        const mergedRaw: UISchedule[] = [...monthlySchedules, ...tasksThisMonth] // 여기 수정됐어요
+        const mergedRaw: UISchedule[] = [...monthlySchedules, ...tasksThisMonth] 
 
-       const dedup = new Map<string, UISchedule>() // 여기 수정됐어요
-       for (const item of mergedRaw) {             // 여기 수정됐어요
-         const prefix = item.isTask ? 'TASK' : 'EVENT' // 여기 수정됐어요
-         const key = `${prefix}-${item.id}`          // 여기 수정됐어요
-         if (!dedup.has(key)) {
-           dedup.set(key, item)
-         }
-       }
-       const merged = Array.from(dedup.values())     // 여기 수정됐어요
+       const merged = dedupeSchedules(mergedRaw)
 
        laneMapRef.current = buildLaneMap(merged.filter(isSpan))
         

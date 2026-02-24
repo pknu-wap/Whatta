@@ -319,14 +319,14 @@ export default function EventDetailPopup({
       const { nth } = getWeekIndexOfMonth(start)
 
       if (monthlyOpt === 'byDate') {
-        // 매월 10일 처럼 "날짜 기준" → on = null
-        on = null
+        // MONTH는 on 1개 필수, 날짜 기준은 "D10" 포맷
+        on = [`D${start.getDate()}`]
       } else if (monthlyOpt === 'byNthWeekday') {
         // 매월 2번째 수요일 → "2WED"
         on = [`${nth}${wd}`]
       } else {
-        // 매월 마지막주 수요일 → "LAST_WED"
-        on = [`LAST_${wd}`]
+        // "LASTWED" (언더스코어 없음)
+        on = [`LAST${wd}`]
       }
     }
 
@@ -397,7 +397,10 @@ export default function EventDetailPopup({
         nextMonthlyOpt = 'byDate'
       } else {
         const token = r.on[0] // 예: "2WED" 또는 "LAST_WED"
-        if (token.startsWith('LAST_')) {
+        if (/^D\d{1,2}$/.test(token)) {
+          nextRepeatMode = 'monthly'
+          nextMonthlyOpt = 'byDate'
+        } else if (token.startsWith('LAST_') || /^LAST(MON|TUE|WED|THU|FRI|SAT|SUN)$/.test(token)) {
           nextRepeatMode = 'monthly'
           nextMonthlyOpt = 'byLastWeekday'
         } else {
@@ -525,14 +528,14 @@ export default function EventDetailPopup({
     if (!visible) return
 
     const isRepeatInitial = initial?.repeat != null
-    const isRepeatFetched = eventData?.repeat != null
+    const isRepeatFetched = mode === 'edit' && eventData?.repeat != null
 
     if (isRepeatInitial || isRepeatFetched) {
       setActiveTab('repeat')
     } else {
       setActiveTab('schedule')
     }
-  }, [visible, initial, eventData])
+  }, [visible, initial, eventData, mode])
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
@@ -642,7 +645,10 @@ export default function EventDetailPopup({
       onClose()
     } catch (err) {
       console.log('반복 일정 단일 수정 실패:', err)
-      alert('저장 실패')
+      console.log('responseBody:', (err as any)?.response?.data)
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -707,7 +713,10 @@ export default function EventDetailPopup({
       onClose()
     } catch (err) {
       console.log('반복 일정 전체 수정 실패:', err)
-      alert('저장 실패')
+      console.log('responseBody:', (err as any)?.response?.data)
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -717,6 +726,7 @@ export default function EventDetailPopup({
     if (activeTab === 'repeat') {
       // 편집 모드 + 기존에 repeat 있는 일정 → 분기(이 일정만 / 이후 모두)
       if (mode === 'edit' && eventData?.repeat != null) {
+        setSaving(false)
         Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
           { text: '취소', style: 'cancel' },
           {
@@ -781,8 +791,11 @@ export default function EventDetailPopup({
         onClose()
       } catch (err) {
         console.log('반복 일정 저장 실패:', err)
+        console.log('responseBody:', (err as any)?.response?.data)
         console.log('requestBody: ', finalPayload)
-        alert('저장 실패')
+        Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+      } finally {
+        setSaving(false)
       }
       return
     }
@@ -1119,6 +1132,9 @@ export default function EventDetailPopup({
 
   useEffect(() => {
     if (visible && mode === 'create' && !initial) {
+      setEventData(null)
+      setSaving(false)
+
       setScheduleTitle('')
       setMemo('')
       const defaultLabel = labels.find((l) => l.title === '일정')
@@ -1131,9 +1147,16 @@ export default function EventDetailPopup({
       setEnd(today)
       setTimeOn(false)
       setRemindOn(false)
+      setRemindValue(null)
+      setRepeatMode('daily')
+      setRepeatEvery(1)
+      setRepeatUnit('week')
+      setMonthlyOpt('byDate')
+      setEndMode('none')
+      setRepeatEndDate(null)
       setActiveTab('schedule')
     }
-  }, [visible, mode])
+  }, [visible, mode, initial, labels])
 
   useEffect(() => {
     if (!visible) return
@@ -1181,6 +1204,12 @@ export default function EventDetailPopup({
     // 알림 섹션만 닫기
     setRemindOpen(false)
     setCustomOpen(false)
+  }, [visible])
+
+  useEffect(() => {
+    if (!visible) {
+      setSaving(false)
+    }
   }, [visible])
 
   const deleteNormal = async () => {
@@ -1242,7 +1271,7 @@ export default function EventDetailPopup({
         },
       })
 
-      const ym = start.toISOString().slice(0, 7)
+      const ym = ymdLocal(start).slice(0, 7)
       bus.emit('calendar:invalidate', { ym })
 
       onClose()
