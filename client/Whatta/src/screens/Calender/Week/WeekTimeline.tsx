@@ -22,7 +22,6 @@ type WeekTimelineProps = {
   todayISO: string
   nowTop: number | null
   dayColWidth: number
-  enabledLabelIds: number[]
   getTaskTime: (task: any) => string
   openEventDetail: (id: string, occDate?: string) => void
   openTaskPopupFromApi: (taskId: string) => void
@@ -49,7 +48,6 @@ export default function WeekTimeline({
   todayISO,
   nowTop,
   dayColWidth,
-  enabledLabelIds,
   getTaskTime,
   openEventDetail,
   openTaskPopupFromApi,
@@ -105,9 +103,7 @@ export default function WeekTimeline({
               }
               const isTodayCol = d === todayISO
               const layoutEvents = layoutDayEvents(bucket.timelineEvents || [], d)
-              const timedTasks = (bucket.timedTasks || []).filter((t: any) =>
-                (t.labels ?? []).some((lid: number) => enabledLabelIds.includes(lid)),
-              )
+              const timedTasks = bucket.timedTasks || []
 
               const groupedTasks = timedTasks.reduce((acc: Record<string, any[]>, t: any) => {
                 const timeKey = getTaskTime(t)
