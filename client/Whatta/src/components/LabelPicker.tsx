@@ -10,7 +10,6 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native'
-import { createLabel } from '@/api/label_api'
 
 export type UiLabel = { id: number; title: string }
 type Anchor = { x: number; y: number; w: number; h: number }
@@ -26,6 +25,8 @@ type Props = {
   canAdd?: boolean
 }
 
+const MAX_SELECTED_LABELS = 3
+
 export default function LabelPickerModal({
   visible,
   all,
@@ -39,10 +40,16 @@ export default function LabelPickerModal({
   const [draft, setDraft] = useState('')
   const cardW = 145
   const screenW = Dimensions.get('window').width
+  const screenH = Dimensions.get('window').height
+  const cardMaxH = 200
   // 버튼 바로 아래 +8px, 버튼의 오른쪽에 맞춰 정렬(오른쪽이 화면 밖이면 자동 보정)
   const pos = (() => {
     if (!anchor) return { top: 100, left: screenW - cardW - 24 }
-    const top = anchor.y + anchor.h + 8
+    const belowTop = anchor.y + anchor.h + 8
+    const aboveTop = anchor.y - cardMaxH - 8
+    const preferredTop =
+      belowTop + cardMaxH <= screenH - 12 ? belowTop : aboveTop
+    const top = Math.max(12, Math.min(preferredTop, screenH - cardMaxH - 12))
     const leftIdeal = anchor.x + anchor.w - cardW
     const left = Math.max(12, Math.min(leftIdeal, screenW - cardW - 12))
     return { top, left }
@@ -50,6 +57,7 @@ export default function LabelPickerModal({
 
   const toggle = (id: number) => {
     const already = selected.includes(id)
+    if (!already && selected.length >= MAX_SELECTED_LABELS) return
     const next = already ? selected.filter((x) => x !== id) : [...selected, id]
     onChange(next)
   }
@@ -62,7 +70,9 @@ export default function LabelPickerModal({
       if (onCreateLabel) {
         const newLabel = await onCreateLabel(name) // API 호출은 부모에게 맡김
         // 선택 목록 업데이트
-        onChange([...selected, newLabel.id])
+        if (!selected.includes(newLabel.id)) {
+          onChange([...selected, newLabel.id].slice(0, MAX_SELECTED_LABELS))
+        }
 
         setDraft('')
       }

@@ -797,6 +797,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     <View
                       style={{
                         flexDirection: 'row',
+                        flexWrap: 'wrap',
+                        justifyContent: 'flex-end',
                         gap: 6,
                         maxWidth: 210,
                         flexShrink: 1,
