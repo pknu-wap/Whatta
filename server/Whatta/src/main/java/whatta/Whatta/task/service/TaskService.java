@@ -33,7 +33,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
-    private final ReminderNotiService scheduledNotiService;
+    private final ReminderNotiService reminderNotiService;
 
     private static final long SORT_GAP = 10000L;
 
@@ -93,7 +93,7 @@ public class TaskService {
                 .build();
 
         Task savedTask = taskRepository.save(newTask);
-        scheduledNotiService.updateReminderNotification(savedTask);
+        reminderNotiService.updateReminderNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -161,7 +161,7 @@ public class TaskService {
 
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
-        scheduledNotiService.updateReminderNotification(savedTask);
+        reminderNotiService.updateReminderNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -171,7 +171,7 @@ public class TaskService {
             throw new RestApiException(ErrorCode.TASK_NOT_FOUND);
         }
 
-        scheduledNotiService.cancelReminderNotification(taskId);
+        reminderNotiService.cancelReminderNotification(taskId);
         taskRepository.deleteById(taskId);
     }
 
