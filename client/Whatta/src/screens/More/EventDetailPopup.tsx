@@ -16,7 +16,7 @@ import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import { useLabels } from '@/providers/LabelProvider'
-import { createLabel, type Label } from '@/api/label_api'
+import { createLabel } from '@/api/label_api'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import Arrow from '@/assets/icons/arrow.svg'
@@ -72,6 +72,7 @@ export default function EventDetailPopup({
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
   const [openStartTime, setOpenStartTime] = useState(false)
   const [openEndTime, setOpenEndTime] = useState(false)
+  const [isPickerTouching, setIsPickerTouching] = useState(false)
   const titleRef = useRef<TextInput>(null)
   const [saving, setSaving] = useState(false)
 
@@ -147,14 +148,20 @@ export default function EventDetailPopup({
     )
   }
 
-  // h, m을 사람이 읽는 "h시간 m분 전"으로 (0인 항목은 생략)
-  const formatCustomLabel = (h: number, m: number) => {
+  // day, h, m
+  const formatCustomLabel = (h: number, m: number, day: number = 0) => {
+    const dayText = day === 1 ? '전날' : '당일'
     const hh = h > 0 ? `${h}시간` : ''
     const mm = m > 0 ? `${m}분` : ''
     const body = [hh, mm].filter(Boolean).join(' ')
-    return body.length ? `${body} 전` : '0분 전'
+    const timeText = body.length ? `${body} 전` : '0분 전'
+    return `${dayText} ${timeText}`
   }
-  const pickerTouchingRef = React.useRef(false)
+  const pickerTouchHandlers = {
+    onTouchStart: () => setIsPickerTouching(true),
+    onTouchEnd: () => setIsPickerTouching(false),
+    onTouchCancel: () => setIsPickerTouching(false),
+  }
 
   // 요일 한글
   const WEEKDAY = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
@@ -312,14 +319,14 @@ export default function EventDetailPopup({
       const { nth } = getWeekIndexOfMonth(start)
 
       if (monthlyOpt === 'byDate') {
-        // 매월 10일 처럼 "날짜 기준" → on = null
-        on = null
+        // MONTH는 on 1개 필수, 날짜 기준은 "D10" 포맷
+        on = [`D${start.getDate()}`]
       } else if (monthlyOpt === 'byNthWeekday') {
         // 매월 2번째 수요일 → "2WED"
         on = [`${nth}${wd}`]
       } else {
-        // 매월 마지막주 수요일 → "LAST_WED"
-        on = [`LAST_${wd}`]
+        // "LASTWED" (언더스코어 없음)
+        on = [`LAST${wd}`]
       }
     }
 
@@ -390,7 +397,10 @@ export default function EventDetailPopup({
         nextMonthlyOpt = 'byDate'
       } else {
         const token = r.on[0] // 예: "2WED" 또는 "LAST_WED"
-        if (token.startsWith('LAST_')) {
+        if (/^D\d{1,2}$/.test(token)) {
+          nextRepeatMode = 'monthly'
+          nextMonthlyOpt = 'byDate'
+        } else if (token.startsWith('LAST_') || /^LAST(MON|TUE|WED|THU|FRI|SAT|SUN)$/.test(token)) {
           nextRepeatMode = 'monthly'
           nextMonthlyOpt = 'byLastWeekday'
         } else {
@@ -508,11 +518,6 @@ export default function EventDetailPopup({
   const [labelModalOpen, setLabelModalOpen] = useState(false)
   const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
   const labelBtnRef = useRef<View>(null)
-  const repeatBtnRef = useRef<View>(null)
-  const hasLabels = selectedLabelIds.length > 0
-  const btnBaseColor = hasLabels ? '#333' : '#B3B3B3'
-  const arrowColor = labelModalOpen ? '#B04FFF' : btnBaseColor
-  const btnText: string | undefined = hasLabels ? undefined : '없음'
   const { labels: globalLabels } = useLabels()
   const labels = globalLabels ?? []
   const [activeTab, setActiveTab] = useState<'schedule' | 'repeat'>(
@@ -523,21 +528,18 @@ export default function EventDetailPopup({
     if (!visible) return
 
     const isRepeatInitial = initial?.repeat != null
-    const isRepeatFetched = eventData?.repeat != null
+    const isRepeatFetched = mode === 'edit' && eventData?.repeat != null
 
     if (isRepeatInitial || isRepeatFetched) {
       setActiveTab('repeat')
     } else {
       setActiveTab('schedule')
     }
-  }, [visible, initial, eventData])
+  }, [visible, initial, eventData, mode])
 
   /** 일정 입력값 */
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [memo, setMemo] = useState('')
-  // mode / eventId props 기반 초기화
-  const [currentMode] = useState<'create' | 'edit'>(mode)
-  const [currentEventId] = useState<string | null>(eventId)
 
   /** 날짜 & 시간 */
   const [end, setEnd] = useState(new Date())
@@ -545,16 +547,6 @@ export default function EventDetailPopup({
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
   const [remindOn, setRemindOn] = useState(false)
-
-  /* Toggle 컴포넌트 */
-  const Toggle = ({ value, onChange }: ToggleProps) => (
-    <Pressable
-      onPress={() => onChange(!value)}
-      style={[styles.toggle, { backgroundColor: value ? '#9D7BFF' : '#ccc' }]}
-    >
-      <View style={[styles.thumb, { transform: [{ translateX: value ? 22 : 0 }] }]} />
-    </Pressable>
-  )
 
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
   const saveNormal = async () => {
@@ -653,7 +645,10 @@ export default function EventDetailPopup({
       onClose()
     } catch (err) {
       console.log('반복 일정 단일 수정 실패:', err)
-      alert('저장 실패')
+      console.log('responseBody:', (err as any)?.response?.data)
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -718,17 +713,20 @@ export default function EventDetailPopup({
       onClose()
     } catch (err) {
       console.log('반복 일정 전체 수정 실패:', err)
-      alert('저장 실패')
+      console.log('responseBody:', (err as any)?.response?.data)
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+    } finally {
+      setSaving(false)
     }
   }
 
-  // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
     // 1) 반복 탭 저장
     if (activeTab === 'repeat') {
       // 편집 모드 + 기존에 repeat 있는 일정 → 분기(이 일정만 / 이후 모두)
       if (mode === 'edit' && eventData?.repeat != null) {
+        setSaving(false)
         Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
           { text: '취소', style: 'cancel' },
           {
@@ -793,8 +791,11 @@ export default function EventDetailPopup({
         onClose()
       } catch (err) {
         console.log('반복 일정 저장 실패:', err)
+        console.log('responseBody:', (err as any)?.response?.data)
         console.log('requestBody: ', finalPayload)
-        alert('저장 실패')
+        Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+      } finally {
+        setSaving(false)
       }
       return
     }
@@ -858,36 +859,29 @@ export default function EventDetailPopup({
     pickingEndRef.current = true
   }
 
-  // 모달이 뜰 때 헤더(일간뷰)의 현재 날짜로 start/end를 초기화
-  useEffect(() => {
-    if (!visible) return
-    if (mode !== 'create') return // edit 모드에서는 절대 날짜 덮으면 안 됨
-    if (initial) return // initial 있으면 기존 일정 기반 → anchor 금지
-
-    const applyAnchor = (iso: string) => {
-      const [y, m, d] = iso.split('-').map(Number)
-      const anchor = new Date(y, m - 1, d)
-      setStart(anchor)
-      setEnd(anchor)
-      setRangeStart(anchor)
-      setRangePhase('start')
-    }
-
-    const onState = (st: { date?: string; mode?: string }) => {
-      if (st?.mode === 'day' && typeof st.date === 'string') {
-        // 반드시 day일 때만 anchor 적용
-        applyAnchor(st.date)
-      }
-    }
-
-    bus.on('calendar:state', onState)
-    bus.emit('calendar:request-sync', null)
-
-    return () => bus.off('calendar:state', onState)
-  }, [visible, mode])
-
   const marked = React.useMemo(() => buildMarked(start, end), [start, end])
   const [openTime, setOpenTime] = useState(false)
+
+  // 피커가 터치 중 닫히면 스크롤 잠금이 남을 수 있음
+  // 1. 팝업 전체 visible 꺼질 때
+  useEffect(() => {
+    if (!visible) setIsPickerTouching(false)
+  }, [visible])
+
+  // 2. 시간 피커 openTime 닫힐 때
+  useEffect(() => {
+    if (!openTime) setIsPickerTouching(false)
+  }, [openTime])
+
+  // 3. 반복 맞춤 피커 repeatCustomOpen 닫힐 때
+  useEffect(() => {
+    if (!repeatCustomOpen) setIsPickerTouching(false)
+  }, [repeatCustomOpen])
+
+  // 4. 알림 맞춤 피커 customOpen 닫히거나 remindOn 꺼질 때
+  useEffect(() => {
+    if (!customOpen || !remindOn) setIsPickerTouching(false)
+  }, [customOpen, remindOn])
 
   // 알림 드롭다운
   type ReminderPreset = {
@@ -900,27 +894,48 @@ export default function EventDetailPopup({
   const [reminderPresets, setReminderPresets] = useState<
     { id: string; day: number; hour: number; minute: number }[]
   >([])
+  const reminderPresetLoadedRef = useRef(false)
+  const [reminderPresetVersion, setReminderPresetVersion] = useState(0)
   const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null)
 
   useEffect(() => {
     if (!visible) return
+    if (reminderPresetLoadedRef.current) return
+    let cancelled = false
 
     const fetchPresets = async () => {
       try {
         const res = await http.get('/user/setting/reminder')
-        setReminderPresets(res.data.data)
+        if (cancelled) return
+        const presets = Array.isArray(res.data?.data) ? res.data.data : []
+        setReminderPresets(presets)
+        reminderPresetLoadedRef.current = true
       } catch (err) {
+        if (cancelled) return
         console.log('❌ 리마인드 preset 불러오기 실패:', err)
       }
     }
 
     fetchPresets()
-  }, [visible])
+    return () => {
+      cancelled = true
+    }
+  }, [visible, reminderPresetVersion])
+
+  useEffect(() => {
+    const onReminderMutated = () => {
+      reminderPresetLoadedRef.current = false
+      setReminderPresetVersion((v) => v + 1)
+    }
+
+    bus.on('reminder:mutated', onReminderMutated)
+    return () => bus.off('reminder:mutated', onReminderMutated)
+  }, [])
   // 프리셋 + '맞춤 설정'
   const presetOptions = (reminderPresets ?? []).map((p) => ({
     type: 'preset' as const,
     ...p,
-    label: formatCustomLabel(p.hour, p.minute),
+    label: formatCustomLabel(p.hour, p.minute, p.day),
   }))
 
   const remindOptions = [
@@ -951,7 +966,7 @@ export default function EventDetailPopup({
   }
 
   // 현재 h,m 포맷
-  const customLabel = formatCustomLabel(customHour, customMinute)
+  const customLabel = formatCustomLabel(customHour, customMinute, 0)
   // 버튼에 보여줄 텍스트: 맞춤 설정이면 항상 실시간 표시
   const displayRemind = React.useMemo(() => {
     // 알림이 꺼져 있거나, 아직 선택 안 했으면 빈 문자열
@@ -963,7 +978,10 @@ export default function EventDetailPopup({
     }
 
     // preset이면 label 사용 (없으면 시간으로 만들어서 반환)
-    return remindValue.label ?? formatCustomLabel(remindValue.hour, remindValue.minute)
+    return (
+      remindValue.label ??
+      formatCustomLabel(remindValue.hour, remindValue.minute, remindValue.day)
+    )
   }, [remindOn, remindValue, customLabel])
 
   // 반복 모드: monthly 세부 옵션 펼침 여부
@@ -1019,13 +1037,15 @@ export default function EventDetailPopup({
     }
   }
   useEffect(() => {
+    if (!visible) return
     if (mode !== 'edit' || !eventId) return
+    let cancelled = false
 
     async function fetchEventDetail() {
       try {
         const res = await http.get(`/event/${eventId}`)
         const ev = res.data.data
-        if (!ev) return
+        if (!ev || cancelled) return
 
         const rawStartDate = ev.startDate // 원본 시작일 (YYYY-MM-DD)
         const rawEndDate = ev.endDate // 원본 종료일 (YYYY-MM-DD)
@@ -1098,25 +1118,23 @@ export default function EventDetailPopup({
         setSelectedColor('#' + ev.colorKey)
         setEventData(ev)
       } catch (err) {
+        if (cancelled) return
         console.error('❌ 일정 상세 불러오기 실패:', err)
       }
     }
 
     fetchEventDetail()
-  }, [mode, eventId, initial]) // ← initial도 dependency에 추가
+    return () => {
+      cancelled = true
+    }
+  }, [visible, mode, eventId, initial?.startDate]) // 발생일 변경 때만 재조회
 
-  const isMultiDaySpan = React.useMemo(() => {
-    if (!start || !end) return false
-
-    // 날짜만 비교
-    const sd = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
-    const ed = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime()
-
-    return ed > sd
-  }, [start, end])
 
   useEffect(() => {
     if (visible && mode === 'create' && !initial) {
+      setEventData(null)
+      setSaving(false)
+
       setScheduleTitle('')
       setMemo('')
       const defaultLabel = labels.find((l) => l.title === '일정')
@@ -1129,9 +1147,16 @@ export default function EventDetailPopup({
       setEnd(today)
       setTimeOn(false)
       setRemindOn(false)
+      setRemindValue(null)
+      setRepeatMode('daily')
+      setRepeatEvery(1)
+      setRepeatUnit('week')
+      setMonthlyOpt('byDate')
+      setEndMode('none')
+      setRepeatEndDate(null)
       setActiveTab('schedule')
     }
-  }, [visible, mode])
+  }, [visible, mode, initial])
 
   useEffect(() => {
     if (!visible) return
@@ -1179,6 +1204,12 @@ export default function EventDetailPopup({
     // 알림 섹션만 닫기
     setRemindOpen(false)
     setCustomOpen(false)
+  }, [visible])
+
+  useEffect(() => {
+    if (!visible) {
+      setSaving(false)
+    }
   }, [visible])
 
   const deleteNormal = async () => {
@@ -1240,7 +1271,7 @@ export default function EventDetailPopup({
         },
       })
 
-      const ym = start.toISOString().slice(0, 7)
+      const ym = ymdLocal(start).slice(0, 7)
       bus.emit('calendar:invalidate', { ym })
 
       onClose()
@@ -1301,19 +1332,10 @@ export default function EventDetailPopup({
             ]}
             pointerEvents="box-none"
           >
-            <Pressable
+            <View
               ref={sheetRef}
               style={[styles.box, { width: SHEET_W, height: SHEET_H }]}
-              onPress={(e) => e.stopPropagation()} // ⭐ box 내부 터치는 overlay로 전파 X
             >
-              {/* <View
-                style={{ flex: 1 }}
-                onStartShouldSetResponder={() => customOpen} // 피커 열렸을 때만 외부 탭 가로채기
-                onResponderRelease={() => {
-                  if (!customOpen) return
-                  if (pickerTouchingRef.current) return
-                }}
-              > */}
               {/* HEADER */}
               <View style={styles.header}>
                 <TouchableOpacity onPress={close} hitSlop={20}>
@@ -1342,6 +1364,8 @@ export default function EventDetailPopup({
                   style={{ flex: 1 }}
                   contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: 40 }}
                   keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  scrollEnabled={!isPickerTouching}
                   bounces={false}
                   showsVerticalScrollIndicator={true}
                   automaticallyAdjustKeyboardInsets={true} // iOS 15+
@@ -1569,7 +1593,7 @@ export default function EventDetailPopup({
                     </View>
                   )}
                   {timeOn && openTime && (
-                    <View style={[styles.timePickerBox]}>
+                    <View style={[styles.timePickerBox]} {...pickerTouchHandlers}>
                       {(() => {
                         const target = timeTarget === 'start' ? start : end
                         const hour24 = target.getHours()
@@ -1894,7 +1918,7 @@ export default function EventDetailPopup({
                                   </View>
                                 )}
                                 {k === 'custom' && repeatCustomOpen && (
-                                  <View style={styles.inlinePickerInList}>
+                                  <View style={styles.inlinePickerInList} {...pickerTouchHandlers}>
                                     <View style={{ height: 8, pointerEvents: 'none' }} />
                                     <View style={styles.inlinePickerRow}>
                                       {/* LEFT: 1~6 숫자 휠 */}
@@ -2165,7 +2189,7 @@ export default function EventDetailPopup({
                     )}
                     {/* 맞춤 설정 인라인 피커 */}
                     {customOpen && remindOn && (
-                      <View style={styles.remindPickerWrap}>
+                      <View style={styles.remindPickerWrap} {...pickerTouchHandlers}>
                         <View style={styles.remindPickerInner}>
                           {/* HOUR */}
                           <View style={styles.remindPickerBox}>
@@ -2225,6 +2249,8 @@ export default function EventDetailPopup({
                       <View
                         style={{
                           flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          justifyContent: 'flex-end',
                           gap: 6,
                           maxWidth: 210,
                           flexShrink: 1,
@@ -2356,7 +2382,7 @@ export default function EventDetailPopup({
                 )}
               </View>
               {/* </View> */}
-            </Pressable>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -2474,7 +2500,6 @@ const styles = StyleSheet.create({
   remindText: { marginLeft: 10, marginBottom: 5, fontSize: 13, color: '#888' },
   memoSection: {
     marginTop: 3,
-    flex: 1,
   },
 
   memoLabelRow: {

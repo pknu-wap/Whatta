@@ -4,28 +4,20 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
   Pressable,
   Dimensions,
   ActivityIndicator,
   Vibration,
   Alert,
   LayoutAnimation,
-  UIManager,
-  Platform,
-  Modal,
 } from 'react-native'
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-} //이게 지금 필요한가 굳이
 
 import {
   GestureHandlerRootView,
   Gesture,
   GestureDetector,
 } from 'react-native-gesture-handler'
+
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -35,131 +27,54 @@ import Animated, {
   withDelay,
 } from 'react-native-reanimated'
 import { useFocusEffect, useIsFocused } from '@react-navigation/native'
-import { LinearGradient } from 'expo-linear-gradient'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import colors from '@/styles/colors'
-import axios from 'axios'
-import { token } from '@/lib/token'
-import { refreshTokens } from '@/api/auth'
+import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
-import { createEvent } from '@/api/event_api'
-
-import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
-import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
-import AddImageSheet from '@/screens/More/Ocr'
-import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
-import OcrSplash from '@/screens/More/OcrSplash'
+import { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import WeekHeaderSpan from '@/screens/Calender/Week/WeekHeaderSpan'
+import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
+import WeekPopups from '@/screens/Calender/Week/WeekPopups'
+import { useCalendarSync } from '@/screens/Calender/Week/useCalendarSync'
+import { useWeekGestures } from '@/screens/Calender/Week/useWeekGestures'
+import {
+  useWeekCalendarData,
+  type DayBucket,
+} from '@/screens/Calender/Week/useWeekCalendarData'
+import {
+  cloneTaskToDateTimeAndDeleteOriginal,
+  moveTaskToDateTime,
+  updateTaskCompleted,
+} from '@/screens/Calender/Week/services/weekTaskService'
+import {
+  getEventDetail,
+  isRepeatEvent,
+  moveEventToDateTime,
+} from '@/screens/Calender/Week/services/weekEventService'
 
-/* -------------------------------------------------------------------------- */
-/* Axios 설정 */
-/* -------------------------------------------------------------------------- */
+import {
+  addDays,
+  getDateOfWeek,
+  parseDate,
+  startOfWeek,
+  toISO,
+  todayISO,
+} from '@/screens/Calender/Week/date'
 
-const http = axios.create({
-  baseURL: 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
-  timeout: 8000,
-})
-
-http.interceptors.request.use(
-  (config) => {
-    const access = token.getAccess()
-    if (access) {
-      config.headers.Authorization = `Bearer ${access}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-http.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-      try {
-        await refreshTokens()
-        const newAccess = token.getAccess()
-        if (newAccess) {
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`
-          return http(originalRequest)
-        }
-      } catch (err) {
-        console.error('[❌ 토큰 갱신 실패]', err)
-      }
-    }
-    return Promise.reject(error)
-  },
-)
+import {
+  buildWeekSpanEvents,
+  getDayColWidth,
+  resetLayoutDayEventsCache,
+} from '@/screens/Calender/Week/layout'
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
 /* -------------------------------------------------------------------------- */
-
-const pad2 = (n: number) => String(n).padStart(2, '0')
-const today = () => {
-  const t = new Date()
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-
-function getDateOfWeek(weekDay: string): string {
-  if (!weekDay) return today()
-
-  const key = weekDay.trim().toUpperCase() // ⭐ 중요
-
-  const map: any = {
-    MON: 1,
-    TUE: 2,
-    WED: 3,
-    THU: 4,
-    FRI: 5,
-    SAT: 6,
-    SUN: 0,
-  }
-
-  const target = map[key]
-  if (target === undefined) {
-    console.log('❌ Unknown weekDay:', weekDay)
-    return today()
-  }
-
-  const now = new Date()
-  const todayIdx = now.getDay()
-
-  const diff = target - todayIdx
-  const d = new Date()
-  d.setDate(now.getDate() + diff)
-
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-
-const todayISO = () => {
-  const t = new Date()
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-
-const addDays = (iso: string, d: number) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const base = new Date(y, m - 1, dd + d)
-  return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}-${pad2(base.getDate())}`
-}
-
-const startOfWeek = (iso: string) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const base = new Date(y, m - 1, dd)
-  const wd = base.getDay()
-  const s = new Date(base.getFullYear(), base.getMonth(), base.getDate() - wd)
-  return `${s.getFullYear()}-${pad2(s.getMonth() + 1)}-${pad2(s.getDate())}`
-}
-
-const parseDate = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const ROW_H = 48
@@ -173,10 +88,6 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 50
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
-const getDayColWidth = (count: number) =>
-  (SCREEN_W - TIME_COL_W - SIDE_PADDING) / (count > 0 ? count : 7)
-
-let prevLayoutMap: Record<string, LayoutedEvent> = {}
 
 /* -------------------------------------------------------------------------- */
 /* 공통 컴포넌트 */
@@ -209,250 +120,6 @@ function FullBleed({
   )
 }
 
-function mixWhite(hex: string, whitePercent: number) {
-  const clean = hex.replace('#', '')
-  const r = parseInt(clean.slice(0, 2), 16)
-  const g = parseInt(clean.slice(2, 4), 16)
-  const b = parseInt(clean.slice(4, 6), 16)
-
-  const w = whitePercent / 100
-  const base = 1 - w
-
-  const mix = (c: number) => Math.round(c * base + 255 * w)
-
-  const newR = mix(r)
-  const newG = mix(g)
-  const newB = mix(b)
-
-  return (
-    '#' +
-    newR.toString(16).padStart(2, '0') +
-    newG.toString(16).padStart(2, '0') +
-    newB.toString(16).padStart(2, '0')
-  ).toUpperCase()
-}
-
-/* -------------------------------------------------------------------------- */
-/* 타입 */
-/* -------------------------------------------------------------------------- */
-
-type CheckItem = {
-  id: string
-  title: string
-  done: boolean
-}
-
-type DayTimelineEvent = {
-  id: string
-  title: string
-  place?: string
-  startMin: number
-  endMin: number
-  color: string
-  isRepeat?: boolean
-}
-
-type LayoutedEvent = DayTimelineEvent & {
-  column: number
-  columnsTotal: number
-  isPartialOverlap?: boolean
-  overlapDepth?: number
-}
-
-type DayBucket = {
-  spanEvents: any[]
-  timelineEvents: DayTimelineEvent[]
-  checks: CheckItem[]
-  timedTasks: any[]
-  tasks?: any[]
-}
-
-type WeekData = Record<string, DayBucket>
-
-type WeekSpanEvent = {
-  id: string
-  title: string
-  color: string
-  startIdx: number
-  endIdx: number
-  row: number
-  startISO: string
-  endISO: string
-  isTask?: boolean
-  done?: boolean
-  completed?: boolean
-  isRepeat?: boolean
-}
-
-/* -------------------------------------------------------------------------- */
-/* Day 일정 레이아웃 계산 */
-/* -------------------------------------------------------------------------- */
-
-function layoutDayEvents(events: DayTimelineEvent[]): LayoutedEvent[] {
-  if (!events.length) return []
-
-  const sorted = [...events].sort((a, b) => {
-    if (a.startMin !== b.startMin) return a.startMin - b.startMin
-    return a.endMin - b.endMin
-  })
-
-  const layout: LayoutedEvent[] = []
-  const used = new Set<string>()
-
-  for (let i = 0; i < sorted.length; i++) {
-    const ev = sorted[i]
-    if (used.has(ev.id)) continue
-
-    const sameGroup = sorted.filter(
-      (e) => e.startMin === ev.startMin && e.endMin === ev.endMin,
-    )
-
-    if (sameGroup.length > 1) {
-      const n = sameGroup.length
-      sameGroup.forEach((e, idx) => {
-        layout.push({
-          ...e,
-          column: idx,
-          columnsTotal: n,
-          isPartialOverlap: false,
-          overlapDepth: 0,
-        })
-        used.add(e.id)
-      })
-      continue
-    }
-
-    const overlappingGroup = sorted.filter(
-      (other) =>
-        other.id !== ev.id && other.startMin < ev.endMin && other.endMin > ev.startMin,
-    )
-
-    const hasOverlap = overlappingGroup.length > 0
-    const prev = prevLayoutMap[ev.id]
-    const wasPartial = prev?.isPartialOverlap ?? false
-
-    let overlapDepth = 0
-    let isPartialOverlap = false
-
-    if (hasOverlap) {
-      const group = [...overlappingGroup, ev].sort((a, b) => a.startMin - b.startMin)
-      group.forEach((e, idx) => {
-        const depth = idx
-        layout.push({
-          ...e,
-          column: 0,
-          columnsTotal: 1,
-          isPartialOverlap: true,
-          overlapDepth: depth,
-        })
-        used.add(e.id)
-      })
-      continue
-    } else if (wasPartial) {
-      overlapDepth = 0
-      isPartialOverlap = false
-    }
-
-    layout.push({
-      ...ev,
-      column: 0,
-      columnsTotal: 1,
-      isPartialOverlap,
-      overlapDepth,
-    })
-  }
-
-  prevLayoutMap = Object.fromEntries(layout.map((ev) => [ev.id, ev]))
-  return layout
-}
-
-/* -------------------------------------------------------------------------- */
-/* 상단 span 이벤트 계산 */
-/* -------------------------------------------------------------------------- */
-
-function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
-  const byId = new Map<string, WeekSpanEvent>()
-
-  weekDates.forEach((dateISO) => {
-    const bucket = data[dateISO]
-    if (!bucket) return
-
-    const list = [...(bucket.spanEvents || []), ...(bucket.checks || [])]
-
-    list.forEach((e: any) => {
-      const id = String(e.id)
-      const title = e.title ?? ''
-
-      const isTask =
-        e.isTask === true ||
-        typeof e.completed !== 'undefined' ||
-        typeof e.done !== 'undefined' ||
-        e.type === 'task'
-
-      const colorKey = isTask
-        ? '000000'
-        : (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
-      const color = colorKey.startsWith('#') ? colorKey : `#${colorKey}`
-
-      const s = (e.startDate || e.date || dateISO).slice(0, 10)
-      const ed = (e.endDate || e.date || s).slice(0, 10)
-      const startISO = s
-      const endISO = ed
-
-      const existing = byId.get(id)
-
-      if (!existing) {
-        byId.set(id, {
-          id,
-          title,
-          color,
-          startISO,
-          endISO,
-          startIdx: 0,
-          endIdx: 0,
-          row: 0,
-          isTask,
-          done: e.done ?? e.completed ?? false,
-          completed: e.completed,
-        })
-      } else {
-        if (startISO < existing.startISO) existing.startISO = startISO
-        if (endISO > existing.endISO) existing.endISO = endISO
-      }
-    })
-  })
-
-  const items = Array.from(byId.values())
-  const idxOf = (iso: string) => weekDates.indexOf(iso)
-
-  items.forEach((ev) => {
-    ev.startIdx = Math.max(0, idxOf(ev.startISO))
-    const endIdxRaw = idxOf(ev.endISO)
-    ev.endIdx = Math.min(
-      weekDates.length - 1,
-      endIdxRaw === -1 ? weekDates.length - 1 : endIdxRaw,
-    )
-  })
-
-  const lanes: WeekSpanEvent[][] = []
-  items.forEach((ev) => {
-    let row = 0
-    while (
-      lanes[row] &&
-      lanes[row].some(
-        (other) => !(ev.endIdx < other.startIdx || ev.startIdx > other.endIdx),
-      )
-    ) {
-      row++
-    }
-    ev.row = row
-    if (!lanes[row]) lanes[row] = []
-    lanes[row].push(ev)
-  })
-
-  return items
-}
-
 /* -------------------------------------------------------------------------- */
 /* Task 시간 파싱 헬퍼 */
 /* -------------------------------------------------------------------------- */
@@ -468,36 +135,6 @@ function getTaskTime(t: any): string {
     }
   }
   return '00:00:00'
-}
-
-/**
- * 서버 TaskUpdateRequest 스펙에 맞는 payload 생성 헬퍼
- */
-function buildTaskUpdatePayload(task: any, overrides: Partial<any> = {}) {
-  if (!task) return overrides
-
-  const labels = Array.isArray(task.labels)
-    ? task.labels.map((l: any) => (typeof l === 'number' ? l : (l.id ?? l.labelId ?? l)))
-    : undefined
-
-  const base: any = {
-    title: task.title,
-    content: task.content,
-    completed: task.completed,
-    placementDate: task.placementDate,
-    placementTime: task.placementTime,
-    dueDateTime: task.dueDateTime,
-    sortNumber: task.sortNumber,
-  }
-
-  if (labels) base.labels = labels
-  if (task.repeat) base.repeat = task.repeat
-  if (task.endDate) base.endDate = task.endDate
-
-  return {
-    ...base,
-    ...overrides,
-  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -601,12 +238,7 @@ function TaskGroupBox({
           localTasks.map(async (t: any) => {
             const taskId = String(t.id)
             try {
-              const payload = buildTaskUpdatePayload(t, {
-                placementDate: newDateISO,
-                placementTime: newTime,
-              })
-
-              await http.patch(`/task/${taskId}`, payload)
+              await moveTaskToDateTime(http, taskId, newDateISO, newTime)
 
               bus.emit('calendar:mutated', {
                 op: 'update',
@@ -721,15 +353,7 @@ function TaskGroupBox({
     const taskDateISO = dateISO
 
     try {
-      const full = await http.get(`/task/${taskId}`)
-      const fullTask = full.data.data
-
-      const payload = buildTaskUpdatePayload(fullTask, {
-        completed: newCompleted,
-        placementDate: fullTask.placementDate ?? taskDateISO,
-      })
-
-      await http.patch(`/task/${taskId}`, payload)
+      await updateTaskCompleted(http, taskId, newCompleted, taskDateISO)
 
       // 서버 반영 후에만 로컬 업데이트 (깜빡임 제거)
       setLocalTasks((prev) =>
@@ -993,11 +617,7 @@ function DraggableTaskBox({
     const next = !done
     setDone(next)
     try {
-      const full = await http.get(`/task/${id}`)
-      const task = full.data.data
-      const payload = buildTaskUpdatePayload(task, { completed: next })
-
-      await http.patch(`/task/${id}`, payload)
+      await updateTaskCompleted(http, id, next, dateISO)
 
       onLocalChange?.({ id, dateISO, completed: next })
 
@@ -1042,14 +662,7 @@ function DraggableTaskBox({
 
       const newDateISO = addDays(dateISO, dayOffset)
 
-      const full = await http.get(`/task/${id}`)
-      const task = full.data.data
-      const payload = buildTaskUpdatePayload(task, {
-        placementDate: newDateISO,
-        placementTime: newTime,
-      })
-
-      await http.patch(`/task/${id}`, payload)
+      await moveTaskToDateTime(http, id, newDateISO, newTime)
 
       bus.emit('calendar:mutated', {
         op: 'update',
@@ -1301,24 +914,23 @@ function DraggableFlexalbeEvent({
 
         const newDateISO = addDays(dateISO, dayOffset)
 
-        const full = await http.get(`/event/${id}`)
-        const eventData = full.data.data
+        const eventData = await getEventDetail(http, id)
 
         let applyMode: 'single' | 'future' = 'single'
 
         // 이벤트가 반복일 경우에만 선택창 띄우기
-        if (eventData.isRepeat || eventData.repeat) {
+        if (isRepeatEvent(eventData)) {
           const choice = await askRepeatAction()
           if (choice === 'cancel') return // 취소 시 아무것도 안 함
           applyMode = choice
         }
 
-        await http.patch(`/event/${id}`, {
-          startDate: newDateISO,
-          endDate: newDateISO,
+        await moveEventToDateTime(http, {
+          eventId: id,
+          dateISO: newDateISO,
           startTime: nextStartTime,
           endTime: nextEndTime,
-          applyMode, // 서버가 이걸 보고 이후 반복 포함 여부 결정
+          applyMode, // 반복 포함 여부 결정
         })
 
         bus.emit('calendar:mutated', {
@@ -1581,28 +1193,15 @@ export default function WeekView() {
     anchorDateRef.current = anchorDate
   }, [anchorDate])
 
-  // inserted handleSwipe
-  const handleSwipe = useCallback(
-    (direction: string) => {
-      const step = isZoomed ? 5 : 7
-      const offset = direction === 'next' ? step : -step
-
-      const nextDate = addDays(anchorDate, offset)
-
-      bus.emit('calendar:set-date', nextDate)
-    },
-    [isZoomed, anchorDate],
-  )
   const [weekDates, setWeekDates] = useState<string[]>([])
 
   // 🧹 주(weekDates)가 완전히 바뀔 때는 겹침 레이아웃 메모리를 초기화해서
   // 이전 주의 overlap 정보가 새 주에 섞여 들어와 위치가 튀는 것을 방지한다.
   useEffect(() => {
-    prevLayoutMap = {}
+    resetLayoutDayEventsCache()
   }, [weekDates])
 
-  const [weekData, setWeekData] = useState<WeekData>({})
-  const [loading, setLoading] = useState(true)
+  const { weekData, setWeekData, loading, fetchWeek } = useWeekCalendarData(http)
 
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
@@ -1675,8 +1274,7 @@ export default function WeekView() {
     setSelectedEventId(eventId)
 
     try {
-      const res = await http.get(`/event/${eventId}`)
-      const data = res.data.data
+      const data = await getEventDetail(http, eventId)
       if (!data) return
 
       setEventPopupMode('edit')
@@ -1708,21 +1306,11 @@ export default function WeekView() {
     return () => bus.off('popup:schedule:create', h)
   }, [])
 
-  const toISO = (dt: Date) =>
-    `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(
-      dt.getDate(),
-    ).padStart(2, '0')}`
-
-  const toDate = (iso: string) => {
-    const [y, m, d] = iso.split('-').map(Number)
-    return new Date(y, m - 1, d)
-  }
-
   useEffect(() => {
     if (isZoomed) {
       // 5일뷰: anchorDate 기준 -2 ~ +2
       const centerDate = anchorDate
-      const base = toDate(centerDate)
+      const base = parseDate(centerDate)
 
       const arr = [
         toISO(new Date(base.getFullYear(), base.getMonth(), base.getDate() - 2)),
@@ -1804,275 +1392,22 @@ export default function WeekView() {
 
   useFocusEffect(
     useCallback(() => {
-      currentCalendarView.set('week')
-
-      // 1. 헤더 정보 갱신 방송
-      bus.emit('calendar:state', {
-        date: anchorDateRef.current,
-        mode: 'week',
-        days: weekDates.length,
-        rangeStart: weekDates[0],
-        rangeEnd: weekDates[weekDates.length - 1],
-      })
-
-      bus.emit('calendar:meta', {
-        mode: 'week',
-        dayColWidth: getDayColWidth(weekDates.length),
-        rowH: ROW_H,
-      })
-
-      // 2. 날짜 동기화 요청 (헤더/일간뷰와 맞춤)
-      bus.emit('calendar:request-sync')
-
-      // 날짜가 안 바껴도 데이터는 새로 가져와야 함 (서버 연동)
-      if (weekDates.length > 0) {
-        fetchWeek(weekDates)
-      }
-    }, [weekDates]),
-  )
-
-  const fetchWeek = useCallback(async (dates: string[]) => {
-    if (!dates.length) return
-    try {
-      setLoading(true)
-      const resList = await Promise.all(
-        dates.map((d) =>
-          http.get('/calendar/daily', { params: { date: d } }).catch(() => null),
-        ),
-      )
-
-      const next: WeekData = {}
-
-      dates.forEach((dateISO, idx) => {
-        const payload = resList[idx]?.data?.data ?? {}
-        const timed = payload.timedEvents || []
-        const timedTasks = payload.timedTasks || []
-        const allDay = payload.allDayTasks || []
-        const floating = payload.floatingTasks || []
-        const allDaySpan = payload.allDaySpanEvents || []
-        const allDayEvents = payload.allDayEvents || []
-
-        const timelineEvents: DayTimelineEvent[] = timed
-          .filter((e: any) => !e.isSpan)
-          .map((e: any) => {
-            const sTime = e.clippedStartTime || e.startTime
-            const eTime = e.clippedEndTime || e.endTime
-            if (!sTime || !eTime) return null
-
-            const [sh, sm] = sTime.split(':').map(Number)
-            const [eh, em] = eTime.split(':').map(Number)
-
-            return {
-              id: String(e.id),
-              title: e.title,
-              place: e.place ?? '',
-              startMin: sh * 60 + sm,
-              endMin: eh * 60 + em,
-              color: `#${(e.colorKey ?? 'B04FFF').replace('#', '')}`,
-              isRepeat: e.isRepeat ?? false,
-            }
-          })
-          .filter(Boolean) as DayTimelineEvent[]
-
-        const spanEvents = [
-          ...timed.filter((e: any) => {
-            const s = e.startDate?.slice(0, 10)
-            const ed = e.endDate?.slice(0, 10)
-            return e.isSpan || (s && ed && s !== ed)
-          }),
-          ...allDaySpan,
-          ...allDayEvents,
-        ].map((e: any) => ({
-          ...e,
-          isRepeat: e.isRepeat ?? false,
-        }))
-
-        const checks: CheckItem[] = [
-          ...allDay.map((t: any) => ({
-            id: String(t.id),
-            title: t.title,
-            done: t.completed ?? false,
-          })),
-          ...floating.map((t: any) => ({
-            id: String(t.id),
-            title: t.title,
-            done: t.completed ?? false,
-          })),
-        ]
-
-        next[dateISO] = {
-          spanEvents,
-          timelineEvents,
-          checks,
-          timedTasks,
-        }
-      })
-
-      setWeekData((prev: WeekData) => {
-        const merged: WeekData = {}
-
-        for (const [d, bucket] of Object.entries(next)) {
-          const prevBucket = prev[d]
-          const nextBucket = bucket as DayBucket
-
-          if (!prevBucket) {
-            merged[d] = nextBucket
-            continue
-          }
-
-          const mergedChecks = nextBucket.checks.map((c) => {
-            const old = prevBucket.checks.find((p) => p.id === c.id)
-            return old ? { ...c, done: old.done } : c
-          })
-
-          const mergedSpans = nextBucket.spanEvents.map((s: any) => {
-            const old = prevBucket.spanEvents.find(
-              (p: any) => String(p.id) === String(s.id),
-            )
-            return old ? { ...s, done: old.done } : s
-          })
-
-          const mergedTimedTasks = nextBucket.timedTasks.map((t: any) => {
-            const old = prevBucket.timedTasks.find(
-              (p: any) => String(p.id) === String(t.id),
-            )
-            return old ? { ...t, completed: old.completed } : t
-          })
-
-          merged[d] = {
-            ...nextBucket,
-            checks: mergedChecks,
-            spanEvents: mergedSpans,
-            timedTasks: mergedTimedTasks,
-          }
-        }
-
-        return merged
-      })
-    } catch (err) {
-      console.error('❌ 주간 일정 불러오기 실패:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!weekDates.length || !isFocused) return // 👈 !isFocused 추가
-
-    bus.emit('calendar:state', {
-      date: weekDates[0],
-      mode: 'week',
-      days: weekDates.length,
-      rangeStart: weekDates[0],
-      rangeEnd: weekDates[weekDates.length - 1],
-    })
-
-    bus.emit('calendar:meta', {
-      mode: 'week',
-      dayColWidth: getDayColWidth(weekDates.length),
-      rowH: ROW_H,
-    })
-  }, [weekDates, isFocused])
-
-  useEffect(() => {
-    const onReq = () => {
-      if (!isFocused) return
-
-      bus.emit('calendar:state', {
-        date: anchorDateRef.current,
-        mode: 'week',
-        days: weekDates.length,
-        rangeStart: weekDates[0],
-        rangeEnd: weekDates[weekDates.length - 1],
-      })
-    }
-
-    // 다른 뷰(DayView)에서 날짜를 바꾸면 나도 조용히 업데이트
-    const onState = (payload: any) => {
-      if (isFocused && payload.mode !== 'week') return
-      if (payload.mode !== 'week' && payload.date) {
-        setAnchorDate((prev) => (prev === payload.date ? prev : payload.date))
-      }
-    }
-
-    // 강제 날짜 변경 (헤더 등)
-    const onSet = (iso: string) => {
-      setAnchorDate((prev) => (prev === iso ? prev : iso))
-    }
-
-    bus.on('calendar:request-sync', onReq)
-    bus.on('calendar:state', onState)
-    bus.on('calendar:set-date', onSet)
-
-    return () => {
-      bus.off('calendar:request-sync', onReq)
-      bus.off('calendar:state', onState)
-      bus.off('calendar:set-date', onSet)
-    }
-  }, [weekDates, isFocused])
-
-  useFocusEffect(
-    useCallback(() => {
-      // A. 헤더가 날짜를 강제로 바꿨을 때 (달력 팝업 등)
-      const onSet = (iso: string) => {
-        setAnchorDate((prev) => (prev === iso ? prev : iso))
-      }
-
-      // B. 다른 뷰(DayView)에서 날짜를 바꾸고 넘어왔을 때
-      const onState = (payload: any) => {
-        // 주간 모드가 아닌 곳에서 날짜 정보가 오면 내 날짜도 맞춤
-        if (payload.mode !== 'week' && payload.date) {
-          setAnchorDate((prev) => (prev === payload.date ? prev : payload.date))
-        }
-      }
-
-      // 리스너 등록
-      bus.on('calendar:set-date', onSet)
-      bus.on('calendar:state', onState)
-      bus.emit('calendar:request-sync')
-
-      return () => {
-        bus.off('calendar:set-date', onSet)
-        bus.off('calendar:state', onState)
-      }
-    }, []), // 의존성 비움: 스와이프 시 재실행 방지 -> 무한루프 방지
-  )
-
-  useFocusEffect(
-    useCallback(() => {
       setHasScrolledOnce(false) // ← 요거 하나로 DayView와 동일한 동작 완성
     }, []),
   )
 
-  useEffect(() => {
-    const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
-      if (!payload?.item) return
-      const item = payload.item
-
-      const rawDate =
-        item.startDate ??
-        item.date ??
-        item.endDate ??
-        item.placementDate ??
-        item.placementTimeDate ??
-        todayISO()
-      const itemDateISO = String(rawDate).slice(0, 10)
-
-      if (weekDates.includes(itemDateISO)) {
-        setTimeout(() => fetchWeek(weekDates), 250)
-      }
-    }
-
-    bus.on('calendar:mutated', onMutated)
-    return () => bus.off('calendar:mutated', onMutated)
-  }, [weekDates, fetchWeek])
-
   const today = todayISO()
-  const spanBars = buildWeekSpanEvents(weekDates, weekData)
-  const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
-  const dayColWidth = getDayColWidth(weekDates.length)
+  const dayColWidth = getDayColWidth(SCREEN_W, weekDates.length, TIME_COL_W, SIDE_PADDING)
+  useCalendarSync({
+    isFocused,
+    weekDates,
+    anchorDateRef,
+    dayColWidth,
+    rowH: ROW_H,
+    setAnchorDate,
+    fetchWeek,
+  })
   const showSpanScrollbar = spanContentH > spanWrapH - 10
 
   const gridWrapRef = useRef<View>(null)
@@ -2216,57 +1551,40 @@ export default function WeekView() {
       placementTime: string | null,
     ) => {
       try {
-        const full = await http.get(`/task/${task.id}`)
-        const baseTask = full.data.data
-
-        const labelIds = Array.isArray(baseTask.labels)
-          ? baseTask.labels.map((l: any) =>
-              typeof l === 'number' ? l : (l.id ?? l.labelId ?? l),
-            )
-          : null
-
-        const createPayload: any = {
-          title: baseTask.title ?? task.title ?? '(제목 없음)',
-          content: baseTask.content ?? '',
-          labels: labelIds && labelIds.length ? labelIds : null,
-          placementDate: targetDate,
-          placementTime: placementTime,
-          dueDateTime: baseTask.dueDateTime ?? null,
-          repeat: baseTask.repeat ?? null,
-          reminderNoti: baseTask.reminderNoti ?? null,
-        }
-
-        const createRes = await http.post('/task', createPayload)
-        const created = createRes.data?.data
-
-        try {
-          await http.delete(`/task/${task.id}`)
-        } catch (delErr: any) {
-          console.warn('원본 삭제 실패(무시):', delErr)
-        }
+        const created = await cloneTaskToDateTimeAndDeleteOriginal(
+          http,
+          task,
+          targetDate,
+          placementTime,
+        )
 
         bus.emit('sidebar:remove-task', { id: task.id })
 
         setWeekData((prev) => {
-          const next = { ...prev }
-          const targetBucket: DayBucket = next[targetDate] ?? {
+          const prevBucket = prev[targetDate]
+          const baseBucket: DayBucket = prevBucket ?? {
             spanEvents: [],
             timelineEvents: [],
             checks: [],
             timedTasks: [],
           }
 
-          targetBucket.timedTasks = (targetBucket.timedTasks || []).filter(
+          const nextTimedTasks = (baseBucket.timedTasks || []).filter(
             (t: any) => String(t.id) !== String(created?.id),
           )
-
-          targetBucket.timedTasks.push({
+          nextTimedTasks.push({
             ...created,
             placementDate: targetDate,
             placementTime: placementTime,
           })
-          next[targetDate] = targetBucket
-          return next
+
+          return {
+            ...prev,
+            [targetDate]: {
+              ...baseBucket,
+              timedTasks: nextTimedTasks,
+            },
+          }
         })
 
         bus.emit('calendar:mutated', {
@@ -2301,34 +1619,34 @@ export default function WeekView() {
     try {
       const nextCompleted = !prevDone
 
-      const full = await http.get(`/task/${taskId}`)
-      const task = full.data.data
-      const payload = buildTaskUpdatePayload(task, {
-        completed: nextCompleted,
-      })
-
-      await http.patch(`/task/${taskId}`, payload)
+      await updateTaskCompleted(http, taskId, nextCompleted, dateISO)
 
       setWeekData((prev) => {
-        const copy = { ...prev }
-        const bucket = copy[dateISO]
-        if (!bucket) return copy
+        const bucket = prev[dateISO]
+        if (!bucket) return prev
 
-        bucket.spanEvents = bucket.spanEvents.map((e: any) => {
+        const spanEvents = bucket.spanEvents.map((e: any) => {
           if (String(e.id) === String(taskId)) {
             return { ...e, done: nextCompleted }
           }
           return e
         })
 
-        bucket.checks = bucket.checks.map((c) => {
+        const checks = bucket.checks.map((c) => {
           if (String(c.id) === String(taskId)) {
             return { ...c, done: nextCompleted }
           }
           return c
         })
 
-        return copy
+        return {
+          ...prev,
+          [dateISO]: {
+            ...bucket,
+            spanEvents,
+            checks,
+          },
+        }
       })
 
       bus.emit('calendar:mutated', {
@@ -2361,78 +1679,12 @@ export default function WeekView() {
     })
   }, [weekDates])
 
-  const scale = useSharedValue(1)
-  const swipeTranslateX = useSharedValue(0)
-
-  const SWIPE_THRESHOLD = SCREEN_W * 0.25
-
-  const swipeGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetX([-10, 10]) // DayView와 동일한 민감도
-        .failOffsetY([-10, 10]) // 세로 스크롤과 충돌 방지
-        .onUpdate((e) => {
-          'worklet'
-          let next = e.translationX
-          const maxOffset = SCREEN_W * 0.15
-          if (next > maxOffset) next = maxOffset
-          if (next < -maxOffset) next = -maxOffset
-          swipeTranslateX.value = next
-        })
-        .onEnd(() => {
-          'worklet'
-          const current = swipeTranslateX.value
-          const trigger = SCREEN_W * 0.06
-
-          if (current > trigger) {
-            swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
-              runOnJS(handleSwipe)('prev')
-              swipeTranslateX.value = withTiming(0, { duration: 160 })
-            })
-          } else if (current < -trigger) {
-            swipeTranslateX.value = withTiming(
-              -SCREEN_W * 0.15,
-              { duration: 120 },
-              () => {
-                runOnJS(handleSwipe)('next')
-                swipeTranslateX.value = withTiming(0, { duration: 160 })
-              },
-            )
-          } else {
-            swipeTranslateX.value = withTiming(0, { duration: 150 })
-          }
-        }),
-    [handleSwipe],
-  )
-  const pinchGesture = useMemo(
-    () =>
-      Gesture.Pinch()
-        .onUpdate((e) => {
-          scale.value = e.scale
-        })
-        .onEnd(() => {
-          const current = scale.value
-          if (current > 1.05 && !isZoomed) {
-            runOnJS(setIsZoomed)(true)
-          } else if (current < 0.95 && isZoomed) {
-            runOnJS(setIsZoomed)(false)
-          }
-          scale.value = withTiming(1, { duration: 150 })
-        }),
-    [isZoomed],
-  )
-
-  const composedGesture = useMemo(
-    () => Gesture.Simultaneous(pinchGesture, swipeGesture),
-    [pinchGesture, swipeGesture],
-  )
-
-  const swipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: swipeTranslateX.value }],
-  }))
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
+  const { composedGesture, swipeStyle, animatedStyle } = useWeekGestures({
+    anchorDate,
+    isZoomed,
+    setIsZoomed,
+    screenWidth: SCREEN_W,
+  })
   const handleDeleteTask = () => {
     if (!taskPopupId) return
 
@@ -2475,6 +1727,69 @@ export default function WeekView() {
     () => filterLabels.filter((l) => l.enabled).map((l) => l.id),
     [filterLabels],
   )
+
+  const filteredWeekData = useMemo(() => {
+    if (!filterLabels.length) return weekData
+    if (enabledLabelIds.length === filterLabels.length) return weekData
+
+    const enabledSet = new Set(enabledLabelIds)
+
+    const matchesLabel = (item: any) => {
+      const labels = Array.isArray(item?.labels) ? item.labels : []
+      if (!labels.length) return true
+      return labels.some((id: number) => enabledSet.has(id))
+    }
+
+    const next: Record<string, any> = {}
+    for (const [dateISO, bucket] of Object.entries(weekData)) {
+      next[dateISO] = {
+        ...bucket,
+        spanEvents: (bucket.spanEvents || []).filter(matchesLabel),
+        timelineEvents: (bucket.timelineEvents || []).filter(matchesLabel),
+        checks: (bucket.checks || []).filter(matchesLabel),
+        timedTasks: (bucket.timedTasks || []).filter(matchesLabel),
+      }
+    }
+    return next
+  }, [weekData, enabledLabelIds, filterLabels])
+
+  const spanBars = useMemo(
+    () => buildWeekSpanEvents(weekDates, filteredWeekData),
+    [weekDates, filteredWeekData],
+  )
+  const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
+  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+
+  const handleTimedTaskCompletedChange = useCallback(
+    ({
+      id,
+      dateISO,
+      completed,
+    }: {
+      id: string
+      dateISO: string
+      completed: boolean
+    }) => {
+      setWeekData((prev) => {
+        const bucket = prev[dateISO]
+        if (!bucket) return prev
+
+        const timedTasks = (bucket.timedTasks || []).map((t: any) =>
+          String(t.id) === String(id) ? { ...t, completed } : t,
+        )
+
+        return {
+          ...prev,
+          [dateISO]: {
+            ...bucket,
+            timedTasks,
+          },
+        }
+      })
+    },
+    [],
+  )
+
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -2492,658 +1807,85 @@ export default function WeekView() {
       <ScreenWithSidebar mode="overlay">
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[S.screen, animatedStyle, swipeStyle]}>
-            {/* 헤더 - 기존 WeekView 스타일 유지 */}
-            <FullBleed padH={16}>
-              <View ref={spanWrapRef} style={S.weekHeaderRow}>
-                <View
-                  style={S.weekHeaderTimeCol}
-                  onLayout={(e) => {
-                    const { x, y } = e.nativeEvent.layout
-                    gridOffsetRef.current = { x, y }
-                  }}
-                />
-                {weekDates.map((d, colIdx) => {
-                  const dt = parseDate(d)
-                  const dow = dt.getDay()
-                  const label = ['일', '월', '화', '수', '목', '금', '토'][dow]
-                  const isToday = d === today
-                  return (
-                    <View
-                      key={`${d}-header`}
-                      style={[S.weekHeaderCol, { width: dayColWidth }]}
-                    >
-                      <Text
-                        style={[
-                          S.weekHeaderText,
-                          { color: '#333333' },
-                          dow === 0 && { color: '#FF4D4D' },
-                          dow === 6 && { color: '#000000' },
-                          isToday && {
-                            color: colors.primary.main,
-                            fontWeight: '800',
-                          },
-                        ]}
-                      >
-                        {label}
-                      </Text>
-                      <Text
-                        style={[
-                          S.weekHeaderDate,
-                          isToday && { color: colors.primary.main },
-                        ]}
-                      >
-                        {dt.getDate()}
-                      </Text>
-                    </View>
-                  )
-                })}
-              </View>
-            </FullBleed>
+            <WeekHeaderSpan
+              FullBleed={FullBleed}
+              styles={S}
+              spanWrapRef={spanWrapRef}
+              spanScrollRef={spanScrollRef}
+              weekDates={weekDates}
+              todayISO={today}
+              dayColWidth={dayColWidth}
+              timeColWidth={TIME_COL_W}
+              singleHeight={SINGLE_HEIGHT}
+              spanBars={spanBars}
+              spanAreaHeight={spanAreaHeight}
+              showSpanScrollbar={showSpanScrollbar}
+              spanWrapH={spanWrapH}
+              spanContentH={spanContentH}
+              spanThumbTop={spanThumbTop}
+              onSetSpanWrapH={setSpanWrapH}
+              onSetSpanThumbTop={setSpanThumbTop}
+              onSetSpanContentH={setSpanContentH}
+              onToggleSpanTask={toggleSpanTaskCheck}
+              onOpenEventDetail={openEventDetail}
+              onHeaderTimeColLayout={(x, y) => {
+                gridOffsetRef.current = { x, y }
+              }}
+            />
 
-            {/* spanbar 영역 */}
-            <FullBleed padH={16}>
-              <View style={S.spanTaskBoxWrap}>
-                <View
-                  style={[S.spanTaskBox, { height: 150 }]}
-                  onLayout={(e) => setSpanWrapH(e.nativeEvent.layout.height)}
-                >
-                  {/* spanbar 요일선 (task/일정 뒤에) */}
-                  <View
-                    pointerEvents="none"
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: TIME_COL_W,
-                      width: weekDates.length * dayColWidth,
-                      height: 185,
-                      flexDirection: 'row',
-                    }}
-                  >
-                    {weekDates.map((d, colIdx) => (
-                      <View
-                        key={`spanbar-colline-${d}`}
-                        style={{
-                          width: dayColWidth,
-                          borderLeftWidth: colIdx === 0 ? 0 : 0.3,
-                          borderLeftColor: '#E6E6E6',
-                        }}
-                      />
-                    ))}
-                  </View>
-                  <ScrollView
-                    ref={spanScrollRef}
-                    showsVerticalScrollIndicator={false}
-                    scrollEventThrottle={16}
-                    onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-                      const { contentOffset, contentSize, layoutMeasurement } =
-                        e.nativeEvent
-
-                      const ratio =
-                        contentSize.height <= layoutMeasurement.height
-                          ? 0
-                          : contentOffset.y /
-                            (contentSize.height - layoutMeasurement.height)
-
-                      // 기본 top 계산
-                      const rawTop =
-                        ratio *
-                        (layoutMeasurement.height -
-                          thumbH(layoutMeasurement.height, contentSize.height))
-
-                      // thumb 높이 (진한색 부분)
-                      const thumbHeight = thumbH(
-                        layoutMeasurement.height,
-                        contentSize.height,
-                      )
-
-                      // track의 실제 높이 (지금 너는 top:0, bottom:6 → trackHeight = layoutMeasurement.height - 6)
-                      const trackHeight = layoutMeasurement.height - 6
-
-                      // clamp: thumb이 트랙 밖으로 절대 못 나가게 제한
-                      const maxTop = trackHeight - thumbHeight
-                      const clampedTop = Math.max(0, Math.min(rawTop, maxTop))
-
-                      setSpanThumbTop(clampedTop)
-                    }}
-                    onContentSizeChange={(_, h) => setSpanContentH(h)}
-                    contentContainerStyle={{
-                      height: spanAreaHeight,
-                      position: 'relative',
-                      paddingVertical: 4,
-                      paddingBottom: 4,
-                    }}
-                  >
-                    {spanBars.map((s, i) => {
-                      const left = TIME_COL_W + s.startIdx * dayColWidth
-
-                      const width = (s.endIdx - s.startIdx + 1) * dayColWidth
-
-                      const isSingleDay = s.startISO === s.endISO
-                      const isTask = s.color === '#000000'
-
-                      if (isTask) {
-                        return (
-                          <Pressable
-                            key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
-                            onPress={() =>
-                              toggleSpanTaskCheck(
-                                String(s.id),
-                                !!s.done,
-                                weekDates[s.startIdx],
-                              )
-                            }
-                            style={{
-                              position: 'absolute',
-                              top: s.row * (SINGLE_HEIGHT + 4),
-                              left: Math.min(
-                                Math.max(left + 2, TIME_COL_W + 2),
-                                TIME_COL_W + weekDates.length * dayColWidth - (width - 4),
-                              ),
-                              width: width - 4,
-                              height: SINGLE_HEIGHT,
-                              backgroundColor: '#FFFFFF80',
-                              borderWidth: 0.4,
-                              borderColor: '#333333',
-                              borderRadius: 3,
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingHorizontal: 1,
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <View style={[S.taskCheckbox, s.done && S.taskCheckboxOn]}>
-                              {s.done && <Text style={S.taskCheckmark}>✓</Text>}
-                            </View>
-
-                            <Text
-                              style={[S.taskTitle, s.done && S.taskTitleDone]}
-                              numberOfLines={3}
-                              ellipsizeMode="tail"
-                            >
-                              {s.title}
-                            </Text>
-                          </Pressable>
-                        )
-                      }
-
-                      function mixWhite(hex: string, whitePercent: number) {
-                        const clean = hex.replace('#', '')
-                        const r = parseInt(clean.slice(0, 2), 16)
-                        const g = parseInt(clean.slice(2, 4), 16)
-                        const b = parseInt(clean.slice(4, 6), 16)
-
-                        const w = whitePercent / 100
-                        const base = 1 - w
-
-                        const mix = (c: number) => Math.round(c * base + 255 * w)
-
-                        const newR = mix(r)
-                        const newG = mix(g)
-                        const newB = mix(b)
-
-                        return (
-                          '#' +
-                          newR.toString(16).padStart(2, '0') +
-                          newG.toString(16).padStart(2, '0') +
-                          newB.toString(16).padStart(2, '0')
-                        ).toUpperCase()
-                      }
-
-                      const mainColor = s.color?.startsWith('#')
-                        ? s.color
-                        : `#${s.color || 'B04FFF'}`
-                      const lightColor = `${mainColor}26`  //span일정 투명도
-                      const displayColor = s.isRepeat
-                        ? mixWhite(mainColor, 70)
-                        : isSingleDay
-                          ? mainColor
-                          : mixWhite(mainColor, 70)
-
-                      const baseStyle: any = {
-                        position: 'absolute',
-                        top: s.row * (SINGLE_HEIGHT + 4),
-                        left: Math.min(
-                          Math.max(left + 2, TIME_COL_W + 2),
-                          TIME_COL_W + weekDates.length * dayColWidth - (width - 4),
-                        ),
-                        width: width - 4,
-                        height: SINGLE_HEIGHT,
-                        justifyContent: 'center',
-                        alignItems: isSingleDay ? 'flex-start' : 'center',
-                        paddingHorizontal: 6,
-                        backgroundColor: displayColor,
-                        borderRadius: isSingleDay ? 3 : 0,
-                      }
-
-                      return (
-                        <Pressable
-                          key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
-                          onPress={() => openEventDetail(String(s.id), s.startISO)}
-                        >
-                          <View style={baseStyle}>
-                            {weekDates.includes(s.startISO) &&
-                              weekDates[s.startIdx] === s.startISO && (
-                                <View
-                                  style={{
-                                    position: 'absolute',
-                                    left: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                    width: 5,
-                                    backgroundColor: mainColor,
-                                    borderTopLeftRadius: isSingleDay ? 3 : 0,
-                                    borderBottomLeftRadius: isSingleDay ? 3 : 0,
-                                  }}
-                                />
-                              )}
-
-                            {weekDates.includes(s.endISO) &&
-                              weekDates[s.endIdx] === s.endISO && (
-                                <View
-                                  style={{
-                                    position: 'absolute',
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                    width: 5,
-                                    backgroundColor: mainColor,
-                                    borderTopRightRadius: isSingleDay ? 3 : 0,
-                                    borderBottomRightRadius: isSingleDay ? 3 : 0,
-                                  }}
-                                />
-                              )}
-
-                            <Text
-                              style={{
-                                color: isSingleDay ? '#000000' : '#000000',
-                                fontWeight: '700',
-                                fontSize: 12,
-                                maxWidth: '90%',
-                                includeFontPadding: false,
-                              }}
-                              numberOfLines={1}
-                              ellipsizeMode="clip"
-                            >
-                              {s.title}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      )
-                    })}
-                  </ScrollView>
-                  {showSpanScrollbar && (
-                    <View
-                      pointerEvents="none"
-                      style={[
-                        S.spanScrollTrack,
-                        {
-                          right: -10,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          S.spanScrollThumb,
-                          {
-                            height: thumbH(spanWrapH, spanContentH),
-                            transform: [{ translateY: spanThumbTop }],
-                          },
-                        ]}
-                      />
-                    </View>
-                  )}
-                </View>
-
-                <View pointerEvents="none" style={S.boxBottomLine} />
-                <LinearGradient
-                  pointerEvents="none"
-                  colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.04)', 'rgba(0,0,0,0)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={S.fadeBelow}
-                />
-              </View>
-              <View style={S.fadeGap} />
-            </FullBleed>
-
-            {/* 타임라인 영역 */}
-            <View ref={gridContainerRef} style={{ flex: 1 }}>
-              <ScrollView
-                ref={gridScrollRef}
-                onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-                  scrollOffsetRef.current = e.nativeEvent.contentOffset.y
-                }}
-                scrollEventThrottle={16}
-                style={S.timelineScroll}
-                contentContainerStyle={S.timelineContent}
-                showsVerticalScrollIndicator={false}
-              >
-                <View ref={gridWrapRef} style={S.timelineInner}>
-                  <View pointerEvents="none" style={S.hourLinesOverlay}>
-                    <View style={S.mainVerticalLine} />
-
-                    {HOURS.map((_, i) => {
-                      if (i === HOURS.length - 1) return null
-                      return (
-                        <View
-                          key={`hline-${i}`}
-                          style={[S.hourLine, { top: (i + 1) * ROW_H }]}
-                        />
-                      )
-                    })}
-                  </View>
-
-                  <View style={{ flexDirection: 'row' }}>
-                    <View style={S.timeCol}>
-                      {HOURS.map((h) => (
-                        <View key={`hour-${h}`} style={S.timeRow}>
-                          <Text style={S.timeText}>
-                            {h === 0
-                              ? '오전 12시'
-                              : h < 12
-                                ? `오전 ${h}시`
-                                : h === 12
-                                  ? '오후 12시'
-                                  : `오후 ${h - 12}시`}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {weekDates.map((d, colIdx) => {
-                      const bucket = weekData[d] || {
-                        timelineEvents: [],
-                        timedTasks: [],
-                      }
-                      const isTodayCol = d === today
-                      const layoutEvents = layoutDayEvents(bucket.timelineEvents || [])
-                      // timedTasks 라벨 필터링
-                      const timedTasks = (bucket.timedTasks || []).filter((t: any) =>
-                        (t.labels ?? []).some((lid: number) =>
-                          enabledLabelIds.includes(lid),
-                        ),
-                      )
-
-                      const groupedTasks = timedTasks.reduce(
-                        (acc: Record<string, any[]>, t: any) => {
-                          const timeKey = getTaskTime(t)
-                          acc[timeKey] = acc[timeKey] ? [...acc[timeKey], t] : [t]
-                          return acc
-                        },
-                        {},
-                      )
-
-                      return (
-                        <View
-                          key={`${d}-col`}
-                          style={[
-                            S.dayCol,
-                            { width: dayColWidth },
-                            colIdx === 0 && S.firstDayCol,
-                          ]}
-                        >
-                          {HOURS.map((_, i) => (
-                            <View key={`${d}-row-${i}`} style={S.hourRow} />
-                          ))}
-
-                          {isTodayCol && nowTop !== null && (
-                            <>
-                              <View style={[S.liveBar, { top: nowTop }]} />
-                              <View style={[S.liveDot, { top: nowTop - 3 }]} />
-                            </>
-                          )}
-                          {layoutEvents.map((ev, i) => (
-                            <DraggableFlexalbeEvent
-                              key={`ev-${ev.id}-${i}`}
-                              id={ev.id}
-                              title={ev.title}
-                              place={ev.place}
-                              startMin={ev.startMin}
-                              endMin={ev.endMin}
-                              color={ev.color}
-                              dateISO={d}
-                              column={ev.column}
-                              columnsTotal={ev.columnsTotal}
-                              isPartialOverlap={ev.isPartialOverlap}
-                              overlapDepth={ev.overlapDepth ?? 0}
-                              dayColWidth={dayColWidth}
-                              weekDates={weekDates}
-                              dayIndex={colIdx}
-                              openEventDetail={openEventDetail}
-                              isRepeat={ev.isRepeat}
-                            />
-                          ))}
-
-                          {Object.entries(groupedTasks).map(([timeKey, group]) => {
-                            const list = group as any[]
-                            if (!list.length) return null
-
-                            const timeStr = getTaskTime(list[0])
-                            const [h, m] = timeStr.split(':').map((n) => Number(n) || 0)
-                            const start = h + m / 60
-
-                            if (list.length > 1) {
-                              return (
-                                <TaskGroupBox
-                                  key={`${d}-${timeKey}-${dayColWidth}`}
-                                  tasks={list}
-                                  startHour={start}
-                                  dayColWidth={dayColWidth}
-                                  dateISO={d}
-                                  dayIndex={colIdx}
-                                  weekCount={weekDates.length}
-                                  onLocalChange={({ id, dateISO, completed }) => {
-                                    if (typeof completed === 'boolean') {
-                                      setWeekData((prev: WeekData) => {
-                                        const copy = { ...prev }
-                                        const bucket = copy[dateISO]
-                                        if (!bucket) return copy
-
-                                        if (bucket.timedTasks) {
-                                          bucket.timedTasks = bucket.timedTasks.map(
-                                            (t: any) =>
-                                              String(t.id) === String(id)
-                                                ? { ...t, completed }
-                                                : t,
-                                          )
-                                        }
-
-                                        return copy
-                                      })
-                                    }
-                                  }}
-                                />
-                              )
-                            }
-
-                            return (
-                              <DraggableTaskBox
-                                key={`${d}-${timeKey}-single-${list[0].id}`}
-                                id={String(list[0].id)}
-                                title={list[0].title}
-                                startHour={start}
-                                done={list[0].completed ?? false}
-                                dateISO={d}
-                                dayColWidth={dayColWidth}
-                                dayIndex={colIdx}
-                                weekCount={weekDates.length}
-                                openDetail={openTaskPopupFromApi}
-                                onLocalChange={({ id, dateISO, completed }) => {
-                                  if (typeof completed === 'boolean') {
-                                    setWeekData((prev: WeekData) => {
-                                      const copy = { ...prev }
-                                      const bucket = copy[dateISO]
-                                      if (!bucket) return copy
-                                      bucket.timedTasks = bucket.timedTasks.map(
-                                        (t: any) => {
-                                          if (String(t.id) !== String(id)) {
-                                            return t
-                                          }
-                                          return {
-                                            ...t,
-                                            completed,
-                                          }
-                                        },
-                                      )
-                                      return copy
-                                    })
-                                  }
-                                }}
-                              />
-                            )
-                          })}
-                        </View>
-                      )
-                    })}
-                  </View>
-                </View>
-              </ScrollView>
-            </View>
+            <WeekTimeline
+              styles={S}
+              gridContainerRef={gridContainerRef}
+              gridScrollRef={gridScrollRef}
+              gridWrapRef={gridWrapRef}
+              hours={HOURS}
+              rowH={ROW_H}
+              weekDates={weekDates}
+              weekData={filteredWeekData}
+              todayISO={today}
+              nowTop={nowTop}
+              dayColWidth={dayColWidth}
+              getTaskTime={getTaskTime}
+              openEventDetail={openEventDetail}
+              openTaskPopupFromApi={openTaskPopupFromApi}
+              onGridScroll={(offsetY) => {
+                scrollOffsetRef.current = offsetY
+              }}
+              onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
+              DraggableFlexibleEventComponent={DraggableFlexalbeEvent}
+              TaskGroupBoxComponent={TaskGroupBox}
+              DraggableTaskBoxComponent={DraggableTaskBox}
+            />
           </Animated.View>
         </GestureDetector>
-        {/* ✅ (merge) TaskDetailPopup 그대로 유지 */}
-        <TaskDetailPopup
-          visible={taskPopupVisible}
-          mode={taskPopupMode}
-          taskId={taskPopupId ?? undefined}
-          initialTask={taskPopupTask}
-          onClose={() => {
-            setTaskPopupVisible(false)
-            setTaskPopupId(null)
-            setTaskPopupTask(null)
-          }}
-          onSave={async (form) => {
-            const pad = (n: number) => String(n).padStart(2, '0')
-
-            let placementDate: string | null = null
-            let placementTime: string | null = null
-            const fieldsToClear: string[] = []
-
-            if (form.hasDate && form.date) {
-              const d = form.date
-              placementDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-            } else {
-              fieldsToClear.push('placementDate')
-            }
-
-            if (form.hasTime && form.time) {
-              const t = form.time
-              placementTime = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(
-                t.getSeconds(),
-              )}`
-            } else {
-              fieldsToClear.push('placementTime')
-            }
-
-            const reminderNoti = form.reminderNoti ?? null // ✅ (merge) 알림 연동
-            if (!reminderNoti) fieldsToClear.push('reminderNoti')
-
-            try {
-              if (taskPopupMode === 'edit') {
-                if (!taskPopupId) return
-
-                await http.patch(`/task/${taskPopupId}`, {
-                  title: form.title,
-                  content: form.memo,
-                  labels: form.labels,
-                  placementDate,
-                  placementTime,
-                  reminderNoti,
-                  fieldsToClear,
-                })
-
-                bus.emit('calendar:mutated', {
-                  op: 'update',
-                  item: { id: taskPopupId },
-                })
-              } else {
-                const res = await http.post('/task', {
-                  title: form.title,
-                  content: form.memo,
-                  labels: form.labels,
-                  placementDate,
-                  placementTime,
-                  reminderNoti,
-                  date: placementDate ?? anchorDate,
-                })
-
-                const newId = res.data?.data?.id
-
-                bus.emit('calendar:mutated', {
-                  op: 'create',
-                  item: { id: newId },
-                })
-              }
-
-              await fetchWeek(weekDates)
-
-              setTaskPopupVisible(false)
-              setTaskPopupId(null)
-              setTaskPopupTask(null)
-            } catch (err) {
-              console.error('❌ 테스크 저장 실패:', err)
-              Alert.alert('오류', '테스크를 저장하지 못했습니다.')
-            }
-          }}
-          onDelete={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
+        <WeekPopups
+          taskPopupVisible={taskPopupVisible}
+          taskPopupMode={taskPopupMode}
+          taskPopupId={taskPopupId}
+          taskPopupTask={taskPopupTask}
+          setTaskPopupVisible={setTaskPopupVisible}
+          setTaskPopupId={setTaskPopupId}
+          setTaskPopupTask={setTaskPopupTask}
+          onDeleteTask={taskPopupMode === 'edit' ? handleDeleteTask : undefined}
+          eventPopupVisible={eventPopupVisible}
+          eventPopupMode={eventPopupMode}
+          eventPopupData={eventPopupData}
+          setEventPopupVisible={setEventPopupVisible}
+          setEventPopupData={setEventPopupData}
+          imagePopupVisible={imagePopupVisible}
+          setImagePopupVisible={setImagePopupVisible}
+          ocrSplashVisible={ocrSplashVisible}
+          ocrModalVisible={ocrModalVisible}
+          ocrEvents={ocrEvents}
+          setOcrModalVisible={setOcrModalVisible}
+          sendToOCR={sendToOCR}
+          fetchWeek={fetchWeek}
+          weekDates={weekDates}
+          anchorDate={anchorDate}
         />
-        <EventDetailPopup
-          visible={eventPopupVisible}
-          eventId={eventPopupData?.id ?? null}
-          mode={eventPopupMode}
-          initial={eventPopupData ?? undefined}
-          onClose={() => {
-            setEventPopupVisible(false)
-            setEventPopupData(null)
-            fetchWeek(weekDates)
-          }}
-        />
-        <AddImageSheet
-          visible={imagePopupVisible}
-          onClose={() => setImagePopupVisible(false)}
-          onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
-          onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
-        />
-        <Modal
-  visible={ocrSplashVisible}
-  transparent
-  animationType="fade"
-  statusBarTranslucent
->
-  <OcrSplash />
-</Modal>
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => setOcrModalVisible(false)}
-
-  // ✔ 단일 저장
-  onAddEvent={async (payload) => {
-    try {
-      await createEvent(payload)
-      await fetchWeek(weekDates)
-      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-    } catch (err) {
-      console.error(err)
-    }
-  }}
-
-  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
-  onSaveAll={async () => {
-    await fetchWeek(weekDates)
-    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-    setOcrModalVisible(false)
-  }}
-/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
-}
-
-function thumbH(visibleH: number, contentH: number) {
-  const minH = 18
-  const h = (visibleH * visibleH) / Math.max(contentH, 1)
-  return Math.max(minH, Math.min(h, visibleH))
 }
 
 /* -------------------------------------------------------------------------- */

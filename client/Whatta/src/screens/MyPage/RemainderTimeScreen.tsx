@@ -12,6 +12,7 @@ import Plus from '@/assets/icons/plusbtn.svg'
 import { Picker } from '@react-native-picker/picker'
 import { http } from '@/lib/http'
 import Left from '@/assets/icons/left.svg'
+import { bus } from '@/lib/eventBus'
 
 type ReminderItem = {
   id: string
@@ -231,6 +232,7 @@ export default function RemainderTimeScreen() {
             minute: updated.minute,
             offsetMinutes,
           })
+          bus.emit('reminder:mutated')
         } catch (e) {
           console.warn('reminder update error', e)
         }
@@ -254,6 +256,7 @@ export default function RemainderTimeScreen() {
         await http.delete('/user/setting/reminder', {
           data: [id],
         })
+        bus.emit('reminder:mutated')
       } catch (e) {
         console.warn('reminder delete error', e)
       }
@@ -279,6 +282,7 @@ export default function RemainderTimeScreen() {
               await http.delete('/user/setting/reminder', {
                 data: ids,
               })
+              bus.emit('reminder:mutated')
             } catch (e) {
               console.warn('reminder bulk delete error', e)
             }
@@ -326,6 +330,7 @@ export default function RemainderTimeScreen() {
         const item = fromDto(d)
         setReminders((prev) => [...prev, item])
         setOpenId(item.id) // 새로 만든 거는 바로 열어 주기
+        bus.emit('reminder:mutated')
       } catch (e: any) {
         console.warn('reminder create error', e.response?.data ?? e)
         if (e.response?.data?.statuscode === '902') {
