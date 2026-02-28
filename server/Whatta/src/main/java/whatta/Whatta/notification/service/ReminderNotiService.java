@@ -1,6 +1,7 @@
 package whatta.Whatta.notification.service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
 
+@Slf4j
 @Service
 @AllArgsConstructor
 public class ReminderNotiService {
@@ -30,8 +32,8 @@ public class ReminderNotiService {
     private static final int COMPLETED_RETENTION_DAYS = 7;
 
     public void updateReminderNotification(Event event) {
-        if(event.getStartTime() == null || event.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
-            cancelReminderNotification(event.getId());
+        if(event.getStartTime() == null || event.getReminderNotiAt() == null) {
+            cancelReminderNotification(event.getId()); //기존 스케줄 있으면 취소
             return;
         }
 
@@ -39,8 +41,8 @@ public class ReminderNotiService {
     }
 
     public void updateReminderNotification(Task task) {
-        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) { //기존 스케줄 있으면 취소
-            cancelReminderNotification(task.getId());
+        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) {
+            cancelReminderNotification(task.getId()); //기존 스케줄 있으면 취소
             return;
         }
 
@@ -49,7 +51,10 @@ public class ReminderNotiService {
                 null,
                 task.getReminderNotiAt());
 
-        if(triggerAt == null) { return; }
+        if(triggerAt == null) {
+            cancelReminderNotification(task.getId());
+            return;
+        }
         //해당 이벤트의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
         ReminderNotification base = reminderNotiRepository.findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(
                         NotificationTargetType.TASK, task.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
@@ -133,6 +138,7 @@ public class ReminderNotiService {
         LocalDateTime triggerAt = calculateTriggerAt(LocalDateTime.of(event.getStartDate(), event.getStartTime()), event.getRepeat(), event.getReminderNotiAt());
 
         if(triggerAt == null) {
+            cancelReminderNotification(event.getId());
             return;
         }
 
@@ -154,5 +160,13 @@ public class ReminderNotiService {
         LocalDateTime expiredBefore = LocalDateTime.now().minusDays(COMPLETED_RETENTION_DAYS);
         return reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.COMPLETED, expiredBefore)
                 + reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
+    }
+
+    public void cancelInvalidReminder(ReminderNotification noti, String reason) {
+        ReminderNotification canceled = noti.toBuilder()
+                .status(NotiStatus.CANCELED)
+                .build();
+        reminderNotiRepository.save(canceled);
+        log.warn("[REMINDER_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
     }
 }
