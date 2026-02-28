@@ -6,6 +6,7 @@ export type DayTimelineEvent = {
   endMin: number
   color: string
   isRepeat?: boolean
+  labels?: Array<number | string>
 }
 
 export type LayoutedEvent = DayTimelineEvent & {

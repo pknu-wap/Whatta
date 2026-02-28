@@ -1156,7 +1156,7 @@ export default function EventDetailPopup({
       setRepeatEndDate(null)
       setActiveTab('schedule')
     }
-  }, [visible, mode, initial, labels])
+  }, [visible, mode, initial])
 
   useEffect(() => {
     if (!visible) return
@@ -2249,6 +2249,8 @@ export default function EventDetailPopup({
                       <View
                         style={{
                           flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          justifyContent: 'flex-end',
                           gap: 6,
                           maxWidth: 210,
                           flexShrink: 1,

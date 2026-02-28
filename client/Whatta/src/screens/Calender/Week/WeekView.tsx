@@ -1397,9 +1397,6 @@ export default function WeekView() {
   )
 
   const today = todayISO()
-  const spanBars = buildWeekSpanEvents(weekDates, weekData)
-  const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
 
   const dayColWidth = getDayColWidth(SCREEN_W, weekDates.length, TIME_COL_W, SIDE_PADDING)
   useCalendarSync({
@@ -1731,6 +1728,38 @@ export default function WeekView() {
     [filterLabels],
   )
 
+  const filteredWeekData = useMemo(() => {
+    if (!filterLabels.length) return weekData
+    if (enabledLabelIds.length === filterLabels.length) return weekData
+
+    const enabledSet = new Set(enabledLabelIds)
+
+    const matchesLabel = (item: any) => {
+      const labels = Array.isArray(item?.labels) ? item.labels : []
+      if (!labels.length) return true
+      return labels.some((id: number) => enabledSet.has(id))
+    }
+
+    const next: Record<string, any> = {}
+    for (const [dateISO, bucket] of Object.entries(weekData)) {
+      next[dateISO] = {
+        ...bucket,
+        spanEvents: (bucket.spanEvents || []).filter(matchesLabel),
+        timelineEvents: (bucket.timelineEvents || []).filter(matchesLabel),
+        checks: (bucket.checks || []).filter(matchesLabel),
+        timedTasks: (bucket.timedTasks || []).filter(matchesLabel),
+      }
+    }
+    return next
+  }, [weekData, enabledLabelIds, filterLabels])
+
+  const spanBars = useMemo(
+    () => buildWeekSpanEvents(weekDates, filteredWeekData),
+    [weekDates, filteredWeekData],
+  )
+  const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
+  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+
   const handleTimedTaskCompletedChange = useCallback(
     ({
       id,
@@ -1812,11 +1841,10 @@ export default function WeekView() {
               hours={HOURS}
               rowH={ROW_H}
               weekDates={weekDates}
-              weekData={weekData}
+              weekData={filteredWeekData}
               todayISO={today}
               nowTop={nowTop}
               dayColWidth={dayColWidth}
-              enabledLabelIds={enabledLabelIds}
               getTaskTime={getTaskTime}
               openEventDetail={openEventDetail}
               openTaskPopupFromApi={openTaskPopupFromApi}
