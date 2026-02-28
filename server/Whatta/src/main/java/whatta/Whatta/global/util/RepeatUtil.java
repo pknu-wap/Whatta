@@ -4,6 +4,8 @@ import whatta.Whatta.event.entity.Repeat;
 
 import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjuster;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -102,7 +104,10 @@ public class RepeatUtil {
                 continue;
             }
 
-            long weeksBetween = ChronoUnit.WEEKS.between(baseDate, d);
+            LocalDate baseWeekStart = baseDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            LocalDate dWeekStart = d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+
+            long weeksBetween = ChronoUnit.WEEKS.between(baseWeekStart, dWeekStart);
             if (weeksBetween < 0) {
                 continue;
             }
