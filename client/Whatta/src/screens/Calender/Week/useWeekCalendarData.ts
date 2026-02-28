@@ -5,6 +5,7 @@ type CheckItem = {
   id: string
   title: string
   done: boolean
+  labels?: Array<number | string>
 }
 
 export type DayBucket = {
@@ -47,6 +48,17 @@ export function useWeekCalendarData(http: HttpClient) {
           const allDaySpan = payload.allDaySpanEvents || []
           const allDayEvents = payload.allDayEvents || []
 
+          const pickLabelIds = (raw: any): Array<number | string> =>
+            Array.isArray(raw?.labels)
+              ? raw.labels
+                  .map((l: any) =>
+                    typeof l === 'number' || typeof l === 'string'
+                      ? l
+                      : (l?.id ?? l?.labelId ?? null),
+                  )
+                  .filter((v: any) => v !== null && typeof v !== 'undefined')
+              : []
+
           const timelineEvents: DayTimelineEvent[] = timed
             .filter((e: any) => !e.isSpan)
             .map((e: any) => {
@@ -65,6 +77,7 @@ export function useWeekCalendarData(http: HttpClient) {
                 endMin: eh * 60 + em,
                 color: `#${(e.colorKey ?? 'B04FFF').replace('#', '')}`,
                 isRepeat: e.isRepeat ?? false,
+                labels: pickLabelIds(e),
               }
             })
             .filter(Boolean) as DayTimelineEvent[]
@@ -87,11 +100,13 @@ export function useWeekCalendarData(http: HttpClient) {
               id: String(t.id),
               title: t.title,
               done: t.completed ?? false,
+              labels: pickLabelIds(t),
             })),
             ...floating.map((t: any) => ({
               id: String(t.id),
               title: t.title,
               done: t.completed ?? false,
+              labels: pickLabelIds(t),
             })),
           ]
 
