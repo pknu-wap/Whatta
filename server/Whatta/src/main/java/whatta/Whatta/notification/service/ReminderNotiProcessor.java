@@ -53,6 +53,7 @@ public class ReminderNotiProcessor {
             targetStartAt = LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime());
         } else {
             reminderNotiService.cancelInvalidReminder(noti, "unsupported targetType: " + noti.getTargetType());
+            return;
         }
         LocalDateTime triggerAt = noti.getTriggerAt();
 
