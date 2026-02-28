@@ -2,13 +2,13 @@
   "expo": {
     "name": "Whatta",
     "slug": "Whatta",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/whatta.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/white_icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -18,7 +18,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.whatta.whatta",
-      "buildNumber": "20",
+      "buildNumber": "22",
       "supportsTablet": false,
       "googleServicesFile": "./GoogleService-Info.prod.plist",
       "infoPlist": {
@@ -79,3 +79,4 @@
     }
   }
 }
+
