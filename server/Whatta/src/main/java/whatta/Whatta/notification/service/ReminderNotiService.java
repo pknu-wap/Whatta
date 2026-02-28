@@ -1,6 +1,7 @@
 package whatta.Whatta.notification.service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
 
+@Slf4j
 @Service
 @AllArgsConstructor
 public class ReminderNotiService {
@@ -158,5 +160,13 @@ public class ReminderNotiService {
         LocalDateTime expiredBefore = LocalDateTime.now().minusDays(COMPLETED_RETENTION_DAYS);
         return reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.COMPLETED, expiredBefore)
                 + reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
+    }
+
+    public void cancelInvalidReminder(ReminderNotification noti, String reason) {
+        ReminderNotification canceled = noti.toBuilder()
+                .status(NotiStatus.CANCELED)
+                .build();
+        reminderNotiRepository.save(canceled);
+        log.warn("[REMINDER_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
     }
 }
