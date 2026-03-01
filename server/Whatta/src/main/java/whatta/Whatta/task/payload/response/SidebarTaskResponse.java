@@ -1,21 +1,14 @@
 package whatta.Whatta.task.payload.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-@Getter
-@AllArgsConstructor
-@Builder
-public class SidebarTaskResponse {
+public record SidebarTaskResponse (
 
-    private final String id;
-    private final String title;
-    private final Boolean completed;
-    private final LocalDateTime completedAt;
-    private final LocalDateTime dueDateTime;
-    private final Long sortNumber;
-
-}
+    String id,
+    String title,
+    Boolean completed,
+    LocalDateTime completedAt,
+    LocalDateTime dueDateTime,
+    Long sortNumber
+){}

@@ -1,14 +1,15 @@
-name: Deploy DEV to Cloud Run
+name: Deploy PROD to Cloud Run
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - develop-server
+      - main
     paths:
       - "server/**"
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
 
@@ -35,24 +36,23 @@ jobs:
       - name: Configure Docker to use gcloud
         run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
-      - name: Compute Dev tag
+      - name: Compute PROD tag
         id: meta
         shell: bash
         run: |
           set -euo pipefail
-          DATE=$(date +%Y%m%d)
-          TAG="dev-${DATE}-${GITHUB_SHA:0:7}"
+          TAG="prod-${GITHUB_SHA:0:7}"
           IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}:${TAG}"
           echo "IMAGE_URI=$IMAGE_URI"
-          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
           echo "${IMAGE_URI}" > image_uri.txt
 
       - name: Upload image uri artifact
-        uses: actions/upload-artifact@v4 
+        uses: actions/upload-artifact@v4
         with:
-          name: image-uri-dev
+          name: image-uri-prod
           path: image_uri.txt
-
+      
       - name: Build Docker image
         run: |
           docker build \
@@ -64,6 +64,7 @@ jobs:
         run: docker push "${{ steps.meta.outputs.image_uri }}"
 
 
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -71,7 +72,7 @@ jobs:
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       REGION: ${{ secrets.GCP_REGION }}
-      DEV_SERVICE: ${{ secrets.CLOUDRUN_SERVICE_DEV }}
+      PROD_SERVICE: ${{ secrets.CLOUDRUN_SERVICE_PROD }}
 
     steps:
       - name: Authenticate to Google Cloud
@@ -83,18 +84,18 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          
+
       - name: Download image uri artifact
         uses: actions/download-artifact@v4
         with:
-          name: image-uri-dev
+          name: image-uri-prod
 
       - name: Read image uri
         id: read
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE_URI="$(cat image_uri.txt)" 
+          IMAGE_URI="$(cat image_uri.txt)"
           echo "IMAGE_URI=$IMAGE_URI"
           if [ -z "$IMAGE_URI" ]; then
             echo "ERROR: IMAGE_URI is empty"
@@ -103,9 +104,9 @@ jobs:
           echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
 
 
-      - name: Deploy to Cloud Run (DEV)
+      - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy "${DEV_SERVICE}" \
+          gcloud run deploy "${PROD_SERVICE}" \
             --image "${{ steps.read.outputs.image_uri }}" \
             --region "${REGION}" \
             --platform managed

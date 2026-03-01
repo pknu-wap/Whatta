@@ -3,7 +3,6 @@ package whatta.Whatta.event.payload.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
-import whatta.Whatta.global.repeat.payload.RepeatRequest;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;

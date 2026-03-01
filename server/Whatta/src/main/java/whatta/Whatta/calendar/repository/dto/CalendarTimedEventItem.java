@@ -1,7 +1,7 @@
 package whatta.Whatta.calendar.repository.dto;
 
 import lombok.Builder;
-import whatta.Whatta.global.repeat.Repeat;
+import whatta.Whatta.event.entity.Repeat;
 
 import java.time.LocalDate;
 import java.time.LocalTime;

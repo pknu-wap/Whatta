@@ -3,18 +3,22 @@ package whatta.Whatta.notification.entity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;
 
 import java.time.LocalDateTime;
 
-@Document("scheduled_notifications")
+@Document("reminder_notifications")
 @AllArgsConstructor
+@NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class ScheduledNotification {
+public class ReminderNotification {
     @Id
     private String id;
 
@@ -24,13 +28,13 @@ public class ScheduledNotification {
     @Builder.Default
     private NotiStatus status = NotiStatus.ACTIVE;
 
-    private NotificationTargetType targetType; // EVENT, TASK, SUMMARY
+    private NotificationTargetType targetType; //EVENT, TASK
     private String targetId;
 
     private LocalDateTime triggerAt;
 
-    @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
-    @Builder.Default
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    @CreatedDate
+    private LocalDateTime createdAt;
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
 }

@@ -1,10 +1,8 @@
-package whatta.Whatta.global.repeat.payload;
+package whatta.Whatta.event.payload.request;
 
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 import whatta.Whatta.global.anotation.ValidRepeat;
-import whatta.Whatta.global.repeat.Repeat;
-import whatta.Whatta.global.repeat.RepeatUnit;
+import whatta.Whatta.event.entity.Repeat;
+import whatta.Whatta.event.enums.RepeatUnit;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -14,7 +12,7 @@ public record RepeatRequest (
     int interval,
     RepeatUnit unit,
     List<String> on,
-    LocalDate endDate,
+    LocalDate endDate, //TODO: 프론트 코드와 함께 변경
     List<LocalDate> exceptionDates
 ){
     public Repeat toEntity() { //변환로직은 추후에 서비스로 이동
@@ -22,7 +20,7 @@ public record RepeatRequest (
                 .interval(interval)
                 .unit(unit)
                 .on(on)
-                .endDate((endDate == null)? LocalDate.of(2999, 12, 31) : endDate)
+                .deadline((endDate == null)? LocalDate.of(2999, 12, 31) : endDate)
                 .exceptionDates(exceptionDates)
                 .build();
     }

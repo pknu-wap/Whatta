@@ -25,15 +25,15 @@ public class BusApiClient {
     private final ObjectMapper objectMapper;
 
     // 국토교통부_(TAGO)_버스도착정보
-    @Value("${public-data.bus-api.base-url}")
+    @Value("${public.data.bus.url}")
     private String arrivalBaseUrl;
 
     //국토교통부_(TAGO)_버스정류소정보
-    @Value("${public-data.bus-station-api.base-url}")
+    @Value("${public.data.bus.station.url}")
     private String stationBaseUrl;
 
     // 국토교통부_(TAGO) 서비스키
-    @Value("${public-data.bus-api.service-key}")
+    @Value("${public.data.bus.key}")
     private String serviceKey;
 
 
@@ -147,12 +147,12 @@ public class BusApiClient {
 
             if(response == null || response.getHeader() == null || !"00".equals(response.getHeader().getResultCode())) {
                 log.warn("공공데이터 API 호출 실패: uri={}", uri);
-                throw new RestApiException(ErrorCode.PUBLIC_API_FAILED);
+                throw new RestApiException(ErrorCode.PUBLIC_BUS_API_FAILED);
             }
             return response;
         } catch (Exception e) {
             log.error("API 호출 중 예외 발생: {}", e.getMessage());
-            throw new RestApiException(ErrorCode.PUBLIC_API_FAILED);
+            throw new RestApiException(ErrorCode.PUBLIC_BUS_API_FAILED);
         }
     }
 
