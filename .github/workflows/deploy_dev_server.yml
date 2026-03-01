@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      image_uri: ${{ steps.meta.outputs.image_uri }}
+      image: ${{ steps.meta.outputs.image_uri }}
 
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -81,6 +81,6 @@ jobs:
       - name: Deploy to Cloud Run (DEV)
         run: |
           gcloud run deploy "${DEV_SERVICE}" \
-            --image "${{ needs.build.outputs.image_uri }}" \
+            --image "${{ needs.build.outputs.image }}" \
             --region "${REGION}" \
             --platform managed
