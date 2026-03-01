@@ -45,7 +45,7 @@ jobs:
           DATE=$(date +%Y%m%d)
           TAG="dev-${DATE}-${GITHUB_SHA:0:7}"
           IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}:${TAG}"
-          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
 
       - name: Build Docker image
         run: |
