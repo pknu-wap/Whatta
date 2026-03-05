@@ -2,11 +2,12 @@ package whatta.Whatta.notification.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import whatta.Whatta.traffic.entity.BusItem;
+import whatta.Whatta.traffic.entity.BusFavorite;
 import whatta.Whatta.traffic.entity.TrafficNotification;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
-import whatta.Whatta.traffic.repository.BusItemRepository;
+import whatta.Whatta.traffic.repository.BusFavoriteRepository;
 import whatta.Whatta.traffic.repository.TrafficNotiRepository;
 import whatta.Whatta.traffic.service.TrafficService;
 
@@ -19,29 +20,33 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BusNotiProcessor {
 
-    private final BusItemRepository itemRepository;
+    private final BusFavoriteRepository itemRepository;
     private final TrafficService trafficService;
     private final NotificationSendService notificationSendService;
     private final TrafficNotiRepository alarmRepository;
 
 
 
-    public void CheckAndNotify(TrafficNotification alarm) {
+    @Async
+    public void checkAndNotify(TrafficNotification alarm) {
         //알림에 연결된 버스목록 조회
-        List<BusItem> items = itemRepository.findAllById(alarm.getTargetItemIds());
+        List<BusFavorite> items = itemRepository.findAllById(alarm.getTargetItemIds());
 
-        if(items.isEmpty()) return;
+        if(items.isEmpty()) {
+            handleRepeatOption(alarm);
+            return;
+        }
 
         //버스정류장ID을 기준으로 그룹핑
-        Map<String, List<BusItem>> itemsByStation = items.stream()
-                .collect(Collectors.groupingBy(BusItem :: getBusStationId));
+        Map<String, List<BusFavorite>> itemsByStation = items.stream()
+                .collect(Collectors.groupingBy(BusFavorite:: getBusStationId));
 
         StringBuilder notificationBody = new StringBuilder();
         int busesNotifiedCount = 0;
 
-        for(Map.Entry<String, List<BusItem>> entry : itemsByStation.entrySet()) {
+        for(Map.Entry<String, List<BusFavorite>> entry : itemsByStation.entrySet()) {
             String busStationId = entry.getKey();
-            List<BusItem> stationItems = entry.getValue();
+            List<BusFavorite> stationItems = entry.getValue();
 
             List<BusArrivalResponse> allArrivals = trafficService.searchArrivalsByStation(busStationId);
 
@@ -73,8 +78,7 @@ public class BusNotiProcessor {
             );
 
             handleRepeatOption(alarm);
-        }
-        if (busesNotifiedCount == 0) {
+        } else {
             notificationSendService.sendTrafficAlarm(
                     alarm.getUserId(),
                     "🚨 현재 운행 중인 버스가 없습니다.",
