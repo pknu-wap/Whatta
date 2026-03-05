@@ -12,12 +12,12 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import whatta.Whatta.global.payload.Response;
-import whatta.Whatta.traffic.payload.request.BusItemCreateRequest;
+import whatta.Whatta.traffic.payload.request.BusFavoriteCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficNotiCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficNotiUpdateRequest;
-import whatta.Whatta.traffic.payload.response.BusItemResponse;
+import whatta.Whatta.traffic.payload.response.BusFavoriteResponse;
 import whatta.Whatta.traffic.payload.response.TrafficNotiResponse;
-import whatta.Whatta.traffic.service.BusItemService;
+import whatta.Whatta.traffic.service.BusFavoriteService;
 import whatta.Whatta.traffic.service.TrafficNotiService;
 
 import java.util.List;
@@ -31,15 +31,15 @@ import java.util.List;
 public class TrafficNotiController {
 
     private final TrafficNotiService trafficNotiService;
-    private final BusItemService busItemService;
+    private final BusFavoriteService busFavoriteService;
 
     @PostMapping("/items")
     @Operation(summary = "교통 즐겨찾기 추가", description = "자주 이용하는 버스 노선을 즐겨찾기에 추가합니다.")
     public ResponseEntity<?> createBusItem(
             @AuthenticationPrincipal String userId,
-            @RequestBody @Validated BusItemCreateRequest request
+            @RequestBody @Validated BusFavoriteCreateRequest request
     ){
-        BusItemResponse response = busItemService.createItem(userId, request);
+        BusFavoriteResponse response = busFavoriteService.createItem(userId, request);
         return Response.ok("즐겨찾기 추가 성공", response);
     }
 
@@ -49,7 +49,7 @@ public class TrafficNotiController {
             @AuthenticationPrincipal String userId,
             @Parameter(description = "삭제할 즐겨찾기 ID") @PathVariable String itemId
     ){
-        busItemService.deleteItem(userId, itemId);
+        busFavoriteService.deleteItem(userId, itemId);
         return Response.ok("해당 즐겨찾기 삭제 성공");
     }
 
@@ -58,7 +58,7 @@ public class TrafficNotiController {
     public ResponseEntity<?> getMyBusItems(
             @AuthenticationPrincipal String userId
     ){
-        List<BusItemResponse> response = busItemService.getMyItems(userId);
+        List<BusFavoriteResponse> response = busFavoriteService.getMyItems(userId);
         return Response.ok("즐겨찾기 목록 조회 성공", response);
     }
 

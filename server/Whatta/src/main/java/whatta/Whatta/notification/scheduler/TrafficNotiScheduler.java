@@ -2,7 +2,6 @@ package whatta.Whatta.notification.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.notification.service.BusNotiProcessor;
@@ -37,12 +36,6 @@ public class TrafficNotiScheduler {
             log.debug("해당 시간에 울릴 교통 알림 없음.");
             return;
         }
-        //각 알림에 대해 도착 정보 확인 및 알림 발송
-        targets.forEach(this::processAlarm);
-    }
-
-    @Async
-    private void processAlarm(TrafficNotification alarm) {
-        notificationService.CheckAndNotify(alarm);
+        targets.forEach(notificationService::checkAndNotify);
     }
 }

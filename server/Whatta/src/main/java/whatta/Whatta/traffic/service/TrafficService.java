@@ -138,7 +138,6 @@ public class TrafficService {
         }
     }
 
-    //response 유효성 검사
     private boolean isInvalidResponse(BusApiResponse response) {
         return response == null ||
                 response.getBody() == null ||
