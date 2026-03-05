@@ -25,15 +25,15 @@ public class BusApiClient {
     private final ObjectMapper objectMapper;
 
     // 국토교통부_(TAGO)_버스도착정보
-    @Value("${public.data.bus.url}")
+    @Value("${public-data.bus-api.base-url}")
     private String arrivalBaseUrl;
 
     //국토교통부_(TAGO)_버스정류소정보
-    @Value("${public.data.bus.station.url}")
+    @Value("${public-data.bus-station-api.base-url}")
     private String stationBaseUrl;
 
     // 국토교통부_(TAGO) 서비스키
-    @Value("${public.data.bus.key}")
+    @Value("${public-data.bus-api.service-key}")
     private String serviceKey;
 
 
