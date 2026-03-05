@@ -10,13 +10,15 @@ import whatta.Whatta.traffic.payload.request.TrafficNotiCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficNotiUpdateRequest;
 import whatta.Whatta.traffic.payload.response.TrafficNotiResponse;
 import whatta.Whatta.traffic.repository.TrafficNotiRepository;
-import whatta.Whatta.traffic.repository.BusItemRepository;
+import whatta.Whatta.traffic.repository.BusFavoriteRepository;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,12 +27,13 @@ import java.util.stream.Collectors;
 @Transactional
 public class TrafficNotiService {
 
-    private final BusItemRepository itemRepository;
+    private final BusFavoriteRepository itemRepository;
     private final TrafficNotiRepository trafficNotiRepository;
 
     //교통알림 생성
     public TrafficNotiResponse createTrafficNoti(String userId, TrafficNotiCreateRequest request) {
-        validateTrafficItems(userId, request.targetItemIds( ));
+        List<String> targetItemIds = sanitizeTargetItemIds(request.targetItemIds());
+        validateTrafficItems(userId, targetItemIds);
 
         LocalTime cleanTime = request.alarmTime().truncatedTo(ChronoUnit.MINUTES);
 
@@ -41,7 +44,7 @@ public class TrafficNotiService {
                 .userId(userId)
                 .alarmTime(cleanTime)
                 .days(request.days() != null ? request.days() : new HashSet<>())
-                .targetItemIds(request.targetItemIds())
+                .targetItemIds(targetItemIds)
                 .isEnabled(true)
                 .isRepeatEnabled(shouldRepeat)
                 .build();
@@ -55,21 +58,23 @@ public class TrafficNotiService {
         TrafficNotification originalAlarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        if (request.getTargetItemIds() != null) {
-            validateTrafficItems(userId, request.getTargetItemIds());
+        List<String> sanitizedTargetItemIds = null;
+        if (request.targetItemIds() != null) {
+            sanitizedTargetItemIds = sanitizeTargetItemIds(request.targetItemIds());
+            validateTrafficItems(userId, sanitizedTargetItemIds);
         }
 
         TrafficNotification.TrafficNotificationBuilder builder = originalAlarm.toBuilder();
 
-        if (request.getAlarmTime() != null) builder.alarmTime(request.getAlarmTime()
+        if (request.alarmTime() != null) builder.alarmTime(request.alarmTime()
                 .truncatedTo(ChronoUnit.MINUTES));
-        if (request.getDays() != null) {
-            builder.days(request.getDays());
-            boolean shouldRepeat = !request.getDays().isEmpty();
+        if (request.days() != null) {
+            builder.days(request.days());
+            boolean shouldRepeat = !request.days().isEmpty();
             builder.isRepeatEnabled(shouldRepeat);
         }
-        if (request.getIsEnabled() != null) builder.isEnabled(request.getIsEnabled());
-        if (request.getTargetItemIds() != null) builder.targetItemIds(request.getTargetItemIds());
+        if (request.isEnabled() != null) builder.isEnabled(request.isEnabled());
+        if (sanitizedTargetItemIds != null) builder.targetItemIds(sanitizedTargetItemIds);
 
         //요일값이 없을경우 반복 off
         TrafficNotification temp = builder.build();
@@ -101,14 +106,29 @@ public class TrafficNotiService {
 
     //유효성 검증
     private void validateTrafficItems(String userId, List<String> itemIds) {
-        if(itemIds == null || itemIds.isEmpty()) return;
-
         long validCount = itemRepository.countByIdInAndUserId(itemIds, userId);
 
         if(validCount != itemIds.size()) {
             throw new RestApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
     }
+
+    private List<String> sanitizeTargetItemIds(List<String> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            throw new RestApiException(ErrorCode.INVALID_TRAFFIC_ALARM_REQUEST);
+        }
+
+        List<String> sanitized = itemIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .toList();
+
+        if (sanitized.size() != itemIds.size()) {
+            throw new RestApiException(ErrorCode.INVALID_TRAFFIC_ALARM_REQUEST);
+        }
+
+        return new ArrayList<>(sanitized);
+    }
 }
-
-
