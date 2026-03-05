@@ -15,7 +15,7 @@ export const SCHEDULE_COLOR_SETS = {
     '#6BC4D8',
     '#6B6BC8',
     '#7236AF',
-    '아직 없음',
+    '#FF3434',
   ],
   set1: [
     '#957DB3',
@@ -29,7 +29,7 @@ export const SCHEDULE_COLOR_SETS = {
     '#CDB876',
     '#C27A4F',
     '#718F96',
-    '아직 없음',
+    '#BFAFA2',
   ],
   set2: [
     '#EC7370',

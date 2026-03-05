@@ -3,18 +3,7 @@ const colors = {
     primary: '#B04FFF',
     secondary: '#4775FF',
   },
-  primary: {
-    main: '#B04FFF',
-  },
-  secondary: {
-    main: '#4775FF',
-  },
-  neutral: {
-    background: '#F4F4F4',
-    surface: '#FFFFFF',
-    timeline : '#B3B3B3',
-    gray : '#808080',
-  },
+
   text: {
     text1: '#17191A',
     text2: '#464A4D',
@@ -22,8 +11,9 @@ const colors = {
     text4: '#A4ADB2',
     text1w: '#FFFFFF',
     text2w: '#E8EEF2',
-    title: '#1B1B1B',
+    monday: '#FF5353',
 
+    title: '#1B1B1B',
     body: '#3C3C3C',
     caption: '#AFAFAF',
     zero: '#000000',
@@ -38,6 +28,7 @@ const colors = {
   divider: {
     divider1: '#BBC5CC',
     divider2: '#E7EEF2',
+    divider3: '#FFFFFF'
   },
 
   icon: {
@@ -55,6 +46,20 @@ const colors = {
     warning: '#FF9747',
     info: '#4775FF',
   },
+
+  // --- 레거시 호환 ---
+  primary: { 
+    main: '#B04FFF',
+  },
+  secondary: {
+    main: '#4775FF',
+  },
+  neutral: {
+    background: '#F4F4F4',
+    surface: '#FFFFFF',
+    timeline : '#B3B3B3',
+    gray : '#808080',
+  },
   task: {
     example: '#b8ccfbff',
     taskName: '#333333',
@@ -63,10 +68,11 @@ const colors = {
     chipback: '#CCD9FF',
     chipbar: '#4775FF',
   },
-
   calendar: {
     background: '#E8CCFF',
   },
+  // ---------
+
 }
 
 export default colors
