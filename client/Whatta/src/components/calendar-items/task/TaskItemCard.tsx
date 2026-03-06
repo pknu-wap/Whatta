@@ -37,10 +37,16 @@ function TaskItemCard({
   const fixedHeight = isMonth ? d.minHeight : isUntimed ? 30 : undefined
   const titleLines = isMonth || isUntimed ? 1 : isWeekTimedNarrow || isNarrow ? 2 : 1
   const minCardHeight = fixedHeight ?? d.minHeight
+  const interactive = !!onToggle
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const width = Math.round(e.nativeEvent.layout.width)
     if (width !== layoutWidth) setLayoutWidth(width)
+  }
+  const handleTogglePress = (e: any) => {
+    if (!onToggle) return
+    e.stopPropagation()
+    onToggle(id, !done)
   }
 
   return (
@@ -66,10 +72,9 @@ function TaskItemCard({
     >
       <Pressable
         hitSlop={8}
-        onPress={(e) => {
-          e.stopPropagation()
-          onToggle?.(id, !done)
-        }}
+        disabled={!interactive}
+        pointerEvents={interactive ? 'auto' : 'none'}
+        onPress={handleTogglePress}
         style={[
           S.checkbox,
           {
@@ -88,10 +93,9 @@ function TaskItemCard({
       </Pressable>
 
       <Pressable
-        onPress={(e) => {
-          e.stopPropagation()
-          onToggle?.(id, !done)
-        }}
+        disabled={!interactive}
+        pointerEvents={interactive ? 'auto' : 'none'}
+        onPress={handleTogglePress}
         style={S.titleWrap}
       >
         <Text

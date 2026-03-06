@@ -3,11 +3,7 @@ import React from 'react'
 import type { ScheduleCardProps } from '@/components/calendar-items/types'
 import ScheduleBaseCard from '@/components/calendar-items/schedule/ScheduleBaseCard'
 import colors from '@/styles/colors'
-
-function normalizeColor(color: string): string {
-  if (!color) return colors.brand.primary
-  return color.startsWith('#') ? color : `#${color}`
-}
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 function FixedScheduleCard({
   title,
@@ -18,7 +14,7 @@ function FixedScheduleCard({
   layoutWidthHint,
   onPress,
 }: ScheduleCardProps) {
-  const mainColor = normalizeColor(color)
+  const mainColor = resolveScheduleColor(color)
 
   return (
     <ScheduleBaseCard

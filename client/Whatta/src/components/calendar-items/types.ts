@@ -61,7 +61,6 @@ export type TaskGroupCardProps = {
   expanded?: boolean
   title?: string
   layoutWidthHint?: number
-  onPressTask?: (taskId: string) => void
   onToggleExpand?: (groupId: string, nextExpanded: boolean) => void
   onToggleTask?: (taskId: string, nextDone: boolean) => void
 }

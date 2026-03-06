@@ -6,11 +6,7 @@ import type { RangeScheduleBarProps } from '@/components/calendar-items/types'
 import { RANGE_BAR_SIZE } from '@/components/calendar-items/sizeTokens'
 import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
-
-function normalizeColor(color: string): string {
-  if (!color) return colors.brand.primary
-  return color.startsWith('#') ? color : `#${color}`
-}
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 function RangeScheduleBar({
   title,
@@ -22,7 +18,7 @@ function RangeScheduleBar({
   isEnd,
   onPress,
 }: RangeScheduleBarProps) {
-  const mainColor = normalizeColor(color)
+  const mainColor = resolveScheduleColor(color)
   const d = RANGE_BAR_SIZE[density]
   const untimed = isUntimed
   const fixedHeight = density === 'month' ? d.height : untimed ? 30 : d.height
