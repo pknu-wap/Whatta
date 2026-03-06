@@ -18,11 +18,10 @@ import java.util.stream.Collectors;
 @Transactional
 public class BusFavoriteService {
 
-    private final BusFavoriteRepository itemRepository;
+    private final BusFavoriteRepository busFavoriteRepository;
 
-    //즐겨찾기 생성
-    public BusFavoriteResponse createItem(String userId, BusFavoriteCreateRequest request) {
-        boolean alreadyExists = itemRepository.existsByUserIdAndBusStationIdAndBusRouteId(
+    public BusFavoriteResponse createBusFavorite(String userId, BusFavoriteCreateRequest request) {
+        boolean alreadyExists = busFavoriteRepository.existsByUserIdAndBusStationIdAndBusRouteId(
                 userId,
                 request.busStationId(),
                 request.busRouteId()
@@ -39,22 +38,20 @@ public class BusFavoriteService {
                 .busRouteNo(request.busRouteNo())
                 .build();
 
-        BusFavorite savedItem = itemRepository.save(item);
+        BusFavorite savedItem = busFavoriteRepository.save(item);
         return BusFavoriteResponse.fromEntity(savedItem);
     }
 
-    //즐겨찾기 삭제
-    public void deleteItem(String userId, String itemId) {
-        BusFavorite item = itemRepository.findByIdAndUserId(itemId, userId)
+    public void deleteBusFavorite(String userId, String itemId) {
+        BusFavorite item = busFavoriteRepository.findByIdAndUserId(itemId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        itemRepository.delete(item);
+        busFavoriteRepository.delete(item);
     }
 
-    //즐겨찾기 조회
     @Transactional(readOnly = true)
-    public List<BusFavoriteResponse> getMyItems(String userId) {
-        return itemRepository.findByUserId(userId).stream()
+    public List<BusFavoriteResponse> getMyFavorite(String userId) {
+        return busFavoriteRepository.findByUserId(userId).stream()
                 .map(BusFavoriteResponse::fromEntity)
                 .collect(Collectors.toList());
     }
