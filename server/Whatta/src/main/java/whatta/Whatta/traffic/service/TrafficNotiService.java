@@ -27,10 +27,9 @@ import java.util.stream.Collectors;
 @Transactional
 public class TrafficNotiService {
 
-    private final BusFavoriteRepository itemRepository;
+    private final BusFavoriteRepository busFavoriteRepository;
     private final TrafficNotiRepository trafficNotiRepository;
 
-    //교통알림 생성
     public TrafficNotiResponse createTrafficNoti(String userId, TrafficNotiCreateRequest request) {
         List<String> targetItemIds = sanitizeTargetItemIds(request.targetItemIds());
         validateTrafficItems(userId, targetItemIds);
@@ -53,7 +52,6 @@ public class TrafficNotiService {
         return TrafficNotiResponse.fromEntity(savedAlarm);
     }
 
-    //교통알림 수정
     public TrafficNotiResponse updateTrafficNoti(String userId, String alarmId, TrafficNotiUpdateRequest request) {
         TrafficNotification originalAlarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -88,7 +86,6 @@ public class TrafficNotiService {
         return TrafficNotiResponse.fromEntity(savedAlarm);
     }
 
-    //교통알림 삭제
     public void deleteTrafficNoti(String userId, String alarmId) {
         TrafficNotification alarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -96,7 +93,6 @@ public class TrafficNotiService {
         trafficNotiRepository.delete(alarm);
     }
 
-    //교통알림 목록 조회
     @Transactional(readOnly = true)
     public List<TrafficNotiResponse> getTrafficNotis(String userId){
         return trafficNotiRepository.findByUserId(userId).stream()
@@ -104,9 +100,8 @@ public class TrafficNotiService {
                 .collect(Collectors.toList());
     }
 
-    //유효성 검증
     private void validateTrafficItems(String userId, List<String> itemIds) {
-        long validCount = itemRepository.countByIdInAndUserId(itemIds, userId);
+        long validCount = busFavoriteRepository.countByIdInAndUserId(itemIds, userId);
 
         if(validCount != itemIds.size()) {
             throw new RestApiException(ErrorCode.RESOURCE_NOT_FOUND);
