@@ -39,7 +39,7 @@ public class TrafficNotiController {
             @AuthenticationPrincipal String userId,
             @RequestBody @Validated BusFavoriteCreateRequest request
     ){
-        BusFavoriteResponse response = busFavoriteService.createItem(userId, request);
+        BusFavoriteResponse response = busFavoriteService.createBusFavorite(userId, request);
         return Response.ok("즐겨찾기 추가 성공", response);
     }
 
@@ -49,7 +49,7 @@ public class TrafficNotiController {
             @AuthenticationPrincipal String userId,
             @Parameter(description = "삭제할 즐겨찾기 ID") @PathVariable String itemId
     ){
-        busFavoriteService.deleteItem(userId, itemId);
+        busFavoriteService.deleteBusFavorite(userId, itemId);
         return Response.ok("해당 즐겨찾기 삭제 성공");
     }
 
@@ -58,7 +58,7 @@ public class TrafficNotiController {
     public ResponseEntity<?> getMyBusItems(
             @AuthenticationPrincipal String userId
     ){
-        List<BusFavoriteResponse> response = busFavoriteService.getMyItems(userId);
+        List<BusFavoriteResponse> response = busFavoriteService.getMyFavorite(userId);
         return Response.ok("즐겨찾기 목록 조회 성공", response);
     }
 
