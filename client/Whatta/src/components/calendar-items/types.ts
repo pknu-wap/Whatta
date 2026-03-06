@@ -2,12 +2,22 @@ export type CalendarItemPressHandler = () => void
 
 export type CalendarDensity = 'day' | 'week' | 'month'
 
+export type ItemFrame = {
+  top: number
+  left: number
+  width: number
+  height: number
+  zIndex?: number
+}
+
 export type ScheduleCardProps = {
   id: string
   title: string
   color: string
   timeRangeText?: string // e.g. "09:00~10:30"
+  isUntimed?: boolean
   density?: CalendarDensity
+  layoutWidthHint?: number
   isRepeat?: boolean
   onPress?: CalendarItemPressHandler
 }
@@ -21,7 +31,9 @@ export type RangeScheduleBarProps = {
   isStart: boolean
   isEnd: boolean
   timeRangeText?: string // e.g. "00:00~23:59"
+  isUntimed?: boolean
   density?: CalendarDensity
+  layoutWidthHint?: number
   onPress?: CalendarItemPressHandler
 }
 
@@ -35,7 +47,9 @@ export type TaskItemCardProps = {
   id: string
   title: string
   done: boolean
+  isUntimed?: boolean
   density?: CalendarDensity
+  layoutWidthHint?: number
   onPress?: CalendarItemPressHandler
   onToggle?: (id: string, nextDone: boolean) => void
 }
@@ -46,6 +60,7 @@ export type TaskGroupCardProps = {
   density?: CalendarDensity
   expanded?: boolean
   title?: string
+  layoutWidthHint?: number
   onPressTask?: (taskId: string) => void
   onToggleExpand?: (groupId: string, nextExpanded: boolean) => void
   onToggleTask?: (taskId: string, nextDone: boolean) => void
