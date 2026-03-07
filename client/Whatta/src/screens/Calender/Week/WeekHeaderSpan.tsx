@@ -27,6 +27,7 @@ type WeekHeaderSpanProps = {
   spanScrollRef: React.RefObject<ScrollView | null>
   weekDates: string[]
   todayISO: string
+  selectedDateISO: string
   dayColWidth: number
   timeColWidth: number
   singleHeight: number
@@ -41,6 +42,7 @@ type WeekHeaderSpanProps = {
   onSetSpanContentH: (h: number) => void
   onToggleSpanTask: (taskId: string, prevDone: boolean, dateISO: string) => void
   onOpenEventDetail: (eventId: string, occDate?: string) => void
+  onSelectDate?: (dateISO: string) => void
   onHeaderTimeColLayout?: (x: number, y: number) => void
 }
 
@@ -65,8 +67,12 @@ export default function WeekHeaderSpan({
   onSetSpanContentH,
   onToggleSpanTask,
   onOpenEventDetail,
+  onSelectDate,
   onHeaderTimeColLayout,
 }: WeekHeaderSpanProps) {
+  const todayDate = parseDate(todayISO)
+  const datePillWidth = weekDates.length === 5 ? 61.6 : weekDates.length === 7 ? 44 : 44
+
   return (
     <>
       <FullBleed padH={16}>
@@ -77,37 +83,56 @@ export default function WeekHeaderSpan({
               const { x, y } = e.nativeEvent.layout
               onHeaderTimeColLayout?.(x, y)
             }}
-          />
+          >
+            <Text style={styles.weekHeaderBigDate}>{todayDate.getDate()}일</Text>
+          </View>
           {weekDates.map((d) => {
             const dt = parseDate(d)
             const dow = dt.getDay()
             const label = ['일', '월', '화', '수', '목', '금', '토'][dow]
             const isToday = d === todayISO
+            const dayColor = isToday
+              ? colors.primary.main
+              : dow === 0
+                ? colors.text.monday
+                : colors.text.text2
+            const dateColor = isToday
+              ? colors.primary.main
+              : dow === 0
+                ? colors.text.monday
+                : colors.text.text2
             return (
-              <View key={`${d}-header`} style={[styles.weekHeaderCol, { width: dayColWidth }]}>
+              <Pressable
+                key={`${d}-header`}
+                onPress={() => onSelectDate?.(d)}
+                hitSlop={6}
+                style={[styles.weekHeaderCol, { width: dayColWidth }]}
+              >
                 <Text
                   style={[
-                    styles.weekHeaderText,
-                    { color: '#333333' },
-                    dow === 0 && { color: '#FF4D4D' },
-                    dow === 6 && { color: '#000000' },
-                    isToday && {
-                      color: colors.primary.main,
-                      fontWeight: '800',
-                    },
+                    styles.weekHeaderWeekday,
+                    { color: dayColor },
                   ]}
                 >
                   {label}
                 </Text>
-                <Text
+                <View
                   style={[
-                    styles.weekHeaderDate,
-                    isToday && { color: colors.primary.main },
+                    styles.weekHeaderDatePill,
+                    { width: datePillWidth },
+                    isToday && styles.weekHeaderDatePillToday,
                   ]}
                 >
-                  {dt.getDate()}
-                </Text>
-              </View>
+                  <Text
+                    style={[
+                      styles.weekHeaderDate,
+                      { color: dateColor },
+                    ]}
+                  >
+                    {dt.getDate()}
+                  </Text>
+                </View>
+              </Pressable>
             )
           })}
         </View>

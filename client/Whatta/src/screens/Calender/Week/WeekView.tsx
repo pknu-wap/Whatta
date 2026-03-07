@@ -1814,6 +1814,7 @@ export default function WeekView() {
               spanScrollRef={spanScrollRef}
               weekDates={weekDates}
               todayISO={today}
+              selectedDateISO={anchorDate}
               dayColWidth={dayColWidth}
               timeColWidth={TIME_COL_W}
               singleHeight={SINGLE_HEIGHT}
@@ -1828,6 +1829,7 @@ export default function WeekView() {
               onSetSpanContentH={setSpanContentH}
               onToggleSpanTask={toggleSpanTaskCheck}
               onOpenEventDetail={openEventDetail}
+              onSelectDate={setAnchorDate}
               onHeaderTimeColLayout={(x, y) => {
                 gridOffsetRef.current = { x, y }
               }}
@@ -1905,28 +1907,48 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-    paddingTop: 2,
-    paddingBottom: 2,
-    backgroundColor: '#FFFFFF',
+  backgroundColor: '#FFFFFF',
+    alignItems: 'flex-start',
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingLeft: 2,
+    paddingTop: 4,
+  },
+  weekHeaderBigDate: {
+    ...ts('label1'),
+    fontSize: 20,
+    color: '#000000',
   },
   weekHeaderCol: {
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 2,
+  },
+  weekHeaderWeekday: {
+    ...ts('date3'),
+    fontSize: 13,
+    fontWeight: 500,
+    color: colors.text.text2,
+    marginBottom: 4,
+  },
+  weekHeaderDatePill: {
+    height: 18,
+    borderRadius: 40,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  weekHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#999999',
+  weekHeaderDatePillToday: {
+    backgroundColor: '#EFE7F7',
   },
   weekHeaderDate: {
-    fontSize: 11,
-    color: '#B4B4B4',
-    marginTop: 1,
+    ...ts('date3'),
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#4A4A4A',
   },
-
   spanTaskBoxWrap: {
     position: 'relative',
     overflow: 'visible',
