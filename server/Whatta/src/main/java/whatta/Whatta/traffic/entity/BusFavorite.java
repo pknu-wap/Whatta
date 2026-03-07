@@ -6,9 +6,18 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document("bus_items")
+@CompoundIndexes({
+        @CompoundIndex(
+                name = "uniq_user_station_route",
+                def = "{'userId': 1, 'busStationId': 1, 'busRouteId': 1}",
+                unique = true
+        )
+})
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
