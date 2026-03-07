@@ -29,6 +29,10 @@ import Animated, {
 import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
+import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
+import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
+import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import colors from '@/styles/colors'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
@@ -77,15 +81,11 @@ import {
 /* -------------------------------------------------------------------------- */
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const ROW_H = 48
-const PIXELS_PER_HOUR = ROW_H
-const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
-
-// 1일(24시간)의 전체 높이(px)
-const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+const BASE_ROW_H = 48
+const DRAG_LONG_PRESS_MS = 380
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
-const TIME_COL_W = 50
+const TIME_COL_W = 44
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 
@@ -144,6 +144,7 @@ function getTaskTime(t: any): string {
 function TaskGroupBox({
   tasks,
   startHour,
+  rowH,
   onLocalChange,
   dayColWidth,
   dateISO,
@@ -152,6 +153,7 @@ function TaskGroupBox({
 }: {
   tasks: any[]
   startHour: number
+  rowH: number
   dayColWidth: number
   dateISO: string
   dayIndex: number
@@ -164,12 +166,12 @@ function TaskGroupBox({
   }) => void
 }) {
   const [localTasks, setLocalTasks] = useState(tasks)
-  const [contentWidth, setContentWidth] = useState<number | null>(null)
-
-  const topBase = startHour * 60 * PIXELS_PER_MIN
+  const pixelsPerMin = rowH / 60
+  const dayPx = 24 * 60 * pixelsPerMin
+  const topBase = startHour * 60 * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
-  const height = ROW_H
+  const height = rowH
   const [expanded, setExpanded] = useState(false)
   const isActiveDrag = useSharedValue(false)
   const [extraLeft, setExtraLeft] = useState(0)
@@ -177,32 +179,14 @@ function TaskGroupBox({
 
   useEffect(() => {
     setLocalTasks(tasks)
-    // 내용이 바뀌면 다시 펼쳤을 때 폭을 재계산할 수 있도록 초기화// setContentWidth(null);
   }, [tasks])
 
-  const triggerHaptic = () => {
-    Vibration.vibrate(50)
-  }
+  // ✅ 단일 Task 박스와 동일한 기본 위치
+  const baseLeftInCol = 2
+  const collapsedWidth = dayColWidth - 4
 
-  // ✅ 단일 Task 박스와 동일한 기본 위치 (left: 1, width: dayColWidth - 2)
-  const baseLeftInCol = 1
-  const collapsedWidth = dayColWidth - 2
-
-  // ✅ 펼쳤을 때: title 길이 기반 기본 최소/최대 폭
-  const expandedMin = Math.max(collapsedWidth, 150)
-  const expandedMax = 320
-  const longestTitle = localTasks.reduce((m, t) => Math.max(m, t.title?.length ?? 0), 0)
-  const textWidth = longestTitle * 8 + 40
-  const estimatedExpandedWidth = Math.min(Math.max(textWidth, expandedMin), expandedMax)
-
-  // 실제 내용(width) + 14px 여백을 기준으로 폭 결정
-  const rawExpandedWidth =
-    contentWidth != null ? contentWidth + 14 : estimatedExpandedWidth
-  const clampedExpandedWidth = Math.min(
-    Math.max(rawExpandedWidth, expandedMin),
-    expandedMax,
-  )
-  const finalWidth = expanded ? clampedExpandedWidth : collapsedWidth
+  // 펼침/접힘과 무관하게 주간 그리드 셀 폭에 고정한다.
+  const finalWidth = collapsedWidth
 
   // 이 그룹 박스의 "기본 글로벌 left" (시간열 기준)
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + baseLeftInCol
@@ -211,12 +195,12 @@ function TaskGroupBox({
     async (movedY: number, dayOffset: number) => {
       try {
         const SNAP_MIN = 5
-        const SNAP = SNAP_MIN * PIXELS_PER_MIN
+        const SNAP = SNAP_MIN * pixelsPerMin
         let snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
         const actualTopPx = topBase + snappedY
-        let newStart = actualTopPx / PIXELS_PER_MIN
+        let newStart = actualTopPx / pixelsPerMin
         const DAY_MIN = 24 * 60
 
         if (newStart < 0) newStart = 0
@@ -273,7 +257,7 @@ function TaskGroupBox({
   )
 
   const longPress = Gesture.LongPress()
-    .minDuration(250)
+    .minDuration(DRAG_LONG_PRESS_MS)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -288,7 +272,7 @@ function TaskGroupBox({
       let nextY = translateY.value + e.changeY
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
 
       if (nextY < minY) nextY = minY
       if (nextY > maxY) nextY = maxY
@@ -311,11 +295,11 @@ function TaskGroupBox({
       if (!isActiveDrag.value) return
 
       const SNAP_MIN = 5
-      const SNAP = SNAP_MIN * PIXELS_PER_MIN
+      const SNAP = SNAP_MIN * pixelsPerMin
       let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
       if (snappedY < minY) snappedY = minY
       if (snappedY > maxY) snappedY = maxY
 
@@ -425,11 +409,6 @@ function TaskGroupBox({
         onLayout={(e) => {
           const w = e.nativeEvent.layout.width
 
-          if (expanded && contentWidth == null) {
-            // 처음 펼쳐진 상태에서 내용 폭 측정
-            setContentWidth(w)
-          }
-
           // 펼쳐지지 않은 상태에서는 위치 보정값 초기화
           if (!expanded) {
             if (extraLeft !== 0 || lastShift !== 0) {
@@ -466,87 +445,43 @@ function TaskGroupBox({
         }}
         style={[
           S.taskGroupBox,
-          expanded
-            ? contentWidth == null
-              ? null
-              : { width: finalWidth }
-            : { width: collapsedWidth },
+          { minHeight: rowH },
+          { width: finalWidth },
           style,
           // 🔽 left 보정은 React state 기반
           { left: baseLeftInCol + extraLeft },
         ]}
       >
-        <View style={S.taskGroupInner}>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.()
-              toggleExpand()
+        <View
+          style={[
+            S.taskGroupInner,
+            {
+              minHeight: Math.max(0, rowH - 4),
+              marginVertical: 2,
+              paddingHorizontal: 0,
+            },
+          ]}
+        >
+          <TaskGroupCard
+            groupId={`week-group-${dateISO}-${dayIndex}-${startHour}`}
+            density="week"
+            expanded={expanded}
+            title="할 일"
+            layoutWidthHint={finalWidth}
+            tasks={localTasks.map((t: any) => ({
+              id: String(t.id),
+              title: t.title ?? '',
+              done: !!t.completed,
+            }))}
+            onToggleExpand={(_groupId, nextExpanded) => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+              setExpanded(nextExpanded)
             }}
-            style={[
-              S.groupHeaderRow,
-              expanded ? { paddingLeft: 14 } : { paddingLeft: 5 },
-            ]}
-          >
-            <View
-              style={[
-                S.groupHeaderArrow,
-                !expanded && {
-                  transform: [{ rotate: '180deg' }],
-                  marginTop: 0, // 펼쳤을 때만 10px 아래로
-                },
-              ]}
-            />
-
-            <Text
-              style={[
-                S.groupHeaderText,
-                expanded && { paddingTop: 10 }, // 펼쳤을 때만 10px 아래로
-              ]}
-            >
-              할 일
-            </Text>
-          </Pressable>
-
-          {expanded && (
-            <View style={S.groupList}>
-              {localTasks.map((t: any) => (
-                <View key={String(t.id)} style={S.groupTaskRow}>
-                  <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation?.()
-                      onToggleGroupTask(t)
-                    }}
-                  >
-                    <View
-                      style={[S.groupTaskCheckbox, t.completed && S.groupTaskCheckboxOn]}
-                    >
-                      {t.completed && <Text style={S.groupTaskCheckmark}>✓</Text>}
-                    </View>
-                  </Pressable>
-                  <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation?.()
-                      onToggleGroupTask(t)
-                    }}
-                    style={{ flex: 1 }}
-                  >
-                    <Text
-                      style={[
-                        S.groupTaskTitle,
-                        t.completed && {
-                          color: '#999999',
-                          textDecorationLine: 'line-through',
-                        },
-                      ]}
-                      numberOfLines={0}
-                    >
-                      {t.title}
-                    </Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
+            onToggleTask={(taskId) => {
+              const target = localTasks.find((t: any) => String(t.id) === String(taskId))
+              if (target) onToggleGroupTask(target)
+            }}
+          />
         </View>
       </Animated.View>
     </GestureDetector>
@@ -566,8 +501,8 @@ type DraggableTaskBoxProps = {
   dayColWidth: number
   dayIndex: number
   weekCount: number
+  rowH: number
   openDetail: (id: string) => void
-  isRepeat?: boolean
   onLocalChange?: (payload: {
     id: string
     dateISO: string
@@ -585,15 +520,17 @@ function DraggableTaskBox({
   dayColWidth,
   dayIndex,
   weekCount,
+  rowH,
   onLocalChange,
   openDetail,
-  isRepeat,
 }: DraggableTaskBoxProps) {
+  const pixelsPerMin = rowH / 60
+  const dayPx = 24 * 60 * pixelsPerMin
   const startMin = startHour * 60
-  const topBase = startMin * PIXELS_PER_MIN
+  const topBase = startMin * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
-  const height = ROW_H - 6
+  const height = rowH
   const [done, setDone] = useState(initialDone)
   const isActiveDrag = useSharedValue(false)
 
@@ -601,17 +538,23 @@ function DraggableTaskBox({
   // 남아 있던 translate 오프셋 때문에 topBase + translateY가 두 번 더해져서 튀는 현상이 생길 수 있다.
   // → startHour가 바뀔 때마다 드래그 오프셋을 0으로 초기화한다.
   const prevStartHourRef = useRef(startHour)
+  const prevRowHRef = useRef(rowH)
 
   useEffect(() => {
-    if (prevStartHourRef.current !== startHour) {
+    if (prevStartHourRef.current !== startHour || prevRowHRef.current !== rowH) {
       translateY.value = 0
       translateX.value = 0
     }
     prevStartHourRef.current = startHour
-  }, [startHour])
+    prevRowHRef.current = rowH
+  }, [startHour, rowH])
+
+  useEffect(() => {
+    setDone(initialDone)
+  }, [initialDone])
 
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
-  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 1
+  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 2
 
   const toggleDone = async () => {
     const next = !done
@@ -639,12 +582,12 @@ function DraggableTaskBox({
   const handleDrop = async (movedY: number, dayOffset: number) => {
     try {
       const SNAP_MIN = 5
-      const SNAP = SNAP_MIN * PIXELS_PER_MIN
+      const SNAP = SNAP_MIN * pixelsPerMin
       const snappedY = Math.round(movedY / SNAP) * SNAP
       translateY.value = withSpring(snappedY)
 
       const actualTopPx = topBase + snappedY
-      let newStart = actualTopPx / PIXELS_PER_MIN
+      let newStart = actualTopPx / pixelsPerMin
       const DAY_MIN = 24 * 60
 
       if (newStart < 0) newStart = 0
@@ -679,12 +622,8 @@ function DraggableTaskBox({
     }
   }
 
-  const triggerHaptic = () => {
-    Vibration.vibrate(50)
-  }
-
   const longPress = Gesture.LongPress()
-    .minDuration(250)
+    .minDuration(DRAG_LONG_PRESS_MS)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -699,7 +638,7 @@ function DraggableTaskBox({
       let nextY = translateY.value + e.changeY
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
 
       if (nextY < minY) nextY = minY
       if (nextY > maxY) nextY = maxY
@@ -720,11 +659,11 @@ function DraggableTaskBox({
       if (!isActiveDrag.value) return
 
       const SNAP_MIN = 5
-      const SNAP = SNAP_MIN * PIXELS_PER_MIN
+      const SNAP = SNAP_MIN * pixelsPerMin
       let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
       if (snappedY < minY) snappedY = minY
       if (snappedY > maxY) snappedY = maxY
 
@@ -745,37 +684,21 @@ function DraggableTaskBox({
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[S.taskBox, style]}>
-        <View style={S.taskInnerBox}>
-          <Pressable
-            onPress={() => {
-              if (!isActiveDrag.value) runOnJS(openDetail)(id)
-            }}
-            hitSlop={12}
-            style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-          >
-            {/* 체크박스 */}
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation() // 상세 팝업 방지
-                toggleDone()
-              }}
-              hitSlop={12}
-            >
-              <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
-                {done && <Text style={S.taskCheckmark}>✓</Text>}
-              </View>
-            </Pressable>
-
-            {/* 타이틀 */}
-            <Text style={[S.taskTitle, done && S.taskTitleDone]} numberOfLines={3}>
-              {title}
-            </Text>
-
-              
-
-          </Pressable>
-        </View>
+      <Animated.View style={[S.taskBox, { height }, style]}>
+        <TaskItemCard
+          id={id}
+          title={title}
+          done={done}
+          density="week"
+          layoutWidthHint={dayColWidth - 2}
+          style={{ flex: 1, minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 1 }}
+          onPress={() => {
+            if (!isActiveDrag.value) openDetail(id)
+          }}
+          onToggle={() => {
+            if (!isActiveDrag.value) toggleDone()
+          }}
+        />
       </Animated.View>
     </GestureDetector>
   )
@@ -824,6 +747,7 @@ type DraggableFlexalbeEventProps = {
   dayColWidth: number
   weekDates: string[]
   dayIndex: number
+  rowH: number
   openEventDetail: (id: string) => void
   isRepeat?: boolean
 }
@@ -843,12 +767,15 @@ function DraggableFlexalbeEvent({
   dayColWidth,
   weekDates,
   dayIndex,
+  rowH,
   openEventDetail,
   isRepeat,
 }: DraggableFlexalbeEventProps) {
-  const durationMin = endMin - startMin
-  const height = (durationMin / 60) * ROW_H
-  const topBase = (startMin / 60) * ROW_H
+  const pixelsPerMin = rowH / 60
+  const dayPx = 24 * 60 * pixelsPerMin
+  const durationMin = Math.max(5, endMin - startMin)
+  const height = (durationMin / 60) * rowH
+  const topBase = (startMin / 60) * rowH
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
   const isDragging = useSharedValue(0)
@@ -862,33 +789,35 @@ function DraggableFlexalbeEvent({
   // → time props가 바뀔 때마다 오프셋과 dragStartTop을 리셋해서 기준을 다시 맞춰 준다.
   const prevStartRef = useRef(startMin)
   const prevEndRef = useRef(endMin)
+  const prevRowHRef = useRef(rowH)
 
   useEffect(() => {
-    if (prevStartRef.current !== startMin || prevEndRef.current !== endMin) {
+    if (
+      prevStartRef.current !== startMin ||
+      prevEndRef.current !== endMin ||
+      prevRowHRef.current !== rowH
+    ) {
       translateY.value = 0
       translateX.value = 0
-      dragStartTop.value = (startMin / 60) * ROW_H
+      dragStartTop.value = (startMin / 60) * rowH
     }
     prevStartRef.current = startMin
     prevEndRef.current = endMin
-  }, [startMin, endMin])
-
-  const triggerHaptic = () => {
-    Vibration.vibrate(50)
-  }
+    prevRowHRef.current = rowH
+  }, [startMin, endMin, rowH])
 
   const handleDrop = useCallback(
     async (movedY: number, dayOffset: number) => {
       try {
-        const SNAP = 5 * PIXELS_PER_MIN
+        const SNAP = 5 * pixelsPerMin
         const snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
-        const duration = endMin - startMin
+        const duration = durationMin
 
-        const topBasePx = (startMin / 60) * ROW_H
+        const topBasePx = (startMin / 60) * rowH
         const actualTopPx = topBasePx + snappedY
-        let newStart = Math.round(actualTopPx / PIXELS_PER_MIN)
+        let newStart = Math.round(actualTopPx / pixelsPerMin)
 
         const DAY_MIN = 24 * 60
         if (newStart < 0) newStart = 0
@@ -945,11 +874,11 @@ function DraggableFlexalbeEvent({
         console.error('❌ 이벤트 이동 실패:', err.message)
       }
     },
-    [id, startMin, endMin, dateISO, translateY],
+    [id, startMin, endMin, dateISO, durationMin, pixelsPerMin, rowH, translateY],
   )
 
   const longPress = Gesture.LongPress()
-    .minDuration(250)
+    .minDuration(DRAG_LONG_PRESS_MS)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -984,6 +913,10 @@ function DraggableFlexalbeEvent({
     }
   }
 
+  // 컴포넌트 카드 적용 시 과도하게 좁아 보이지 않도록 폭 보정 최소화
+  left += 1.5
+  width = Math.max(4, width - 3)
+
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + left
 
   const drag = Gesture.Pan()
@@ -994,7 +927,7 @@ function DraggableFlexalbeEvent({
       let absoluteY = dragStartTop.value + e.translationY
 
       const minAbsY = 0
-      const maxAbsY = DAY_PX - height
+      const maxAbsY = dayPx - height
 
       if (absoluteY < minAbsY) absoluteY = minAbsY
       if (absoluteY > maxAbsY) absoluteY = maxAbsY
@@ -1014,11 +947,11 @@ function DraggableFlexalbeEvent({
     .onEnd(() => {
       if (!isActiveDrag.value) return
 
-      const SNAP = 5 * PIXELS_PER_MIN
+      const SNAP = 5 * pixelsPerMin
       let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
       if (snappedY < minY) snappedY = minY
       if (snappedY > maxY) snappedY = maxY
 
@@ -1055,6 +988,13 @@ function DraggableFlexalbeEvent({
   }
 })
 
+  const fmtHm = (m: number) => {
+    const hh = Math.floor(Math.max(0, m) / 60)
+    const mm = Math.floor(Math.max(0, m) % 60)
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+  const timeRangeText = `${fmtHm(startMin)}~${fmtHm(endMin)}`
+  const EventCard = isRepeat ? RepeatScheduleCard : FixedScheduleCard
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -1065,7 +1005,7 @@ function DraggableFlexalbeEvent({
             left,
             width,
             height,
-            backgroundColor: displayColor,
+            backgroundColor: 'transparent',
             ...overlapStyle,
           },
           // ⭐ 반복 일정일 때 DayView와 동일한 강조 디자인
@@ -1075,36 +1015,26 @@ function DraggableFlexalbeEvent({
           style,
         ]}
       >
-        <Pressable
-          style={{ flex: 1 }}
+        <EventCard
+          id={id}
+          title={title}
+          color={safeColor}
+          timeRangeText={timeRangeText}
+          density="week"
+          layoutWidthHint={width}
+          style={{ minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 3 }}
           onPress={() => {
-            if (!isActiveDrag.value) {
-              runOnJS(openEventDetail)(id)
-            }
+            if (!isActiveDrag.value) openEventDetail(id)
           }}
-        >
-          <Text style={S.eventTitle} numberOfLines={2}>
-            {title}
-          </Text>
-          {!!place && <Text style={S.eventPlace}>{place}</Text>}
-
-          {isRepeat && (
-  <Text
-    style={{
-      marginTop: 2,
-      marginLeft: 2,
-      fontSize: 11,
-      fontWeight: '700',
-      color: '#9B4FFF',
-    }}
-  >
-  </Text>
-)}
-        </Pressable>
+        />
       </Animated.View>
     </GestureDetector>
   )
 }
+
+const MemoTaskGroupBox = React.memo(TaskGroupBox)
+const MemoDraggableTaskBox = React.memo(DraggableTaskBox)
+const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 
 /* -------------------------------------------------------------------------- */
 /* WeekView 메인 */
@@ -1215,7 +1145,7 @@ export default function WeekView() {
   const gridOffsetRef = useRef({ x: 0, y: 0 })
   const scrollOffsetRef = useRef(0)
 
-  const SINGLE_HEIGHT = 22
+  const SINGLE_HEIGHT = 27
 
   // Task Popup
   const [taskPopupVisible, setTaskPopupVisible] = useState(false)
@@ -1350,12 +1280,28 @@ export default function WeekView() {
     }
   }, [anchorDate, isZoomed, isFocused])
 
+  const rowH =
+    weekDates.length === 7 ? 61 : weekDates.length === 5 ? 62 : BASE_ROW_H
+  const pixelsPerMin = rowH / 60
+  const computedDayColWidth = getDayColWidth(
+    SCREEN_W,
+    weekDates.length,
+    TIME_COL_W,
+    SIDE_PADDING,
+  )
+  const dayColWidth =
+    weekDates.length === 7
+      ? Math.max(43, computedDayColWidth)
+      : weekDates.length === 5
+        ? Math.max(62, computedDayColWidth)
+        : computedDayColWidth
+
   useEffect(() => {
     const updateNowTop = (scrollToCenter: boolean) => {
       const now = new Date()
       const h = now.getHours()
       const m = now.getMinutes()
-      const topPos = (h * 60 + m) * PIXELS_PER_MIN
+      const topPos = (h * 60 + m) * pixelsPerMin
       setNowTop(topPos)
 
       if (scrollToCenter && !hasScrolledOnce) {
@@ -1374,7 +1320,7 @@ export default function WeekView() {
     updateNowTop(true)
     const id = setInterval(() => updateNowTop(false), 60000)
     return () => clearInterval(id)
-  }, [hasScrolledOnce])
+  }, [hasScrolledOnce, pixelsPerMin])
 
   useEffect(() => {
     if (nowTop !== null && gridScrollRef.current && !hasScrolledOnce) {
@@ -1397,14 +1343,12 @@ export default function WeekView() {
   )
 
   const today = todayISO()
-
-  const dayColWidth = getDayColWidth(SCREEN_W, weekDates.length, TIME_COL_W, SIDE_PADDING)
   useCalendarSync({
     isFocused,
     weekDates,
     anchorDateRef,
     dayColWidth,
-    rowH: ROW_H,
+    rowH,
     setAnchorDate,
     fetchWeek,
   })
@@ -1525,7 +1469,7 @@ export default function WeekView() {
                 // gridPy(음수일 수 있음)를 빼주면 스크롤된 만큼 더해져서 정확한 위치가 나옴
                 const innerY = y - gridPy
 
-                let min = innerY / PIXELS_PER_MIN
+                let min = innerY / pixelsPerMin
                 if (min < 0) min = 0
                 if (min > 1435) min = 1435
 
@@ -1609,7 +1553,7 @@ export default function WeekView() {
       bus.off('xdrag:move', onMove)
       bus.off('xdrag:drop', onDrop)
     }
-  }, [weekDates, gridRect, dayColWidth, spanRect])
+  }, [weekDates, gridRect, dayColWidth, spanRect, pixelsPerMin])
 
   const toggleSpanTaskCheck = async (
     taskId: string,
@@ -1758,7 +1702,8 @@ export default function WeekView() {
     [weekDates, filteredWeekData],
   )
   const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+  const SPAN_ROW_GAP = 3
+  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + SPAN_ROW_GAP)
 
   const handleTimedTaskCompletedChange = useCallback(
     ({
@@ -1790,6 +1735,14 @@ export default function WeekView() {
     [],
   )
 
+  const handleHeaderTimeColLayout = useCallback((x: number, y: number) => {
+    gridOffsetRef.current = { x, y }
+  }, [])
+
+  const handleGridScroll = useCallback((offsetY: number) => {
+    scrollOffsetRef.current = offsetY
+  }, [])
+
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1814,9 +1767,11 @@ export default function WeekView() {
               spanScrollRef={spanScrollRef}
               weekDates={weekDates}
               todayISO={today}
+              selectedDateISO={anchorDate}
               dayColWidth={dayColWidth}
               timeColWidth={TIME_COL_W}
               singleHeight={SINGLE_HEIGHT}
+              spanRowGap={SPAN_ROW_GAP}
               spanBars={spanBars}
               spanAreaHeight={spanAreaHeight}
               showSpanScrollbar={showSpanScrollbar}
@@ -1828,9 +1783,8 @@ export default function WeekView() {
               onSetSpanContentH={setSpanContentH}
               onToggleSpanTask={toggleSpanTaskCheck}
               onOpenEventDetail={openEventDetail}
-              onHeaderTimeColLayout={(x, y) => {
-                gridOffsetRef.current = { x, y }
-              }}
+              onSelectDate={setAnchorDate}
+              onHeaderTimeColLayout={handleHeaderTimeColLayout}
             />
 
             <WeekTimeline
@@ -1839,7 +1793,7 @@ export default function WeekView() {
               gridScrollRef={gridScrollRef}
               gridWrapRef={gridWrapRef}
               hours={HOURS}
-              rowH={ROW_H}
+              rowH={rowH}
               weekDates={weekDates}
               weekData={filteredWeekData}
               todayISO={today}
@@ -1848,13 +1802,11 @@ export default function WeekView() {
               getTaskTime={getTaskTime}
               openEventDetail={openEventDetail}
               openTaskPopupFromApi={openTaskPopupFromApi}
-              onGridScroll={(offsetY) => {
-                scrollOffsetRef.current = offsetY
-              }}
+              onGridScroll={handleGridScroll}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
-              DraggableFlexibleEventComponent={DraggableFlexalbeEvent}
-              TaskGroupBoxComponent={TaskGroupBox}
-              DraggableTaskBoxComponent={DraggableTaskBox}
+              DraggableFlexibleEventComponent={MemoDraggableFlexibleEvent}
+              TaskGroupBoxComponent={MemoTaskGroupBox}
+              DraggableTaskBoxComponent={MemoDraggableTaskBox}
             />
           </Animated.View>
         </GestureDetector>
@@ -1905,28 +1857,55 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-    paddingTop: 2,
-    paddingBottom: 2,
     backgroundColor: '#FFFFFF',
+    alignItems: 'flex-start',
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingLeft: 0,
+    paddingTop: 1,
+  },
+  weekHeaderBigDate: {
+    ...ts('label1'),
+    fontSize: 19,
+    color: '#000000',
   },
   weekHeaderCol: {
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 0,
+  },
+  weekHeaderWeekday: {
+    ...ts('date3'),
+    fontSize: 13,
+    fontWeight: 500,
+    color: colors.text.text2,
+    marginBottom: 4,
+  },
+  weekHeaderWeekdayToday: {
+    fontWeight: 700,
+  },
+  weekHeaderDatePill: {
+    height: 18,
+    borderRadius: 40,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  weekHeaderText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#999999',
+  weekHeaderDatePillToday: {
+    backgroundColor: '#EFE7F7',
   },
   weekHeaderDate: {
-    fontSize: 11,
-    color: '#B4B4B4',
-    marginTop: 1,
+    ...ts('date3'),
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#4A4A4A',
   },
-
+  weekHeaderDateToday: {
+    color: colors.brand.primary,
+    fontWeight: 700,
+  },
   spanTaskBoxWrap: {
     position: 'relative',
     overflow: 'visible',
@@ -1939,25 +1918,12 @@ const S = StyleSheet.create({
     borderWidth: 0,
     borderColor: 'transparent',
   },
-  boxBottomLine: {
+  spanBottomShadow: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth || 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    zIndex: 2,
-  },
-  fadeBelow: {
-    position: 'absolute',
-    left: -12,
-    right: -12,
+    left: -16,
+    right: -16,
     top: '100%',
-    height: 18,
-    zIndex: 1,
-  },
-  fadeGap: {
-    height: 13,
+    height: 24,
   },
 
   timelineScroll: {
@@ -1971,17 +1937,21 @@ const S = StyleSheet.create({
   timeCol: {
     width: TIME_COL_W,
     alignItems: 'flex-end',
-    paddingRight: 10,
+    paddingRight: 0,
   },
   timeRow: {
-    height: ROW_H,
+    height: BASE_ROW_H,
     paddingTop: 2,
     justifyContent: 'flex-start',
   },
   timeText: {
-    ...ts('time'),
-    color: colors.neutral.gray,
-    textAlign: 'right',
+    ...ts('date3'),
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.text.text4,
+    fontWeight: 500,
+    textAlign: 'left',
+    width: '100%',
     marginLeft: 0,
     marginRight: 0,
     includeFontPadding: false,
@@ -1989,22 +1959,22 @@ const S = StyleSheet.create({
 
   dayCol: {
     borderLeftWidth: 0.3,
-    borderLeftColor: colors.neutral.timeline,
+    borderLeftColor: '#C7D0D6',
     position: 'relative',
   },
   firstDayCol: {
     borderLeftWidth: 0,
   },
   hourRow: {
-    height: ROW_H,
+    height: BASE_ROW_H,
   },
 
   eventBox: {
     position: 'absolute',
-    borderRadius: 3,
-    paddingHorizontal: 6,
-    paddingTop: 4,
-    paddingBottom: 2,
+    borderRadius: 8,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     justifyContent: 'flex-start',
     shadowColor: 'transparent',
     shadowOpacity: 0,
@@ -2026,34 +1996,34 @@ const S = StyleSheet.create({
 
   taskBox: {
     position: 'absolute',
-    left: 1,
-    right: 1,
-    height: ROW_H,
-    borderRadius: 3,
+    left: 2,
+    right: 2,
+    height: BASE_ROW_H,
+    borderRadius: 6,
   },
   taskInnerBox: {
     flex: 1,
     backgroundColor: '#FFFFFF80',
     borderWidth: 0.4,
     borderColor: '#333333',
-    borderRadius: 3,
+    borderRadius: 8,
     paddingHorizontal: 0,
     flexDirection: 'row',
     alignItems: 'center',
   },
   taskGroupBox: {
     position: 'absolute',
-    minHeight: ROW_H,
-    borderRadius: 3,
+    minHeight: BASE_ROW_H,
+    borderRadius: 8,
     zIndex: 21,
     overflow: 'visible',
   },
   taskGroupInner: {
-    minHeight: ROW_H,
-    backgroundColor: '#FFFFFF80',
-    borderWidth: 0.4,
-    borderColor: '#333333',
-    borderRadius: 3,
+    minHeight: BASE_ROW_H,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    borderRadius: 6,
     paddingHorizontal: 10,
     justifyContent: 'center',
   },
@@ -2213,14 +2183,6 @@ const S = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 0.3,
-    backgroundColor: colors.neutral.timeline,
-  },
-  mainVerticalLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: TIME_COL_W,
-    width: 0.3,
-    backgroundColor: colors.neutral.timeline,
+    backgroundColor: '#C7D0D6',
   },
 })
