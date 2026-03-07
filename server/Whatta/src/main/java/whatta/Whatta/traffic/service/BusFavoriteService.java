@@ -1,6 +1,7 @@
 package whatta.Whatta.traffic.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
@@ -38,7 +39,12 @@ public class BusFavoriteService {
                 .busRouteNo(request.busRouteNo())
                 .build();
 
-        BusFavorite savedItem = busFavoriteRepository.save(item);
+        BusFavorite savedItem;
+        try {
+            savedItem = busFavoriteRepository.save(item);
+        } catch (DuplicateKeyException e) {
+            throw new RestApiException(ErrorCode.TRAFFIC_ITEM_ALREADY_EXISTS);
+        }
         return BusFavoriteResponse.fromEntity(savedItem);
     }
 
