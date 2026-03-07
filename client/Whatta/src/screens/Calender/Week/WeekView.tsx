@@ -78,6 +78,7 @@ import {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const BASE_ROW_H = 48
+const DRAG_LONG_PRESS_MS = 380
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 44
@@ -271,7 +272,7 @@ function TaskGroupBox({
   )
 
   const longPress = Gesture.LongPress()
-    .minDuration(250)
+    .minDuration(DRAG_LONG_PRESS_MS)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -687,7 +688,7 @@ function DraggableTaskBox({
   }
 
   const longPress = Gesture.LongPress()
-    .minDuration(250)
+    .minDuration(DRAG_LONG_PRESS_MS)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
@@ -956,7 +957,7 @@ function DraggableFlexalbeEvent({
   )
 
   const longPress = Gesture.LongPress()
-    .minDuration(250)
+    .minDuration(DRAG_LONG_PRESS_MS)
     .maxDistance(1000)
     .shouldCancelWhenOutside(false)
     .onStart(() => {
