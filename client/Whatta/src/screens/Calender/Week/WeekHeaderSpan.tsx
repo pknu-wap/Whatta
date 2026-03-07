@@ -71,12 +71,34 @@ export default function WeekHeaderSpan({
   onHeaderTimeColLayout,
 }: WeekHeaderSpanProps) {
   const todayDate = parseDate(todayISO)
-  const datePillWidth = weekDates.length === 5 ? 61.6 : weekDates.length === 7 ? 44 : 44
+  const targetPillWidth = weekDates.length === 5 ? 61.6 : weekDates.length === 7 ? 44 : 44
+  const datePillWidth = Math.min(targetPillWidth, dayColWidth)
 
   return (
     <>
       <FullBleed padH={16}>
         <View ref={spanWrapRef} style={styles.weekHeaderRow}>
+          <View
+            pointerEvents="none"
+            style={[
+              H.headerGrid,
+              {
+                left: timeColWidth,
+                width: weekDates.length * dayColWidth,
+              },
+            ]}
+          >
+            {weekDates.map((d, colIdx) => (
+              <View
+                key={`header-colline-${d}`}
+                style={[
+                  H.headerGridColLine,
+                  { width: dayColWidth, borderLeftWidth: colIdx === 0 ? 0 : 0.3 },
+                ]}
+              />
+            ))}
+          </View>
+
           <View
             style={styles.weekHeaderTimeCol}
             onLayout={(e) => {
@@ -112,6 +134,7 @@ export default function WeekHeaderSpan({
                   style={[
                     styles.weekHeaderWeekday,
                     { color: dayColor },
+                    isToday && styles.weekHeaderWeekdayToday,
                   ]}
                 >
                   {label}
@@ -127,6 +150,7 @@ export default function WeekHeaderSpan({
                     style={[
                       styles.weekHeaderDate,
                       { color: dateColor },
+                      isToday && styles.weekHeaderDateToday,
                     ]}
                   >
                     {dt.getDate()}
@@ -141,7 +165,7 @@ export default function WeekHeaderSpan({
       <FullBleed padH={16}>
         <View style={styles.spanTaskBoxWrap}>
           <View
-            style={[styles.spanTaskBox, { height: 150 }]}
+            style={[styles.spanTaskBox, { height: 120 }]}
             onLayout={(e) => onSetSpanWrapH(e.nativeEvent.layout.height)}
           >
             <View
@@ -305,31 +329,43 @@ export default function WeekHeaderSpan({
               </View>
             )}
           </View>
-
-          <View pointerEvents="none" style={styles.boxBottomLine} />
           <LinearGradient
             pointerEvents="none"
-            colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.04)', 'rgba(0,0,0,0)']}
+            colors={[
+              'rgba(0,0,0,0.07)',
+              'rgba(0,0,0,0.04)',
+              'rgba(0,0,0,0.015)',
+              'rgba(0,0,0,0)',
+            ]}
+            locations={[0, 0.35, 0.72, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
-            style={styles.fadeBelow}
+            style={styles.spanBottomShadow}
           />
         </View>
-        <View style={styles.fadeGap} />
       </FullBleed>
     </>
   )
 }
 
 const H = StyleSheet.create({
+  headerGrid: {
+    position: 'absolute',
+    top: 16,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  headerGridColLine: {
+    borderLeftColor: '#C7D0D6',
+  },
   spanGrid: {
     position: 'absolute',
     top: 0,
-    height: 185,
+    bottom: 0,
     flexDirection: 'row',
   },
   spanGridColLine: {
-    borderLeftColor: '#E6E6E6',
+    borderLeftColor: '#C7D0D6',
   },
   spanScrollContent: {
     position: 'relative',

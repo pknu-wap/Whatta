@@ -71,8 +71,6 @@ export default function WeekTimeline({
       >
         <View ref={gridWrapRef} style={styles.timelineInner}>
           <View pointerEvents="none" style={styles.hourLinesOverlay}>
-            <View style={styles.mainVerticalLine} />
-
             {hours.map((_, i) => {
               if (i === hours.length - 1) return null
               return <View key={`hline-${i}`} style={[styles.hourLine, { top: (i + 1) * rowH }]} />
@@ -82,15 +80,15 @@ export default function WeekTimeline({
           <View style={T.row}>
             <View style={styles.timeCol}>
               {hours.map((h) => (
-                <View key={`hour-${h}`} style={styles.timeRow}>
-                  <Text style={styles.timeText}>
+                <View key={`hour-${h}`} style={[styles.timeRow, { height: rowH }]}>
+                  <Text style={styles.timeText} numberOfLines={1} ellipsizeMode="clip">
                     {h === 0
-                      ? '오전 12시'
+                      ? '오전12시'
                       : h < 12
-                        ? `오전 ${h}시`
+                        ? `오전${h}시`
                         : h === 12
-                          ? '오후 12시'
-                          : `오후 ${h - 12}시`}
+                          ? '오후12시'
+                          : `오후${h - 12}시`}
                   </Text>
                 </View>
               ))}
@@ -117,7 +115,7 @@ export default function WeekTimeline({
                   style={[styles.dayCol, { width: dayColWidth }, colIdx === 0 && styles.firstDayCol]}
                 >
                   {hours.map((_, i) => (
-                    <View key={`${d}-row-${i}`} style={styles.hourRow} />
+                    <View key={`${d}-row-${i}`} style={[styles.hourRow, { height: rowH }]} />
                   ))}
 
                   {isTodayCol && nowTop !== null && (
@@ -144,6 +142,7 @@ export default function WeekTimeline({
                       dayColWidth={dayColWidth}
                       weekDates={weekDates}
                       dayIndex={colIdx}
+                      rowH={rowH}
                       openEventDetail={openEventDetail}
                       isRepeat={ev.isRepeat}
                     />
@@ -167,6 +166,7 @@ export default function WeekTimeline({
                           dateISO={d}
                           dayIndex={colIdx}
                           weekCount={weekDates.length}
+                          rowH={rowH}
                           onLocalChange={({ id, dateISO, completed }: any) => {
                             if (typeof completed === 'boolean') {
                               onTimedTaskCompletedChange({
@@ -191,6 +191,7 @@ export default function WeekTimeline({
                         dayColWidth={dayColWidth}
                         dayIndex={colIdx}
                         weekCount={weekDates.length}
+                        rowH={rowH}
                         openDetail={openTaskPopupFromApi}
                         onLocalChange={({ id, dateISO, completed }: any) => {
                           if (typeof completed === 'boolean') {

@@ -77,15 +77,10 @@ import {
 /* -------------------------------------------------------------------------- */
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const ROW_H = 48
-const PIXELS_PER_HOUR = ROW_H
-const PIXELS_PER_MIN = PIXELS_PER_HOUR / 60
-
-// 1일(24시간)의 전체 높이(px)
-const DAY_PX = 24 * 60 * PIXELS_PER_MIN
+const BASE_ROW_H = 48
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
-const TIME_COL_W = 50
+const TIME_COL_W = 44
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 
@@ -144,6 +139,7 @@ function getTaskTime(t: any): string {
 function TaskGroupBox({
   tasks,
   startHour,
+  rowH,
   onLocalChange,
   dayColWidth,
   dateISO,
@@ -152,6 +148,7 @@ function TaskGroupBox({
 }: {
   tasks: any[]
   startHour: number
+  rowH: number
   dayColWidth: number
   dateISO: string
   dayIndex: number
@@ -165,11 +162,12 @@ function TaskGroupBox({
 }) {
   const [localTasks, setLocalTasks] = useState(tasks)
   const [contentWidth, setContentWidth] = useState<number | null>(null)
-
-  const topBase = startHour * 60 * PIXELS_PER_MIN
+  const pixelsPerMin = rowH / 60
+  const dayPx = 24 * 60 * pixelsPerMin
+  const topBase = startHour * 60 * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
-  const height = ROW_H
+  const height = rowH
   const [expanded, setExpanded] = useState(false)
   const isActiveDrag = useSharedValue(false)
   const [extraLeft, setExtraLeft] = useState(0)
@@ -211,12 +209,12 @@ function TaskGroupBox({
     async (movedY: number, dayOffset: number) => {
       try {
         const SNAP_MIN = 5
-        const SNAP = SNAP_MIN * PIXELS_PER_MIN
+        const SNAP = SNAP_MIN * pixelsPerMin
         let snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
         const actualTopPx = topBase + snappedY
-        let newStart = actualTopPx / PIXELS_PER_MIN
+        let newStart = actualTopPx / pixelsPerMin
         const DAY_MIN = 24 * 60
 
         if (newStart < 0) newStart = 0
@@ -288,7 +286,7 @@ function TaskGroupBox({
       let nextY = translateY.value + e.changeY
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
 
       if (nextY < minY) nextY = minY
       if (nextY > maxY) nextY = maxY
@@ -311,11 +309,11 @@ function TaskGroupBox({
       if (!isActiveDrag.value) return
 
       const SNAP_MIN = 5
-      const SNAP = SNAP_MIN * PIXELS_PER_MIN
+      const SNAP = SNAP_MIN * pixelsPerMin
       let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
       if (snappedY < minY) snappedY = minY
       if (snappedY > maxY) snappedY = maxY
 
@@ -466,6 +464,7 @@ function TaskGroupBox({
         }}
         style={[
           S.taskGroupBox,
+          { minHeight: rowH },
           expanded
             ? contentWidth == null
               ? null
@@ -476,7 +475,7 @@ function TaskGroupBox({
           { left: baseLeftInCol + extraLeft },
         ]}
       >
-        <View style={S.taskGroupInner}>
+        <View style={[S.taskGroupInner, { minHeight: rowH }]}>
           <Pressable
             onPress={(e) => {
               e.stopPropagation?.()
@@ -566,6 +565,7 @@ type DraggableTaskBoxProps = {
   dayColWidth: number
   dayIndex: number
   weekCount: number
+  rowH: number
   openDetail: (id: string) => void
   isRepeat?: boolean
   onLocalChange?: (payload: {
@@ -585,15 +585,18 @@ function DraggableTaskBox({
   dayColWidth,
   dayIndex,
   weekCount,
+  rowH,
   onLocalChange,
   openDetail,
   isRepeat,
 }: DraggableTaskBoxProps) {
+  const pixelsPerMin = rowH / 60
+  const dayPx = 24 * 60 * pixelsPerMin
   const startMin = startHour * 60
-  const topBase = startMin * PIXELS_PER_MIN
+  const topBase = startMin * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
-  const height = ROW_H - 6
+  const height = rowH - 6
   const [done, setDone] = useState(initialDone)
   const isActiveDrag = useSharedValue(false)
 
@@ -639,12 +642,12 @@ function DraggableTaskBox({
   const handleDrop = async (movedY: number, dayOffset: number) => {
     try {
       const SNAP_MIN = 5
-      const SNAP = SNAP_MIN * PIXELS_PER_MIN
+      const SNAP = SNAP_MIN * pixelsPerMin
       const snappedY = Math.round(movedY / SNAP) * SNAP
       translateY.value = withSpring(snappedY)
 
       const actualTopPx = topBase + snappedY
-      let newStart = actualTopPx / PIXELS_PER_MIN
+      let newStart = actualTopPx / pixelsPerMin
       const DAY_MIN = 24 * 60
 
       if (newStart < 0) newStart = 0
@@ -699,7 +702,7 @@ function DraggableTaskBox({
       let nextY = translateY.value + e.changeY
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
 
       if (nextY < minY) nextY = minY
       if (nextY > maxY) nextY = maxY
@@ -720,11 +723,11 @@ function DraggableTaskBox({
       if (!isActiveDrag.value) return
 
       const SNAP_MIN = 5
-      const SNAP = SNAP_MIN * PIXELS_PER_MIN
+      const SNAP = SNAP_MIN * pixelsPerMin
       let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
       if (snappedY < minY) snappedY = minY
       if (snappedY > maxY) snappedY = maxY
 
@@ -745,7 +748,7 @@ function DraggableTaskBox({
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[S.taskBox, style]}>
+      <Animated.View style={[S.taskBox, { height: rowH }, style]}>
         <View style={S.taskInnerBox}>
           <Pressable
             onPress={() => {
@@ -824,6 +827,7 @@ type DraggableFlexalbeEventProps = {
   dayColWidth: number
   weekDates: string[]
   dayIndex: number
+  rowH: number
   openEventDetail: (id: string) => void
   isRepeat?: boolean
 }
@@ -843,12 +847,15 @@ function DraggableFlexalbeEvent({
   dayColWidth,
   weekDates,
   dayIndex,
+  rowH,
   openEventDetail,
   isRepeat,
 }: DraggableFlexalbeEventProps) {
+  const pixelsPerMin = rowH / 60
+  const dayPx = 24 * 60 * pixelsPerMin
   const durationMin = endMin - startMin
-  const height = (durationMin / 60) * ROW_H
-  const topBase = (startMin / 60) * ROW_H
+  const height = (durationMin / 60) * rowH
+  const topBase = (startMin / 60) * rowH
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
   const isDragging = useSharedValue(0)
@@ -867,7 +874,7 @@ function DraggableFlexalbeEvent({
     if (prevStartRef.current !== startMin || prevEndRef.current !== endMin) {
       translateY.value = 0
       translateX.value = 0
-      dragStartTop.value = (startMin / 60) * ROW_H
+      dragStartTop.value = (startMin / 60) * rowH
     }
     prevStartRef.current = startMin
     prevEndRef.current = endMin
@@ -880,15 +887,15 @@ function DraggableFlexalbeEvent({
   const handleDrop = useCallback(
     async (movedY: number, dayOffset: number) => {
       try {
-        const SNAP = 5 * PIXELS_PER_MIN
+        const SNAP = 5 * pixelsPerMin
         const snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
         const duration = endMin - startMin
 
-        const topBasePx = (startMin / 60) * ROW_H
+        const topBasePx = (startMin / 60) * rowH
         const actualTopPx = topBasePx + snappedY
-        let newStart = Math.round(actualTopPx / PIXELS_PER_MIN)
+        let newStart = Math.round(actualTopPx / pixelsPerMin)
 
         const DAY_MIN = 24 * 60
         if (newStart < 0) newStart = 0
@@ -994,7 +1001,7 @@ function DraggableFlexalbeEvent({
       let absoluteY = dragStartTop.value + e.translationY
 
       const minAbsY = 0
-      const maxAbsY = DAY_PX - height
+      const maxAbsY = dayPx - height
 
       if (absoluteY < minAbsY) absoluteY = minAbsY
       if (absoluteY > maxAbsY) absoluteY = maxAbsY
@@ -1014,11 +1021,11 @@ function DraggableFlexalbeEvent({
     .onEnd(() => {
       if (!isActiveDrag.value) return
 
-      const SNAP = 5 * PIXELS_PER_MIN
+      const SNAP = 5 * pixelsPerMin
       let snappedY = Math.round(translateY.value / SNAP) * SNAP
 
       const minY = -topBase
-      const maxY = DAY_PX - topBase - height
+      const maxY = dayPx - topBase - height
       if (snappedY < minY) snappedY = minY
       if (snappedY > maxY) snappedY = maxY
 
@@ -1350,12 +1357,28 @@ export default function WeekView() {
     }
   }, [anchorDate, isZoomed, isFocused])
 
+  const rowH =
+    weekDates.length === 7 ? 61 : weekDates.length === 5 ? 62 : BASE_ROW_H
+  const pixelsPerMin = rowH / 60
+  const computedDayColWidth = getDayColWidth(
+    SCREEN_W,
+    weekDates.length,
+    TIME_COL_W,
+    SIDE_PADDING,
+  )
+  const dayColWidth =
+    weekDates.length === 7
+      ? Math.max(43, computedDayColWidth)
+      : weekDates.length === 5
+        ? Math.max(62, computedDayColWidth)
+        : computedDayColWidth
+
   useEffect(() => {
     const updateNowTop = (scrollToCenter: boolean) => {
       const now = new Date()
       const h = now.getHours()
       const m = now.getMinutes()
-      const topPos = (h * 60 + m) * PIXELS_PER_MIN
+      const topPos = (h * 60 + m) * pixelsPerMin
       setNowTop(topPos)
 
       if (scrollToCenter && !hasScrolledOnce) {
@@ -1374,7 +1397,7 @@ export default function WeekView() {
     updateNowTop(true)
     const id = setInterval(() => updateNowTop(false), 60000)
     return () => clearInterval(id)
-  }, [hasScrolledOnce])
+  }, [hasScrolledOnce, pixelsPerMin])
 
   useEffect(() => {
     if (nowTop !== null && gridScrollRef.current && !hasScrolledOnce) {
@@ -1397,14 +1420,12 @@ export default function WeekView() {
   )
 
   const today = todayISO()
-
-  const dayColWidth = getDayColWidth(SCREEN_W, weekDates.length, TIME_COL_W, SIDE_PADDING)
   useCalendarSync({
     isFocused,
     weekDates,
     anchorDateRef,
     dayColWidth,
-    rowH: ROW_H,
+    rowH,
     setAnchorDate,
     fetchWeek,
   })
@@ -1525,7 +1546,7 @@ export default function WeekView() {
                 // gridPy(음수일 수 있음)를 빼주면 스크롤된 만큼 더해져서 정확한 위치가 나옴
                 const innerY = y - gridPy
 
-                let min = innerY / PIXELS_PER_MIN
+                let min = innerY / pixelsPerMin
                 if (min < 0) min = 0
                 if (min > 1435) min = 1435
 
@@ -1609,7 +1630,7 @@ export default function WeekView() {
       bus.off('xdrag:move', onMove)
       bus.off('xdrag:drop', onDrop)
     }
-  }, [weekDates, gridRect, dayColWidth, spanRect])
+  }, [weekDates, gridRect, dayColWidth, spanRect, pixelsPerMin])
 
   const toggleSpanTaskCheck = async (
     taskId: string,
@@ -1841,7 +1862,7 @@ export default function WeekView() {
               gridScrollRef={gridScrollRef}
               gridWrapRef={gridWrapRef}
               hours={HOURS}
-              rowH={ROW_H}
+              rowH={rowH}
               weekDates={weekDates}
               weekData={filteredWeekData}
               todayISO={today}
@@ -1907,25 +1928,25 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-  backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF',
     alignItems: 'flex-start',
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
     justifyContent: 'center',
     alignItems: 'flex-start',
-    paddingLeft: 2,
-    paddingTop: 4,
+    paddingLeft: 0,
+    paddingTop: 1,
   },
   weekHeaderBigDate: {
     ...ts('label1'),
-    fontSize: 20,
+    fontSize: 19,
     color: '#000000',
   },
   weekHeaderCol: {
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 2,
+    paddingTop: 0,
   },
   weekHeaderWeekday: {
     ...ts('date3'),
@@ -1933,6 +1954,9 @@ const S = StyleSheet.create({
     fontWeight: 500,
     color: colors.text.text2,
     marginBottom: 4,
+  },
+  weekHeaderWeekdayToday: {
+    fontWeight: 700,
   },
   weekHeaderDatePill: {
     height: 18,
@@ -1949,6 +1973,10 @@ const S = StyleSheet.create({
     fontWeight: 500,
     color: '#4A4A4A',
   },
+  weekHeaderDateToday: {
+    color: colors.brand.primary,
+    fontWeight: 700,
+  },
   spanTaskBoxWrap: {
     position: 'relative',
     overflow: 'visible',
@@ -1961,25 +1989,12 @@ const S = StyleSheet.create({
     borderWidth: 0,
     borderColor: 'transparent',
   },
-  boxBottomLine: {
+  spanBottomShadow: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth || 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    zIndex: 2,
-  },
-  fadeBelow: {
-    position: 'absolute',
-    left: -12,
-    right: -12,
+    left: -16,
+    right: -16,
     top: '100%',
-    height: 18,
-    zIndex: 1,
-  },
-  fadeGap: {
-    height: 13,
+    height: 24,
   },
 
   timelineScroll: {
@@ -1993,17 +2008,21 @@ const S = StyleSheet.create({
   timeCol: {
     width: TIME_COL_W,
     alignItems: 'flex-end',
-    paddingRight: 10,
+    paddingRight: 0,
   },
   timeRow: {
-    height: ROW_H,
+    height: BASE_ROW_H,
     paddingTop: 2,
     justifyContent: 'flex-start',
   },
   timeText: {
-    ...ts('time'),
-    color: colors.neutral.gray,
-    textAlign: 'right',
+    ...ts('date3'),
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.text.text4,
+    fontWeight: 500,
+    textAlign: 'left',
+    width: '100%',
     marginLeft: 0,
     marginRight: 0,
     includeFontPadding: false,
@@ -2011,14 +2030,14 @@ const S = StyleSheet.create({
 
   dayCol: {
     borderLeftWidth: 0.3,
-    borderLeftColor: colors.neutral.timeline,
+    borderLeftColor: '#C7D0D6',
     position: 'relative',
   },
   firstDayCol: {
     borderLeftWidth: 0,
   },
   hourRow: {
-    height: ROW_H,
+    height: BASE_ROW_H,
   },
 
   eventBox: {
@@ -2050,7 +2069,7 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 1,
     right: 1,
-    height: ROW_H,
+    height: BASE_ROW_H,
     borderRadius: 3,
   },
   taskInnerBox: {
@@ -2065,13 +2084,13 @@ const S = StyleSheet.create({
   },
   taskGroupBox: {
     position: 'absolute',
-    minHeight: ROW_H,
+    minHeight: BASE_ROW_H,
     borderRadius: 3,
     zIndex: 21,
     overflow: 'visible',
   },
   taskGroupInner: {
-    minHeight: ROW_H,
+    minHeight: BASE_ROW_H,
     backgroundColor: '#FFFFFF80',
     borderWidth: 0.4,
     borderColor: '#333333',
@@ -2235,14 +2254,6 @@ const S = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 0.3,
-    backgroundColor: colors.neutral.timeline,
-  },
-  mainVerticalLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: TIME_COL_W,
-    width: 0.3,
-    backgroundColor: colors.neutral.timeline,
+    backgroundColor: '#C7D0D6',
   },
 })
