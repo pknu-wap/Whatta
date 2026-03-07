@@ -36,7 +36,7 @@ type WeekTimelineProps = {
   DraggableTaskBoxComponent: React.ComponentType<any>
 }
 
-export default function WeekTimeline({
+function WeekTimeline({
   styles,
   gridContainerRef,
   gridScrollRef,
@@ -214,6 +214,8 @@ export default function WeekTimeline({
     </View>
   )
 }
+
+export default React.memo(WeekTimeline)
 
 const T = StyleSheet.create({
   flex1: {

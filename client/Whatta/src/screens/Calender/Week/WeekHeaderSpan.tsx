@@ -16,7 +16,7 @@ import FixedScheduleCard from '@/components/calendar-items/schedule/FixedSchedul
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { parseDate } from '@/screens/Calender/Week/date'
-import { mixWhite, thumbH, type WeekSpanEvent } from '@/screens/Calender/Week/layout'
+import { thumbH, type WeekSpanEvent } from '@/screens/Calender/Week/layout'
 
 type FullBleedProps = {
   children: React.ReactNode
@@ -35,6 +35,7 @@ type WeekHeaderSpanProps = {
   dayColWidth: number
   timeColWidth: number
   singleHeight: number
+  spanRowGap: number
   spanBars: WeekSpanEvent[]
   spanAreaHeight: number
   showSpanScrollbar: boolean
@@ -50,7 +51,7 @@ type WeekHeaderSpanProps = {
   onHeaderTimeColLayout?: (x: number, y: number) => void
 }
 
-export default function WeekHeaderSpan({
+function WeekHeaderSpan({
   FullBleed,
   styles,
   spanWrapRef,
@@ -60,6 +61,7 @@ export default function WeekHeaderSpan({
   dayColWidth,
   timeColWidth,
   singleHeight,
+  spanRowGap,
   spanBars,
   spanAreaHeight,
   showSpanScrollbar,
@@ -233,7 +235,7 @@ export default function WeekHeaderSpan({
                       style={[
                         {
                           position: 'absolute',
-                          top: s.row * (singleHeight + 3),
+                          top: s.row * (singleHeight + spanRowGap),
                           left: cardLeft,
                           width: cardWidth,
                           height: singleHeight,
@@ -276,7 +278,7 @@ export default function WeekHeaderSpan({
                     key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
                     style={{
                       position: 'absolute',
-                      top: s.row * (singleHeight + 3),
+                      top: s.row * (singleHeight + spanRowGap),
                       left: barLeft,
                       width: barWidth,
                       height: singleHeight,
@@ -345,6 +347,8 @@ export default function WeekHeaderSpan({
     </>
   )
 }
+
+export default React.memo(WeekHeaderSpan)
 
 const H = StyleSheet.create({
   headerGrid: {

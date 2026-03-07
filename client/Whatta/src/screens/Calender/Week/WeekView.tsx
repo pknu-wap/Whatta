@@ -166,7 +166,6 @@ function TaskGroupBox({
   }) => void
 }) {
   const [localTasks, setLocalTasks] = useState(tasks)
-  const [contentWidth, setContentWidth] = useState<number | null>(null)
   const pixelsPerMin = rowH / 60
   const dayPx = 24 * 60 * pixelsPerMin
   const topBase = startHour * 60 * pixelsPerMin
@@ -180,12 +179,7 @@ function TaskGroupBox({
 
   useEffect(() => {
     setLocalTasks(tasks)
-    // 내용이 바뀌면 다시 펼쳤을 때 폭을 재계산할 수 있도록 초기화// setContentWidth(null);
   }, [tasks])
-
-  const triggerHaptic = () => {
-    Vibration.vibrate(50)
-  }
 
   // ✅ 단일 Task 박스와 동일한 기본 위치
   const baseLeftInCol = 2
@@ -415,11 +409,6 @@ function TaskGroupBox({
         onLayout={(e) => {
           const w = e.nativeEvent.layout.width
 
-          if (expanded && contentWidth == null) {
-            // 처음 펼쳐진 상태에서 내용 폭 측정
-            setContentWidth(w)
-          }
-
           // 펼쳐지지 않은 상태에서는 위치 보정값 초기화
           if (!expanded) {
             if (extraLeft !== 0 || lastShift !== 0) {
@@ -514,7 +503,6 @@ type DraggableTaskBoxProps = {
   weekCount: number
   rowH: number
   openDetail: (id: string) => void
-  isRepeat?: boolean
   onLocalChange?: (payload: {
     id: string
     dateISO: string
@@ -535,7 +523,6 @@ function DraggableTaskBox({
   rowH,
   onLocalChange,
   openDetail,
-  isRepeat,
 }: DraggableTaskBoxProps) {
   const pixelsPerMin = rowH / 60
   const dayPx = 24 * 60 * pixelsPerMin
@@ -551,14 +538,20 @@ function DraggableTaskBox({
   // 남아 있던 translate 오프셋 때문에 topBase + translateY가 두 번 더해져서 튀는 현상이 생길 수 있다.
   // → startHour가 바뀔 때마다 드래그 오프셋을 0으로 초기화한다.
   const prevStartHourRef = useRef(startHour)
+  const prevRowHRef = useRef(rowH)
 
   useEffect(() => {
-    if (prevStartHourRef.current !== startHour) {
+    if (prevStartHourRef.current !== startHour || prevRowHRef.current !== rowH) {
       translateY.value = 0
       translateX.value = 0
     }
     prevStartHourRef.current = startHour
-  }, [startHour])
+    prevRowHRef.current = rowH
+  }, [startHour, rowH])
+
+  useEffect(() => {
+    setDone(initialDone)
+  }, [initialDone])
 
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 2
@@ -627,10 +620,6 @@ function DraggableTaskBox({
     } catch (err: any) {
       console.log('❌ Task 이동 실패 디버그:', err.response?.data || err.message)
     }
-  }
-
-  const triggerHaptic = () => {
-    Vibration.vibrate(50)
   }
 
   const longPress = Gesture.LongPress()
@@ -704,7 +693,7 @@ function DraggableTaskBox({
           layoutWidthHint={dayColWidth - 2}
           style={{ flex: 1, minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 1 }}
           onPress={() => {
-            if (!isActiveDrag.value) runOnJS(openDetail)(id)
+            if (!isActiveDrag.value) openDetail(id)
           }}
           onToggle={() => {
             if (!isActiveDrag.value) toggleDone()
@@ -784,7 +773,7 @@ function DraggableFlexalbeEvent({
 }: DraggableFlexalbeEventProps) {
   const pixelsPerMin = rowH / 60
   const dayPx = 24 * 60 * pixelsPerMin
-  const durationMin = endMin - startMin
+  const durationMin = Math.max(5, endMin - startMin)
   const height = (durationMin / 60) * rowH
   const topBase = (startMin / 60) * rowH
   const translateY = useSharedValue(0)
@@ -800,20 +789,22 @@ function DraggableFlexalbeEvent({
   // → time props가 바뀔 때마다 오프셋과 dragStartTop을 리셋해서 기준을 다시 맞춰 준다.
   const prevStartRef = useRef(startMin)
   const prevEndRef = useRef(endMin)
+  const prevRowHRef = useRef(rowH)
 
   useEffect(() => {
-    if (prevStartRef.current !== startMin || prevEndRef.current !== endMin) {
+    if (
+      prevStartRef.current !== startMin ||
+      prevEndRef.current !== endMin ||
+      prevRowHRef.current !== rowH
+    ) {
       translateY.value = 0
       translateX.value = 0
       dragStartTop.value = (startMin / 60) * rowH
     }
     prevStartRef.current = startMin
     prevEndRef.current = endMin
-  }, [startMin, endMin])
-
-  const triggerHaptic = () => {
-    Vibration.vibrate(50)
-  }
+    prevRowHRef.current = rowH
+  }, [startMin, endMin, rowH])
 
   const handleDrop = useCallback(
     async (movedY: number, dayOffset: number) => {
@@ -822,7 +813,7 @@ function DraggableFlexalbeEvent({
         const snappedY = Math.round(movedY / SNAP) * SNAP
         translateY.value = withSpring(snappedY)
 
-        const duration = endMin - startMin
+        const duration = durationMin
 
         const topBasePx = (startMin / 60) * rowH
         const actualTopPx = topBasePx + snappedY
@@ -883,7 +874,7 @@ function DraggableFlexalbeEvent({
         console.error('❌ 이벤트 이동 실패:', err.message)
       }
     },
-    [id, startMin, endMin, dateISO, translateY],
+    [id, startMin, endMin, dateISO, durationMin, pixelsPerMin, rowH, translateY],
   )
 
   const longPress = Gesture.LongPress()
@@ -1040,6 +1031,10 @@ function DraggableFlexalbeEvent({
     </GestureDetector>
   )
 }
+
+const MemoTaskGroupBox = React.memo(TaskGroupBox)
+const MemoDraggableTaskBox = React.memo(DraggableTaskBox)
+const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 
 /* -------------------------------------------------------------------------- */
 /* WeekView 메인 */
@@ -1740,6 +1735,14 @@ export default function WeekView() {
     [],
   )
 
+  const handleHeaderTimeColLayout = useCallback((x: number, y: number) => {
+    gridOffsetRef.current = { x, y }
+  }, [])
+
+  const handleGridScroll = useCallback((offsetY: number) => {
+    scrollOffsetRef.current = offsetY
+  }, [])
+
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1768,6 +1771,7 @@ export default function WeekView() {
               dayColWidth={dayColWidth}
               timeColWidth={TIME_COL_W}
               singleHeight={SINGLE_HEIGHT}
+              spanRowGap={SPAN_ROW_GAP}
               spanBars={spanBars}
               spanAreaHeight={spanAreaHeight}
               showSpanScrollbar={showSpanScrollbar}
@@ -1780,9 +1784,7 @@ export default function WeekView() {
               onToggleSpanTask={toggleSpanTaskCheck}
               onOpenEventDetail={openEventDetail}
               onSelectDate={setAnchorDate}
-              onHeaderTimeColLayout={(x, y) => {
-                gridOffsetRef.current = { x, y }
-              }}
+              onHeaderTimeColLayout={handleHeaderTimeColLayout}
             />
 
             <WeekTimeline
@@ -1800,13 +1802,11 @@ export default function WeekView() {
               getTaskTime={getTaskTime}
               openEventDetail={openEventDetail}
               openTaskPopupFromApi={openTaskPopupFromApi}
-              onGridScroll={(offsetY) => {
-                scrollOffsetRef.current = offsetY
-              }}
+              onGridScroll={handleGridScroll}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
-              DraggableFlexibleEventComponent={DraggableFlexalbeEvent}
-              TaskGroupBoxComponent={TaskGroupBox}
-              DraggableTaskBoxComponent={DraggableTaskBox}
+              DraggableFlexibleEventComponent={MemoDraggableFlexibleEvent}
+              TaskGroupBoxComponent={MemoTaskGroupBox}
+              DraggableTaskBoxComponent={MemoDraggableTaskBox}
             />
           </Animated.View>
         </GestureDetector>
