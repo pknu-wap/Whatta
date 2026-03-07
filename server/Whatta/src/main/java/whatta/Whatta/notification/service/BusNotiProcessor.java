@@ -27,7 +27,7 @@ public class BusNotiProcessor {
 
 
 
-    @Async
+    @Async("notiExecutor")
     public void checkAndNotify(TrafficNotification alarm) {
         //알림에 연결된 버스목록 조회
         List<BusFavorite> items = itemRepository.findAllById(alarm.getTargetItemIds());
