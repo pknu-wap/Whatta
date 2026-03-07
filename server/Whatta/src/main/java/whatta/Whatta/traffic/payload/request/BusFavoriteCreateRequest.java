@@ -2,7 +2,7 @@ package whatta.Whatta.traffic.payload.request;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record BusItemCreateRequest(
+public record BusFavoriteCreateRequest(
         @NotBlank
         String busStationId,
 
