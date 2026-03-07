@@ -15,6 +15,7 @@ function TaskItemCard({
   isUntimed = false,
   density = 'day',
   layoutWidthHint,
+  style,
   onPress,
   onToggle,
 }: TaskItemCardProps) {
@@ -34,10 +35,13 @@ function TaskItemCard({
   const isMonth = density === 'month'
   const isWeekTimed = density === 'week' && !isUntimed
   const isWeekTimedNarrow = isWeekTimed && resolvedWidth > 0 && resolvedWidth <= 61
-  const fixedHeight = isMonth ? d.minHeight : isUntimed ? 30 : undefined
+  const fixedHeight = isMonth ? d.minHeight : density === 'week' && isUntimed ? 26 : isUntimed ? 30 : undefined
   const titleLines = isMonth || isUntimed ? 1 : isWeekTimedNarrow || isNarrow ? 2 : 1
   const minCardHeight = fixedHeight ?? d.minHeight
   const interactive = !!onToggle
+  const leadingPad = isTiny ? 0 : isUntimed ? 2 : d.padX
+  const trailingPad = isTiny ? 0 : isUntimed ? 0 : d.padX
+  const checkboxGap = isUntimed ? 1 : 2
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const width = Math.round(e.nativeEvent.layout.width)
@@ -61,13 +65,14 @@ function TaskItemCard({
           // month는 24 고정, untimed(상단)는 30, week timed(하단)는 최소 62
           minHeight: minCardHeight,
           height: fixedHeight,
-          paddingLeft: isTiny ? 0 : isUntimed ? 6 : d.padX,
-          paddingRight: isTiny ? 0 : isUntimed ? 0 : d.padX,
+          paddingLeft: leadingPad,
+          paddingRight: trailingPad,
           paddingVertical: fixedHeight ? 0 : d.padY,
           borderRadius: isMonth || isUntimed ? 8 : 10,
           flexDirection: 'row',
           alignItems: 'center',
         },
+        style,
       ]}
     >
       <Pressable
@@ -80,7 +85,7 @@ function TaskItemCard({
           {
             width: iconSize,
             height: iconSize,
-            marginRight: 2,
+            marginRight: checkboxGap,
             marginBottom: 0,
           },
         ]}

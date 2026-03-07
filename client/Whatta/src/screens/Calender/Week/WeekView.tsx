@@ -29,6 +29,10 @@ import Animated, {
 import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
+import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
+import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
+import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import colors from '@/styles/colors'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
@@ -183,25 +187,12 @@ function TaskGroupBox({
     Vibration.vibrate(50)
   }
 
-  // ✅ 단일 Task 박스와 동일한 기본 위치 (left: 1, width: dayColWidth - 2)
-  const baseLeftInCol = 1
-  const collapsedWidth = dayColWidth - 2
+  // ✅ 단일 Task 박스와 동일한 기본 위치
+  const baseLeftInCol = 2
+  const collapsedWidth = dayColWidth - 4
 
-  // ✅ 펼쳤을 때: title 길이 기반 기본 최소/최대 폭
-  const expandedMin = Math.max(collapsedWidth, 150)
-  const expandedMax = 320
-  const longestTitle = localTasks.reduce((m, t) => Math.max(m, t.title?.length ?? 0), 0)
-  const textWidth = longestTitle * 8 + 40
-  const estimatedExpandedWidth = Math.min(Math.max(textWidth, expandedMin), expandedMax)
-
-  // 실제 내용(width) + 14px 여백을 기준으로 폭 결정
-  const rawExpandedWidth =
-    contentWidth != null ? contentWidth + 14 : estimatedExpandedWidth
-  const clampedExpandedWidth = Math.min(
-    Math.max(rawExpandedWidth, expandedMin),
-    expandedMax,
-  )
-  const finalWidth = expanded ? clampedExpandedWidth : collapsedWidth
+  // 펼침/접힘과 무관하게 주간 그리드 셀 폭에 고정한다.
+  const finalWidth = collapsedWidth
 
   // 이 그룹 박스의 "기본 글로벌 left" (시간열 기준)
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + baseLeftInCol
@@ -466,87 +457,42 @@ function TaskGroupBox({
         style={[
           S.taskGroupBox,
           { minHeight: rowH },
-          expanded
-            ? contentWidth == null
-              ? null
-              : { width: finalWidth }
-            : { width: collapsedWidth },
+          { width: finalWidth },
           style,
           // 🔽 left 보정은 React state 기반
           { left: baseLeftInCol + extraLeft },
         ]}
       >
-        <View style={[S.taskGroupInner, { minHeight: rowH }]}>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.()
-              toggleExpand()
+        <View
+          style={[
+            S.taskGroupInner,
+            {
+              minHeight: Math.max(0, rowH - 4),
+              marginVertical: 2,
+              paddingHorizontal: 0,
+            },
+          ]}
+        >
+          <TaskGroupCard
+            groupId={`week-group-${dateISO}-${dayIndex}-${startHour}`}
+            density="week"
+            expanded={expanded}
+            title="할 일"
+            layoutWidthHint={finalWidth}
+            tasks={localTasks.map((t: any) => ({
+              id: String(t.id),
+              title: t.title ?? '',
+              done: !!t.completed,
+            }))}
+            onToggleExpand={(_groupId, nextExpanded) => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+              setExpanded(nextExpanded)
             }}
-            style={[
-              S.groupHeaderRow,
-              expanded ? { paddingLeft: 14 } : { paddingLeft: 5 },
-            ]}
-          >
-            <View
-              style={[
-                S.groupHeaderArrow,
-                !expanded && {
-                  transform: [{ rotate: '180deg' }],
-                  marginTop: 0, // 펼쳤을 때만 10px 아래로
-                },
-              ]}
-            />
-
-            <Text
-              style={[
-                S.groupHeaderText,
-                expanded && { paddingTop: 10 }, // 펼쳤을 때만 10px 아래로
-              ]}
-            >
-              할 일
-            </Text>
-          </Pressable>
-
-          {expanded && (
-            <View style={S.groupList}>
-              {localTasks.map((t: any) => (
-                <View key={String(t.id)} style={S.groupTaskRow}>
-                  <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation?.()
-                      onToggleGroupTask(t)
-                    }}
-                  >
-                    <View
-                      style={[S.groupTaskCheckbox, t.completed && S.groupTaskCheckboxOn]}
-                    >
-                      {t.completed && <Text style={S.groupTaskCheckmark}>✓</Text>}
-                    </View>
-                  </Pressable>
-                  <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation?.()
-                      onToggleGroupTask(t)
-                    }}
-                    style={{ flex: 1 }}
-                  >
-                    <Text
-                      style={[
-                        S.groupTaskTitle,
-                        t.completed && {
-                          color: '#999999',
-                          textDecorationLine: 'line-through',
-                        },
-                      ]}
-                      numberOfLines={0}
-                    >
-                      {t.title}
-                    </Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
+            onToggleTask={(taskId) => {
+              const target = localTasks.find((t: any) => String(t.id) === String(taskId))
+              if (target) onToggleGroupTask(target)
+            }}
+          />
         </View>
       </Animated.View>
     </GestureDetector>
@@ -597,7 +543,7 @@ function DraggableTaskBox({
   const topBase = startMin * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
-  const height = rowH - 6
+  const height = rowH
   const [done, setDone] = useState(initialDone)
   const isActiveDrag = useSharedValue(false)
 
@@ -615,7 +561,7 @@ function DraggableTaskBox({
   }, [startHour])
 
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
-  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 1
+  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 2
 
   const toggleDone = async () => {
     const next = !done
@@ -749,37 +695,21 @@ function DraggableTaskBox({
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[S.taskBox, { height: rowH }, style]}>
-        <View style={S.taskInnerBox}>
-          <Pressable
-            onPress={() => {
-              if (!isActiveDrag.value) runOnJS(openDetail)(id)
-            }}
-            hitSlop={12}
-            style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-          >
-            {/* 체크박스 */}
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation() // 상세 팝업 방지
-                toggleDone()
-              }}
-              hitSlop={12}
-            >
-              <View style={[S.taskCheckbox, done && S.taskCheckboxOn]}>
-                {done && <Text style={S.taskCheckmark}>✓</Text>}
-              </View>
-            </Pressable>
-
-            {/* 타이틀 */}
-            <Text style={[S.taskTitle, done && S.taskTitleDone]} numberOfLines={3}>
-              {title}
-            </Text>
-
-              
-
-          </Pressable>
-        </View>
+      <Animated.View style={[S.taskBox, { height }, style]}>
+        <TaskItemCard
+          id={id}
+          title={title}
+          done={done}
+          density="week"
+          layoutWidthHint={dayColWidth - 2}
+          style={{ flex: 1, minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 1 }}
+          onPress={() => {
+            if (!isActiveDrag.value) runOnJS(openDetail)(id)
+          }}
+          onToggle={() => {
+            if (!isActiveDrag.value) toggleDone()
+          }}
+        />
       </Animated.View>
     </GestureDetector>
   )
@@ -992,6 +922,10 @@ function DraggableFlexalbeEvent({
     }
   }
 
+  // 컴포넌트 카드 적용 시 과도하게 좁아 보이지 않도록 폭 보정 최소화
+  left += 1.5
+  width = Math.max(4, width - 3)
+
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + left
 
   const drag = Gesture.Pan()
@@ -1063,6 +997,13 @@ function DraggableFlexalbeEvent({
   }
 })
 
+  const fmtHm = (m: number) => {
+    const hh = Math.floor(Math.max(0, m) / 60)
+    const mm = Math.floor(Math.max(0, m) % 60)
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+  const timeRangeText = `${fmtHm(startMin)}~${fmtHm(endMin)}`
+  const EventCard = isRepeat ? RepeatScheduleCard : FixedScheduleCard
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -1073,7 +1014,7 @@ function DraggableFlexalbeEvent({
             left,
             width,
             height,
-            backgroundColor: displayColor,
+            backgroundColor: 'transparent',
             ...overlapStyle,
           },
           // ⭐ 반복 일정일 때 DayView와 동일한 강조 디자인
@@ -1083,32 +1024,18 @@ function DraggableFlexalbeEvent({
           style,
         ]}
       >
-        <Pressable
-          style={{ flex: 1 }}
+        <EventCard
+          id={id}
+          title={title}
+          color={safeColor}
+          timeRangeText={timeRangeText}
+          density="week"
+          layoutWidthHint={width}
+          style={{ minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 3 }}
           onPress={() => {
-            if (!isActiveDrag.value) {
-              runOnJS(openEventDetail)(id)
-            }
+            if (!isActiveDrag.value) openEventDetail(id)
           }}
-        >
-          <Text style={S.eventTitle} numberOfLines={2}>
-            {title}
-          </Text>
-          {!!place && <Text style={S.eventPlace}>{place}</Text>}
-
-          {isRepeat && (
-  <Text
-    style={{
-      marginTop: 2,
-      marginLeft: 2,
-      fontSize: 11,
-      fontWeight: '700',
-      color: '#9B4FFF',
-    }}
-  >
-  </Text>
-)}
-        </Pressable>
+        />
       </Animated.View>
     </GestureDetector>
   )
@@ -1223,7 +1150,7 @@ export default function WeekView() {
   const gridOffsetRef = useRef({ x: 0, y: 0 })
   const scrollOffsetRef = useRef(0)
 
-  const SINGLE_HEIGHT = 22
+  const SINGLE_HEIGHT = 27
 
   // Task Popup
   const [taskPopupVisible, setTaskPopupVisible] = useState(false)
@@ -1780,7 +1707,8 @@ export default function WeekView() {
     [weekDates, filteredWeekData],
   )
   const maxSpanRow = spanBars.reduce((m, s) => (s.row > m ? s.row : m), -1)
-  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + 4)
+  const SPAN_ROW_GAP = 3
+  const spanAreaHeight = maxSpanRow < 0 ? 0 : (maxSpanRow + 1) * (SINGLE_HEIGHT + SPAN_ROW_GAP)
 
   const handleTimedTaskCompletedChange = useCallback(
     ({
@@ -2043,10 +1971,10 @@ const S = StyleSheet.create({
 
   eventBox: {
     position: 'absolute',
-    borderRadius: 3,
-    paddingHorizontal: 6,
-    paddingTop: 4,
-    paddingBottom: 2,
+    borderRadius: 8,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     justifyContent: 'flex-start',
     shadowColor: 'transparent',
     shadowOpacity: 0,
@@ -2068,17 +1996,17 @@ const S = StyleSheet.create({
 
   taskBox: {
     position: 'absolute',
-    left: 1,
-    right: 1,
+    left: 2,
+    right: 2,
     height: BASE_ROW_H,
-    borderRadius: 3,
+    borderRadius: 6,
   },
   taskInnerBox: {
     flex: 1,
     backgroundColor: '#FFFFFF80',
     borderWidth: 0.4,
     borderColor: '#333333',
-    borderRadius: 3,
+    borderRadius: 8,
     paddingHorizontal: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2086,16 +2014,16 @@ const S = StyleSheet.create({
   taskGroupBox: {
     position: 'absolute',
     minHeight: BASE_ROW_H,
-    borderRadius: 3,
+    borderRadius: 8,
     zIndex: 21,
     overflow: 'visible',
   },
   taskGroupInner: {
     minHeight: BASE_ROW_H,
-    backgroundColor: '#FFFFFF80',
-    borderWidth: 0.4,
-    borderColor: '#333333',
-    borderRadius: 3,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    borderRadius: 6,
     paddingHorizontal: 10,
     justifyContent: 'center',
   },

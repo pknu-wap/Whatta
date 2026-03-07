@@ -69,8 +69,9 @@ function ScheduleBaseCard({
     !!normalizedTimeRangeText &&
     !isWeekBottomTiny
 
-  const fixedHeight = density === 'month' ? densityStyle.minHeight : untimed ? 30 : undefined
+  const fixedHeight = density === 'month' ? densityStyle.minHeight : density === 'week' && untimed ? 26 : untimed ? 30 : undefined
   const minCardHeight = fixedHeight ?? densityStyle.minHeight
+  const isWeekTimed = density === 'week' && !untimed
   const effectivePadX =
     density === 'month'
       ? densityStyle.padX
@@ -115,6 +116,7 @@ function ScheduleBaseCard({
           paddingHorizontal: effectivePadX,
           paddingVertical: effectivePadY,
           borderRadius: untimed ? 8 : densityStyle.radius,
+          justifyContent: isWeekTimed ? 'flex-start' : 'center',
           backgroundColor,
           borderColor: borderColor ?? 'transparent',
           borderWidth: borderColor ? (borderWidth ?? StyleSheet.hairlineWidth) : 0,
@@ -141,8 +143,8 @@ function ScheduleBaseCard({
             textAlignVertical: 'center',
           },
         ]}
-        numberOfLines={1}
-        ellipsizeMode="clip"
+        numberOfLines={isWeekTimed && !isWeekBottomTiny ? 2 : 1}
+        ellipsizeMode={isWeekTimed ? 'tail' : 'clip'}
       >
         {title}
       </Text>
@@ -161,11 +163,11 @@ function ScheduleBaseCard({
                 }
               : density === 'week'
               ? {
-                  fontSize: isWeekBottomNarrow ? 10 : weekBody3.fontSize,
-                  lineHeight: isWeekBottomNarrow ? 10 : weekBody3.lineHeight,
+                  fontSize: isWeekBottomNarrow ? 11 : Math.max(12, Number(weekBody3.fontSize)),
+                  lineHeight: isWeekBottomNarrow ? 13 : Math.max(15, Number(weekBody3.lineHeight)),
                   fontWeight: weekBody3.fontWeight,
                   color: subTextColor,
-                  marginTop: isWeekBottomNarrow ? 2 : densityStyle.subGap,
+                  marginTop: isWeekBottomNarrow ? 3 : densityStyle.subGap,
                   includeFontPadding: false,
                 }
               : {

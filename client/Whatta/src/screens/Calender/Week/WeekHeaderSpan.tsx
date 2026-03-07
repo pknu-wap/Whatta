@@ -11,6 +11,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient'
 
 import colors from '@/styles/colors'
+import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
+import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
+import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { parseDate } from '@/screens/Calender/Week/date'
 import { mixWhite, thumbH, type WeekSpanEvent } from '@/screens/Calender/Week/layout'
 
@@ -215,103 +219,97 @@ export default function WeekHeaderSpan({
               {spanBars.map((s, i) => {
                 const left = timeColWidth + s.startIdx * dayColWidth
                 const width = (s.endIdx - s.startIdx + 1) * dayColWidth
-                const isSingleDay = s.startISO === s.endISO
                 const isTask = !!s.isTask
 
                 if (isTask) {
+                  const cardLeft = Math.min(
+                    Math.max(left + 2, timeColWidth + 2),
+                    timeColWidth + weekDates.length * dayColWidth - (width - 4),
+                  )
+                  const cardWidth = width - 4
                   return (
-                    <Pressable
+                    <View
                       key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
-                      onPress={() =>
-                        onToggleSpanTask(String(s.id), !!s.done, weekDates[s.startIdx])
-                      }
                       style={[
-                        H.spanTaskChip,
                         {
-                          top: s.row * (singleHeight + 4),
-                          left: Math.min(
-                            Math.max(left + 2, timeColWidth + 2),
-                            timeColWidth + weekDates.length * dayColWidth - (width - 4),
-                          ),
-                          width: width - 4,
+                          position: 'absolute',
+                          top: s.row * (singleHeight + 3),
+                          left: cardLeft,
+                          width: cardWidth,
                           height: singleHeight,
                         },
                       ]}
                     >
-                      <View style={[styles.taskCheckbox, s.done && styles.taskCheckboxOn]}>
-                        {s.done && <Text style={styles.taskCheckmark}>✓</Text>}
-                      </View>
-                      <Text
-                        style={[styles.taskTitle, s.done && styles.taskTitleDone]}
-                        numberOfLines={3}
-                        ellipsizeMode="tail"
-                      >
-                        {s.title}
-                      </Text>
-                    </Pressable>
+                      <TaskItemCard
+                        id={String(s.id)}
+                        title={s.title}
+                        done={!!s.done}
+                        density="week"
+                        isUntimed
+                        layoutWidthHint={cardWidth}
+                        style={{ minHeight: 0, height: '100%' }}
+                        onPress={() =>
+                          onToggleSpanTask(String(s.id), !!s.done, weekDates[s.startIdx])
+                        }
+                        onToggle={(taskId, nextDone) =>
+                          onToggleSpanTask(taskId, !nextDone, weekDates[s.startIdx])
+                        }
+                      />
+                    </View>
                   )
                 }
 
                 const mainColor = s.color?.startsWith('#') ? s.color : `#${s.color || 'B04FFF'}`
-                const displayColor = s.isRepeat
-                  ? mixWhite(mainColor, 70)
-                  : isSingleDay
-                    ? mainColor
-                    : mixWhite(mainColor, 70)
-
-                const baseStyle: any = {
-                  position: 'absolute',
-                  top: s.row * (singleHeight + 4),
-                  left: Math.min(
-                    Math.max(left + 2, timeColWidth + 2),
-                    timeColWidth + weekDates.length * dayColWidth - (width - 4),
-                  ),
-                  width: width - 4,
-                  height: singleHeight,
-                  justifyContent: 'center',
-                  alignItems: isSingleDay ? 'flex-start' : 'center',
-                  paddingHorizontal: 6,
-                  backgroundColor: displayColor,
-                  borderRadius: isSingleDay ? 3 : 0,
-                }
+                const barLeft = Math.min(
+                  Math.max(left + 2, timeColWidth + 2),
+                  timeColWidth + weekDates.length * dayColWidth - (width - 4),
+                )
+                const barWidth = width - 4
+                const isRange =
+                  !!s.isSpan || s.startISO !== s.endISO || s.startIdx !== s.endIdx
+                const isStartCap = (s.rawStartISO ?? s.startISO) === s.startISO
+                const isEndCap = (s.rawEndISO ?? s.endISO) === s.endISO
+                const SpanScheduleCard = s.isRepeat ? RepeatScheduleCard : FixedScheduleCard
 
                 return (
-                  <Pressable
+                  <View
                     key={`${s.id}-${s.startISO}-${s.endISO}-${s.row}-${s.startIdx}-${s.endIdx}-${i}`}
-                    onPress={() => onOpenEventDetail(String(s.id), s.startISO)}
+                    style={{
+                      position: 'absolute',
+                      top: s.row * (singleHeight + 3),
+                      left: barLeft,
+                      width: barWidth,
+                      height: singleHeight,
+                    }}
                   >
-                    <View style={baseStyle}>
-                      {weekDates.includes(s.startISO) && weekDates[s.startIdx] === s.startISO && (
-                        <View
-                          style={[
-                            H.edgeBarLeft,
-                            {
-                              backgroundColor: mainColor,
-                              borderTopLeftRadius: isSingleDay ? 3 : 0,
-                              borderBottomLeftRadius: isSingleDay ? 3 : 0,
-                            },
-                          ]}
-                        />
-                      )}
-
-                      {weekDates.includes(s.endISO) && weekDates[s.endIdx] === s.endISO && (
-                        <View
-                          style={[
-                            H.edgeBarRight,
-                            {
-                              backgroundColor: mainColor,
-                              borderTopRightRadius: isSingleDay ? 3 : 0,
-                              borderBottomRightRadius: isSingleDay ? 3 : 0,
-                            },
-                          ]}
-                        />
-                      )}
-
-                      <Text style={H.spanEventTitle} numberOfLines={1} ellipsizeMode="clip">
-                        {s.title}
-                      </Text>
-                    </View>
-                  </Pressable>
+                    {isRange ? (
+                      <RangeScheduleBar
+                        id={String(s.id)}
+                        title={s.title}
+                        color={mainColor}
+                        startISO={s.startISO}
+                        endISO={s.endISO}
+                        isStart={isStartCap}
+                        isEnd={isEndCap}
+                        density="week"
+                        isUntimed
+                        layoutWidthHint={barWidth}
+                        style={{ minHeight: 0, height: '100%' }}
+                        onPress={() => onOpenEventDetail(String(s.id), s.startISO)}
+                      />
+                    ) : (
+                      <SpanScheduleCard
+                        id={String(s.id)}
+                        title={s.title}
+                        color={mainColor}
+                        density="week"
+                        isUntimed
+                        layoutWidthHint={barWidth}
+                        style={{ minHeight: 0, height: '100%' }}
+                        onPress={() => onOpenEventDetail(String(s.id), s.startISO)}
+                      />
+                    )}
+                  </View>
                 )
               })}
             </ScrollView>
@@ -369,8 +367,8 @@ const H = StyleSheet.create({
   },
   spanScrollContent: {
     position: 'relative',
-    paddingVertical: 4,
-    paddingBottom: 4,
+    paddingVertical: 3,
+    paddingBottom: 3,
   },
   spanTaskChip: {
     position: 'absolute',

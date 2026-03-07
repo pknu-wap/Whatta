@@ -25,6 +25,9 @@ export type WeekSpanEvent = {
   row: number
   startISO: string
   endISO: string
+  rawStartISO?: string
+  rawEndISO?: string
+  isSpan?: boolean
   isTask?: boolean
   done?: boolean
   completed?: boolean
@@ -160,21 +163,30 @@ export function layoutDayEvents(
 // span 이벤트 계산
 export function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
   const byId = new Map<string, WeekSpanEvent>()
+  const weekStart = weekDates[0]
+  const weekEnd = weekDates[weekDates.length - 1]
+  const toDateISO = (v: any, fallback: string) => {
+    if (!v || typeof v !== 'string') return fallback
+    return v.slice(0, 10)
+  }
 
   weekDates.forEach((dateISO) => {
     const bucket = data[dateISO]
     if (!bucket) return
 
-    const list = [...(bucket.spanEvents || []), ...(bucket.checks || [])]
+    const list = [
+      ...(bucket.spanEvents || []).map((e: any) => ({ ...e, __kind: 'event' as const })),
+      ...(bucket.checks || []).map((e: any) => ({ ...e, __kind: 'check' as const })),
+    ]
 
     list.forEach((e: any) => {
-      const id = String(e.id)
+      const rawId = String(e.id)
+      const kind = e.__kind === 'check' ? 'check' : 'event'
       const title = e.title ?? ''
 
       const isTask =
+        kind === 'check' ||
         e.isTask === true ||
-        typeof e.completed !== 'undefined' ||
-        typeof e.done !== 'undefined' ||
         e.type === 'task'
 
       const colorKey = isTask
@@ -182,23 +194,38 @@ export function buildWeekSpanEvents(weekDates: string[], data: Record<string, an
         : (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
       const color = colorKey.startsWith('#') ? colorKey : `#${colorKey}`
 
-      const s = (e.startDate || e.date || dateISO).slice(0, 10)
-      const ed = (e.endDate || e.date || s).slice(0, 10)
-      const startISO = s
-      const endISO = ed
+      const rawStartISO = toDateISO(
+        e.originalStartDate ?? e.originStartDate ?? e.startDate ?? e.startAt ?? e.date,
+        dateISO,
+      )
+      const rawEndISO = toDateISO(
+        e.originalEndDate ?? e.originEndDate ?? e.endDate ?? e.endAt ?? e.date ?? rawStartISO,
+        rawStartISO,
+      )
+      const startISO = rawStartISO < weekStart ? weekStart : rawStartISO
+      const endISO = rawEndISO > weekEnd ? weekEnd : rawEndISO
+      const isSpan = rawStartISO !== rawEndISO || e.isSpan === true
+      // 단일 일정(특히 반복/발생 인스턴스)은 id가 같아도 날짜별로 분리 유지.
+      // 기간 일정만 같은 id를 주간 내에서 병합해 시작/중간/끝 모양을 만든다.
+      const mapKey = isSpan
+        ? `${kind}:${rawId}`
+        : `${kind}:${rawId}:${startISO}`
 
-      const existing = byId.get(id)
+      const existing = byId.get(mapKey)
 
       if (!existing) {
-        byId.set(id, {
-          id,
+        byId.set(mapKey, {
+          id: rawId,
           title,
           color,
           startISO,
           endISO,
+          rawStartISO,
+          rawEndISO,
           startIdx: 0,
           endIdx: 0,
           row: 0,
+          isSpan,
           isTask,
           done: e.done ?? e.completed ?? false,
           completed: e.completed,
@@ -207,6 +234,13 @@ export function buildWeekSpanEvents(weekDates: string[], data: Record<string, an
       } else {
         if (startISO < existing.startISO) existing.startISO = startISO
         if (endISO > existing.endISO) existing.endISO = endISO
+        if (rawStartISO < (existing.rawStartISO ?? existing.startISO)) {
+          existing.rawStartISO = rawStartISO
+        }
+        if (rawEndISO > (existing.rawEndISO ?? existing.endISO)) {
+          existing.rawEndISO = rawEndISO
+        }
+        existing.isSpan = existing.isSpan || isSpan
       }
     })
   })

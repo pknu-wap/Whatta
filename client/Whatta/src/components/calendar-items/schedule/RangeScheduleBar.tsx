@@ -16,12 +16,17 @@ function RangeScheduleBar({
   density = 'day',
   isStart,
   isEnd,
+  style,
   onPress,
 }: RangeScheduleBarProps) {
   const mainColor = resolveScheduleColor(color)
   const d = RANGE_BAR_SIZE[density]
   const untimed = isUntimed
-  const fixedHeight = density === 'month' ? d.height : untimed ? 30 : d.height
+  // 세그먼트 규칙:
+  // 시작만: 왼쪽 캡, 중간: 캡 없음, 끝만: 오른쪽 캡, 하루짜리(시작+끝): 양쪽 캡
+  const showStartCap = !!isStart
+  const showEndCap = !!isEnd
+  const fixedHeight = density === 'month' ? d.height : density === 'week' && untimed ? 26 : untimed ? 30 : d.height
   const baseRadius = density === 'month' ? d.radius : untimed ? 8 : d.radius
   const normalizedTimeRangeText = timeRangeText?.replace(/\s+/g, '')
   const dayLabel3 = ts('label3')
@@ -44,14 +49,19 @@ function RangeScheduleBar({
           height: fixedHeight,
           borderColor: mainColor,
           borderRadius: baseRadius,
-          borderTopLeftRadius: isStart ? baseRadius : 0,
-          borderBottomLeftRadius: isStart ? baseRadius : 0,
-          borderTopRightRadius: isEnd ? baseRadius : 0,
-          borderBottomRightRadius: isEnd ? baseRadius : 0,
+          borderTopLeftRadius: showStartCap ? baseRadius : 0,
+          borderBottomLeftRadius: showStartCap ? baseRadius : 0,
+          borderTopRightRadius: showEndCap ? baseRadius : 0,
+          borderBottomRightRadius: showEndCap ? baseRadius : 0,
+          borderLeftWidth: showStartCap ? 1 : 0,
+          borderRightWidth: showEndCap ? 1 : 0,
         },
+        style,
       ]}
     >
-      <View style={[S.chipLeft, { width: d.chip, backgroundColor: mainColor }]} />
+      <View
+        style={[S.chipLeft, { width: showStartCap ? d.chip : 0, backgroundColor: mainColor }]}
+      />
 
       <View style={S.centerContent}>
         <Text
@@ -112,7 +122,9 @@ function RangeScheduleBar({
         ) : null}
       </View>
 
-      <View style={[S.chipRight, { width: d.chip, backgroundColor: mainColor }]} />
+      <View
+        style={[S.chipRight, { width: showEndCap ? d.chip : 0, backgroundColor: mainColor }]}
+      />
     </Pressable>
   )
 }
