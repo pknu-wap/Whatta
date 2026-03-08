@@ -30,10 +30,7 @@ public class AIController {
     @Operation(summary = "ai test", description = "openai를 테스트합니다.")
     public ResponseEntity<?> postOpenAIApi (@AuthenticationPrincipal String userId,
                                           @RequestBody String input) {
-        log.info("[AI][INBOUND] userId={}, inputLength={}, input={}",
-                userId,
-                input == null ? 0 : input.length(),
-                input);
-        return Response.ok("success post input", aiService.postInput(userId, input));
+
+        return Response.ok("success post input", aiService.requestInput(userId, input));
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import whatta.Whatta.ai.payload.request.OpenAIRequest;
+import whatta.Whatta.ai.payload.response.OpenAIResponse;
 import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
 
 import java.time.Duration;
@@ -20,7 +21,6 @@ import java.time.Duration;
 public class OpenAIClient {
     private final WebClient openAiWebClient;
     private final ObjectMapper objectMapper;
-    private static final int MAX_CONTINUATIONS = 3;
     private static final int MAX_OUTPUT_TOKENS = 1500;
 
     @Value("${openai.model}")
@@ -29,7 +29,7 @@ public class OpenAIClient {
     @Value("${openai.timeout.seconds}")
     private long timeoutSeconds;
 
-    public String callOpenApi(String input) {
+    public OpenAIResponse callOpenApi(String input) {
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
@@ -47,58 +47,73 @@ public class OpenAIClient {
                 .store(true)
                 .build();
 
-        String rawResponse = requestResponse(req);
-        for (int continuation = 0; continuation <= MAX_CONTINUATIONS; continuation++) {
-            JsonNode root = parseResponse(rawResponse);
-
-            String extracted = extractOutputText(root);
-            if (extracted != null && !extracted.isBlank()) {
-                return extracted;
-            }
-
-            if (!isMaxTokenIncomplete(root)) {
-                log.error("[OPENAI][PARSE_ERROR] text output missing. body={}", abbreviate(rawResponse, 4000));
-                throw new IllegalStateException("OpenAI response does not contain text output");
-            }
-
-            if (continuation == MAX_CONTINUATIONS) {
-                log.error("[OPENAI][INCOMPLETE] max continuations reached. body={}", abbreviate(rawResponse, 4000));
-                throw new IllegalStateException("OpenAI response incomplete after continuations");
-            }
-
-            String previousResponseId = root.path("id").asText(null);
-            if (previousResponseId == null || previousResponseId.isBlank()) {
-                log.error("[OPENAI][INCOMPLETE] previous response id missing. body={}", abbreviate(rawResponse, 4000));
-                throw new IllegalStateException("OpenAI incomplete response has no id for continuation");
-            }
-
-            log.warn("[OPENAI][INCOMPLETE] reason=max_output_tokens. continuation={}/{}", continuation + 1, MAX_CONTINUATIONS);
-            rawResponse = requestResponse(
-                    OpenAIRequest.builder()
-                            .model(model)
-                            .input("continue")
-                            .maxOutputTokens(MAX_OUTPUT_TOKENS)
-                            .previousResponseId(previousResponseId)
-                            .store(true)
-                            .build()
-            );
+        JsonNode root = parseResponse(requestResponse(req));
+        OpenAIResponse extracted = extractOutput(root);
+        if (extracted == null) {
+            log.error("[OPENAI][PARSE_ERROR] text output missing. responseId={}, status={}",
+                    root.path("id").asText("-"),
+                    root.path("status").asText("-"));
+            throw new IllegalStateException("OpenAI response does not contain text output");
         }
-
-        throw new IllegalStateException("OpenAI response handling failed");
+        return extracted;
     }
 
     private String requestResponse(OpenAIRequest req) {
         try {
-            return openAiWebClient.post()
+            String rawResponse = openAiWebClient.post()
                     .uri("/responses")
                     .bodyValue(req)
                     .retrieve()
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(timeoutSeconds))
                     .block();
+            printUsageToStdOut(rawResponse, req);
+            return rawResponse;
         } catch (WebClientResponseException e) {
             log.error("[OPENAI][ERROR] status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw e;
+        }
+    }
+
+    private void printUsageToStdOut(String rawResponse, OpenAIRequest req) {
+        if (rawResponse == null || rawResponse.isBlank()) {
+            System.out.println("[OPENAI][TOKENS] usage unavailable (empty response body)");
+            return;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(rawResponse);
+            JsonNode usage = root.path("usage");
+            String responseId = root.path("id").asText("-");
+            String status = root.path("status").asText("-");
+
+            int inputTokens = usage.path("input_tokens").asInt(-1);
+            int outputTokens = usage.path("output_tokens").asInt(-1);
+            int totalTokens = usage.path("total_tokens").asInt(-1);
+            int cachedInputTokens = usage.path("input_tokens_details").path("cached_tokens").asInt(-1);
+            int reasoningTokens = usage.path("output_tokens_details").path("reasoning_tokens").asInt(-1);
+
+            String requestModel = req != null && req.model() != null ? req.model() : "-";
+            String reasoningEffort = req != null && req.reasoning() != null && req.reasoning().effort() != null
+                    ? req.reasoning().effort().name()
+                    : "-";
+
+            System.out.println(
+                    String.format(
+                            "[OPENAI][TOKENS] responseId=%s status=%s model=%s reasoning=%s input=%d output=%d total=%d cached_input=%d reasoning_output=%d",
+                            responseId,
+                            status,
+                            requestModel,
+                            reasoningEffort,
+                            inputTokens,
+                            outputTokens,
+                            totalTokens,
+                            cachedInputTokens,
+                            reasoningTokens
+                    )
+            );
+        } catch (JsonProcessingException e) {
+            System.out.println("[OPENAI][TOKENS] usage unavailable (response parse failed)");
         }
     }
 
@@ -110,26 +125,34 @@ public class OpenAIClient {
         try {
             return objectMapper.readTree(rawResponse);
         } catch (JsonProcessingException e) {
-            log.error("[OPENAI][PARSE_ERROR] invalid json body={}", abbreviate(rawResponse, 4000));
+            log.error("[OPENAI][PARSE_ERROR] invalid json response");
             throw new IllegalStateException("Failed to parse OpenAI response", e);
         }
     }
 
-    private boolean isMaxTokenIncomplete(JsonNode root) {
-        return "incomplete".equals(root.path("status").asText())
-                && "max_output_tokens".equals(root.path("incomplete_details").path("reason").asText());
-    }
-
-    private String extractOutputText(JsonNode root) {
+    private OpenAIResponse extractOutput(JsonNode root) {
         JsonNode outputParsed = root.path("output_parsed");
         if (!outputParsed.isMissingNode() && !outputParsed.isNull()) {
             try {
-                return objectMapper.writeValueAsString(outputParsed);
+                return objectMapper.treeToValue(outputParsed, OpenAIResponse.class);
             } catch (JsonProcessingException e) {
-                throw new IllegalStateException("Failed to serialize output_parsed", e);
+                throw new IllegalStateException("Failed to deserialize output_parsed", e);
             }
         }
 
+        String outputText = extractOutputText(root);
+        if (outputText == null || outputText.isBlank()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(outputText, OpenAIResponse.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize output_text", e);
+        }
+    }
+
+    private String extractOutputText(JsonNode root) {
         JsonNode outputText = root.path("output_text");
         if (outputText.isTextual() && !outputText.asText().isBlank()) {
             return outputText.asText();
@@ -143,10 +166,11 @@ public class OpenAIClient {
                 if (!content.isArray()) {
                     continue;
                 }
+
                 for (JsonNode c : content) {
                     JsonNode text = c.path("text");
                     if (text.isTextual() && !text.asText().isBlank()) {
-                        if (sb.length() > 0) {
+                        if (!sb.isEmpty()) {
                             sb.append('\n');
                         }
                         sb.append(text.asText());
@@ -159,15 +183,5 @@ public class OpenAIClient {
             }
         }
         return null;
-    }
-
-    private String abbreviate(String text, int maxLen) {
-        if (text == null) {
-            return null;
-        }
-        if (text.length() <= maxLen) {
-            return text;
-        }
-        return text.substring(0, maxLen) + "...(truncated)";
     }
 }
