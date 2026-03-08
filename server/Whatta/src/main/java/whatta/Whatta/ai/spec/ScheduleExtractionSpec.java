@@ -12,18 +12,19 @@ public final class ScheduleExtractionSpec {
     public static final String NAME = "schedule_create_intent";
 
     public static final String INSTRUCTIONS = """
-            너는 사용자의 자연어에서 일정 추가 의도를 추론하는 파서다.
+            너는 사용자의 자연어에서 일정/할일 추가 의도를 추론하는 파서다.
             반드시 제공된 JSON Schema를 100% 준수한 JSON 객체만 반환한다.
             설명 문장, 마크다운, 코드블록을 절대 출력하지 않는다.
 
             규칙:
-            1) 일정/할일 생성 의도가 아니면 is_schedule_request=false, out_of_scope_reason에 짧은 한국어 이유를 넣는다.
-            2) 일정/할일 생성 의도면 is_schedule_request=true.
-            3) 일정이면 is_event=true, 할일이면 is_event=false.
-            4) 일정(event)인 경우 start_date/end_date는 빈 문자열이어선 안된다.
-            5) 할일(task)인 경우 placement_date/placement_time/due_date_time 중 문맥에 있는 값만 채우고 나머지는 빈 문자열로 둔다.
-            6) 값이 없으면 문자열은 "", 배열은 [], 객체 내부 숫자는 0, boolean은 false를 사용한다.
-            7) 날짜 형식은 YYYY-MM-DD, 시간 형식은 HH:mm:ss, 일시 형식은 YYYY-MM-DDTHH:mm:ss 를 사용한다.
+            1) intent는 사용자의 요청 의도에 해당하는 enum을 사용한다. 할일이면 create_task를 사용한다.
+            2) 값이 없으면 문자열은 "", 배열은 [], 객체 내부 숫자는 0, boolean은 false를 사용한다.
+            3) 날짜 형식은 YYYY-MM-DD, 시간 형식은 HH:mm:ss, 일시 형식은 YYYY-MM-DDTHH:mm:ss 를 사용한다.
+            4) 상대 날짜(오늘/내일/모레/다음 주 등)는 절대 날짜로 계산하지 말고 date_ref에 기록한다.
+            5) 상대 시간(오전/오후/저녁/밤/이따 등)은 절대 시간으로 계산하지 말고 time_ref에 기록한다.
+            6) 절대 날짜가 명시된 경우 start_date/end_date 또는 due_date_time에 넣고 date_ref는 explicit_date로 둔다.
+            7) 절대 시간이 명시된 경우 start_time/end_time 또는 due_date_time에 넣고 time_ref는 explicit_time으로 둔다.
+            8) date_ref/time_ref만 있고 절대값이 불명확하면 start_date/start_time/end_date/end_time/due_date_time은 빈 문자열("")로 둔다.
             """;
 
     private static final String SCHEDULE_JSON_SCHEMA = """
@@ -31,17 +32,14 @@ public final class ScheduleExtractionSpec {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "is_schedule_request": { "type": "boolean" },
-                "is_event": { "type": "boolean" },
-                "out_of_scope_reason": { "type": "string", "maxLength": 120 },
+                "intent": { "type": "string","enum": ["create_event", "create_task", "update_or_delete", "unspecified"] },
                 "title": { "type": "string", "maxLength": 20 },
-                "content": { "type": "string", "maxLength": 100 },
+                "date_ref": { "type": "string", "enum": ["", "today", "tomorrow", "day_after_tomorrow", "explicit_date", "relative_date"] },
+                "time_ref": { "type": "string", "enum": ["", "morning", "afternoon", "evening", "night", "explicit_time", "relative_time"] },
                 "start_date": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
                 "end_date": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
                 "start_time": { "type": "string", "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
                 "end_time": { "type": "string", "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
-                "placement_date": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
-                "placement_time": { "type": "string", "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
                 "due_date_time": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
                 "repeat": {
                   "type": "object",
@@ -64,34 +62,19 @@ public final class ScheduleExtractionSpec {
                     }
                   },
                   "required": ["enabled", "interval", "unit", "on", "deadline", "exception_dates"]
-                },
-                "reminder_noti": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "enabled": { "type": "boolean" },
-                    "day": { "type": "integer", "minimum": 0 },
-                    "hour": { "type": "integer", "minimum": 0 },
-                    "minute": { "type": "integer", "minimum": 0 }
-                  },
-                  "required": ["enabled", "day", "hour", "minute"]
                 }
               },
               "required": [
-                "is_schedule_request",
-                "is_event",
-                "out_of_scope_reason",
+                "intent",
                 "title",
-                "content",
+                "date_ref",
+                "time_ref",
                 "start_date",
                 "end_date",
                 "start_time",
                 "end_time",
-                "placement_date",
-                "placement_time",
                 "due_date_time",
-                "repeat",
-                "reminder_noti"
+                "repeat"
               ]
             }
             """;
