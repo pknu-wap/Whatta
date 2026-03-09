@@ -12,6 +12,7 @@ function RepeatScheduleCard({
   isUntimed,
   density,
   layoutWidthHint,
+  hideText,
   style,
   onPress,
 }: ScheduleCardProps) {
@@ -24,6 +25,7 @@ function RepeatScheduleCard({
       isUntimed={isUntimed}
       density={density}
       layoutWidthHint={layoutWidthHint}
+      hideText={hideText}
       onPress={onPress}
       style={style}
       backgroundColor={colors.background.bg1}

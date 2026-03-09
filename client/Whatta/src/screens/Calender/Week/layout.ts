@@ -12,8 +12,6 @@ export type DayTimelineEvent = {
 export type LayoutedEvent = DayTimelineEvent & {
   column: number
   columnsTotal: number
-  isPartialOverlap?: boolean
-  overlapDepth?: number
 }
 
 export type WeekSpanEvent = {
@@ -34,12 +32,9 @@ export type WeekSpanEvent = {
   isRepeat?: boolean
 }
 
-// 이전 렌더의 겹침 배치 결과를 날짜별로 캐시해 이벤트 박스 위치 튐 줄임
-let prevLayoutMapByDay: Record<string, Record<string, LayoutedEvent>> = {}
-
 // 주/화면 전환 시 겹침 캐시를 초기화
 export function resetLayoutDayEventsCache() {
-  prevLayoutMapByDay = {}
+  // 분할 레이아웃은 매 렌더에서 결정되므로 별도 캐시를 유지하지 않는다.
 }
 
 export function getDayColWidth(
@@ -76,11 +71,9 @@ export function mixWhite(hex: string, whitePercent: number) {
 // 겹침 규칙에 배치
 export function layoutDayEvents(
   events: DayTimelineEvent[],
-  dateKey = '__global__',
+  _dateKey = '__global__',
 ): LayoutedEvent[] {
   if (!events.length) return []
-
-  const prevLayoutMap = prevLayoutMapByDay[dateKey] || {}
 
   const sorted = [...events].sort((a, b) => {
     if (a.startMin !== b.startMin) return a.startMin - b.startMin
@@ -88,75 +81,45 @@ export function layoutDayEvents(
   })
 
   const layout: LayoutedEvent[] = []
-  const used = new Set<string>()
+  let i = 0
 
-  for (let i = 0; i < sorted.length; i++) {
-    const ev = sorted[i]
-    if (used.has(ev.id)) continue
+  while (i < sorted.length) {
+    const cluster: DayTimelineEvent[] = [sorted[i]]
+    let clusterEnd = sorted[i].endMin
+    let j = i + 1
 
-    const sameGroup = sorted.filter(
-      (e) => e.startMin === ev.startMin && e.endMin === ev.endMin,
-    )
-
-    if (sameGroup.length > 1) {
-      const n = sameGroup.length
-      sameGroup.forEach((e, idx) => {
-        layout.push({
-          ...e,
-          column: idx,
-          columnsTotal: n,
-          isPartialOverlap: false,
-          overlapDepth: 0,
-        })
-        used.add(e.id)
-      })
-      continue
+    // 연결된 겹침 구간(전이 포함)을 하나의 클러스터로 묶는다.
+    while (j < sorted.length && sorted[j].startMin < clusterEnd) {
+      cluster.push(sorted[j])
+      clusterEnd = Math.max(clusterEnd, sorted[j].endMin)
+      j++
     }
 
-    const overlappingGroup = sorted.filter(
-      (other) =>
-        // 이미 배치된 이벤트 재사용 금지 
-        other.id !== ev.id &&
-        !used.has(other.id) &&
-        other.startMin < ev.endMin &&
-        other.endMin > ev.startMin,
-    )
-
-    const hasOverlap = overlappingGroup.length > 0
-    const prev = prevLayoutMap[ev.id]
-    const wasPartial = prev?.isPartialOverlap ?? false
-
-    let overlapDepth = 0
-    let isPartialOverlap = false
-
-    if (hasOverlap) {
-      const group = [...overlappingGroup, ev].sort((a, b) => a.startMin - b.startMin)
-      group.forEach((e, idx) => {
-        layout.push({
-          ...e,
-          column: 0,
-          columnsTotal: 1,
-          isPartialOverlap: true,
-          overlapDepth: idx,
-        })
-        used.add(e.id)
-      })
-      continue
-    } else if (wasPartial) {
-      overlapDepth = 0
-      isPartialOverlap = false
-    }
-
-    layout.push({
-      ...ev,
-      column: 0,
-      columnsTotal: 1,
-      isPartialOverlap,
-      overlapDepth,
+    const colEndTimes: number[] = []
+    const placed = cluster.map((ev) => {
+      let column = colEndTimes.findIndex((end) => end <= ev.startMin)
+      if (column === -1) {
+        column = colEndTimes.length
+        colEndTimes.push(ev.endMin)
+      } else {
+        colEndTimes[column] = ev.endMin
+      }
+      return {
+        ...ev,
+        column,
+      }
     })
+
+    const columnsTotal = Math.max(1, colEndTimes.length)
+    placed.forEach((ev) => {
+      layout.push({
+        ...ev,
+        columnsTotal,
+      })
+    })
+    i = j
   }
 
-  prevLayoutMapByDay[dateKey] = Object.fromEntries(layout.map((ev) => [ev.id, ev]))
   return layout
 }
 
