@@ -5,13 +5,19 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Animated,
+  Animated as RNAnimated,
   Alert,
   Modal,
+  Dimensions,
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { runOnJS } from 'react-native-reanimated'
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { MonthlyDay } from '@/api/calendar'
 import { ScheduleData } from '@/api/adapter'
@@ -48,6 +54,7 @@ const MONTH_ITEM_WIDTH = cellWidth
 const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
+const { width: SCREEN_W } = Dimensions.get('window')
 
 const getOccurrenceDedupKey = (item: UISchedule) => {
   const prefix = item.isTask ? 'TASK' : 'EVENT'
@@ -257,7 +264,7 @@ export default function MonthView() {
 
   const laneMapRef = useRef<Map<string, number>>(new Map())
 
-  const fade = useRef(new Animated.Value(1)).current
+  const fade = useRef(new RNAnimated.Value(1)).current
 
   const pad = (n: number) => String(n).padStart(2, '0')
   const toYM = (src: string | Date): string => {
@@ -343,23 +350,44 @@ export default function MonthView() {
   )
 
   // 좌우 스와이프 제스처 (DayView 구조 참고)
+  const swipeTranslateX = useSharedValue(0)
+  const swipeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipeTranslateX.value }],
+  }))
+
   const swipeGesture = useMemo(
     () =>
       Gesture.Pan()
-        .activeOffsetX([-20, 20])
+        .activeOffsetX([-10, 10])
         .failOffsetY([-10, 10])
-        .onEnd((e) => {
+        .onUpdate((e) => {
           'worklet'
-          const dx = e.translationX
-          if (dx > 80) {
-            // 오른쪽 → 이전 달
-            runOnJS(goMonth)(-1)
-          } else if (dx < -80) {
-            // 왼쪽 → 다음 달
-            runOnJS(goMonth)(+1)
+          let nx = e.translationX
+          const max = SCREEN_W * 0.15
+          if (nx > max) nx = max
+          if (nx < -max) nx = -max
+          swipeTranslateX.value = nx
+        })
+        .onEnd(() => {
+          'worklet'
+          const cur = swipeTranslateX.value
+          const th = SCREEN_W * 0.06
+
+          if (cur > th) {
+            swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
+              runOnJS(goMonth)(-1)
+              swipeTranslateX.value = withTiming(0, { duration: 160 })
+            })
+          } else if (cur < -th) {
+            swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
+              runOnJS(goMonth)(+1)
+              swipeTranslateX.value = withTiming(0, { duration: 160 })
+            })
+          } else {
+            swipeTranslateX.value = withTiming(0, { duration: 150 })
           }
         }),
-    [goMonth],
+    [goMonth, swipeTranslateX],
   )
 
   const { year, monthIndex } = useMemo(() => parseYM(ym), [ym])
@@ -653,13 +681,13 @@ const displayItemsByWeek = useMemo(() => {
 
   // 월이 바뀔 때 살짝 페이드 아웃
   useEffect(() => {
-    Animated.timing(fade, { toValue: 0.4, duration: 120, useNativeDriver: true }).start()
+    RNAnimated.timing(fade, { toValue: 0.4, duration: 120, useNativeDriver: true }).start()
   }, [ym])
 
   // 로딩이 끝나면 다시 페이드 인
   useEffect(() => {
     if (!loading) {
-      Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
+      RNAnimated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
     }
   }, [loading])
 
@@ -1086,7 +1114,7 @@ const handleOcrSaveAll = useCallback(async () => {
   return (
     <ScreenWithSidebar mode="overlay">
       <GestureDetector gesture={swipeGesture}>
-        <View collapsable={false} style={{ flex: 1 }}>
+        <Animated.View collapsable={false} style={[{ flex: 1 }, swipeStyle]}>
           <View style={S.contentContainerWrapper}>
             {/* 요일 헤더 */}
             {renderDayHeader()}
@@ -1096,7 +1124,7 @@ const handleOcrSaveAll = useCallback(async () => {
               style={S.contentArea}
               contentContainerStyle={S.scrollContentContainer}
             >
-              <Animated.View style={[S.calendarGrid, { opacity: fade }]}>
+              <RNAnimated.View style={[S.calendarGrid, { opacity: fade }]}>
                     {weeks.map((week, weekIndex) => (
                       <View key={`week-${weekIndex}`} style={S.weekRow}>
                         {week.map((dateItem, dayIndex) =>
@@ -1104,10 +1132,10 @@ const handleOcrSaveAll = useCallback(async () => {
                         )}
                       </View>
                     ))}
-              </Animated.View>
+              </RNAnimated.View>
             </ScrollView>
           </View>
-        </View>
+        </Animated.View>
       </GestureDetector>
 
       {/* 팝업들은 제스처 영역 밖 */}
