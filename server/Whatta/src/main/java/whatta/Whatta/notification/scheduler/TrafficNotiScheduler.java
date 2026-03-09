@@ -11,6 +11,7 @@ import whatta.Whatta.traffic.repository.TrafficNotiRepository;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -25,12 +26,16 @@ public class TrafficNotiScheduler {
     //매분 0초마다 조건 체크
     @Scheduled(cron = "0 * * * * *")
     public void checkTrafficAlarms(){
-
-        LocalTime now = LocalTime.now().truncatedTo(ChronoUnit.MINUTES);
-        DayOfWeek today = LocalDate.now().getDayOfWeek();
+        ZoneId zone = ZoneId.of("Asia/Seoul");
+        LocalTime now = LocalTime.now(zone).truncatedTo(ChronoUnit.MINUTES);
+        DayOfWeek today = LocalDate.now(zone).getDayOfWeek();
 
         //지정된 시간과 날짜에 켜져있는 알림만 DB에서 조회
-        List<TrafficNotification> targets = alarmRepository.findAlarmsToNotify(now, today);
+        List<TrafficNotification> targets = alarmRepository.findAlarmsToNotify(
+                now.getHour(),
+                now.getMinute(),
+                today
+        );
 
         if (targets.isEmpty()) {
             log.debug("해당 시간에 울릴 교통 알림 없음.");
