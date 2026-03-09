@@ -28,6 +28,8 @@ function RangeScheduleBar({
   const showEndCap = !!isEnd
   const fixedHeight = density === 'month' ? d.height : density === 'week' && untimed ? 26 : untimed ? 30 : d.height
   const baseRadius = density === 'month' ? d.radius : untimed ? 8 : d.radius
+  const capWidth = Math.max(d.chip, baseRadius)
+  const hasAnyCap = showStartCap || showEndCap
   const normalizedTimeRangeText = timeRangeText?.replace(/\s+/g, '')
   const dayLabel3 = ts('label3')
   const monthLabel4 = ts('label4')
@@ -48,6 +50,7 @@ function RangeScheduleBar({
           minHeight: fixedHeight,
           height: fixedHeight,
           borderColor: mainColor,
+          backgroundColor: hasAnyCap ? mainColor : colors.background.bg1,
           borderRadius: baseRadius,
           borderTopLeftRadius: showStartCap ? baseRadius : 0,
           borderBottomLeftRadius: showStartCap ? baseRadius : 0,
@@ -60,10 +63,10 @@ function RangeScheduleBar({
       ]}
     >
       <View
-        style={[S.chipLeft, { width: showStartCap ? d.chip : 0, backgroundColor: mainColor }]}
+        style={[S.chipLeft, { width: showStartCap ? capWidth : 0, backgroundColor: mainColor }]}
       />
 
-      <View style={S.centerContent}>
+      <View style={[S.centerContent, hasAnyCap ? { backgroundColor: colors.background.bg1 } : null]}>
         <Text
           style={[
             S.title,
@@ -101,7 +104,7 @@ function RangeScheduleBar({
         {!untimed && normalizedTimeRangeText ? (
           <Text
             style={[
-            S.sub,
+              S.sub,
               density === 'day'
                 ? {
                     fontSize: dayBody3.fontSize,
@@ -123,7 +126,7 @@ function RangeScheduleBar({
       </View>
 
       <View
-        style={[S.chipRight, { width: showEndCap ? d.chip : 0, backgroundColor: mainColor }]}
+        style={[S.chipRight, { width: showEndCap ? capWidth : 0, backgroundColor: mainColor }]}
       />
     </Pressable>
   )
