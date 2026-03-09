@@ -6,12 +6,11 @@ const { width: screenWidth } = Dimensions.get('window')
 const horizontalPadding = 12
 const dynamicCellWidth = (screenWidth - horizontalPadding) / 7
 export const cellWidth = Math.min(60, dynamicCellWidth)
-const MIN_CELL_HEIGHT = 120
 
 export const S = StyleSheet.create({
   contentContainerWrapper: { flex: 1, paddingBottom: 0, paddingTop: 0 },
-  contentArea: { flex: 1, paddingHorizontal: 6, paddingTop: 0 },
-  scrollContentContainer: { paddingBottom: 20 },
+  contentArea: { flex: 1, paddingHorizontal: 7, paddingTop: 0 },
+  scrollContentContainer: { paddingBottom: 0, flexGrow: 1 },
 
   dayHeader: {
     flexDirection: 'row',
@@ -48,7 +47,6 @@ export const S = StyleSheet.create({
   },
   dateCell: {
     width: cellWidth,
-    minHeight: MIN_CELL_HEIGHT,
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
     position: 'relative',
@@ -72,7 +70,8 @@ export const S = StyleSheet.create({
   dateNumberWrapperWithHoliday: {
     height: 28,
     justifyContent: 'flex-start',
-    paddingTop: 1,
+    paddingTop: 0,
+    marginBottom: 3,
   },
   dateTopLine: {
     width: '100%',
@@ -100,16 +99,14 @@ export const S = StyleSheet.create({
     ...ts('label4'),
     color: colors.brand.primary,
   },
-  otherMonthDateText: { color: 'gray' },
-  holidayDateText: { color: 'red' },
+  otherMonthDateText: { color: colors.text.text4 },
+  holidayDateText: { color: colors.text.monday },
   holidayText: {
     ...ts('body3'),
-    marginTop: 0,
     textAlign: 'center',
-    color: 'red',
-    lineHeight: 12,
+    color: colors.text.monday,
   },
-  otherMonthHolidayText: { color: '#F08080' },
+  otherMonthHolidayText: { color: colors.text.text4 },
   smallHolidayText: { fontSize: ts('body3').fontSize },
 
   eventArea: {
@@ -119,4 +116,3 @@ export const S = StyleSheet.create({
     paddingBottom: 0,
   },
 })
-

@@ -395,6 +395,7 @@ export default function MonthView() {
   const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
   const [days, setDays] = useState<MonthlyDay[]>([])
   const [loading, setLoading] = useState(false)
+  const [calendarBodyHeight, setCalendarBodyHeight] = useState(0)
 
   
   // Memo로 캐싱
@@ -403,20 +404,13 @@ export default function MonthView() {
     for(let i=0; i< calendarDates.length; i+= 7){
       result.push(calendarDates.slice(i, i+7))
     }
-    return result
-  }, [calendarDates])
-
-  // weeks가 바뀔 때만 계산
-  const weekMaxLanes = useMemo(() => {
-  return weeks.map((week) =>
-    Math.max(
-      -1,
-      ...week.flatMap((d) =>
-        [...d.schedules, ...d.tasks].map((it) => (it as any).__lane ?? -1),
+    // 현재 연/월을 직접 기준으로 해당 달이 없는 주는 제거
+    return result.filter((week) =>
+      week.some(
+        (d) => d.fullDate.getFullYear() === year && d.fullDate.getMonth() === monthIndex,
       ),
-    ),
-  )
-}, [weeks])
+    )
+  }, [calendarDates, year, monthIndex])
 
 // 주간 변경될 때만 계산
 const displayItemsByWeek = useMemo(() => {
@@ -426,6 +420,11 @@ const displayItemsByWeek = useMemo(() => {
     )
   )
 }, [weeks])
+
+  const weekRowHeight = useMemo(() => {
+    if (calendarBodyHeight <= 0 || weeks.length === 0) return undefined
+    return calendarBodyHeight / weeks.length
+  }, [calendarBodyHeight, weeks.length])
 
 
   type ExtendedScheduleData = ScheduleData & {
@@ -742,7 +741,6 @@ const displayItemsByWeek = useMemo(() => {
 )
 
   const renderDateCell = (dateItem: CalendarDateItem, weekIndex: number, dayIndex: number, ) => { 
-    const weekMaxLane = weekMaxLanes[weekIndex] ?? -1
     const itemsToRender = displayItemsByWeek[weekIndex][dayIndex]
     const isCurrentMonth = dateItem.isCurrentMonth
 
@@ -750,31 +748,26 @@ const displayItemsByWeek = useMemo(() => {
       dateItem.fullDate.getMonth() + 1,
     ).padStart(2, '0')}-${String(dateItem.fullDate.getDate()).padStart(2, '0')}`
 
-    const onlySchedules = itemsToRender.filter((it) => !(it as any).isTaskSummary)
-
-    const laneSlots: (ScheduleData | null)[] = Array.from(
-      { length: Math.max(0, weekMaxLane + 1) },
-      () => null,
-    )
-
-    for (const it of onlySchedules) {
-      const l = (it as any).__lane ?? 0
-      if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
-    }
+    const scheduleItems = itemsToRender.filter(
+      (it) => !(it as any).isTaskSummary && !(it as any).isTask,
+    ) as ScheduleData[]
+    const taskItems = itemsToRender.filter(
+      (it) => !(it as any).isTaskSummary && !!(it as any).isTask,
+    ) as ScheduleData[]
     const taskSummary = itemsToRender.find((it) => (it as any).isTaskSummary) as
       | { id: string; tasks: any[] }
       | undefined
-    const summaryLaneFromTasks = taskSummary
-      ? Math.min(
-          ...((taskSummary.tasks ?? [])
-            .map((t: any) => Number(t?.__lane))
-            .filter((n: number) => Number.isFinite(n) && n >= 0)),
-        )
-      : -1
-    const summaryLane = Number.isFinite(summaryLaneFromTasks)
-      ? summaryLaneFromTasks
-      : laneSlots.length
-    const totalRows = taskSummary ? Math.max(laneSlots.length, summaryLane + 1) : laneSlots.length
+
+    const scheduleMaxLane = Math.max(-1, ...scheduleItems.map((it: any) => it.__lane ?? -1))
+    const laneSlots: (ScheduleData | null)[] = Array.from(
+      { length: Math.max(0, scheduleMaxLane + 1) },
+      () => null,
+    )
+
+    for (const it of scheduleItems) {
+      const l = (it as any).__lane ?? 0
+      if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
+    }
 
     const normalizeColor = (colorKey?: string, fallback = '#B04FFF') => {
       if (!colorKey) return fallback
@@ -884,7 +877,11 @@ const displayItemsByWeek = useMemo(() => {
   return (
         <TouchableOpacity
           key={dateItem.fullDate.toISOString()}
-          style={[S.dateCell, dayIndex === 6 ? { borderRightWidth: 0 } : null]}
+          style={[
+            S.dateCell,
+            weekRowHeight ? { minHeight: weekRowHeight } : null,
+            dayIndex === 6 ? { borderRightWidth: 0 } : null,
+          ]}
           hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
           onPress={() => handleDatePress(dateItem)}
           activeOpacity={isCurrentMonth ? 0.7 : 1}
@@ -926,41 +923,10 @@ const displayItemsByWeek = useMemo(() => {
 
           {/* 일정 및 할 일 영역 */}
           <View style={S.eventArea}>
-            {Array.from({ length: totalRows }, (_, idx) => {
-              if (taskSummary && idx === summaryLane) {
-                return (
-                  <View
-                    key={`task-group-${currentDateISO}-${idx}`}
-                    style={[
-                      {
-                        width: MONTH_CARD_WIDTH,
-                        height: MONTH_ITEM_HEIGHT,
-                        marginBottom: MONTH_ITEM_GAP,
-                        overflow: 'visible',
-                        alignSelf: 'center',
-                      },
-                      !isCurrentMonth ? { opacity: 0.3 } : null,
-                    ]}
-                  >
-                    <TaskGroupCard
-                      groupId={String(taskSummary.id)}
-                      density="month"
-                      expanded={false}
-                      layoutWidthHint={MONTH_CARD_WIDTH}
-                      tasks={(taskSummary.tasks ?? []).map((t: any) => ({
-                        id: String(t.id),
-                        title: t.name ?? '',
-                        done: !!t.isCompleted,
-                      }))}
-                    />
-                  </View>
-                )
-              }
-
-              const slot = laneSlots[idx]
-              if (slot) return renderSlotItem(slot, idx, 'slot')
-
-              return (
+            {laneSlots.map((slot, idx) =>
+              slot ? (
+                renderSlotItem(slot, idx, 'slot')
+              ) : (
                 <View
                   key={`spacer-${idx}`}
                   style={{
@@ -970,8 +936,59 @@ const displayItemsByWeek = useMemo(() => {
                     overflow: 'visible',
                   }}
                 />
-              )
-            })}
+              ),
+            )}
+
+            {taskItems.map((task, idx) => (
+              <View
+                key={`task-tail-${String(task.id)}-${idx}`}
+                style={[
+                  {
+                    width: MONTH_CARD_WIDTH,
+                    height: MONTH_ITEM_HEIGHT,
+                    marginBottom: MONTH_ITEM_GAP,
+                    overflow: 'visible',
+                    alignSelf: 'center',
+                  },
+                  !isCurrentMonth ? { opacity: 0.3 } : null,
+                ]}
+              >
+                <TaskItemCard
+                  id={String(task.id)}
+                  title={task.name}
+                  done={!!task.isCompleted}
+                  density="month"
+                  isUntimed
+                />
+              </View>
+            ))}
+
+            {taskSummary ? (
+                <View
+                  style={[
+                    {
+                      width: MONTH_CARD_WIDTH,
+                      height: MONTH_ITEM_HEIGHT,
+                      marginBottom: MONTH_ITEM_GAP,
+                      overflow: 'visible',
+                      alignSelf: 'center',
+                    },
+                    !isCurrentMonth ? { opacity: 0.3 } : null,
+                  ]}
+                >
+                  <TaskGroupCard
+                    groupId={String(taskSummary.id)}
+                    density="month"
+                    expanded={false}
+                    layoutWidthHint={MONTH_CARD_WIDTH}
+                    tasks={(taskSummary.tasks ?? []).map((t: any) => ({
+                      id: String(t.id),
+                      title: t.name ?? '',
+                      done: !!t.isCompleted,
+                    }))}
+                  />
+                </View>
+            ) : null}
           </View>
         </TouchableOpacity>
     )
@@ -1123,10 +1140,14 @@ const handleOcrSaveAll = useCallback(async () => {
             <ScrollView
               style={S.contentArea}
               contentContainerStyle={S.scrollContentContainer}
+              onLayout={(e) => setCalendarBodyHeight(e.nativeEvent.layout.height)}
             >
               <RNAnimated.View style={[S.calendarGrid, { opacity: fade }]}>
                     {weeks.map((week, weekIndex) => (
-                      <View key={`week-${weekIndex}`} style={S.weekRow}>
+                      <View
+                        key={`week-${weekIndex}`}
+                        style={[S.weekRow, weekRowHeight ? { minHeight: weekRowHeight } : null]}
+                      >
                         {week.map((dateItem, dayIndex) =>
                           renderDateCell(dateItem, weekIndex, dayIndex)
                         )}
