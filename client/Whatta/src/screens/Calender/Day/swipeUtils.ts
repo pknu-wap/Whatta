@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated'
-import { addDays } from './dateUtils'
+import { addDays } from '../../../../utils/dateUtils'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 

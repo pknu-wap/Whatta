@@ -44,6 +44,7 @@ import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
 import WeekPopups from '@/screens/Calender/Week/WeekPopups'
 import { useCalendarSync } from '@/screens/Calender/Week/useCalendarSync'
 import { useWeekGestures } from '@/screens/Calender/Week/useWeekGestures'
+import { useOCR } from '@/hooks/useOCR'
 import {
   useWeekCalendarData,
   type DayBucket,
@@ -984,70 +985,19 @@ const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView() {
-  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const isFocused = useIsFocused()
   const spanWrapRef = useRef<View>(null)
   const [spanRect, setSpanRect] = useState<GridRect | null>(null)
-  // OCR 카드 팝업
-  const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState<any[]>([])
 
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
-  const sendToOCR = async (base64: string, ext?: string) => {
-    try {
-      setOcrSplashVisible(true)
-      
-      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
-      const lower = (ext ?? 'jpg').toLowerCase()
-      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
-
-      const res = await http.post(
-        '/ocr',
-        {
-          imageType: 'COLLEGE_TIMETABLE',
-          image: {
-            format,
-            name: `timetable.${format}`,
-            data: cleanBase64,
-          },
-        },
-        
-      )
-
-      console.log('OCR 성공:', res.data)
-
-      const events = res.data?.data?.events ?? []
-
-      const parsed = events
-        .map((ev: any, idx: number) => {
-          console.log('🔎 OCR raw weekDay:', ev.weekDay)
-          console.log('🔎 Converted date:', getDateOfWeek(ev.weekDay))
-
-          return {
-            id: String(idx),
-            title: ev.title ?? '',
-            content: ev.content ?? '',
-            weekDay: ev.weekDay ?? '',
-            date: getDateOfWeek(ev.weekDay),
-            startTime: ev.startTime ?? '',
-            endTime: ev.endTime ?? '',
-          }
-        })
-        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
-
-      setOcrEvents(parsed)
-      
-        // OCR 성공한 시점에서 스플래쉬 끄기
-  setOcrSplashVisible(false)
-
-  // 바로 카드 켜기
-  setOcrModalVisible(true)
-
-  } catch (err) {
-    Alert.alert('오류', 'OCR 처리 실패')
-  }
-}
+const {
+  ocrSplashVisible,
+  ocrModalVisible,
+  ocrEvents,
+  setOcrModalVisible,
+  sendToOCR,
+} = useOCR()
 
   useEffect(() => {
     const handler = (payload?: { source?: string }) => {
