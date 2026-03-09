@@ -27,8 +27,8 @@ function FixedScheduleCard({
       onPress={onPress}
       style={style}
       backgroundColor={mainColor}
-      borderColor="#D9D9D9"
-      borderWidth={1}
+      borderColor="transparent"
+      borderWidth={0}
       titleColor={colors.background.bg1}
       subTextColor={colors.background.bg1}
     />
