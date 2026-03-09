@@ -357,8 +357,8 @@ public class CalendarViewService {
 
     public MonthlyResponse getMonthly(String userId, YearMonth month) {
 
-        LocalDate start = month.atDay(1);
-        LocalDate end = month.atEndOfMonth();
+        LocalDate start = getMonthViewStartDay(month.atDay(1));
+        LocalDate end = getMonthViewEndDay(month.atEndOfMonth());
 
         List<LocalDate> datesInRange = buildDateRange(start, end);
 
@@ -449,6 +449,17 @@ public class CalendarViewService {
                 .spanEvents(spanEvents)
                 .days(days)
                 .build();
+    }
+
+    private LocalDate getMonthViewStartDay(LocalDate firstDayOfMonth) {
+        int daysToSubstract = firstDayOfMonth.getDayOfWeek().getValue() % 7;
+        return firstDayOfMonth.minusDays(daysToSubstract);
+    }
+
+    private LocalDate getMonthViewEndDay(LocalDate lastDayOfMonth) {
+        int daysToAdd = (java.time.DayOfWeek.SATURDAY.getValue()
+                - lastDayOfMonth.getDayOfWeek().getValue() + 7) % 7;
+        return lastDayOfMonth.plusDays(daysToAdd);
     }
 
     private List<LabelItem> buildMonthlyLabelPalette(String userId, List<CalendarMonthlyEventResult> monthlyEvents, List<CalendarMonthlyTaskResult> taskResults) {
