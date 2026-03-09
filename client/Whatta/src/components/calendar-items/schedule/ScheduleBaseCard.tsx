@@ -13,12 +13,16 @@ import { SCHEDULE_BASE_SIZE } from '@/components/calendar-items/sizeTokens'
 import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
 
+const WEEK_VERTICAL_WIDTH_THRESHOLD = 36
+const WEEK_VERTICAL_RADIUS = 4
+
 type ScheduleBaseCardProps = {
   title: string
   timeRangeText?: string
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  hideText?: boolean
   onPress?: CalendarItemPressHandler
   backgroundColor: string
   borderColor?: string
@@ -34,6 +38,7 @@ function ScheduleBaseCard({
   isUntimed = false,
   density = 'day',
   layoutWidthHint,
+  hideText = false,
   onPress,
   backgroundColor,
   borderColor,
@@ -52,9 +57,15 @@ function ScheduleBaseCard({
   const resolvedWidth = layoutWidthHint ?? layoutWidth
   const isWeekBottomTiny = density === 'week' && !untimed && resolvedWidth > 0 && resolvedWidth <= 30
   const isWeekBottomNarrow = density === 'week' && !untimed && resolvedWidth > 0 && resolvedWidth <= 61
-  const displayTimeRangeText = isWeekBottomNarrow
-    ? normalizedTimeRangeText?.replace('~', '~\n')
-    : normalizedTimeRangeText
+  const isWeekVertical = density === 'week' && !untimed && resolvedWidth > 0 && resolvedWidth <= WEEK_VERTICAL_WIDTH_THRESHOLD
+  const displayTitle = isWeekVertical ? title.replace(/\s+/g, '').split('').join('\n') : title
+  const displayTimeRangeText =
+    density === 'week' && !untimed && normalizedTimeRangeText?.includes('~')
+      ? (() => {
+          const [start, end] = normalizedTimeRangeText.split('~')
+          return start && end ? `${start}~\n${end}` : normalizedTimeRangeText
+        })()
+      : normalizedTimeRangeText
   const monthLabel4 = ts('label4')
   const dayLabel3 = ts('label3')
   const weekLabel3 = ts('label3')
@@ -67,10 +78,13 @@ function ScheduleBaseCard({
     density !== 'month' &&
     !untimed &&
     !!normalizedTimeRangeText &&
-    !isWeekBottomTiny
+    !isWeekBottomTiny &&
+    !isWeekVertical &&
+    !hideText
 
-  const fixedHeight = density === 'month' ? densityStyle.minHeight : untimed ? 30 : undefined
+  const fixedHeight = density === 'month' ? densityStyle.minHeight : density === 'week' && untimed ? 26 : untimed ? 30 : undefined
   const minCardHeight = fixedHeight ?? densityStyle.minHeight
+  const isWeekTimed = density === 'week' && !untimed
   const effectivePadX =
     density === 'month'
       ? densityStyle.padX
@@ -114,7 +128,8 @@ function ScheduleBaseCard({
           height: fixedHeight,
           paddingHorizontal: effectivePadX,
           paddingVertical: effectivePadY,
-          borderRadius: untimed ? 8 : densityStyle.radius,
+          borderRadius: untimed ? 8 : isWeekVertical ? WEEK_VERTICAL_RADIUS : densityStyle.radius,
+          justifyContent: isWeekTimed ? 'flex-start' : 'center',
           backgroundColor,
           borderColor: borderColor ?? 'transparent',
           borderWidth: borderColor ? (borderWidth ?? StyleSheet.hairlineWidth) : 0,
@@ -122,30 +137,32 @@ function ScheduleBaseCard({
         style,
       ]}
     >
-      <Text
-        style={[
-          S.title,
-          titleTokenStyle
-            ? {
-                fontSize: titleTokenStyle.fontSize,
-                lineHeight: titleTokenStyle.lineHeight,
-                fontWeight: titleTokenStyle.fontWeight,
-              }
-            : {
-                fontSize: densityStyle.title,
-              },
-          {
-            color: titleColor,
-            textAlign: 'left',
-            includeFontPadding: false,
-            textAlignVertical: 'center',
-          },
-        ]}
-        numberOfLines={1}
-        ellipsizeMode="clip"
-      >
-        {title}
-      </Text>
+      {!hideText ? (
+        <Text
+          style={[
+            S.title,
+            titleTokenStyle
+              ? {
+                  fontSize: titleTokenStyle.fontSize,
+                  lineHeight: titleTokenStyle.lineHeight,
+                  fontWeight: titleTokenStyle.fontWeight,
+                }
+              : {
+                  fontSize: densityStyle.title,
+                },
+            {
+              color: titleColor,
+              textAlign: isWeekVertical ? 'center' : 'left',
+              includeFontPadding: false,
+              textAlignVertical: 'center',
+            },
+          ]}
+          numberOfLines={isWeekVertical ? 6 : isWeekTimed && !isWeekBottomTiny ? 2 : 1}
+          ellipsizeMode={isWeekTimed ? 'tail' : 'clip'}
+        >
+          {displayTitle}
+        </Text>
+      ) : null}
 
       {showSubText ? (
         <Text
@@ -161,11 +178,11 @@ function ScheduleBaseCard({
                 }
               : density === 'week'
               ? {
-                  fontSize: isWeekBottomNarrow ? 10 : weekBody3.fontSize,
-                  lineHeight: isWeekBottomNarrow ? 10 : weekBody3.lineHeight,
+                  fontSize: isWeekBottomNarrow ? 11 : Math.max(12, Number(weekBody3.fontSize)),
+                  lineHeight: isWeekBottomNarrow ? 13 : Math.max(15, Number(weekBody3.lineHeight)),
                   fontWeight: weekBody3.fontWeight,
                   color: subTextColor,
-                  marginTop: isWeekBottomNarrow ? 2 : densityStyle.subGap,
+                  marginTop: isWeekBottomNarrow ? 3 : densityStyle.subGap,
                   includeFontPadding: false,
                 }
               : {
@@ -174,7 +191,7 @@ function ScheduleBaseCard({
                   marginTop: densityStyle.subGap,
                 },
           ]}
-          numberOfLines={isWeekBottomNarrow ? 2 : 1}
+          numberOfLines={density === 'week' && !untimed ? 2 : isWeekBottomNarrow ? 2 : 1}
           ellipsizeMode="clip"
         >
           {displayTimeRangeText}

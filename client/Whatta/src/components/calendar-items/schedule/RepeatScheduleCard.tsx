@@ -12,6 +12,8 @@ function RepeatScheduleCard({
   isUntimed,
   density,
   layoutWidthHint,
+  hideText,
+  style,
   onPress,
 }: ScheduleCardProps) {
   const mainColor = resolveScheduleColor(color)
@@ -23,7 +25,9 @@ function RepeatScheduleCard({
       isUntimed={isUntimed}
       density={density}
       layoutWidthHint={layoutWidthHint}
+      hideText={hideText}
       onPress={onPress}
+      style={style}
       backgroundColor={colors.background.bg1}
       borderColor={mainColor}
       borderWidth={1}

@@ -20,6 +20,8 @@ export function useWeekGestures({
 }: UseWeekGesturesParams) {
   const scale = useSharedValue(1)
   const swipeTranslateX = useSharedValue(0)
+  const pinchActive = useSharedValue(0)
+  const transitionLock = useSharedValue(0)
 
   const handleSwipe = (direction: 'prev' | 'next') => {
     const step = isZoomed ? 5 : 7
@@ -31,10 +33,13 @@ export function useWeekGestures({
   const swipeGesture = useMemo(
     () =>
       Gesture.Pan()
+        .maxPointers(1)
         .activeOffsetX([-10, 10])
         .failOffsetY([-10, 10])
         .onUpdate((e) => {
           'worklet'
+          if (pinchActive.value || transitionLock.value) return
+
           let next = e.translationX
           const maxOffset = screenWidth * 0.15
           if (next > maxOffset) next = maxOffset
@@ -43,21 +48,32 @@ export function useWeekGestures({
         })
         .onEnd(() => {
           'worklet'
+          if (pinchActive.value || transitionLock.value) {
+            swipeTranslateX.value = withTiming(0, { duration: 180 })
+            return
+          }
+
           const current = swipeTranslateX.value
-          const trigger = screenWidth * 0.06
+          const trigger = screenWidth * 0.062
 
           if (current > trigger) {
-            swipeTranslateX.value = withTiming(screenWidth * 0.15, { duration: 120 }, () => {
+            transitionLock.value = 1
+            swipeTranslateX.value = withTiming(screenWidth * 0.15, { duration: 130 }, () => {
               runOnJS(handleSwipe)('prev')
-              swipeTranslateX.value = withTiming(0, { duration: 160 })
+              swipeTranslateX.value = withTiming(0, { duration: 170 }, () => {
+                transitionLock.value = 0
+              })
             })
           } else if (current < -trigger) {
-            swipeTranslateX.value = withTiming(-screenWidth * 0.15, { duration: 120 }, () => {
+            transitionLock.value = 1
+            swipeTranslateX.value = withTiming(-screenWidth * 0.15, { duration: 130 }, () => {
               runOnJS(handleSwipe)('next')
-              swipeTranslateX.value = withTiming(0, { duration: 160 })
+              swipeTranslateX.value = withTiming(0, { duration: 170 }, () => {
+                transitionLock.value = 0
+              })
             })
           } else {
-            swipeTranslateX.value = withTiming(0, { duration: 150 })
+            swipeTranslateX.value = withTiming(0, { duration: 140 })
           }
         }),
     [anchorDate, isZoomed, screenWidth],
@@ -66,17 +82,49 @@ export function useWeekGestures({
   const pinchGesture = useMemo(
     () =>
       Gesture.Pinch()
+        .onStart(() => {
+          'worklet'
+          if (transitionLock.value) return
+          pinchActive.value = 1
+        })
         .onUpdate((e) => {
-          scale.value = e.scale
+          'worklet'
+          if (transitionLock.value) return
+          const next = Math.max(0.92, Math.min(e.scale, 1.08))
+          scale.value = next
         })
         .onEnd(() => {
-          const current = scale.value
-          if (current > 1.05 && !isZoomed) {
-            runOnJS(setIsZoomed)(true)
-          } else if (current < 0.95 && isZoomed) {
-            runOnJS(setIsZoomed)(false)
+          'worklet'
+          if (transitionLock.value) {
+            scale.value = withTiming(1, { duration: 180 })
+            pinchActive.value = 0
+            return
           }
-          scale.value = withTiming(1, { duration: 150 })
+
+          const current = scale.value
+          const shouldZoomIn = current > 1.04 && !isZoomed
+          const shouldZoomOut = current < 0.96 && isZoomed
+
+          if (shouldZoomIn) {
+            transitionLock.value = 1
+            runOnJS(setIsZoomed)(true)
+            scale.value = withTiming(1, { duration: 150 }, () => {
+              transitionLock.value = 0
+            })
+          } else if (shouldZoomOut) {
+            transitionLock.value = 1
+            runOnJS(setIsZoomed)(false)
+            scale.value = withTiming(1, { duration: 150 }, () => {
+              transitionLock.value = 0
+            })
+          } else {
+            scale.value = withTiming(1, { duration: 140 })
+          }
+          pinchActive.value = 0
+        })
+        .onFinalize(() => {
+          'worklet'
+          pinchActive.value = 0
         }),
     [isZoomed, setIsZoomed],
   )

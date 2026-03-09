@@ -10,14 +10,18 @@ import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
 
 const TASK_GROUP_HEADER_COLOR = colors.brand.primary
+const TASK_BORDER_COLOR = colors.divider.divider1
+const WEEK_VERTICAL_WIDTH_THRESHOLD = 36
+const WEEK_VERTICAL_RADIUS = 4
 
 function TaskGroupCard({
   groupId,
   tasks,
   density = 'day',
   expanded = false,
-  title,
+  title: _title,
   layoutWidthHint,
+  hideText = false,
   onToggleExpand,
   onToggleTask,
 }: TaskGroupCardProps) {
@@ -29,20 +33,32 @@ function TaskGroupCard({
   const monthLabel3 = ts('label3')
   const monthLabel4 = ts('label4')
   const weekLabel4 = ts('label4Week')
-  const headerTitle = title ?? '할 일이 있어요!'
-  const isUltraNarrow = resolvedWidth > 0 && resolvedWidth <= 42
-  const isMini = resolvedWidth > 0 && resolvedWidth <= 54
-  const isNarrow = resolvedWidth > 0 && resolvedWidth <= 60
+  const isMini = resolvedWidth > 0 && resolvedWidth <= 60
+  const isCompact = resolvedWidth > 0 && resolvedWidth <= 90
+  const isWide = resolvedWidth > 0 && resolvedWidth >= 180
+  const isNarrow = resolvedWidth > 0 && resolvedWidth <= 80
   const isWeekGroup = density === 'week'
   const isDayGroup = density === 'day'
   const isWeekSingleCell = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= 44
-  const effectivePadX = isWeekSingleCell ? 4 : d.padX
-  const minGroupHeight = isWeekGroup ? 62 : isDayGroup ? 60 : 24
-  const groupRadius = resolvedWidth >= 300 ? 12 : 8
+  const isWeekVertical = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= WEEK_VERTICAL_WIDTH_THRESHOLD
+  const effectivePadLeft = isWeekSingleCell ? 3 : d.padX
+  const effectivePadRight = isWeekGroup ? (expanded ? 1 : 0) : d.padX
+  const minGroupHeight = isWeekGroup ? 0 : isDayGroup ? 60 : 24
+  const headerMinHeight = expanded ? (isCompact ? 30 : 34) : minGroupHeight
+  const groupRadius = isWeekVertical ? WEEK_VERTICAL_RADIUS : 8
   // 좁은 칸에서는 아이콘/텍스트를 줄여 가독성을 유지한다.
-  const taskIconSize = resolvedWidth > 0 && resolvedWidth <= 54 ? 14 : resolvedWidth > 0 && resolvedWidth <= 60 ? 16 : 24
+  const taskIconSize = resolvedWidth > 0 && resolvedWidth <= 54 ? 14 : 16
   const headerIconSize = isMini ? 8 : 10
-  const displayHeader = isUltraNarrow ? '할\n일' : isMini ? '할 일' : `${headerTitle} (${tasks.length})`
+  const canExpand = typeof onToggleExpand === 'function' && !hideText
+  const canToggleTask = typeof onToggleTask === 'function'
+  const baseHeader = expanded
+    ? isCompact
+      ? '할 일'
+      : '할 일 목록'
+    : isWide
+      ? '할 일이 있어요!'
+      : '할 일'
+  const displayHeader = isWeekVertical ? baseHeader.replace(/\s+/g, '').split('').join('\n') : baseHeader
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const width = Math.round(e.nativeEvent.layout.width)
@@ -55,9 +71,12 @@ function TaskGroupCard({
       style={[
         S.wrap,
         {
-          paddingHorizontal: effectivePadX,
-          paddingVertical: expanded ? d.padY : 0,
+          paddingLeft: effectivePadLeft,
+          paddingRight: effectivePadRight,
+          paddingVertical: expanded ? (isCompact ? 4 : 6) : 0,
           borderRadius: groupRadius,
+          alignSelf: 'stretch',
+          height: expanded ? undefined : '100%',
           // 그룹 세로 길이 제한:
           // week 하단에서는 최소 62, 그 외 최소 24
           minHeight: minGroupHeight,
@@ -66,55 +85,67 @@ function TaskGroupCard({
       ]}
     >
       <Pressable
+        disabled={!canExpand}
+        pointerEvents={canExpand ? 'auto' : 'none'}
         onPress={() => onToggleExpand?.(groupId, !expanded)}
-        style={[S.header, { minHeight: minGroupHeight }, expanded && S.headerExpanded]}
+        style={[
+          S.header,
+          { minHeight: headerMinHeight },
+          isWeekVertical && S.headerVertical,
+          !expanded && S.headerCollapsedFill,
+          expanded && S.headerExpanded,
+        ]}
       >
-        <DownIcon
-          width={headerIconSize}
-          height={headerIconSize}
-          color="#464A4D"
-          style={[S.arrowIcon, isMini && S.arrowIconMini, !expanded && S.arrowCollapsed]}
-        />
-        <Text
-          style={[
-            S.headerText,
-            density === 'day'
-              ? {
-                  fontSize: dayLabel3.fontSize,
-                  lineHeight: dayLabel3.lineHeight,
-                  fontWeight: dayLabel3.fontWeight,
-                }
-              : density === 'week'
-              ? {
-                  fontSize: weekLabel4.fontSize,
-                  lineHeight: weekLabel4.lineHeight,
-                  fontWeight: weekLabel4.fontWeight,
-                }
-              : density === 'month'
-              ? {
-                  fontSize: monthLabel3.fontSize,
-                  lineHeight: monthLabel3.lineHeight,
-                  fontWeight: monthLabel3.fontWeight,
-                }
-              : { fontSize: d.font },
-            isUltraNarrow && S.headerTextNarrow,
-            isMini && !isUltraNarrow && S.headerTextMini,
-          ]}
-          numberOfLines={isUltraNarrow ? 2 : 1}
-          ellipsizeMode="clip"
-        >
-          {displayHeader}
-        </Text>
+        {!hideText ? (
+          <>
+            <DownIcon
+              width={headerIconSize}
+              height={headerIconSize}
+              color={colors.text.text1}
+              style={[S.arrowIcon, isMini && S.arrowIconMini, !expanded && S.arrowCollapsed]}
+            />
+            <Text
+              style={[
+                S.headerText,
+                density === 'day'
+                  ? {
+                      fontSize: dayLabel3.fontSize,
+                      lineHeight: dayLabel3.lineHeight,
+                      fontWeight: dayLabel3.fontWeight,
+                    }
+                  : density === 'week'
+                  ? {
+                      fontSize: isCompact ? dayLabel3.fontSize : weekLabel4.fontSize,
+                      lineHeight: isCompact ? dayLabel3.lineHeight : weekLabel4.lineHeight,
+                      fontWeight: weekLabel4.fontWeight,
+                    }
+                  : density === 'month'
+                  ? {
+                      fontSize: monthLabel3.fontSize,
+                      lineHeight: monthLabel3.lineHeight,
+                      fontWeight: monthLabel3.fontWeight,
+                    }
+                  : { fontSize: d.font },
+                isMini && S.headerTextMini,
+                expanded && { color: colors.text.text3 },
+                isWeekVertical && S.headerTextVertical,
+              ]}
+              numberOfLines={isWeekVertical ? 6 : 1}
+              ellipsizeMode="clip"
+            >
+              {displayHeader}
+            </Text>
+          </>
+        ) : null}
       </Pressable>
 
       {expanded ? (
-        <View style={[S.listWrap, { marginTop: d.gap }]}>
-          {tasks.map((task, index) => (
-            <View
-              key={task.id}
-              style={[S.taskRow, index < tasks.length - 1 ? { marginBottom: d.gap } : null]}
-            >
+        <View style={S.listWrap}>
+          {tasks.map((task) => (
+            <View key={task.id} style={S.taskRow}>
               <Pressable
+                disabled={!canToggleTask}
+                pointerEvents={canToggleTask ? 'auto' : 'none'}
                 onPress={() => onToggleTask?.(task.id, !task.done)}
                 hitSlop={8}
                 style={[S.taskCheckbox, { width: taskIconSize, height: taskIconSize }]}
@@ -127,6 +158,8 @@ function TaskGroupCard({
               </Pressable>
 
               <Pressable
+                disabled={!canToggleTask}
+                pointerEvents={canToggleTask ? 'auto' : 'none'}
                 onPress={() => onToggleTask?.(task.id, !task.done)}
                 style={S.taskTextWrap}
               >
@@ -155,7 +188,7 @@ function TaskGroupCard({
                     task.done && S.taskTextDone,
                   ]}
                   numberOfLines={isNarrow ? 2 : 1}
-                  ellipsizeMode="clip"
+                  ellipsizeMode="tail"
                 >
                   {task.title}
                 </Text>
@@ -175,7 +208,7 @@ const S = StyleSheet.create({
     backgroundColor: colors.background.bg1,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.divider.divider1,
+    borderColor: TASK_BORDER_COLOR,
     overflow: 'hidden',
   },
   header: {
@@ -184,29 +217,40 @@ const S = StyleSheet.create({
     minHeight: 24,
     paddingVertical: 0,
   },
+  headerVertical: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCollapsedFill: {
+    flex: 1,
+  },
   headerExpanded: {
-    paddingBottom: 4,
+    paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E2E2E2',
+    borderBottomColor: TASK_BORDER_COLOR,
   },
   arrowIcon: {
-    marginRight: 6,
+    marginLeft: -2,
+    marginRight: 2,
   },
   arrowIconMini: {
-    marginRight: 4,
+    marginLeft: -3,
+    marginRight: 1,
   },
   arrowCollapsed: {
-    transform: [{ rotate: '-90deg' }],
+    transform: [{ rotate: '180deg' }],
   },
   headerText: {
-    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     color: TASK_GROUP_HEADER_COLOR,
     fontWeight: '800',
   },
-  headerTextNarrow: {
+  headerTextVertical: {
     flex: 0,
     textAlign: 'center',
-    lineHeight: 12,
+    lineHeight: 14,
   },
   headerTextMini: {
     marginLeft: -1,
@@ -217,7 +261,8 @@ const S = StyleSheet.create({
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 24,
+    minHeight: 28,
+    paddingVertical: 4,
   },
   taskCheckbox: {
     justifyContent: 'center',

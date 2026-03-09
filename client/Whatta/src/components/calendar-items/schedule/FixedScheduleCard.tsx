@@ -12,6 +12,8 @@ function FixedScheduleCard({
   isUntimed,
   density,
   layoutWidthHint,
+  hideText,
+  style,
   onPress,
 }: ScheduleCardProps) {
   const mainColor = resolveScheduleColor(color)
@@ -23,7 +25,9 @@ function FixedScheduleCard({
       isUntimed={isUntimed}
       density={density}
       layoutWidthHint={layoutWidthHint}
+      hideText={hideText}
       onPress={onPress}
+      style={style}
       backgroundColor={mainColor}
       borderColor="#D9D9D9"
       borderWidth={1}

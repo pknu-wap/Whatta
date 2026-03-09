@@ -12,8 +12,6 @@ export type DayTimelineEvent = {
 export type LayoutedEvent = DayTimelineEvent & {
   column: number
   columnsTotal: number
-  isPartialOverlap?: boolean
-  overlapDepth?: number
 }
 
 export type WeekSpanEvent = {
@@ -25,18 +23,18 @@ export type WeekSpanEvent = {
   row: number
   startISO: string
   endISO: string
+  rawStartISO?: string
+  rawEndISO?: string
+  isSpan?: boolean
   isTask?: boolean
   done?: boolean
   completed?: boolean
   isRepeat?: boolean
 }
 
-// 이전 렌더의 겹침 배치 결과를 날짜별로 캐시해 이벤트 박스 위치 튐 줄임
-let prevLayoutMapByDay: Record<string, Record<string, LayoutedEvent>> = {}
-
 // 주/화면 전환 시 겹침 캐시를 초기화
 export function resetLayoutDayEventsCache() {
-  prevLayoutMapByDay = {}
+  // 분할 레이아웃은 매 렌더에서 결정되므로 별도 캐시를 유지하지 않는다.
 }
 
 export function getDayColWidth(
@@ -73,11 +71,9 @@ export function mixWhite(hex: string, whitePercent: number) {
 // 겹침 규칙에 배치
 export function layoutDayEvents(
   events: DayTimelineEvent[],
-  dateKey = '__global__',
+  _dateKey = '__global__',
 ): LayoutedEvent[] {
   if (!events.length) return []
-
-  const prevLayoutMap = prevLayoutMapByDay[dateKey] || {}
 
   const sorted = [...events].sort((a, b) => {
     if (a.startMin !== b.startMin) return a.startMin - b.startMin
@@ -85,96 +81,75 @@ export function layoutDayEvents(
   })
 
   const layout: LayoutedEvent[] = []
-  const used = new Set<string>()
+  let i = 0
 
-  for (let i = 0; i < sorted.length; i++) {
-    const ev = sorted[i]
-    if (used.has(ev.id)) continue
+  while (i < sorted.length) {
+    const cluster: DayTimelineEvent[] = [sorted[i]]
+    let clusterEnd = sorted[i].endMin
+    let j = i + 1
 
-    const sameGroup = sorted.filter(
-      (e) => e.startMin === ev.startMin && e.endMin === ev.endMin,
-    )
-
-    if (sameGroup.length > 1) {
-      const n = sameGroup.length
-      sameGroup.forEach((e, idx) => {
-        layout.push({
-          ...e,
-          column: idx,
-          columnsTotal: n,
-          isPartialOverlap: false,
-          overlapDepth: 0,
-        })
-        used.add(e.id)
-      })
-      continue
+    // 연결된 겹침 구간(전이 포함)을 하나의 클러스터로 묶는다.
+    while (j < sorted.length && sorted[j].startMin < clusterEnd) {
+      cluster.push(sorted[j])
+      clusterEnd = Math.max(clusterEnd, sorted[j].endMin)
+      j++
     }
 
-    const overlappingGroup = sorted.filter(
-      (other) =>
-        // 이미 배치된 이벤트 재사용 금지 
-        other.id !== ev.id &&
-        !used.has(other.id) &&
-        other.startMin < ev.endMin &&
-        other.endMin > ev.startMin,
-    )
-
-    const hasOverlap = overlappingGroup.length > 0
-    const prev = prevLayoutMap[ev.id]
-    const wasPartial = prev?.isPartialOverlap ?? false
-
-    let overlapDepth = 0
-    let isPartialOverlap = false
-
-    if (hasOverlap) {
-      const group = [...overlappingGroup, ev].sort((a, b) => a.startMin - b.startMin)
-      group.forEach((e, idx) => {
-        layout.push({
-          ...e,
-          column: 0,
-          columnsTotal: 1,
-          isPartialOverlap: true,
-          overlapDepth: idx,
-        })
-        used.add(e.id)
-      })
-      continue
-    } else if (wasPartial) {
-      overlapDepth = 0
-      isPartialOverlap = false
-    }
-
-    layout.push({
-      ...ev,
-      column: 0,
-      columnsTotal: 1,
-      isPartialOverlap,
-      overlapDepth,
+    const colEndTimes: number[] = []
+    const placed = cluster.map((ev) => {
+      let column = colEndTimes.findIndex((end) => end <= ev.startMin)
+      if (column === -1) {
+        column = colEndTimes.length
+        colEndTimes.push(ev.endMin)
+      } else {
+        colEndTimes[column] = ev.endMin
+      }
+      return {
+        ...ev,
+        column,
+      }
     })
+
+    const columnsTotal = Math.max(1, colEndTimes.length)
+    placed.forEach((ev) => {
+      layout.push({
+        ...ev,
+        columnsTotal,
+      })
+    })
+    i = j
   }
 
-  prevLayoutMapByDay[dateKey] = Object.fromEntries(layout.map((ev) => [ev.id, ev]))
   return layout
 }
 
 // span 이벤트 계산
 export function buildWeekSpanEvents(weekDates: string[], data: Record<string, any>) {
   const byId = new Map<string, WeekSpanEvent>()
+  const weekStart = weekDates[0]
+  const weekEnd = weekDates[weekDates.length - 1]
+  const toDateISO = (v: any, fallback: string) => {
+    if (!v || typeof v !== 'string') return fallback
+    return v.slice(0, 10)
+  }
 
   weekDates.forEach((dateISO) => {
     const bucket = data[dateISO]
     if (!bucket) return
 
-    const list = [...(bucket.spanEvents || []), ...(bucket.checks || [])]
+    const list = [
+      ...(bucket.spanEvents || []).map((e: any) => ({ ...e, __kind: 'event' as const })),
+      ...(bucket.checks || []).map((e: any) => ({ ...e, __kind: 'check' as const })),
+    ]
 
     list.forEach((e: any) => {
-      const id = String(e.id)
+      const rawId = String(e.id)
+      const kind = e.__kind === 'check' ? 'check' : 'event'
       const title = e.title ?? ''
 
       const isTask =
+        kind === 'check' ||
         e.isTask === true ||
-        typeof e.completed !== 'undefined' ||
-        typeof e.done !== 'undefined' ||
         e.type === 'task'
 
       const colorKey = isTask
@@ -182,23 +157,38 @@ export function buildWeekSpanEvents(weekDates: string[], data: Record<string, an
         : (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
       const color = colorKey.startsWith('#') ? colorKey : `#${colorKey}`
 
-      const s = (e.startDate || e.date || dateISO).slice(0, 10)
-      const ed = (e.endDate || e.date || s).slice(0, 10)
-      const startISO = s
-      const endISO = ed
+      const rawStartISO = toDateISO(
+        e.originalStartDate ?? e.originStartDate ?? e.startDate ?? e.startAt ?? e.date,
+        dateISO,
+      )
+      const rawEndISO = toDateISO(
+        e.originalEndDate ?? e.originEndDate ?? e.endDate ?? e.endAt ?? e.date ?? rawStartISO,
+        rawStartISO,
+      )
+      const startISO = rawStartISO < weekStart ? weekStart : rawStartISO
+      const endISO = rawEndISO > weekEnd ? weekEnd : rawEndISO
+      const isSpan = rawStartISO !== rawEndISO || e.isSpan === true
+      // 단일 일정(특히 반복/발생 인스턴스)은 id가 같아도 날짜별로 분리 유지.
+      // 기간 일정만 같은 id를 주간 내에서 병합해 시작/중간/끝 모양을 만든다.
+      const mapKey = isSpan
+        ? `${kind}:${rawId}`
+        : `${kind}:${rawId}:${startISO}`
 
-      const existing = byId.get(id)
+      const existing = byId.get(mapKey)
 
       if (!existing) {
-        byId.set(id, {
-          id,
+        byId.set(mapKey, {
+          id: rawId,
           title,
           color,
           startISO,
           endISO,
+          rawStartISO,
+          rawEndISO,
           startIdx: 0,
           endIdx: 0,
           row: 0,
+          isSpan,
           isTask,
           done: e.done ?? e.completed ?? false,
           completed: e.completed,
@@ -207,6 +197,13 @@ export function buildWeekSpanEvents(weekDates: string[], data: Record<string, an
       } else {
         if (startISO < existing.startISO) existing.startISO = startISO
         if (endISO > existing.endISO) existing.endISO = endISO
+        if (rawStartISO < (existing.rawStartISO ?? existing.startISO)) {
+          existing.rawStartISO = rawStartISO
+        }
+        if (rawEndISO > (existing.rawEndISO ?? existing.endISO)) {
+          existing.rawEndISO = rawEndISO
+        }
+        existing.isSpan = existing.isSpan || isSpan
       }
     })
   })

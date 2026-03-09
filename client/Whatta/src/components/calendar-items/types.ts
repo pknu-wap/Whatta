@@ -19,6 +19,8 @@ export type ScheduleCardProps = {
   density?: CalendarDensity
   layoutWidthHint?: number
   isRepeat?: boolean
+  hideText?: boolean
+  style?: any
   onPress?: CalendarItemPressHandler
 }
 
@@ -34,6 +36,7 @@ export type RangeScheduleBarProps = {
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  style?: any
   onPress?: CalendarItemPressHandler
 }
 
@@ -50,6 +53,8 @@ export type TaskItemCardProps = {
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  hideText?: boolean
+  style?: any
   onPress?: CalendarItemPressHandler
   onToggle?: (id: string, nextDone: boolean) => void
 }
@@ -61,6 +66,7 @@ export type TaskGroupCardProps = {
   expanded?: boolean
   title?: string
   layoutWidthHint?: number
+  hideText?: boolean
   onToggleExpand?: (groupId: string, nextExpanded: boolean) => void
   onToggleTask?: (taskId: string, nextDone: boolean) => void
 }
