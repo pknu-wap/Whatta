@@ -4,10 +4,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
   Dimensions,
   ActivityIndicator,
-  Vibration,
   Alert,
   LayoutAnimation,
 } from 'react-native'
@@ -88,13 +86,14 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 44
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
-const BOTTOM_ITEM_SIDE_EXPAND = 1
-const BOTTOM_ITEM_SIDE_INSET = 2 - BOTTOM_ITEM_SIDE_EXPAND
-const TASK_LAYOUT_HINT_OFFSET = 2 - BOTTOM_ITEM_SIDE_EXPAND * 2
-const TASK_DRAG_BOUNDARY_OFFSET = 2 - BOTTOM_ITEM_SIDE_EXPAND * 2
-const TASK_GROUP_WIDTH_OFFSET = 4 - BOTTOM_ITEM_SIDE_EXPAND * 2
-const EVENT_LEFT_ADJUST = 1.5 - BOTTOM_ITEM_SIDE_EXPAND
-const EVENT_WIDTH_ADJUST = 3 - BOTTOM_ITEM_SIDE_EXPAND * 2
+// 겹침(반분할) 카드 폭 튜닝: + 넓어지고, - 좁아진다
+const OVERLAP_WIDTH_TUNE = 1.4
+const OVERLAP_TEXT_VISIBLE_MAX = 4
+const BOTTOM_ITEM_SIDE_INSET = 2 - OVERLAP_WIDTH_TUNE
+const TASK_GROUP_WIDTH_OFFSET = 4 - OVERLAP_WIDTH_TUNE * 2
+const EVENT_OVERLAP_GAP = 1.5 - OVERLAP_WIDTH_TUNE
+const EVENT_LEFT_ADJUST = EVENT_OVERLAP_GAP
+const EVENT_WIDTH_ADJUST = EVENT_OVERLAP_GAP * 2
 
 /* -------------------------------------------------------------------------- */
 /* 공통 컴포넌트 */
@@ -157,6 +156,8 @@ function TaskGroupBox({
   dateISO,
   dayIndex,
   weekCount,
+  column = 0,
+  columnsTotal = 1,
 }: {
   tasks: any[]
   startHour: number
@@ -165,6 +166,8 @@ function TaskGroupBox({
   dateISO: string
   dayIndex: number
   weekCount: number
+  column?: number
+  columnsTotal?: number
   onLocalChange?: (payload: {
     id: string
     dateISO: string
@@ -189,11 +192,13 @@ function TaskGroupBox({
   }, [tasks])
 
   // ✅ 단일 Task 박스와 동일한 기본 위치
-  const baseLeftInCol = BOTTOM_ITEM_SIDE_INSET
-  const collapsedWidth = dayColWidth - TASK_GROUP_WIDTH_OFFSET
+  const colCount = Math.max(1, columnsTotal)
+  const slotWidth = dayColWidth / colCount
+  const baseLeftInCol = slotWidth * column + BOTTOM_ITEM_SIDE_INSET
+  const collapsedWidth = slotWidth - TASK_GROUP_WIDTH_OFFSET
 
   // 펼침/접힘과 무관하게 주간 그리드 셀 폭에 고정한다.
-  const finalWidth = collapsedWidth
+  const finalWidth = Math.max(4, collapsedWidth)
 
   // 이 그룹 박스의 "기본 글로벌 left" (시간열 기준)
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + baseLeftInCol
@@ -325,18 +330,6 @@ function TaskGroupBox({
     transform: [{ translateX: translateX.value }],
   }))
 
-  const toggleExpand = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    setExpanded((v) => {
-      const next = !v
-      if (!next) {
-        setExtraLeft(0)
-        setLastShift(0)
-      }
-      return next
-    })
-  }
-
   const onToggleGroupTask = async (task: any) => {
     const taskId = String(task.id)
     const newCompleted = !task.completed
@@ -361,52 +354,6 @@ function TaskGroupBox({
           ? (err as any).response.data
           : ((err as any).message ?? String(err)),
       )
-    }
-  }
-
-  const toggleTaskDone = async (taskId: string) => {
-    let target: any | undefined
-
-    setLocalTasks((prev) =>
-      prev.map((t) => {
-        if (String(t.id) === String(taskId)) {
-          const next = { ...t, completed: !t.completed }
-          target = next
-          return next
-        }
-        return t
-      }),
-    )
-
-    if (!target) return
-
-    const completed = !!target.completed
-    // ✅ TaskGroupBox는 항상 해당 열(dateISO)에 속한 timedTasks만 가지므로
-    //    날짜는 placementDate로 다시 계산하지 않고, props로 받은 dateISO를 그대로 사용합니다.
-    const taskDateISO = dateISO
-
-    try {
-      const full = await http.get(`/task/${taskId}`)
-      const task = full.data.data
-
-      await http.patch(`/task/${taskId}`, {
-        ...task,
-        completed,
-      })
-
-      onLocalChange?.({ id: String(taskId), dateISO: taskDateISO, completed })
-
-      bus.emit('calendar:mutated', {
-        op: 'update',
-        item: {
-          id: taskId,
-          completed,
-          date: taskDateISO,
-          startDate: taskDateISO,
-        },
-      })
-    } catch (err: any) {
-      console.error('❌ TaskGroup 체크 업데이트 실패:', err?.message ?? String(err))
     }
   }
 
@@ -472,6 +419,7 @@ function TaskGroupBox({
           <TaskGroupCard
             groupId={`week-group-${dateISO}-${dayIndex}-${startHour}`}
             density="week"
+            hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
             expanded={expanded}
             title="할 일"
             layoutWidthHint={finalWidth}
@@ -509,6 +457,8 @@ type DraggableTaskBoxProps = {
   dayIndex: number
   weekCount: number
   rowH: number
+  column?: number
+  columnsTotal?: number
   openDetail: (id: string) => void
   onLocalChange?: (payload: {
     id: string
@@ -528,6 +478,8 @@ function DraggableTaskBox({
   dayIndex,
   weekCount,
   rowH,
+  column = 0,
+  columnsTotal = 1,
   onLocalChange,
   openDetail,
 }: DraggableTaskBoxProps) {
@@ -560,8 +512,14 @@ function DraggableTaskBox({
     setDone(initialDone)
   }, [initialDone])
 
+  const colCount = Math.max(1, columnsTotal)
+  const slotWidth = dayColWidth / colCount
+  const taskLeft = slotWidth * column + BOTTOM_ITEM_SIDE_INSET
+  // 슬롯 밖으로 넘치지 않도록 좌우 inset 기준으로 폭을 고정
+  const taskWidth = Math.max(4, slotWidth - BOTTOM_ITEM_SIDE_INSET * 2)
+
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
-  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + BOTTOM_ITEM_SIDE_INSET
+  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + taskLeft
 
   const toggleDone = async () => {
     const next = !done
@@ -654,7 +612,7 @@ function DraggableTaskBox({
       let nextX = translateX.value + e.changeX
       const allowedMinX = TIME_COL_W - baseGlobalLeft
       if (dayIndex === weekCount - 1) {
-        const boxWidth = dayColWidth - TASK_DRAG_BOUNDARY_OFFSET
+        const boxWidth = taskWidth
         const fullRight = TIME_COL_W + weekCount * dayColWidth
         const allowedMaxX = fullRight - boxWidth - baseGlobalLeft
         if (nextX > allowedMaxX) nextX = allowedMaxX
@@ -691,14 +649,15 @@ function DraggableTaskBox({
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[S.taskBox, { height }, style]}>
+      <Animated.View style={[S.taskBox, { left: taskLeft, width: taskWidth, height }, style]}>
         <TaskItemCard
           id={id}
           title={title}
           done={done}
           density="week"
-          layoutWidthHint={dayColWidth - TASK_LAYOUT_HINT_OFFSET}
-          style={{ flex: 1, minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 1 }}
+          hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
+          layoutWidthHint={taskWidth}
+          style={{ flex: 1, minHeight: 0, height: '100%', marginVertical: 1 }}
           onPress={() => {
             if (!isActiveDrag.value) openDetail(id)
           }}
@@ -742,15 +701,12 @@ const askRepeatAction = (): Promise<'single' | 'future' | 'cancel'> => {
 type DraggableFlexalbeEventProps = {
   id: string
   title: string
-  place?: string
   startMin: number
   endMin: number
   color: string
   dateISO: string
   column: number
   columnsTotal: number
-  isPartialOverlap?: boolean
-  overlapDepth: number
   dayColWidth: number
   weekDates: string[]
   dayIndex: number
@@ -762,15 +718,12 @@ type DraggableFlexalbeEventProps = {
 function DraggableFlexalbeEvent({
   id,
   title,
-  place,
   startMin,
   endMin,
   color,
   dateISO,
   column,
   columnsTotal,
-  isPartialOverlap,
-  overlapDepth,
   dayColWidth,
   weekDates,
   dayIndex,
@@ -896,29 +849,12 @@ function DraggableFlexalbeEvent({
     })
 
   const safeColor = color.startsWith('#') ? color : `#${color}`
-  const displayColor = isRepeat ? `${safeColor}33` : safeColor    //반복일정 투명도
-  const colGap = 0.5
+  const colGap = EVENT_OVERLAP_GAP
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
 
   let width = slotWidth - colGap * 2
   let left = slotWidth * column + colGap
-
-  const overlapStyle: any = {}
-
-  if (isPartialOverlap) {
-    if (overlapDepth === 0) {
-      // 그대로
-    } else {
-      const baseWidth = slotWidth - colGap * 2
-      const effectiveDepth = Math.min(overlapDepth, 7)
-      const shrink = effectiveDepth * 2
-      width = baseWidth - shrink
-      left = baseWidth - width + 2
-      overlapStyle.borderWidth = 1
-      overlapStyle.borderColor = '#FFFFFF'
-    }
-  }
 
   // 컴포넌트 카드 적용 시 과도하게 좁아 보이지 않도록 폭 보정 최소화
   left += EVENT_LEFT_ADJUST
@@ -981,19 +917,19 @@ function DraggableFlexalbeEvent({
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
   const style = useAnimatedStyle(() => {
-  // 반복 vs 일반 우선순위: 일반일정이 항상 반복일정보다 위에 오도록 가중치 부여
-  const baseZ =
-    isDragging.value || dropBoost.value
-      ? 9999
-      : overlapDepth * 2 + (isRepeat ? 0 : 1) // 일반일정(1) > 반복일정(0)
+    // 반복 vs 일반 우선순위: 일반일정이 항상 반복일정보다 위에 오도록 가중치 부여
+    const baseZ =
+      isDragging.value || dropBoost.value
+        ? 9999
+        : column * 2 + (isRepeat ? 0 : 1) // 일반일정(1) > 반복일정(0)
 
-  return {
-    top: topBase + translateY.value,
-    transform: [{ translateX: translateX.value }],
-    zIndex: baseZ,
-    elevation: isDragging.value || dropBoost.value ? 50 : 0,
-  }
-})
+    return {
+      top: topBase + translateY.value,
+      transform: [{ translateX: translateX.value }],
+      zIndex: baseZ,
+      elevation: isDragging.value || dropBoost.value ? 50 : 0,
+    }
+  })
 
   const fmtHm = (m: number) => {
     const hh = Math.floor(Math.max(0, m) / 60)
@@ -1013,12 +949,11 @@ function DraggableFlexalbeEvent({
             width,
             height,
             backgroundColor: 'transparent',
-            ...overlapStyle,
           },
           // ⭐ 반복 일정일 때 DayView와 동일한 강조 디자인
-            isRepeat && {
-              borderRadius: 0,
-            },
+          isRepeat && {
+            borderRadius: 0,
+          },
           style,
         ]}
       >
@@ -1028,8 +963,9 @@ function DraggableFlexalbeEvent({
           color={safeColor}
           timeRangeText={timeRangeText}
           density="week"
+          hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={width}
-          style={{ minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 3 }}
+          style={{ minHeight: 0, height: '100%', marginVertical: 3 }}
           onPress={() => {
             if (!isActiveDrag.value) openEventDetail(id)
           }}
@@ -2004,8 +1940,6 @@ const S = StyleSheet.create({
 
   taskBox: {
     position: 'absolute',
-    left: BOTTOM_ITEM_SIDE_INSET,
-    right: BOTTOM_ITEM_SIDE_INSET,
     height: BASE_ROW_H,
     borderRadius: 6,
   },

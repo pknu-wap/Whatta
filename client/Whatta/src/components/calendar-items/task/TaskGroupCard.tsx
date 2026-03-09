@@ -11,6 +11,8 @@ import colors from '@/styles/colors'
 
 const TASK_GROUP_HEADER_COLOR = colors.brand.primary
 const TASK_BORDER_COLOR = colors.divider.divider1
+const WEEK_VERTICAL_WIDTH_THRESHOLD = 36
+const WEEK_VERTICAL_RADIUS = 4
 
 function TaskGroupCard({
   groupId,
@@ -19,6 +21,7 @@ function TaskGroupCard({
   expanded = false,
   title: _title,
   layoutWidthHint,
+  hideText = false,
   onToggleExpand,
   onToggleTask,
 }: TaskGroupCardProps) {
@@ -37,22 +40,25 @@ function TaskGroupCard({
   const isWeekGroup = density === 'week'
   const isDayGroup = density === 'day'
   const isWeekSingleCell = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= 44
-  const effectivePadX = isWeekSingleCell ? 4 : d.padX
+  const isWeekVertical = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= WEEK_VERTICAL_WIDTH_THRESHOLD
+  const effectivePadLeft = isWeekSingleCell ? 3 : d.padX
+  const effectivePadRight = isWeekGroup ? (expanded ? 1 : 0) : d.padX
   const minGroupHeight = isWeekGroup ? 0 : isDayGroup ? 60 : 24
   const headerMinHeight = expanded ? (isCompact ? 30 : 34) : minGroupHeight
-  const groupRadius = 8
+  const groupRadius = isWeekVertical ? WEEK_VERTICAL_RADIUS : 8
   // 좁은 칸에서는 아이콘/텍스트를 줄여 가독성을 유지한다.
   const taskIconSize = resolvedWidth > 0 && resolvedWidth <= 54 ? 14 : 16
   const headerIconSize = isMini ? 8 : 10
-  const canExpand = typeof onToggleExpand === 'function'
+  const canExpand = typeof onToggleExpand === 'function' && !hideText
   const canToggleTask = typeof onToggleTask === 'function'
-  const displayHeader = expanded
+  const baseHeader = expanded
     ? isCompact
       ? '할 일'
       : '할 일 목록'
     : isWide
       ? '할 일이 있어요!'
       : '할 일'
+  const displayHeader = isWeekVertical ? baseHeader.replace(/\s+/g, '').split('').join('\n') : baseHeader
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const width = Math.round(e.nativeEvent.layout.width)
@@ -65,7 +71,8 @@ function TaskGroupCard({
       style={[
         S.wrap,
         {
-          paddingHorizontal: effectivePadX,
+          paddingLeft: effectivePadLeft,
+          paddingRight: effectivePadRight,
           paddingVertical: expanded ? (isCompact ? 4 : 6) : 0,
           borderRadius: groupRadius,
           alignSelf: 'stretch',
@@ -84,46 +91,52 @@ function TaskGroupCard({
         style={[
           S.header,
           { minHeight: headerMinHeight },
+          isWeekVertical && S.headerVertical,
           !expanded && S.headerCollapsedFill,
           expanded && S.headerExpanded,
         ]}
       >
-        <DownIcon
-          width={headerIconSize}
-          height={headerIconSize}
-          color={colors.text.text1}
-          style={[S.arrowIcon, isMini && S.arrowIconMini, !expanded && S.arrowCollapsed]}
-        />
-        <Text
-          style={[
-            S.headerText,
-            density === 'day'
-              ? {
-                  fontSize: dayLabel3.fontSize,
-                  lineHeight: dayLabel3.lineHeight,
-                  fontWeight: dayLabel3.fontWeight,
-                }
-              : density === 'week'
-              ? {
-                  fontSize: isCompact ? dayLabel3.fontSize : weekLabel4.fontSize,
-                  lineHeight: isCompact ? dayLabel3.lineHeight : weekLabel4.lineHeight,
-                  fontWeight: weekLabel4.fontWeight,
-                }
-              : density === 'month'
-              ? {
-                  fontSize: monthLabel3.fontSize,
-                  lineHeight: monthLabel3.lineHeight,
-                  fontWeight: monthLabel3.fontWeight,
-                }
-              : { fontSize: d.font },
-            isMini && S.headerTextMini,
-            expanded && { color: colors.text.text3 },
-          ]}
-          numberOfLines={1}
-          ellipsizeMode="clip"
-        >
-          {displayHeader}
-        </Text>
+        {!hideText ? (
+          <>
+            <DownIcon
+              width={headerIconSize}
+              height={headerIconSize}
+              color={colors.text.text1}
+              style={[S.arrowIcon, isMini && S.arrowIconMini, !expanded && S.arrowCollapsed]}
+            />
+            <Text
+              style={[
+                S.headerText,
+                density === 'day'
+                  ? {
+                      fontSize: dayLabel3.fontSize,
+                      lineHeight: dayLabel3.lineHeight,
+                      fontWeight: dayLabel3.fontWeight,
+                    }
+                  : density === 'week'
+                  ? {
+                      fontSize: isCompact ? dayLabel3.fontSize : weekLabel4.fontSize,
+                      lineHeight: isCompact ? dayLabel3.lineHeight : weekLabel4.lineHeight,
+                      fontWeight: weekLabel4.fontWeight,
+                    }
+                  : density === 'month'
+                  ? {
+                      fontSize: monthLabel3.fontSize,
+                      lineHeight: monthLabel3.lineHeight,
+                      fontWeight: monthLabel3.fontWeight,
+                    }
+                  : { fontSize: d.font },
+                isMini && S.headerTextMini,
+                expanded && { color: colors.text.text3 },
+                isWeekVertical && S.headerTextVertical,
+              ]}
+              numberOfLines={isWeekVertical ? 6 : 1}
+              ellipsizeMode="clip"
+            >
+              {displayHeader}
+            </Text>
+          </>
+        ) : null}
       </Pressable>
 
       {expanded ? (
@@ -204,6 +217,11 @@ const S = StyleSheet.create({
     minHeight: 24,
     paddingVertical: 0,
   },
+  headerVertical: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerCollapsedFill: {
     flex: 1,
   },
@@ -213,18 +231,26 @@ const S = StyleSheet.create({
     borderBottomColor: TASK_BORDER_COLOR,
   },
   arrowIcon: {
-    marginRight: 6,
+    marginLeft: -2,
+    marginRight: 2,
   },
   arrowIconMini: {
-    marginRight: 4,
+    marginLeft: -3,
+    marginRight: 1,
   },
   arrowCollapsed: {
     transform: [{ rotate: '180deg' }],
   },
   headerText: {
-    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     color: TASK_GROUP_HEADER_COLOR,
     fontWeight: '800',
+  },
+  headerTextVertical: {
+    flex: 0,
+    textAlign: 'center',
+    lineHeight: 14,
   },
   headerTextMini: {
     marginLeft: -1,

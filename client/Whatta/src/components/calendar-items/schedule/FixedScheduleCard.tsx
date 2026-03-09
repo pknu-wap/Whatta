@@ -12,6 +12,7 @@ function FixedScheduleCard({
   isUntimed,
   density,
   layoutWidthHint,
+  hideText,
   style,
   onPress,
 }: ScheduleCardProps) {
@@ -24,6 +25,7 @@ function FixedScheduleCard({
       isUntimed={isUntimed}
       density={density}
       layoutWidthHint={layoutWidthHint}
+      hideText={hideText}
       onPress={onPress}
       style={style}
       backgroundColor={mainColor}
