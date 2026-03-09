@@ -5,7 +5,6 @@ import org.springframework.data.mongodb.repository.Query;
 import whatta.Whatta.traffic.entity.TrafficNotification;
 
 import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +14,11 @@ public interface TrafficNotiRepository extends MongoRepository<TrafficNotificati
 
     Optional<TrafficNotification> findByIdAndUserId(String id, String userId);
 
-    @Query("{ 'alarmTime': ?0, 'isEnabled': true, $or: [ { 'days': ?1 }, { 'isRepeatEnabled': false } ] }")
-    List<TrafficNotification> findAlarmsToNotify(LocalTime alarmTime, DayOfWeek today);
+    @Query("{ 'isEnabled': true, " +
+            "$or: [ { 'days': ?2 }, { 'isRepeatEnabled': false } ], " +
+            "$expr: { $and: [ " +
+            "{ $eq: [ { $hour: { date: '$alarmTime', timezone: 'Asia/Seoul' } }, ?0 ] }, " +
+            "{ $eq: [ { $minute: { date: '$alarmTime', timezone: 'Asia/Seoul' } }, ?1 ] } " +
+            "] } }")
+    List<TrafficNotification> findAlarmsToNotify(int hour, int minute, DayOfWeek today);
 }
