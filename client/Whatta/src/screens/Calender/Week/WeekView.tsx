@@ -88,6 +88,13 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const TIME_COL_W = 44
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
+const BOTTOM_ITEM_SIDE_EXPAND = 1
+const BOTTOM_ITEM_SIDE_INSET = 2 - BOTTOM_ITEM_SIDE_EXPAND
+const TASK_LAYOUT_HINT_OFFSET = 2 - BOTTOM_ITEM_SIDE_EXPAND * 2
+const TASK_DRAG_BOUNDARY_OFFSET = 2 - BOTTOM_ITEM_SIDE_EXPAND * 2
+const TASK_GROUP_WIDTH_OFFSET = 4 - BOTTOM_ITEM_SIDE_EXPAND * 2
+const EVENT_LEFT_ADJUST = 1.5 - BOTTOM_ITEM_SIDE_EXPAND
+const EVENT_WIDTH_ADJUST = 3 - BOTTOM_ITEM_SIDE_EXPAND * 2
 
 /* -------------------------------------------------------------------------- */
 /* 공통 컴포넌트 */
@@ -182,8 +189,8 @@ function TaskGroupBox({
   }, [tasks])
 
   // ✅ 단일 Task 박스와 동일한 기본 위치
-  const baseLeftInCol = 2
-  const collapsedWidth = dayColWidth - 4
+  const baseLeftInCol = BOTTOM_ITEM_SIDE_INSET
+  const collapsedWidth = dayColWidth - TASK_GROUP_WIDTH_OFFSET
 
   // 펼침/접힘과 무관하게 주간 그리드 셀 폭에 고정한다.
   const finalWidth = collapsedWidth
@@ -554,7 +561,7 @@ function DraggableTaskBox({
   }, [initialDone])
 
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
-  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + 2
+  const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + BOTTOM_ITEM_SIDE_INSET
 
   const toggleDone = async () => {
     const next = !done
@@ -647,7 +654,7 @@ function DraggableTaskBox({
       let nextX = translateX.value + e.changeX
       const allowedMinX = TIME_COL_W - baseGlobalLeft
       if (dayIndex === weekCount - 1) {
-        const boxWidth = dayColWidth - 2
+        const boxWidth = dayColWidth - TASK_DRAG_BOUNDARY_OFFSET
         const fullRight = TIME_COL_W + weekCount * dayColWidth
         const allowedMaxX = fullRight - boxWidth - baseGlobalLeft
         if (nextX > allowedMaxX) nextX = allowedMaxX
@@ -690,7 +697,7 @@ function DraggableTaskBox({
           title={title}
           done={done}
           density="week"
-          layoutWidthHint={dayColWidth - 2}
+          layoutWidthHint={dayColWidth - TASK_LAYOUT_HINT_OFFSET}
           style={{ flex: 1, minHeight: 0, height: '100%', borderRadius: 8, marginVertical: 1 }}
           onPress={() => {
             if (!isActiveDrag.value) openDetail(id)
@@ -914,8 +921,8 @@ function DraggableFlexalbeEvent({
   }
 
   // 컴포넌트 카드 적용 시 과도하게 좁아 보이지 않도록 폭 보정 최소화
-  left += 1.5
-  width = Math.max(4, width - 3)
+  left += EVENT_LEFT_ADJUST
+  width = Math.max(4, width - EVENT_WIDTH_ADJUST)
 
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + left
 
@@ -1892,6 +1899,7 @@ const S = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 3,
   },
   weekHeaderDatePillToday: {
     backgroundColor: '#EFE7F7',
@@ -1996,8 +2004,8 @@ const S = StyleSheet.create({
 
   taskBox: {
     position: 'absolute',
-    left: 2,
-    right: 2,
+    left: BOTTOM_ITEM_SIDE_INSET,
+    right: BOTTOM_ITEM_SIDE_INSET,
     height: BASE_ROW_H,
     borderRadius: 6,
   },
