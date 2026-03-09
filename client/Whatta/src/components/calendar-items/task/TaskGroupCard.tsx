@@ -14,6 +14,40 @@ const TASK_BORDER_COLOR = colors.divider.divider1
 const WEEK_VERTICAL_WIDTH_THRESHOLD = 36
 const WEEK_VERTICAL_RADIUS = 4
 
+type TaskGroupSpacing = {
+  arrowMarginLeft: number
+  arrowMarginRight: number
+  checkboxTextGap: number
+  miniHeaderTextOffset: number
+}
+
+const TASK_GROUP_SPACING: Record<'month' | 'week5' | 'week7' | 'default', TaskGroupSpacing> = {
+  month: {
+    arrowMarginLeft: -1,
+    arrowMarginRight: 6,
+    checkboxTextGap: 6,
+    miniHeaderTextOffset: 0,
+  },
+  week5: {
+    arrowMarginLeft: -4,
+    arrowMarginRight: 6,
+    checkboxTextGap: 5,
+    miniHeaderTextOffset: 0,
+  },
+  week7: {
+    arrowMarginLeft: -5,
+    arrowMarginRight: 5,
+    checkboxTextGap: 4,
+    miniHeaderTextOffset: 0,
+  },
+  default: {
+    arrowMarginLeft: -2,
+    arrowMarginRight: 2,
+    checkboxTextGap: 6,
+    miniHeaderTextOffset: -1,
+  },
+}
+
 function TaskGroupCard({
   groupId,
   tasks,
@@ -41,6 +75,10 @@ function TaskGroupCard({
   const isDayGroup = density === 'day'
   const isWeekSingleCell = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= 44
   const isWeekVertical = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= WEEK_VERTICAL_WIDTH_THRESHOLD
+  const isWeek7 = isWeekGroup && resolvedWidth > 0 && resolvedWidth <= 52
+  const spacingKey: keyof typeof TASK_GROUP_SPACING =
+    density === 'month' ? 'month' : isWeek7 ? 'week7' : isWeekGroup ? 'week5' : 'default'
+  const spacing = TASK_GROUP_SPACING[spacingKey]
   const effectivePadLeft = isWeekSingleCell ? 3 : d.padX
   const effectivePadRight = isWeekGroup ? (expanded ? 1 : 0) : d.padX
   const minGroupHeight = isWeekGroup ? 0 : isDayGroup ? 60 : 24
@@ -102,7 +140,14 @@ function TaskGroupCard({
               width={headerIconSize}
               height={headerIconSize}
               color={colors.text.text1}
-              style={[S.arrowIcon, isMini && S.arrowIconMini, !expanded && S.arrowCollapsed]}
+              style={[
+                {
+                  marginLeft: spacing.arrowMarginLeft,
+                  marginRight: spacing.arrowMarginRight,
+                },
+                isMini && { marginLeft: spacing.arrowMarginLeft - 1, marginRight: spacing.arrowMarginRight - 1 },
+                !expanded && S.arrowCollapsed,
+              ]}
             />
             <Text
               style={[
@@ -126,7 +171,7 @@ function TaskGroupCard({
                       fontWeight: monthLabel3.fontWeight,
                     }
                   : { fontSize: d.font },
-                isMini && S.headerTextMini,
+                isMini && { marginLeft: spacing.miniHeaderTextOffset },
                 expanded && { color: colors.text.text3 },
                 isWeekVertical && S.headerTextVertical,
               ]}
@@ -148,7 +193,14 @@ function TaskGroupCard({
                 pointerEvents={canToggleTask ? 'auto' : 'none'}
                 onPress={() => onToggleTask?.(task.id, !task.done)}
                 hitSlop={8}
-                style={[S.taskCheckbox, { width: taskIconSize, height: taskIconSize }]}
+                style={[
+                  S.taskCheckbox,
+                  {
+                    width: taskIconSize,
+                    height: taskIconSize,
+                    marginRight: spacing.checkboxTextGap,
+                  },
+                ]}
               >
                 {task.done ? (
                   <CheckOn width={taskIconSize} height={taskIconSize} />
@@ -230,14 +282,6 @@ const S = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: TASK_BORDER_COLOR,
   },
-  arrowIcon: {
-    marginLeft: -2,
-    marginRight: 2,
-  },
-  arrowIconMini: {
-    marginLeft: -3,
-    marginRight: 1,
-  },
   arrowCollapsed: {
     transform: [{ rotate: '180deg' }],
   },
@@ -252,9 +296,6 @@ const S = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 14,
   },
-  headerTextMini: {
-    marginLeft: -1,
-  },
   listWrap: {
     paddingTop: 2,
   },
@@ -267,7 +308,6 @@ const S = StyleSheet.create({
   taskCheckbox: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 6,
   },
   taskTextWrap: {
     flex: 1,

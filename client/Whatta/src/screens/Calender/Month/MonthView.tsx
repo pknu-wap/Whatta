@@ -41,6 +41,8 @@ import OcrSplash from '@/screens/More/OcrSplash'
 
 
 import { today, getDateOfWeek } from './dateUtils'
+import { ts } from '@/styles/typography'
+import colors from '@/styles/colors'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
@@ -118,6 +120,9 @@ export default function MonthView() {
   })
   const currentYmRef = useRef(ym)
   const mountedRef = useRef(true)
+  const followupRefreshTimersByYmRef = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map())
+  const fetchSeqRef = useRef(0)
+  const latestFetchSeqByYmRef = useRef<Map<string, number>>(new Map())
 
   useEffect(() => {
     currentYmRef.current = ym
@@ -126,6 +131,11 @@ export default function MonthView() {
   useEffect(() => {
     return () => {
       mountedRef.current = false
+      for (const timers of followupRefreshTimersByYmRef.current.values()) {
+        timers.forEach((t) => clearTimeout(t))
+      }
+      followupRefreshTimersByYmRef.current.clear()
+      latestFetchSeqByYmRef.current.clear()
     }
   }, [])
 
@@ -149,10 +159,17 @@ export default function MonthView() {
   // 데이터 fetch
   const fetchFresh = useCallback(
     async (targetYM: string) => {
+      const seq = ++fetchSeqRef.current
+      latestFetchSeqByYmRef.current.set(targetYM, seq)
       try {
         const fresh = await fetchMonthlyApi(targetYM)
         const schedulesFromMonth = flattenMonthly(fresh)
-        const tasksThisMonth = await fetchTasksForMonth(targetYM)
+        let tasksThisMonth: UISchedule[] = []
+        try {
+          tasksThisMonth = await fetchTasksForMonth(targetYM)
+        } catch (err) {
+          console.warn('[MonthView] fetchFresh: fetchTasksForMonth 실패, 일정만 갱신합니다.', err)
+        }
 
         const colorById = new Map<string, string | undefined>()
         ;(fresh.spanEvents ?? []).forEach((e: any) => {
@@ -174,6 +191,8 @@ export default function MonthView() {
        const merged = dedupeSchedules(mergedRaw)
 
         if (!mountedRef.current) return
+        const latestSeq = latestFetchSeqByYmRef.current.get(targetYM)
+        if (latestSeq !== seq) return
         if (targetYM === currentYmRef.current) {
           setDays(fresh.days)
           setServerSchedules(merged)
@@ -185,33 +204,64 @@ export default function MonthView() {
     [],
   )
 
-  useEffect(() => {
-    const onInvalidate = ({ ym: dirtyYM }: { ym: string }) => fetchFresh(dirtyYM)
-    bus.on('calendar:invalidate', onInvalidate)
-    return () => bus.off('calendar:invalidate', onInvalidate)
-  }, [fetchFresh])
+  const refreshMonthWithFollowup = useCallback(
+    (targetYM: string) => {
+      void fetchFresh(targetYM)
 
-  const isFirstFocusRef = useRef(true)
+      const prevTimers = followupRefreshTimersByYmRef.current.get(targetYM) ?? []
+      prevTimers.forEach((t) => clearTimeout(t))
 
-  useFocusEffect(
-    React.useCallback(() => {
-      // 다른 뷰에서 발생한 변경 이벤트를 놓쳤을 수 있으므로 포커스 복귀 시 현재 월 재조회
-      if (isFirstFocusRef.current) {
-        isFirstFocusRef.current = false
-        return
-      }
-      void fetchFresh(ym)
-    }, [fetchFresh, ym]),
+      const t1 = setTimeout(() => {
+        void fetchFresh(targetYM)
+      }, 250)
+      const t2 = setTimeout(() => {
+        void fetchFresh(targetYM)
+      }, 900)
+
+      followupRefreshTimersByYmRef.current.set(targetYM, [t1, t2])
+    },
+    [fetchFresh],
   )
 
   useEffect(() => {
-    const onMutated = (_payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
-      fetchFresh(ym)
+    const onInvalidate = (payload?: { ym?: string }) => {
+      const dirtyYM = payload?.ym
+      const safeYM =
+        typeof dirtyYM === 'string' && /^\d{4}-\d{2}$/.test(dirtyYM)
+          ? dirtyYM
+          : currentYmRef.current
+      refreshMonthWithFollowup(safeYM)
+    }
+    bus.on('calendar:invalidate', onInvalidate)
+    return () => bus.off('calendar:invalidate', onInvalidate)
+  }, [refreshMonthWithFollowup])
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // 포커스 복귀 시 항상 최신 월 데이터 재동기화
+      refreshMonthWithFollowup(ym)
+    }, [refreshMonthWithFollowup, ym]),
+  )
+
+  useEffect(() => {
+    const onMutated = (_payload?: { op?: 'create' | 'update' | 'delete'; item?: any }) => {
+      refreshMonthWithFollowup(currentYmRef.current)
+
+      const rawDate =
+        _payload?.item?.startDate ??
+        _payload?.item?.date ??
+        _payload?.item?.endDate ??
+        _payload?.item?.placementDate
+      const itemYM =
+        typeof rawDate === 'string' && rawDate.length >= 7 ? rawDate.slice(0, 7) : null
+      if (itemYM && itemYM !== currentYmRef.current) {
+        refreshMonthWithFollowup(itemYM)
+      }
     }
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [ym, fetchFresh])
+  }, [refreshMonthWithFollowup])
 
 const {
   ocrSplashVisible,
@@ -378,6 +428,21 @@ const displayItemsByWeek = useMemo(() => {
       getDisplayItems(dateItem.schedules, dateItem.tasks)
     )
   )
+}, [weeks])
+
+const holidayIsoByWeek = useMemo(() => {
+  return weeks.map((week) => {
+    const set = new Set<string>()
+    week.forEach((d) => {
+      if (d.holidayName) {
+        const iso = `${d.fullDate.getFullYear()}-${String(d.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
+          d.fullDate.getDate(),
+        ).padStart(2, '0')}`
+        set.add(iso)
+      }
+    })
+    return set
+  })
 }, [weeks])
 
   const weekRowHeight = useMemo(() => {
@@ -780,41 +845,69 @@ const displayItemsByWeek = useMemo(() => {
         ).padStart(2, '0')}`
         const inPrev = prevISO >= item.multiDayStart && prevISO <= item.multiDayEnd
         const dow = cur.getDay()
-        const isRowStart = inToday && (!inPrev || dow === 0)
-        if (!isRowStart) return <View key={itemKey} style={slotRowBaseStyle} />
-
+        const isSegmentStart = inToday && (!inPrev || dow === 0)
+        const isRealStart = dayISO === item.multiDayStart
+        const isRealEnd = dayISO === item.multiDayEnd
+        const segmentWidth = Math.max(1, MONTH_ITEM_WIDTH - (isRealEnd ? 1 : 0))
         const spanToWeekEnd = 7 - dow
         const end = new Date(item.multiDayEnd + 'T00:00:00')
         const daysDiff =
           Math.floor((end.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24)) + 1
         const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
-        const isRealStart = dayISO === item.multiDayStart
-        const isRealEndInThisRow = colSpan === daysDiff
-        const width = colSpan * MONTH_ITEM_WIDTH
+        const titleLeftInset = isRealStart ? 12 : 5
+        const titleRightInset = isRealEnd ? 8 : 5
+        const titleWidth = Math.max(0, colSpan * MONTH_ITEM_WIDTH - titleLeftInset - titleRightInset)
+        const weekHolidaySet = holidayIsoByWeek[weekIndex]
+        const spanRowHasHoliday = !!weekHolidaySet && Array.from(weekHolidaySet).some(
+          (holidayISO) => item.multiDayStart! <= holidayISO && holidayISO <= item.multiDayEnd!,
+        )
+
+        const holidaySpanOffset = !dateItem.holidayName && spanRowHasHoliday ? 13 : 0
 
         return (
-          <View key={itemKey} style={[slotRowBaseStyle, dimStyle]}>
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width,
-                height: MONTH_ITEM_HEIGHT,
-              }}
-            >
-              <RangeScheduleBar
-                id={String(item.id)}
-                title={item.name}
-                color={normalizeColor(item.colorKey)}
-                startISO={dayISO}
-                endISO={item.multiDayEnd}
-                isStart={isRealStart}
-                isEnd={isRealEndInThisRow}
-                density="month"
-                isUntimed
-              />
-            </View>
+          <View
+            key={itemKey}
+            style={[slotRowBaseStyle, dimStyle, holidaySpanOffset ? { marginTop: holidaySpanOffset } : null]}
+          >
+            <RangeScheduleBar
+              id={String(item.id)}
+              title=""
+              color={normalizeColor(item.colorKey)}
+              startISO={dayISO}
+              endISO={item.multiDayEnd}
+              isStart={isRealStart}
+              isEnd={isRealEnd}
+              density="month"
+              isUntimed
+              style={{ width: segmentWidth }}
+            />
+            {isSegmentStart ? (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  left: titleLeftInset,
+                  top: 0,
+                  width: titleWidth,
+                  height: MONTH_ITEM_HEIGHT,
+                  justifyContent: 'center',
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="clip"
+                  style={{
+                    fontSize: ts('label4').fontSize,
+                    lineHeight: ts('label4').lineHeight,
+                    fontWeight: ts('label4').fontWeight as any,
+                    color: colors.text.text1,
+                    includeFontPadding: false,
+                  }}
+                >
+                  {item.name}
+                </Text>
+              </View>
+            ) : null}
           </View>
         )
       }
