@@ -38,7 +38,8 @@ function TaskItemCard({
   const fixedHeight = isMonth ? d.minHeight : density === 'week' && isUntimed ? 26 : isUntimed ? 30 : undefined
   const titleLines = isMonth || isUntimed ? 1 : isWeekTimedNarrow || isNarrow ? 2 : 1
   const minCardHeight = fixedHeight ?? d.minHeight
-  const interactive = !!onToggle
+  const canToggle = !!onToggle
+  const canPress = !!onPress
   const leadingPad = isTiny ? 0 : isUntimed ? 2 : d.padX
   const trailingPad = isTiny ? 0 : isUntimed ? 0 : d.padX
   const checkboxGap = isUntimed ? 1 : 2
@@ -51,6 +52,16 @@ function TaskItemCard({
     if (!onToggle) return
     e.stopPropagation()
     onToggle(id, !done)
+  }
+
+  const handleTitlePress = () => {
+    if (onPress) {
+      onPress()
+      return
+    }
+    if (onToggle) {
+      onToggle(id, !done)
+    }
   }
 
   return (
@@ -77,8 +88,8 @@ function TaskItemCard({
     >
       <Pressable
         hitSlop={8}
-        disabled={!interactive}
-        pointerEvents={interactive ? 'auto' : 'none'}
+        disabled={!canToggle}
+        pointerEvents={canToggle ? 'auto' : 'none'}
         onPress={handleTogglePress}
         style={[
           S.checkbox,
@@ -98,9 +109,9 @@ function TaskItemCard({
       </Pressable>
 
       <Pressable
-        disabled={!interactive}
-        pointerEvents={interactive ? 'auto' : 'none'}
-        onPress={handleTogglePress}
+        disabled={!canPress && !canToggle}
+        pointerEvents={canPress || canToggle ? 'auto' : 'none'}
+        onPress={handleTitlePress}
         style={S.titleWrap}
       >
         <Text

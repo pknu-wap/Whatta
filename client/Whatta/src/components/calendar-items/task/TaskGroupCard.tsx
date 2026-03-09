@@ -44,6 +44,8 @@ function TaskGroupCard({
   // 좁은 칸에서는 아이콘/텍스트를 줄여 가독성을 유지한다.
   const taskIconSize = resolvedWidth > 0 && resolvedWidth <= 54 ? 14 : 16
   const headerIconSize = isMini ? 8 : 10
+  const canExpand = typeof onToggleExpand === 'function'
+  const canToggleTask = typeof onToggleTask === 'function'
   const displayHeader = expanded
     ? isCompact
       ? '할 일'
@@ -76,6 +78,8 @@ function TaskGroupCard({
       ]}
     >
       <Pressable
+        disabled={!canExpand}
+        pointerEvents={canExpand ? 'auto' : 'none'}
         onPress={() => onToggleExpand?.(groupId, !expanded)}
         style={[
           S.header,
@@ -127,6 +131,8 @@ function TaskGroupCard({
           {tasks.map((task) => (
             <View key={task.id} style={S.taskRow}>
               <Pressable
+                disabled={!canToggleTask}
+                pointerEvents={canToggleTask ? 'auto' : 'none'}
                 onPress={() => onToggleTask?.(task.id, !task.done)}
                 hitSlop={8}
                 style={[S.taskCheckbox, { width: taskIconSize, height: taskIconSize }]}
@@ -139,6 +145,8 @@ function TaskGroupCard({
               </Pressable>
 
               <Pressable
+                disabled={!canToggleTask}
+                pointerEvents={canToggleTask ? 'auto' : 'none'}
                 onPress={() => onToggleTask?.(task.id, !task.done)}
                 style={S.taskTextWrap}
               >
