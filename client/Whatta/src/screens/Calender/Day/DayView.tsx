@@ -31,8 +31,8 @@ import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import type { TaskDTO } from '@/api/task'
-
 import OcrSplash from '@/screens/More/OcrSplash'
+
 import { DraggableTaskBox } from './DayViewItems'
 import { DraggableTaskGroupBox } from './DayViewItems'
 import { DraggableFixedEvent } from './DayViewItems'
@@ -41,7 +41,7 @@ import { PIXELS_PER_MIN } from './constants'
 import S from './S'
 import { useDayData } from './eventUtils'
 import { useDaySwipe } from './swipeUtils'
-import { useDayOCR } from './ocrUtils'
+import { useOCR } from '@/hooks/useOCR'
 import { useDayDrag } from './dragUtils'
 import {
   createEvent,
@@ -59,7 +59,7 @@ import {
 import {
   today,
   getInstanceDates,
-} from './dateUtils'
+} from '../../../../utils/dateUtils'
 import { getMyLabels } from '@/api/label_api'
 
 function FullBleed({
@@ -128,7 +128,7 @@ export default function DayView() {
   const { swipeGesture, swipeStyle } =
   useDaySwipe(setAnchorDate)
 
-  const {
+const {
   ocrSplashVisible,
   ocrModalVisible,
   ocrEvents,
@@ -136,7 +136,7 @@ export default function DayView() {
   setImagePopupVisible,
   setOcrModalVisible,
   sendToOCR,
-} = useDayOCR()
+} = useOCR()
 
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
