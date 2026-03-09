@@ -33,7 +33,7 @@ public class BusNotiProcessor {
         List<BusFavorite> items = itemRepository.findAllById(alarm.getTargetItemIds());
 
         if(items.isEmpty()) {
-            handleRepeatOption(alarm);
+            disableAlarm(alarm, "즐겨찾기가 없는 알림 비활성화");
             return;
         }
 
@@ -92,13 +92,22 @@ public class BusNotiProcessor {
     //반복 안 함 설정이면 알림 비활성화 처리
     private void handleRepeatOption(TrafficNotification alarm){
         if(!alarm.isRepeatEnabled()) {
-            TrafficNotification disabledAlarm = alarm.toBuilder()
-                    .isEnabled(false)
-                    .build();
-
-            alarmRepository.save(disabledAlarm);
-            log.info("{}알람이 일회성으로 실행 후 OFF됩니다.", alarm.getId());
+            disableAlarm(alarm, "일회성 알림 비활성화");
         }
+    }
+
+    //즐겨찾기 대상이 없거나 일회성 처리 완료 시 알림 비활성화
+    private void disableAlarm(TrafficNotification alarm, String reason) {
+        if (!alarm.isEnabled()) {
+            return;
+        }
+
+        TrafficNotification disabledAlarm = alarm.toBuilder()
+                .isEnabled(false)
+                .build();
+
+        alarmRepository.save(disabledAlarm);
+        log.info("Traffic alarm disabled. alarmId={}, reason={}", alarm.getId(), reason);
     }
 
 }
