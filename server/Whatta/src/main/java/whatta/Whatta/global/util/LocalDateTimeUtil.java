@@ -15,7 +15,7 @@ public class LocalDateTimeUtil {
 
     public static LocalDateTime stringToLocalDateTime(String dateTimeString) {
         if (dateTimeString == null || dateTimeString.isEmpty()) { return null; }
-        return LocalDateTime.parse(dateTimeString, DATE_TIME_FORMATTER);
+        return LocalDateTime.parse(dateTimeString, DATE_TIME_FORMATTER).truncatedTo(DB_PRECISION);
     }
 
     public static LocalDate stringToLocalDate(String dateString) {
