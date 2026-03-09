@@ -23,7 +23,7 @@ public class AIService {
     private final OpenAIClient openAIClient;
 
     public List<NormalizedSchedule> requestInput(String userId, String input) {
-        if (input.isBlank() || input.isEmpty()) {
+        if (input == null || input.isBlank()) {
             throw new RestApiException(ErrorCode.INVALID_REQUEST_TEXT);
         }
 

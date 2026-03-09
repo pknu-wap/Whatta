@@ -44,7 +44,7 @@ public class OpenAIClient {
                                 true
                         )
                 ))
-                .store(true)
+                .store(false)
                 .build();
 
         JsonNode root = parseResponse(requestResponse(req));

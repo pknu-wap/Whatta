@@ -50,7 +50,7 @@ public final class ScheduleExtractionSpec {
                         "additionalProperties": false,
                         "properties": {
                           "enabled": { "type": "boolean" },
-                          "interval": { "type": "integer", "minimum": 1 },
+                          "interval": { "type": "integer", "minimum": 0 },
                           "unit": { "type": "string", "enum": ["", "DAY", "WEEK", "MONTH"] },
                           "on": {
                             "type": "array",
