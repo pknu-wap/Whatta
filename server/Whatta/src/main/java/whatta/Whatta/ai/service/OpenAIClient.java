@@ -209,9 +209,6 @@ public class OpenAIClient {
                 for (JsonNode c : content) {
                     JsonNode text = c.path("text");
                     if (text.isTextual() && !text.asText().isBlank()) {
-                        if (!sb.isEmpty()) {
-                            sb.append('\n');
-                        }
                         sb.append(text.asText());
                     }
                 }
