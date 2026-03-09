@@ -21,6 +21,10 @@ public class NotificationSendService {
 
     public void sendSummary(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return;
+        }
 
         send(token.getFcmToken(), title, body, Map.of(
                 "type", "SUMMARY",
@@ -30,7 +34,10 @@ public class NotificationSendService {
 
     public void sendReminder(String userId, String title, String body, String targetId) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
-        if(token == null) { return; }
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return;
+        }
 
         send(token.getFcmToken(), title, body, Map.of(
                 "type", "REMINDER",
@@ -41,6 +48,10 @@ public class NotificationSendService {
 
     public void sendTrafficAlarm(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return;
+        }
 
         send(token.getFcmToken(), title, body, Map.of(
                 "type", "TRAFFIC",
