@@ -32,7 +32,10 @@ public enum ErrorCode {
     PUBLIC_BUS_API_FAILED(HttpStatus.BAD_GATEWAY, "800-1", "공공데이터 API 호출에 실패했습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "800-2", "해당 노선은 존재하지 않습니다."),
 
-    INVALID_REQUEST_TEXT(HttpStatus.BAD_REQUEST, "900-1", "유효하지 않은 요청 본문입니다.");
+    //900-xx : 요청/AI 관련 오류
+    INVALID_REQUEST_TEXT(HttpStatus.BAD_REQUEST, "900-1", "유효하지 않은 요청 본문입니다."),
+    OPENAI_API_FAILED(HttpStatus.BAD_GATEWAY, "900-2", "AI API 호출에 실패했습니다."),
+    OPENAI_API_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "900-3", "AI API 응답 시간이 초과되었습니다.");
 
 
     private final HttpStatus httpStatus;

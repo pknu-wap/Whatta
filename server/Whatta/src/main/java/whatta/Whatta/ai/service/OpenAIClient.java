@@ -8,12 +8,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import whatta.Whatta.ai.payload.request.OpenAIRequest;
 import whatta.Whatta.ai.payload.response.OpenAIScheduleResponse;
 import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
+import whatta.Whatta.global.exception.ErrorCode;
+import whatta.Whatta.global.exception.RestApiException;
 
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -70,9 +74,44 @@ public class OpenAIClient {
             printUsageToStdOut(rawResponse, req);
             return rawResponse;
         } catch (WebClientResponseException e) {
-            log.error("[OPENAI][ERROR] status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw e;
+            log.error("[OPENAI][ERROR] type=http status={} body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
+        } catch (WebClientRequestException e) {
+            if (isTimeout(e)) {
+                log.error("[OPENAI][ERROR] type=timeout message={}", rootMessage(e), e);
+                throw new RestApiException(ErrorCode.OPENAI_API_TIMEOUT);
+            }
+            log.error("[OPENAI][ERROR] type=network message={}", rootMessage(e), e);
+            throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
+        } catch (Exception e) {
+            if (isTimeout(e)) {
+                log.error("[OPENAI][ERROR] type=timeout message={}", rootMessage(e), e);
+                throw new RestApiException(ErrorCode.OPENAI_API_TIMEOUT);
+            }
+            log.error("[OPENAI][ERROR] type=unexpected message={}", rootMessage(e), e);
+            throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         }
+    }
+
+    private boolean isTimeout(Throwable throwable) {
+        Throwable cursor = throwable;
+        while (cursor != null) {
+            if (cursor instanceof TimeoutException) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
+    }
+
+    private String rootMessage(Throwable throwable) {
+        Throwable cursor = throwable;
+        Throwable root = throwable;
+        while (cursor != null) {
+            root = cursor;
+            cursor = cursor.getCause();
+        }
+        return root == null ? "" : root.getMessage();
     }
 
     private void printUsageToStdOut(String rawResponse, OpenAIRequest req) {
