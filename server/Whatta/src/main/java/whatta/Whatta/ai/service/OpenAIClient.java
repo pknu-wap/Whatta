@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import whatta.Whatta.ai.payload.request.OpenAIRequest;
-import whatta.Whatta.ai.payload.response.OpenAIResponse;
+import whatta.Whatta.ai.payload.response.OpenAIScheduleResponse;
 import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
 
 import java.time.Duration;
@@ -29,7 +29,7 @@ public class OpenAIClient {
     @Value("${openai.timeout.seconds}")
     private long timeoutSeconds;
 
-    public OpenAIResponse callOpenApi(String input) {
+    public OpenAIScheduleResponse callOpenApi(String input) {
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
@@ -48,7 +48,7 @@ public class OpenAIClient {
                 .build();
 
         JsonNode root = parseResponse(requestResponse(req));
-        OpenAIResponse extracted = extractOutput(root);
+        OpenAIScheduleResponse extracted = extractOutput(root);
         if (extracted == null) {
             log.error("[OPENAI][PARSE_ERROR] text output missing. responseId={}, status={}",
                     root.path("id").asText("-"),
@@ -130,11 +130,11 @@ public class OpenAIClient {
         }
     }
 
-    private OpenAIResponse extractOutput(JsonNode root) {
+    private OpenAIScheduleResponse extractOutput(JsonNode root) {
         JsonNode outputParsed = root.path("output_parsed");
         if (!outputParsed.isMissingNode() && !outputParsed.isNull()) {
             try {
-                return objectMapper.treeToValue(outputParsed, OpenAIResponse.class);
+                return objectMapper.treeToValue(outputParsed, OpenAIScheduleResponse.class);
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize output_parsed", e);
             }
@@ -146,7 +146,7 @@ public class OpenAIClient {
         }
 
         try {
-            return objectMapper.readValue(outputText, OpenAIResponse.class);
+            return objectMapper.readValue(outputText, OpenAIScheduleResponse.class);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to deserialize output_text", e);
         }

@@ -28,7 +28,7 @@ public class AIController {
 
     @PostMapping
     @Operation(summary = "ai test", description = "openai를 테스트합니다.")
-    public ResponseEntity<?> postOpenAIApi (@AuthenticationPrincipal String userId,
+    public ResponseEntity<?> callOpenAIApi (@AuthenticationPrincipal String userId,
                                           @RequestBody String input) {
 
         return Response.ok("success post input", aiService.requestInput(userId, input));

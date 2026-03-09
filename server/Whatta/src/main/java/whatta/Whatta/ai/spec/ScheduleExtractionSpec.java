@@ -12,20 +12,19 @@ public final class ScheduleExtractionSpec {
     public static final String NAME = "schedule_create_intent";
 
     public static final String INSTRUCTIONS = """
-            너는 사용자의 자연어에서 일정/할일 추가 의도를 추론하는 파서다.
-            반드시 제공된 JSON Schema를 100% 준수한 JSON 객체만 반환한다.
+            너는 사용자의 자연어에서 일정/할일 생성 의도를 추론하는 파서다.
             설명 문장, 마크다운, 코드블록을 절대 출력하지 않는다.
 
             규칙:
             1) 하나의 입력에 일정/할일이 여러 개면 items 배열에 각각 분리해서 넣고, 입력에 나온 순서를 유지한다.
-            2) intent는 각 항목의 요청 의도에 해당하는 enum을 사용한다.
+            2) intent는 각 항목의 요청 의도에 해당하는 enum을 사용히며, 행동이 title 이면 task를 사용한다.
             3) 값이 없으면 문자열은 "", 배열은 [], 객체 내부 숫자는 0, boolean은 false를 사용한다.
-            4) 날짜 형식은 YYYY-MM-DD, 시간 형식은 HH:mm:ss, 일시 형식은 YYYY-MM-DDTHH:mm:ss 를 사용한다.
-            5) 상대 날짜(오늘/내일/모레/다음 주 등)는 절대 날짜로 계산하지 말고 date_ref에 기록한다.
-            6) 상대 시간(오전/오후/저녁/밤/이따 등)은 절대 시간으로 계산하지 말고 time_ref에 기록한다.
-            7) 절대 날짜가 명시된 경우 start_date/end_date 또는 due_date_time에 넣고 date_ref는 explicit_date로 둔다.
-            8) 절대 시간이 명시된 경우 start_time/end_time 또는 due_date_time에 넣고 time_ref는 explicit_time으로 둔다.
-            9) date_ref/time_ref만 있고 절대값이 불명확하면 start_date/start_time/end_date/end_time/due_date_time은 빈 문자열("")로 둔다.
+            4) 모든 필드는 title 을 보고 유추하여 값을 넣는다.
+            5) 일정(event)은 due_date_time을 빈문자열("")로 두며, 할일(task)는 end_Time을 빈문자열("")로 둔다.
+            6) 상대 날짜 및 시간은(오늘/내일/모레/다음 주/오전/오후/저녁 등)는 기준 시각(now)을 'Asia/Seoul'(KST, UTC+09:00)로 해석하여 계산한다.
+            7) 절대적 날짜 또는 시간이 명시된 경우 start/end 또는 due_date_time에 넣는다.
+            8) 날짜와 시간 모두에 대한 언급이 없다면 'Asia/Seoul'(KST, UTC+09:00)의 지금(now)를 start_date/end_date에 넣는다.
+            9) start_time에 값이 있을 경우, title을 보고 유추하여 end_time을 계산한다.
             """;
 
     private static final String SCHEDULE_JSON_SCHEMA = """
@@ -39,15 +38,13 @@ public final class ScheduleExtractionSpec {
                     "type": "object",
                     "additionalProperties": false,
                     "properties": {
-                      "intent": { "type": "string","enum": ["create_event", "create_task", "update_or_delete", "unrelated", "failed"] },
+                      "intent": { "type": "string","enum": ["create_event", "create_task", "update_or_delete", "unrelated"] },
                       "title": { "type": "string", "maxLength": 20 },
-                      "date_ref": { "type": "string", "enum": ["", "today", "tomorrow", "day_after_tomorrow", "explicit_date", "relative_date"] },
-                      "time_ref": { "type": "string", "enum": ["", "morning", "afternoon", "evening", "night", "explicit_time", "relative_time"] },
                       "start_date": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
                       "end_date": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
                       "start_time": { "type": "string", "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
                       "end_time": { "type": "string", "pattern": "^$|^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
-                      "due_date_time": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
+                      "due_date_time": { "type": "string", "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2} ([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$" },
                       "repeat": {
                         "type": "object",
                         "additionalProperties": false,
@@ -70,8 +67,6 @@ public final class ScheduleExtractionSpec {
                     "required": [
                       "intent",
                       "title",
-                      "date_ref",
-                      "time_ref",
                       "start_date",
                       "end_date",
                       "start_time",

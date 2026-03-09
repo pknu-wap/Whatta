@@ -32,6 +32,7 @@ public record OpenAIRequest(
             Effort effort
     ) {
         public enum Effort {
+            minimal,
             low,
             medium,
             high

@@ -13,7 +13,7 @@ import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
-import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
@@ -54,8 +54,8 @@ public class EventService {
         if(request.title() != null && !request.title().isBlank()) eventBuilder.title(request.title());
         if(request.content() != null && !request.content().isBlank()) eventBuilder.content(request.content());
         if(request.labels() != null && !request.labels().isEmpty()) eventBuilder.labels(request.labels());
-        eventBuilder.startTime(LocalTimeUtil.stringToLocalTime(request.startTime()));
-        eventBuilder.endTime(LocalTimeUtil.stringToLocalTime(request.endTime()));
+        eventBuilder.startTime(LocalDateTimeUtil.stringToLocalTime(request.startTime()));
+        eventBuilder.endTime(LocalDateTimeUtil.stringToLocalTime(request.endTime()));
         eventBuilder.reminderNotiAt(request.reminderNoti());
 
         Event event = eventBuilder.build().normalizeAndValidateDateTimeOrder();
@@ -141,7 +141,7 @@ public class EventService {
     }
 
     private LocalTime stringToLocalTime(String time) {
-        return LocalTimeUtil.stringToLocalTime(time);
+        return LocalDateTimeUtil.stringToLocalTime(time);
     }
 
     private boolean shouldDeleteBecauseStartAfterRepeatEnd(Event event) {
