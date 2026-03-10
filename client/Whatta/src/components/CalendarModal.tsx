@@ -12,13 +12,12 @@ import { CalendarList, LocaleConfig, DateData } from 'react-native-calendars'
 import { Picker } from '@react-native-picker/picker'
 import colors from '@/styles/colors'
 import DropDown from '@/assets/icons/drop_down.svg'
-import LeftArrow from '@/assets/icons/left.svg'
-import RightArrow from '@/assets/icons/right.svg'
-import { bus, EVENT } from '@/lib/eventBus'
+import { ts } from '@/styles/typography'
 
 const { width } = Dimensions.get('window')
-const CALENDAR_WIDTH = width * 0.9 - 20
+const CALENDAR_WIDTH = Math.round(width * 0.9 - 20)
 const CALENDAR_HEIGHT = 290
+const ACTIONS_BOTTOM_OFFSET = 19
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -77,19 +76,18 @@ export default function CalendarModal({
 
   // 모달이 열릴 때, props로 받은 currentDate(현재 보고 있는 날짜)로 캘린더와 피커를 동기화
   useEffect(() => {
-    if (visible) {
-      const y = Number(currentDate.slice(0, 4))
-      const m = Number(currentDate.slice(5, 7))
-      const ym = currentDate.slice(0, 7)
+    if (!visible) return
+    const y = Number(currentDate.slice(0, 4))
+    const m = Number(currentDate.slice(5, 7))
+    const ym = currentDate.slice(0, 7)
 
-      setPickYear(y)
-      setPickMonth(m)
-      setCurrentMonth(`${ym}-01`)
+    setPickYear(y)
+    setPickMonth(m)
+    setCurrentMonth(`${ym}-01`)
 
-      // 캘린더를 해당 월로 즉시 점프시키기 위해 리마운트
-      setCalendarKey((prev) => prev + 1)
-    }
-  }, [visible, currentDate])
+    // 캘린더를 해당 월로 즉시 점프시키기 위해 리마운트
+    setCalendarKey((prev) => prev + 1)
+  }, [visible])
 
   // 년도 범위 생성 (현재 -50 ~ +50년)
   const years = useMemo(() => {
@@ -97,31 +95,12 @@ export default function CalendarModal({
     return Array.from({ length: 101 }, (_, i) => now - 50 + i)
   }, [])
 
-  // 화살표 버튼 이동
-  const gotoPrevMonth = useCallback(() => {
-    const d = new Date(currentMonth)
-    const nd = new Date(d.getFullYear(), d.getMonth() - 1, 1)
-    const ym = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`
-    setCurrentMonth(`${ym}-01`)
-    setPickYear(nd.getFullYear())
-    setPickMonth(nd.getMonth() + 1)
-  }, [currentMonth])
-
-  const gotoNextMonth = useCallback(() => {
-    const d = new Date(currentMonth)
-    const nd = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-    const ym = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}`
-    setCurrentMonth(`${ym}-01`)
-    setPickYear(nd.getFullYear())
-    setPickMonth(nd.getMonth() + 1)
-  }, [currentMonth])
-
   // 스와이프 시 헤더 동기화
   const handleVisibleMonthsChange = useCallback((months: DateData[]) => {
     if (months.length > 0) {
       const item = months[0]
-      setPickYear(item.year)
-      setPickMonth(item.month)
+      setPickYear((prev) => (prev === item.year ? prev : item.year))
+      setPickMonth((prev) => (prev === item.month ? prev : item.month))
     }
   }, [])
 
@@ -139,8 +118,10 @@ export default function CalendarModal({
 
   const handleDayPress = useCallback(
     (day: DateData) => {
-      onSelectDate(day.dateString)
       onClose()
+      requestAnimationFrame(() => {
+        onSelectDate(day.dateString)
+      })
     },
     [onSelectDate, onClose],
   )
@@ -158,6 +139,7 @@ export default function CalendarModal({
     // 1. 오늘 날짜
     marks[todayStr] = {
       today: true,
+      textColor: colors.brand.primary,
     }
 
     // 2. 현재 선택된 날짜
@@ -166,8 +148,9 @@ export default function CalendarModal({
       marks[currentDate] = {
         ...(marks[currentDate] || {}),
         selected: true,
-        selectedColor: colors.calendar.background,
-        selectedTextColor: colors.primary.main,
+        selectedColor: '#B04FFF1A',
+        selectedTextColor:
+          currentDate === todayStr ? colors.brand.primary : colors.text.text1,
       }
     }
 
@@ -193,38 +176,27 @@ export default function CalendarModal({
     onClose()
   }, [onPressToday, onSelectDate, onClose])
 
+  const moveToSelected = useCallback(() => {
+    if (currentDate) onSelectDate(currentDate)
+    onClose()
+  }, [currentDate, onSelectDate, onClose])
+
   const openYM = () => setYmVisible(true)
 
   const renderExternalHeader = () => {
     const name = getMonthName(pickMonth)
-    const titleColor = ymVisible ? colors.primary.main : '#000'
+    const iconColor = ymVisible ? colors.icon.selected : colors.icon.default
 
     return (
       <View style={HeaderStyles.headerContainer}>
-        {/* <TouchableOpacity
-          onPress={gotoPrevMonth}
-          style={HeaderStyles.arrowButton}
-          hitSlop={10}
-        >
-          <LeftArrow width={24} height={24} color={titleColor} />
-        </TouchableOpacity> */}
-
         <TouchableOpacity onPress={openYM} hitSlop={8}>
           <View style={HeaderStyles.titleGroup}>
-            <Text style={[HeaderStyles.headerTitle, { color: titleColor }]}>
+            <Text style={HeaderStyles.headerTitle}>
               {`${pickYear}년 ${name}`}
             </Text>
-            <DropDown width={24} height={24} color={titleColor} />
+            <DropDown width={24} height={24} color={iconColor} />
           </View>
         </TouchableOpacity>
-
-        {/* <TouchableOpacity
-          onPress={gotoNextMonth}
-          style={HeaderStyles.arrowButton}
-          hitSlop={10}
-        >
-          <RightArrow width={24} height={24} color={titleColor} />
-        </TouchableOpacity> */}
       </View>
     )
   }
@@ -244,70 +216,98 @@ export default function CalendarModal({
             onStartShouldSetResponder={() => true}
             onTouchEnd={(e) => e.stopPropagation()}
           >
-            {renderExternalHeader()}
+            <View style={S.contentColumn}>
+              {renderExternalHeader()}
 
-            <View
-              style={{
-                width: CALENDAR_WIDTH,
-                alignSelf: 'center',
-                overflow: 'hidden',
-                height: CALENDAR_HEIGHT,
-              }}
-            >
-              <CalendarList
-                key={`calendar-list-${calendarKey}`}
-                horizontal={true}
-                pagingEnabled={true}
-                current={currentMonth}
-                calendarWidth={CALENDAR_WIDTH}
-                calendarHeight={CALENDAR_HEIGHT}
-                style={{ width: CALENDAR_WIDTH, height: CALENDAR_HEIGHT }}
-                pastScrollRange={24}
-                futureScrollRange={24}
-                hideArrows={true}
-                hideDayNames={false}
-                renderHeader={() => null}
-                markedDates={markedDates}
-                onDayPress={handleDayPress}
-                onVisibleMonthsChange={handleVisibleMonthsChange}
-                showScrollIndicator={false}
-                viewabilityConfig={{
-                  itemVisiblePercentThreshold: 50,
-                }}
-                theme={
-                  {
-                    'stylesheet.calendar.header': {
-                      header: { height: 0, opacity: 0 },
-                      monthText: { fontSize: 0 },
-                      dayHeader: { color: '#B3B3B3', marginBottom: 10 },
-                    },
-                    textDayHeaderFontSize: 10,
-                    textDayHeaderFontWeight: '400',
-                    textDayHeaderFontFamily: 'SF Pro',
-                    textDayFontSize: 12,
-                    textDayFontWeight: '500',
-                    textDayFontFamily: 'SF Pro',
-                    textDayLetterSpacing: -0.48,
-                    todayTextColor: colors.primary.main,
-                    selectedDayFontWeight: '600',
-                    selectedDayBackgroundColor: colors.calendar.background,
-                    textDayStyle: { color: '#000' },
-                    'stylesheet.day.basic': {
-                      selected: {
-                        borderRadius: 100,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        width: 29,
-                        height: 29,
+              <View style={S.calendarWrap}>
+                <CalendarList
+                  key={`calendar-list-${calendarKey}`}
+                  horizontal={true}
+                  pagingEnabled={true}
+                  bounces={false}
+                  alwaysBounceHorizontal={false}
+                  current={currentMonth}
+                  calendarWidth={CALENDAR_WIDTH}
+                  calendarHeight={CALENDAR_HEIGHT}
+                  style={{
+                    width: CALENDAR_WIDTH,
+                    height: CALENDAR_HEIGHT,
+                  }}
+                  pastScrollRange={24}
+                  futureScrollRange={24}
+                  hideArrows={true}
+                  hideDayNames={false}
+                  showSixWeeks={true}
+                  renderHeader={() => null}
+                  markedDates={markedDates}
+                  onDayPress={handleDayPress}
+                  onVisibleMonthsChange={handleVisibleMonthsChange}
+                  showScrollIndicator={false}
+                  viewabilityConfig={{
+                    itemVisiblePercentThreshold: 50,
+                  }}
+                  theme={
+                    {
+                      'stylesheet.calendar.header': {
+                        header: { height: 10, opacity: 0 },
+                        monthText: { fontSize: 0 },
+                        dayHeader: { color: colors.text.text1, marginBottom: 4,},
+                        dayTextAtIndex0: { color: colors.text.monday },
                       },
-                      dayText: { color: '#000' },
-                    },
-                  } as any
-                }
-              />
+                      textDayHeaderFontSize: ts('date3').fontSize,
+                      textDayHeaderFontWeight: ts('date3').fontWeight,
+                      textDayHeaderFontFamily: 'SF Pro',
+                      textDayFontSize: ts('date1').fontSize,
+                      textDayFontWeight: ts('date1').fontWeight,
+                      textDayFontFamily: 'SF Pro',
+                      textDayLetterSpacing: ts('date1').letterSpacing,
+                      todayTextColor: colors.brand.primary,
+                      selectedDayFontWeight: '700',
+                      selectedDayBackgroundColor: '#B04FFF1A',
+                      selectedDayTextColor: colors.text.text1,
+                      textDayStyle: { color: colors.text.text1 },
+                      'stylesheet.day.basic': {
+                        base: {
+                          width: 32,
+                          height: 32,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        },
+                        selectedText: {
+                          fontWeight: '700',
+                          color: colors.text.text1,
+                          zIndex: 2,
+                        },
+                        todayText: {
+                          fontWeight: '700',
+                          color: colors.brand.primary,
+                          zIndex: 2,
+                        },
+                        selected: {
+                          borderRadius: 12,
+                          width: 36,
+                          height: 36,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          zIndex: 1,
+                        },
+                        dayText: { color: colors.text.text1, zIndex: 2 },
+                      },
+                    } as any
+                  }
+                />
+              </View>
+            </View>
 
+            <View style={TodayButtonStyles.bottomActions}>
               <TouchableOpacity style={TodayButtonStyles.todayButton} onPress={goToToday}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>오늘로 이동</Text>
+                <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={TodayButtonStyles.moveButton}
+                onPress={moveToSelected}
+              >
+                <Text style={TodayButtonStyles.moveText}>이동</Text>
               </TouchableOpacity>
             </View>
 
@@ -370,19 +370,35 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    marginTop: 90,
+    marginTop: 110,
   },
   modalView: {
-    margin: 20,
     backgroundColor: '#FFF',
-    borderRadius: 10,
-    padding: 10,
-    width: '90%',
-    shadowColor: 'rgba(0, 0, 0, 0.25)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 0,
+    width: 358,
+    height: 410,
+    shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 15,
+    shadowRadius: 7.5,
+    elevation: 8,
     position: 'relative',
+    alignItems: 'center',
+  },
+  contentColumn: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+  },
+  calendarWrap: {
+    width: CALENDAR_WIDTH,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    height: CALENDAR_HEIGHT,
   },
 })
 
@@ -393,17 +409,15 @@ const HeaderStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
+    marginTop: 13,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
-    lineHeight: 20,
-    marginRight: 8,
+    ...ts('titleM'),
+    color: colors.text.text1,
+    marginRight: 6,
     paddingLeft: 10,
   },
-  arrowButton: { padding: 10 },
 })
 
 const YMStayle = StyleSheet.create({
@@ -435,16 +449,36 @@ const YMStayle = StyleSheet.create({
 })
 
 const TodayButtonStyles = StyleSheet.create({
-  todayButton: {
+  bottomActions: {
+    width: CALENDAR_WIDTH,
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.primary.main,
+    bottom: ACTIONS_BOTTOM_OFFSET,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    alignSelf: 'center',
+  },
+  todayButton: {
+    paddingHorizontal: 12,
+    height: 45,
+    borderRadius: 12,
+    borderColor: colors.divider.divider1,
+    borderWidth: 1,
+    backgroundColor: colors.background.bg1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  todayText: {
+    ...ts('titleS'),
+    color: colors.text.text2,
+  },
+  moveButton: {
+    position: 'absolute',
+    right: 15,
+    height: 52,
+    justifyContent: 'center',
+  },
+  moveText: {
+    ...ts('titleS'),
+    color: colors.brand.primary,
   },
 })
