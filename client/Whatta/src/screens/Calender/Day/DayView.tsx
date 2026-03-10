@@ -59,7 +59,7 @@ import {
 import {
   today,
   getInstanceDates,
-} from '../../../../utils/dateUtils'
+} from '../../../utils/dateUtils'
 import { getMyLabels } from '@/api/label_api'
 
 function FullBleed({
