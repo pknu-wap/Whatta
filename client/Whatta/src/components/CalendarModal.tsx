@@ -87,6 +87,7 @@ export default function CalendarModal({
   const safeCurrentDate =
     typeof currentDate === 'string' && currentDate.length >= 10 ? currentDate : todayISO()
   const [ymVisible, setYmVisible] = useState(initialOpenMode === 'picker')
+  const [selectedDate, setSelectedDate] = useState(safeCurrentDate)
 
   // 캘린더가 현재 보여주고 있는 달 (YYYY-MM-01)
   const [currentMonth, setCurrentMonth] = useState(safeCurrentDate)
@@ -108,6 +109,7 @@ export default function CalendarModal({
     setPickYear(y)
     setPickMonth(m)
     setCurrentMonth(`${ym}-01`)
+    setSelectedDate(safeCurrentDate)
 
     // 캘린더를 해당 월로 즉시 점프시키기 위해 리마운트
     setCalendarKey((prev) => prev + 1)
@@ -146,15 +148,9 @@ export default function CalendarModal({
     setYmVisible(false)
   }, [])
 
-  const handleDayPress = useCallback(
-    (day: DateData) => {
-      onClose()
-      requestAnimationFrame(() => {
-        onSelectDate(day.dateString)
-      })
-    },
-    [onSelectDate, onClose],
-  )
+  const handleDayPress = useCallback((day: DateData) => {
+    setSelectedDate(day.dateString)
+  }, [])
 
   const getTodayString = () => {
     const today = new Date()
@@ -174,18 +170,18 @@ export default function CalendarModal({
 
     // 2. 현재 선택된 날짜
     // currentDate prop이 있으면 그 날짜를 선택된 상태로 표시
-    if (safeCurrentDate) {
-      marks[safeCurrentDate] = {
-        ...(marks[safeCurrentDate] || {}),
+    if (selectedDate) {
+      marks[selectedDate] = {
+        ...(marks[selectedDate] || {}),
         selected: true,
         selectedColor: '#B04FFF1A',
         selectedTextColor:
-          safeCurrentDate === todayStr ? colors.brand.primary : colors.text.text1,
+          selectedDate === todayStr ? colors.brand.primary : colors.text.text1,
       }
     }
 
     return marks
-  }, [safeCurrentDate])
+  }, [selectedDate])
 
   // 오늘로 이동
   const goToToday = useCallback(() => {
@@ -207,9 +203,9 @@ export default function CalendarModal({
   }, [onPressToday, onSelectDate, onClose])
 
   const moveToSelected = useCallback(() => {
-    if (safeCurrentDate) onSelectDate(safeCurrentDate)
+    if (selectedDate) onSelectDate(selectedDate)
     onClose()
-  }, [safeCurrentDate, onSelectDate, onClose])
+  }, [selectedDate, onSelectDate, onClose])
 
   const openYM = () => setYmVisible(true)
   const isSixWeekMonth = useMemo(
@@ -377,8 +373,8 @@ export default function CalendarModal({
                         textDayStyle: { color: colors.text.text1 },
                         'stylesheet.day.basic': {
                           base: {
-                            width: 32,
-                            height: 32,
+                            width: 34,
+                            height: 34,
                             justifyContent: 'center',
                             alignItems: 'center',
                           },
@@ -394,8 +390,8 @@ export default function CalendarModal({
                           },
                           selected: {
                             borderRadius: 12,
-                            width: 36,
-                            height: 36,
+                            width: 32,
+                            height: 32,
                             justifyContent: 'center',
                             alignItems: 'center',
                             zIndex: 1,
