@@ -16,6 +16,8 @@ function RangeScheduleBar({
   density = 'day',
   isStart,
   isEnd,
+  radiusOverride,
+  capWidthOverride,
   style,
   onPress,
 }: RangeScheduleBarProps) {
@@ -27,8 +29,8 @@ function RangeScheduleBar({
   const showStartCap = !!isStart
   const showEndCap = !!isEnd
   const fixedHeight = density === 'month' ? d.height : density === 'week' && untimed ? 26 : untimed ? 30 : d.height
-  const baseRadius = density === 'month' ? d.radius : untimed ? 8 : d.radius
-  const capWidth = Math.max(d.chip, baseRadius)
+  const baseRadius = radiusOverride ?? (density === 'month' ? d.radius : untimed ? 8 : d.radius)
+  const capWidth = capWidthOverride ?? Math.max(d.chip, baseRadius)
   const hasAnyCap = showStartCap || showEndCap
   const normalizedTimeRangeText = timeRangeText?.replace(/\s+/g, '')
   const dayLabel3 = ts('label3')
@@ -119,6 +121,8 @@ function RangeScheduleBar({
                   }
                 : { fontSize: Math.max(9, d.font - 1) },
             ]}
+            numberOfLines={1}
+            ellipsizeMode="clip"
           >
             {normalizedTimeRangeText}
           </Text>
@@ -164,5 +168,6 @@ const S = StyleSheet.create({
     color: colors.text.text1,
     marginTop: 1,
     fontWeight: '500',
+    includeFontPadding: false,
   },
 })

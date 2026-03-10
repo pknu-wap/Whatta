@@ -537,8 +537,10 @@ const holidayIsoByWeek = useMemo(() => {
                 : `#${s.colorKey}`
               : '#8B5CF6'
             return {
+              id: s.id,
               title: s.name,
               period: `${s.multiDayStart}~${s.multiDayEnd}`,
+              isRecurring: !!s.isRecurring,
               colorKey: s.colorKey,
               color: baseColor,
             }
@@ -555,8 +557,10 @@ const holidayIsoByWeek = useMemo(() => {
             ? '#8B5CF6'
             : formatted                     
           return {
+            id: ev.id,
             title: ev.title ?? ev.name ?? '',
             // 단일 all-day 일정은 period 없이 제목만 표시 
+            isRecurring: !!ev.isRepeat,
             colorKey: ev.colorKey,
             color: baseColor,
           }
@@ -577,8 +581,11 @@ const holidayIsoByWeek = useMemo(() => {
               : `#${s.colorKey}`
             : '#F4EAFF'
           return {
+            id: s.id,
             title: s.name,
             memo: s.memo ?? '',
+            time: s.time ?? '',
+            isRecurring: !!s.isRecurring,
             color: baseColor,
           }
         }),

@@ -36,6 +36,8 @@ export type RangeScheduleBarProps = {
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  radiusOverride?: number
+  capWidthOverride?: number
   style?: any
   onPress?: CalendarItemPressHandler
 }
