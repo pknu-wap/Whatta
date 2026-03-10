@@ -6,8 +6,18 @@ import { parseOCREvents } from '@/utils/ocrParser'
 export function useOCR() {
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState([])
+  const [ocrEvents, setOcrEvents] = useState<OCREvent[]>([])
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
+
+type OCREvent = {
+  id: string
+  title: string
+  content: string
+  weekDay: string
+  date: string
+  startTime: string
+  endTime: string
+}
 
   const sendToOCR = async (base64: string, ext?: string) => {
     try {
