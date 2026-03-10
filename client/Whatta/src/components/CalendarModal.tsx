@@ -20,10 +20,10 @@ const { width } = Dimensions.get('window')
 const CALENDAR_WIDTH = Math.round(width * 0.9 - 20)
 const CALENDAR_HEIGHT = 300
 const ACTIONS_BOTTOM_OFFSET = 19
-const MODAL_MIN_HEIGHT = 343
+const MODAL_MIN_HEIGHT = 313
 const MODAL_CALENDAR_HEIGHT = 410
-const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 426
-const DAY_CELL_SIZE = 34
+const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 446
+const DAY_CELL_SIZE = 32
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -285,7 +285,7 @@ export default function CalendarModal({
                         ]}
                       >
                         <TouchableOpacity
-                          style={TodayButtonStyles.todayButton}
+                          style={[TodayButtonStyles.todayButton, YMStayle.pickerTodayButton]}
                           onPress={goToToday}
                         >
                           <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
@@ -403,7 +403,10 @@ export default function CalendarModal({
 
             {!ymVisible && (
               <View style={TodayButtonStyles.bottomActions}>
-                <TouchableOpacity style={TodayButtonStyles.todayButton} onPress={goToToday}>
+                <TouchableOpacity
+                  style={[TodayButtonStyles.todayButton, TodayButtonStyles.calendarTodayButton]}
+                  onPress={goToToday}
+                >
                   <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -521,10 +524,13 @@ const YMStayle = StyleSheet.create({
   moveActionsRow: {
     width: CALENDAR_WIDTH,
     height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
     position: 'relative',
     marginTop: 4,
+  },
+  pickerTodayButton: {
+    position: 'absolute',
+    left: 15,
+    top: 4,
   },
   moveBtn: {
     position: 'absolute',
@@ -543,22 +549,25 @@ const TodayButtonStyles = StyleSheet.create({
     width: CALENDAR_WIDTH,
     position: 'absolute',
     bottom: ACTIONS_BOTTOM_OFFSET,
-    justifyContent: 'center',
-    alignItems: 'center',
     alignSelf: 'center',
+    height: 56,
   },
   todayButton: {
     paddingHorizontal: 12,
     height: 45,
     borderRadius: 12,
-    borderColor: colors.divider.divider1,
-    borderWidth: 1,
     backgroundColor: colors.background.bg1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  calendarTodayButton: {
+    position: 'absolute',
+    left: 15,
+    top: 4,
+  },
   todayText: {
     ...ts('titleS'),
+    lineHeight: 20,
     color: colors.text.text2,
   },
   moveButton: {
