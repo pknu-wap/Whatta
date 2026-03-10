@@ -14,5 +14,5 @@ public interface BusFavoriteRepository extends MongoRepository<BusFavorite, Stri
 
     long countByIdInAndUserId(List<String> ids, String userId);
 
-    boolean existsByUserIdAndBusStationIdAndBusRouteId(String userId, String busStationId, String busRouteId);
+    Optional<BusFavorite> findByUserIdAndBusStationIdAndBusRouteId(String userId, String busStationId, String busRouteId);
 }

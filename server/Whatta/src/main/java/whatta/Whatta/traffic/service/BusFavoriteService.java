@@ -1,6 +1,7 @@
 package whatta.Whatta.traffic.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +13,10 @@ import whatta.Whatta.traffic.payload.response.BusFavoriteResponse;
 import whatta.Whatta.traffic.repository.BusFavoriteRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -22,37 +25,36 @@ public class BusFavoriteService {
     private final BusFavoriteRepository busFavoriteRepository;
 
     public BusFavoriteResponse createBusFavorite(String userId, BusFavoriteCreateRequest request) {
-        boolean alreadyExists = busFavoriteRepository.existsByUserIdAndBusStationIdAndBusRouteId(
+        Optional<BusFavorite> existingFavorite = busFavoriteRepository.findByUserIdAndBusStationIdAndBusRouteId(
                 userId,
                 request.busStationId(),
                 request.busRouteId()
         );
-        if (alreadyExists) {
-            throw new RestApiException(ErrorCode.TRAFFIC_ITEM_ALREADY_EXISTS);
-        }
 
-        BusFavorite item = BusFavorite.builder()
-                .userId(userId)
-                .busStationId(request.busStationId())
-                .busStationName(request.busStationName())
-                .busRouteId(request.busRouteId())
-                .busRouteNo(request.busRouteNo())
-                .build();
+        if (existingFavorite.isPresent()) {
+            BusFavorite favorite = existingFavorite.get();
+            log.info("즐겨찾기 중복데이터 감지: 기존 ID({})를 반환합니다.", favorite.getId());
 
-        BusFavorite savedItem;
-        try {
-            savedItem = busFavoriteRepository.save(item);
-        } catch (DuplicateKeyException e) {
-            throw new RestApiException(ErrorCode.TRAFFIC_ITEM_ALREADY_EXISTS);
+            return BusFavoriteResponse.fromEntity(favorite);
         }
-        return BusFavoriteResponse.fromEntity(savedItem);
+        else {
+            BusFavorite favorite = BusFavorite.builder()
+                    .userId(userId)
+                    .busStationId(request.busStationId())
+                    .busStationName(request.busStationName())
+                    .busRouteId(request.busRouteId())
+                    .busRouteNo(request.busRouteNo())
+                    .build();
+            BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
+            return BusFavoriteResponse.fromEntity(savedFavorite);
+        }
     }
 
     public void deleteBusFavorite(String userId, String itemId) {
-        BusFavorite item = busFavoriteRepository.findByIdAndUserId(itemId, userId)
+        BusFavorite favorite = busFavoriteRepository.findByIdAndUserId(itemId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        busFavoriteRepository.delete(item);
+        busFavoriteRepository.delete(favorite);
     }
 
     @Transactional(readOnly = true)
