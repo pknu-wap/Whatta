@@ -56,7 +56,7 @@ const CustomToggle = ({
         borderRadius: 26,
         padding: 3,
         justifyContent: 'center',
-        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
+        backgroundColor: disabled ? '#D9D9D9' : value ? colors.brand.primary : '#D9D9D9',
         opacity: disabled ? 0.4 : 1,
         marginRight: 16, // 기존 레이아웃 맞춤용 여백
       }}
@@ -158,6 +158,15 @@ export default function Header() {
       globalPopupState.sliderX = x
     },
   })
+
+  const applyOpacityFromSliderX = (rawX: number) => {
+    const clampedX = Math.min(Math.max(rawX, 0), maxSlide)
+    sliderX.setValue(clampedX)
+    const opacity = 0.7 + (clampedX / maxSlide) * 0.3
+    popupOpacity.setValue(opacity)
+    globalPopupState.opacity = opacity
+    globalPopupState.sliderX = clampedX
+  }
 
   const menuIconProps = useAnimatedProps(() => ({
     color: interpolateColor(
@@ -297,15 +306,14 @@ export default function Header() {
             <Text style={styles.popupTitle}>필터</Text>
 
             {/* 투명도 슬라이더 */}
-            <TouchableWithoutFeedback
-              onPress={(e) => {
-                const { locationX } = e.nativeEvent
-                const clampedX = Math.min(Math.max(locationX, 0), maxSlide)
-                sliderX.setValue(clampedX)
-                const opacity = 0.7 + (clampedX / maxSlide) * 0.3
-                popupOpacity.setValue(opacity)
-                globalPopupState.opacity = opacity
-                globalPopupState.sliderX = clampedX
+            <View
+              style={styles.sliderHitArea}
+              onStartShouldSetResponder={() => true}
+              onResponderGrant={(e) => {
+                applyOpacityFromSliderX(e.nativeEvent.locationX)
+              }}
+              onResponderMove={(e) => {
+                applyOpacityFromSliderX(e.nativeEvent.locationX)
               }}
             >
               <View style={styles.sliderTrack}>
@@ -314,7 +322,7 @@ export default function Header() {
                   style={[styles.sliderThumb, { transform: [{ translateX: sliderX }] }]}
                 />
               </View>
-            </TouchableWithoutFeedback>
+            </View>
 
             <View style={{ height: 16 }} />
 
@@ -330,9 +338,7 @@ export default function Header() {
               />
             </View>
 
-            <View style={{ height: 7 }} />
             <View style={styles.divider} />
-            <View style={{ height: 15 }} />
 
             {/* 개별 라벨 토글 */}
             {filterLabels.map((l) => (
@@ -371,10 +377,11 @@ export default function Header() {
 
 /* 스타일 */
 const styles = StyleSheet.create({
-  root: { height: 48 },
+  root: { height: 48, overflow: 'visible' },
   header: {
     position: 'relative',
     height: '100%',
+    overflow: 'visible',
   },
   leftButton: {
     position: 'absolute',
@@ -425,34 +432,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 10,
   },
-  popupContainer: { position: 'absolute', right: 10, top: 48, zIndex: 999 },
+  popupContainer: {
+    position: 'absolute',
+    right: 10,
+    top: 48,
+    zIndex: 999,
+    overflow: 'visible',
+  },
   popupBox: {
     width: 158,
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 20,
     paddingTop: 16,
     paddingBottom: 10,
-    shadowColor: '#000',
+    shadowColor: colors.icon.default,
     shadowOpacity: 0.5,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 24,
+    shadowRadius: 7.5,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
   },
-  popupTitle: { fontSize: 14, fontWeight: 'bold', marginLeft: 16 },
+  popupTitle: {
+    ...ts('titleS'),
+    marginLeft: 16,
+  },
   sliderTrack: {
     width: 38,
     height: 2,
-    backgroundColor: 'rgba(0.2,0.2,0.2,1)',
+    backgroundColor: colors.icon.default,
     borderRadius: 1,
+  },
+  sliderHitArea: {
+    width: 38,
     position: 'absolute',
     right: 25,
-    top: 22,
+    top: 13,
+    height: 20,
+    justifyContent: 'center',
   },
   sliderThumb: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#B4B4B4',
+    backgroundColor: colors.icon.selected,
     position: 'absolute',
     top: -5,
   },
@@ -462,8 +483,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 9,
   },
-  allText: { fontSize: 14, marginLeft: 16 },
+  allText: {
+    ...ts('label3'),
+    marginLeft: 16,
+    fontSize: 13
+  },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
-  labelText: { fontSize: 14 },
-  divider: { width: 126, height: 1, backgroundColor: '#e1e1e1', alignSelf: 'center' },
+  labelText: {
+    ...ts('body1'),
+    fontSize: 13
+  },
+  divider: { width: 126, height: 1, backgroundColor: colors.icon.default, alignSelf: 'center' },
 })
