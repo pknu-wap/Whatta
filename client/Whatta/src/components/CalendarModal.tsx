@@ -12,12 +12,17 @@ import { CalendarList, LocaleConfig, DateData } from 'react-native-calendars'
 import { Picker } from '@react-native-picker/picker'
 import colors from '@/styles/colors'
 import DropDown from '@/assets/icons/drop_down.svg'
+import Check from '@/assets/icons/check.svg'
+import X from '@/assets/icons/x.svg'
 import { ts } from '@/styles/typography'
 
 const { width } = Dimensions.get('window')
 const CALENDAR_WIDTH = Math.round(width * 0.9 - 20)
-const CALENDAR_HEIGHT = 290
+const CALENDAR_HEIGHT = 300
 const ACTIONS_BOTTOM_OFFSET = 19
+const MODAL_MIN_HEIGHT = 303
+const MODAL_CALENDAR_HEIGHT = 410
+const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 426
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -47,6 +52,10 @@ type Props = {
   currentDate: string
   onSelectDate: (date: string) => void
   onPressToday?: () => void
+  initialOpenMode?: 'calendar' | 'picker'
+  pickerConfirmVariant?: 'icon' | 'move'
+  showPickerCancel?: boolean
+  pickerActionsLift?: number
 }
 
 const getMonthName = (month: number) => {
@@ -54,6 +63,15 @@ const getMonthName = (month: number) => {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
+const todayISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+const getWeeksInMonth = (year: number, month: number) => {
+  const firstDay = new Date(year, month - 1, 1).getDay()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  return Math.ceil((firstDay + daysInMonth) / 7)
+}
 
 export default function CalendarModal({
   visible,
@@ -61,15 +79,21 @@ export default function CalendarModal({
   currentDate,
   onSelectDate,
   onPressToday,
+  initialOpenMode = 'calendar',
+  pickerConfirmVariant = 'icon',
+  showPickerCancel = true,
+  pickerActionsLift = 0,
 }: Props) {
-  const [ymVisible, setYmVisible] = useState(false)
+  const safeCurrentDate =
+    typeof currentDate === 'string' && currentDate.length >= 10 ? currentDate : todayISO()
+  const [ymVisible, setYmVisible] = useState(initialOpenMode === 'picker')
 
   // 캘린더가 현재 보여주고 있는 달 (YYYY-MM-01)
-  const [currentMonth, setCurrentMonth] = useState(currentDate)
+  const [currentMonth, setCurrentMonth] = useState(safeCurrentDate)
 
   // 상단 피커 상태
-  const [pickYear, setPickYear] = useState(Number(currentDate.slice(0, 4)))
-  const [pickMonth, setPickMonth] = useState(Number(currentDate.slice(5, 7)))
+  const [pickYear, setPickYear] = useState(Number(safeCurrentDate.slice(0, 4)))
+  const [pickMonth, setPickMonth] = useState(Number(safeCurrentDate.slice(5, 7)))
 
   // 캘린더 강제 리마운트 키
   const [calendarKey, setCalendarKey] = useState(0)
@@ -77,9 +101,9 @@ export default function CalendarModal({
   // 모달이 열릴 때, props로 받은 currentDate(현재 보고 있는 날짜)로 캘린더와 피커를 동기화
   useEffect(() => {
     if (!visible) return
-    const y = Number(currentDate.slice(0, 4))
-    const m = Number(currentDate.slice(5, 7))
-    const ym = currentDate.slice(0, 7)
+    const y = Number(safeCurrentDate.slice(0, 4))
+    const m = Number(safeCurrentDate.slice(5, 7))
+    const ym = safeCurrentDate.slice(0, 7)
 
     setPickYear(y)
     setPickMonth(m)
@@ -87,7 +111,8 @@ export default function CalendarModal({
 
     // 캘린더를 해당 월로 즉시 점프시키기 위해 리마운트
     setCalendarKey((prev) => prev + 1)
-  }, [visible])
+    setYmVisible(initialOpenMode === 'picker')
+  }, [visible, initialOpenMode, safeCurrentDate])
 
   // 년도 범위 생성 (현재 -50 ~ +50년)
   const years = useMemo(() => {
@@ -107,10 +132,15 @@ export default function CalendarModal({
   // 피커 완료 버튼
   const confirmYM = useCallback(() => {
     const next = `${pickYear}-${pad(pickMonth)}-01`
+    if (pickerConfirmVariant === 'move') {
+      onSelectDate(next)
+      onClose()
+      return
+    }
     setCurrentMonth(next)
     setCalendarKey((prev) => prev + 1) // 점프
     setYmVisible(false)
-  }, [pickYear, pickMonth])
+  }, [pickYear, pickMonth, pickerConfirmVariant, onSelectDate, onClose])
 
   const closeYM = useCallback(() => {
     setYmVisible(false)
@@ -144,18 +174,18 @@ export default function CalendarModal({
 
     // 2. 현재 선택된 날짜
     // currentDate prop이 있으면 그 날짜를 선택된 상태로 표시
-    if (currentDate) {
-      marks[currentDate] = {
-        ...(marks[currentDate] || {}),
+    if (safeCurrentDate) {
+      marks[safeCurrentDate] = {
+        ...(marks[safeCurrentDate] || {}),
         selected: true,
         selectedColor: '#B04FFF1A',
         selectedTextColor:
-          currentDate === todayStr ? colors.brand.primary : colors.text.text1,
+          safeCurrentDate === todayStr ? colors.brand.primary : colors.text.text1,
       }
     }
 
     return marks
-  }, [currentDate])
+  }, [safeCurrentDate])
 
   // 오늘로 이동
   const goToToday = useCallback(() => {
@@ -177,11 +207,19 @@ export default function CalendarModal({
   }, [onPressToday, onSelectDate, onClose])
 
   const moveToSelected = useCallback(() => {
-    if (currentDate) onSelectDate(currentDate)
+    if (safeCurrentDate) onSelectDate(safeCurrentDate)
     onClose()
-  }, [currentDate, onSelectDate, onClose])
+  }, [safeCurrentDate, onSelectDate, onClose])
 
   const openYM = () => setYmVisible(true)
+  const isSixWeekMonth = useMemo(
+    () => getWeeksInMonth(pickYear, pickMonth) >= 6,
+    [pickYear, pickMonth],
+  )
+  const modalCalendarHeight = isSixWeekMonth
+    ? MODAL_CALENDAR_HEIGHT_SIX_WEEKS
+    : MODAL_CALENDAR_HEIGHT
+  const isMonthPickerMode = ymVisible && pickerConfirmVariant === 'move'
 
   const renderExternalHeader = () => {
     const name = getMonthName(pickMonth)
@@ -209,111 +247,21 @@ export default function CalendarModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={!ymVisible ? onClose : undefined}>
+      <TouchableWithoutFeedback onPress={onClose}>
         <View style={S.centeredView}>
           <View
-            style={S.modalView}
+            style={[
+              S.modalView,
+              !ymVisible && { height: modalCalendarHeight },
+            ]}
             onStartShouldSetResponder={() => true}
             onTouchEnd={(e) => e.stopPropagation()}
           >
-            <View style={S.contentColumn}>
-              {renderExternalHeader()}
+            <View style={[S.contentColumn, !ymVisible && S.contentColumnCalendar]}>
+              {!isMonthPickerMode && renderExternalHeader()}
 
-              <View style={S.calendarWrap}>
-                <CalendarList
-                  key={`calendar-list-${calendarKey}`}
-                  horizontal={true}
-                  pagingEnabled={true}
-                  bounces={false}
-                  alwaysBounceHorizontal={false}
-                  current={currentMonth}
-                  calendarWidth={CALENDAR_WIDTH}
-                  calendarHeight={CALENDAR_HEIGHT}
-                  style={{
-                    width: CALENDAR_WIDTH,
-                    height: CALENDAR_HEIGHT,
-                  }}
-                  pastScrollRange={24}
-                  futureScrollRange={24}
-                  hideArrows={true}
-                  hideDayNames={false}
-                  showSixWeeks={true}
-                  renderHeader={() => null}
-                  markedDates={markedDates}
-                  onDayPress={handleDayPress}
-                  onVisibleMonthsChange={handleVisibleMonthsChange}
-                  showScrollIndicator={false}
-                  viewabilityConfig={{
-                    itemVisiblePercentThreshold: 50,
-                  }}
-                  theme={
-                    {
-                      'stylesheet.calendar.header': {
-                        header: { height: 10, opacity: 0 },
-                        monthText: { fontSize: 0 },
-                        dayHeader: { color: colors.text.text1, marginBottom: 4,},
-                        dayTextAtIndex0: { color: colors.text.monday },
-                      },
-                      textDayHeaderFontSize: ts('date3').fontSize,
-                      textDayHeaderFontWeight: ts('date3').fontWeight,
-                      textDayHeaderFontFamily: 'SF Pro',
-                      textDayFontSize: ts('date1').fontSize,
-                      textDayFontWeight: ts('date1').fontWeight,
-                      textDayFontFamily: 'SF Pro',
-                      textDayLetterSpacing: ts('date1').letterSpacing,
-                      todayTextColor: colors.brand.primary,
-                      selectedDayFontWeight: '700',
-                      selectedDayBackgroundColor: '#B04FFF1A',
-                      selectedDayTextColor: colors.text.text1,
-                      textDayStyle: { color: colors.text.text1 },
-                      'stylesheet.day.basic': {
-                        base: {
-                          width: 32,
-                          height: 32,
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                        },
-                        selectedText: {
-                          fontWeight: '700',
-                          color: colors.text.text1,
-                          zIndex: 2,
-                        },
-                        todayText: {
-                          fontWeight: '700',
-                          color: colors.brand.primary,
-                          zIndex: 2,
-                        },
-                        selected: {
-                          borderRadius: 12,
-                          width: 36,
-                          height: 36,
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          zIndex: 1,
-                        },
-                        dayText: { color: colors.text.text1, zIndex: 2 },
-                      },
-                    } as any
-                  }
-                />
-              </View>
-            </View>
-
-            <View style={TodayButtonStyles.bottomActions}>
-              <TouchableOpacity style={TodayButtonStyles.todayButton} onPress={goToToday}>
-                <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={TodayButtonStyles.moveButton}
-                onPress={moveToSelected}
-              >
-                <Text style={TodayButtonStyles.moveText}>이동</Text>
-              </TouchableOpacity>
-            </View>
-
-            {ymVisible && (
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={YMStayle.ymContainer}>
+              {ymVisible ? (
+                <View style={[YMStayle.ymContainer, isMonthPickerMode && YMStayle.ymContainerCompact]}>
                   <View style={YMStayle.ymContent}>
                     <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
                       <Picker
@@ -337,27 +285,144 @@ export default function CalendarModal({
                         ))}
                       </Picker>
                     </View>
-                    <View style={YMStayle.buttonGroup}>
-                      <TouchableOpacity
-                        onPress={closeYM}
+                    {pickerConfirmVariant === 'move' ? (
+                      <View
                         style={[
-                          YMStayle.btn,
-                          { backgroundColor: '#EEE', marginRight: 10 },
+                          YMStayle.moveActionsRow,
+                          pickerActionsLift > 0 && { marginTop: -pickerActionsLift },
                         ]}
                       >
-                        <Text style={{ color: '#000', fontWeight: '700' }}>취소</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={confirmYM}
-                        style={[YMStayle.btn, { backgroundColor: colors.primary.main }]}
+                        <TouchableOpacity
+                          style={TodayButtonStyles.todayButton}
+                          onPress={goToToday}
+                        >
+                          <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={YMStayle.moveBtn} onPress={confirmYM}>
+                          <Text style={YMStayle.moveActionText}>이동</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          YMStayle.buttonGroup,
+                          !showPickerCancel && YMStayle.buttonGroupSingle,
+                        ]}
                       >
-                        <Text style={{ color: '#FFF', fontWeight: '700' }}>완료</Text>
-                      </TouchableOpacity>
-                    </View>
+                        {showPickerCancel && (
+                          <TouchableOpacity onPress={closeYM} style={YMStayle.iconBtn}>
+                            <X width={14} height={14} color={colors.icon.default} />
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={confirmYM}
+                          style={[
+                            YMStayle.iconBtn,
+                            pickerActionsLift > 0 && { marginTop: -pickerActionsLift },
+                          ]}
+                        >
+                          <Check width={14} height={14} color={colors.brand.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 </View>
-              </TouchableWithoutFeedback>
+              ) : (
+                <View style={S.calendarWrap}>
+                  <CalendarList
+                    key={`calendar-list-${calendarKey}`}
+                    horizontal={true}
+                    pagingEnabled={true}
+                    bounces={false}
+                    alwaysBounceHorizontal={false}
+                    current={currentMonth}
+                    calendarWidth={CALENDAR_WIDTH}
+                    calendarHeight={CALENDAR_HEIGHT}
+                    style={{
+                      width: CALENDAR_WIDTH,
+                      height: CALENDAR_HEIGHT,
+                    }}
+                    pastScrollRange={24}
+                    futureScrollRange={24}
+                    hideArrows={true}
+                    hideDayNames={false}
+                    showSixWeeks={true}
+                    renderHeader={() => null}
+                    markedDates={markedDates}
+                    onDayPress={handleDayPress}
+                    onVisibleMonthsChange={handleVisibleMonthsChange}
+                    showScrollIndicator={false}
+                    viewabilityConfig={{
+                      itemVisiblePercentThreshold: 50,
+                    }}
+                    theme={
+                      {
+                        'stylesheet.calendar.header': {
+                          header: { height: 10, opacity: 0 },
+                          monthText: { fontSize: 0 },
+                          dayHeader: { color: colors.text.text1, marginBottom: 4 },
+                          dayTextAtIndex0: { color: colors.text.monday },
+                        },
+                        textDayHeaderFontSize: ts('date3').fontSize,
+                        textDayHeaderFontWeight: ts('date3').fontWeight,
+                        textDayHeaderFontFamily: 'SF Pro',
+                        textDayFontSize: ts('date1').fontSize,
+                        textDayFontWeight: ts('date1').fontWeight,
+                        textDayFontFamily: 'SF Pro',
+                        textDayLetterSpacing: ts('date1').letterSpacing,
+                        todayTextColor: colors.brand.primary,
+                        selectedDayFontWeight: '700',
+                        selectedDayBackgroundColor: '#B04FFF1A',
+                        selectedDayTextColor: colors.text.text1,
+                        textDayStyle: { color: colors.text.text1 },
+                        'stylesheet.day.basic': {
+                          base: {
+                            width: 32,
+                            height: 32,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          },
+                          selectedText: {
+                            fontWeight: '700',
+                            color: colors.text.text1,
+                            zIndex: 2,
+                          },
+                          todayText: {
+                            fontWeight: '700',
+                            color: colors.brand.primary,
+                            zIndex: 2,
+                          },
+                          selected: {
+                            borderRadius: 12,
+                            width: 36,
+                            height: 36,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            zIndex: 1,
+                          },
+                          dayText: { color: colors.text.text1, zIndex: 2 },
+                        },
+                      } as any
+                    }
+                  />
+                </View>
+              )}
+            </View>
+
+            {!ymVisible && (
+              <View style={TodayButtonStyles.bottomActions}>
+                <TouchableOpacity style={TodayButtonStyles.todayButton} onPress={goToToday}>
+                  <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={TodayButtonStyles.moveButton}
+                  onPress={moveToSelected}
+                >
+                  <Text style={TodayButtonStyles.moveText}>이동</Text>
+                </TouchableOpacity>
+              </View>
             )}
+
           </View>
         </View>
       </TouchableWithoutFeedback>
@@ -379,7 +444,7 @@ const S = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 0,
     width: 358,
-    height: 410,
+    minHeight: MODAL_MIN_HEIGHT,
     shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
@@ -389,10 +454,13 @@ const S = StyleSheet.create({
     alignItems: 'center',
   },
   contentColumn: {
-    flex: 1,
     width: '100%',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  contentColumnCalendar: {
+    flex: 1,
+    justifyContent: 'flex-start',
   },
   calendarWrap: {
     width: CALENDAR_WIDTH,
@@ -408,7 +476,7 @@ const HeaderStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 8,
     marginTop: 13,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center' },
@@ -422,14 +490,14 @@ const HeaderStyles = StyleSheet.create({
 
 const YMStayle = StyleSheet.create({
   ymContainer: {
-    position: 'absolute',
-    top: 40,
-    left: 10,
-    right: 10,
+    width: '100%',
     backgroundColor: '#FFF',
     borderRadius: 10,
-    zIndex: 100,
-    paddingTop: 25,
+    paddingTop: 10,
+    paddingBottom: 0,
+  },
+  ymContainerCompact: {
+    paddingTop: 0,
   },
   ymContent: {
     flexDirection: 'column',
@@ -442,10 +510,40 @@ const YMStayle = StyleSheet.create({
   },
   buttonGroup: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingTop: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: CALENDAR_WIDTH - 24,
+    alignSelf: 'center',
+    paddingTop: 6,
+    paddingHorizontal: 0,
   },
-  btn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  buttonGroupSingle: {
+    justifyContent: 'flex-end',
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moveActionsRow: {
+    width: CALENDAR_WIDTH,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    marginTop: 4,
+  },
+  moveBtn: {
+    position: 'absolute',
+    right: 15,
+    height: 52,
+    justifyContent: 'center',
+  },
+  moveActionText: {
+    ...ts('titleS'),
+    color: colors.brand.primary,
+  },
 })
 
 const TodayButtonStyles = StyleSheet.create({

@@ -85,6 +85,7 @@ export default function Header() {
   const { progress, toggle, close } = useDrawer()
 
   const [calVisible, setCalVisible] = useState(false)
+  const [calendarMode, setCalendarMode] = useState<'day' | 'week' | 'month'>('day')
   const [popup, setPopup] = useState(globalPopupState.popup)
   const popupOpacity = useState(new Animated.Value(globalPopupState.opacity))[0]
   const sliderX = useState(new Animated.Value(globalPopupState.sliderX))[0]
@@ -123,8 +124,11 @@ export default function Header() {
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: { date: string }) => {
-      setAnchorDate(st.date)
+    const onState = (st: { date: string; mode?: 'day' | 'week' | 'month' }) => {
+      if (typeof st?.date === 'string' && st.date.length >= 10) {
+        setAnchorDate(st.date)
+      }
+      if (st.mode) setCalendarMode(st.mode)
     }
 
     bus.on('calendar:state', onState)
@@ -133,6 +137,7 @@ export default function Header() {
   }, [])
 
   const title = useMemo(() => {
+    if (!anchorDate || anchorDate.length < 7) return ''
     const [y, m] = anchorDate.split('-')
     return `${y}년 ${m}월`
   }, [anchorDate])
@@ -355,6 +360,10 @@ export default function Header() {
         currentDate={anchorDate}
         onSelectDate={(iso) => bus.emit('calendar:set-date', iso)}
         onPressToday={() => bus.emit('calendar:set-date', today())}
+        initialOpenMode={calendarMode === 'month' ? 'picker' : 'calendar'}
+        pickerConfirmVariant={calendarMode === 'month' ? 'move' : 'icon'}
+        showPickerCancel={calendarMode !== 'month'}
+        pickerActionsLift={calendarMode === 'month' ? 8 : 0}
       />
     </View>
   )
