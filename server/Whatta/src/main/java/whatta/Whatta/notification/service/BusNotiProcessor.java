@@ -70,20 +70,26 @@ public class BusNotiProcessor {
 
         if (busesNotifiedCount > 0) {
             String title = String.format("🚨 %d건의 버스 도착 알림이 있습니다.", busesNotifiedCount);
-            notificationSendService.sendTrafficAlarm(
+            boolean sent = notificationSendService.sendTrafficAlarm(
                     alarm.getUserId(),
                     title,
                     notificationBody.toString().trim()
             );
 
+            if (!sent) {
+                log.info("교통알림이 스킵되거나 실패함. alarmId={}", alarm.getId());
+            }
             handleRepeatOption(alarm);
         } else {
-            notificationSendService.sendTrafficAlarm(
+            boolean sent = notificationSendService.sendTrafficAlarm(
                     alarm.getUserId(),
                     "🚨 현재 운행 중인 버스가 없습니다.",
                     "선택하신 교통수단이 회차 대기 지연 혹은 운행시간이 종료되어 현재 운행정보가 없습니다."
             );
 
+            if (!sent) {
+                log.info("교통알림이 스킵되거나 실패함. alarmId={}", alarm.getId());
+            }
             handleRepeatOption(alarm);
         }
     }
