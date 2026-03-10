@@ -56,6 +56,7 @@ const MONTH_ITEM_WIDTH = cellWidth
 const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
+const MONTH_REFRESH_FOLLOWUPS_MS = [250, 900, 2200, 4500] as const
 const { width: SCREEN_W } = Dimensions.get('window')
 
 const getOccurrenceDedupKey = (item: UISchedule) => {
@@ -214,14 +215,13 @@ export default function MonthView() {
       const prevTimers = followupRefreshTimersByYmRef.current.get(targetYM) ?? []
       prevTimers.forEach((t) => clearTimeout(t))
 
-      const t1 = setTimeout(() => {
-        void fetchFresh(targetYM)
-      }, 250)
-      const t2 = setTimeout(() => {
-        void fetchFresh(targetYM)
-      }, 900)
+      const timers = MONTH_REFRESH_FOLLOWUPS_MS.map((delayMs) =>
+        setTimeout(() => {
+          void fetchFresh(targetYM)
+        }, delayMs),
+      )
 
-      followupRefreshTimersByYmRef.current.set(targetYM, [t1, t2])
+      followupRefreshTimersByYmRef.current.set(targetYM, timers)
     },
     [fetchFresh],
   )
@@ -1100,14 +1100,14 @@ const holidayIsoByWeek = useMemo(() => {
 const closeEventPopup = () => {
   setEventPopupVisible(false)
   setEventPopupData(null)
-  fetchFresh(ym)
+  refreshMonthWithFollowup(currentYmRef.current)
 }
 
 const closeTaskPopup = () => {
   setTaskPopupVisible(false)
   setTaskPopupTask(null)
   setTaskPopupId(null)
-  fetchFresh(ym)
+  refreshMonthWithFollowup(currentYmRef.current)
 }
 
 const handleTaskSave = useCallback(async (form:any) => {
