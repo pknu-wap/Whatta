@@ -19,53 +19,17 @@ import { useDrawer } from '@/providers/DrawerProvider'
 import CalendarModal from '@/components/CalendarModal'
 import Menu from '@/assets/icons/menu.svg'
 import Filter from '@/assets/icons/filter.svg'
-import Left from '@/assets/icons/left.svg'
-import Right from '@/assets/icons/right.svg'
+import DownL from '@/assets/icons/downL.svg'
 import colors from '@/styles/colors'
-import {
-  useNavigation,
-  useFocusEffect,
-  useNavigationState,
-} from '@react-navigation/native'
+import { ts } from '@/styles/typography'
+import { useFocusEffect, useNavigationState } from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
-type ViewMode = 'month' | 'week' | 'day'
-
 /* 날짜 관련 유틸 함수 */
 const pad2 = (n: number) => String(n).padStart(2, '0')
-const addDays = (iso: string, d: number) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const t = new Date(y, m - 1, dd + d)
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-const addMonths = (iso: string, dm: number) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const t = new Date(y, m - 1 + dm, dd)
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-const toDate = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-const toISO = (dt: Date) =>
-  `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`
-const startOfWeek = (iso: string) => {
-  const dt = toDate(iso)
-  const wd = dt.getDay()
-  const s = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - wd)
-  return toISO(s)
-}
-const endOfWeek = (iso: string) =>
-  toISO(new Date(toDate(startOfWeek(iso)).getTime() + 6 * 86400000))
-const dot = (ymd: string) => ymd.split('-').join('.')
-const fmtDay = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  const w = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()]
-  return `${y}년 ${pad2(m)}월 ${pad2(d)}일 (${w})`
-}
 const today = () => {
   const t = new Date()
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
@@ -125,12 +89,6 @@ export default function Header() {
   const popupOpacity = useState(new Animated.Value(globalPopupState.opacity))[0]
   const sliderX = useState(new Animated.Value(globalPopupState.sliderX))[0]
   const maxSlide = 38
-  const [mode, setMode] = useState<ViewMode>('month')
-
-  const [days, setDays] = useState<number>(7)
-  const [rangeStart, setRangeStart] = useState<string | null>(null)
-  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
-
   /* ✅ 현재 활성 탭 감지 */
   const currentRouteName = useNavigationState((state) => {
     const route = state.routes[state.index]
@@ -165,19 +123,8 @@ export default function Header() {
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: {
-      date: string
-      mode: ViewMode
-      days?: number
-      rangeStart?: string
-      rangeEnd?: string
-    }) => {
+    const onState = (st: { date: string }) => {
       setAnchorDate(st.date)
-      setMode(st.mode)
-
-      if (st.days) setDays(st.days)
-      if (st.rangeStart) setRangeStart(st.rangeStart)
-      if (st.rangeEnd) setRangeEnd(st.rangeEnd)
     }
 
     bus.on('calendar:state', onState)
@@ -185,37 +132,10 @@ export default function Header() {
     return () => bus.off('calendar:state', onState)
   }, [])
 
-  const goPrev = () => {
-    const iso =
-      mode === 'month'
-        ? addMonths(anchorDate, -1)
-        : mode === 'week'
-          ? addDays(anchorDate, -days)
-          : addDays(anchorDate, -1)
-    bus.emit('calendar:set-date', iso)
-  }
-  const goNext = () => {
-    const iso =
-      mode === 'month'
-        ? addMonths(anchorDate, +1)
-        : mode === 'week'
-          ? addDays(anchorDate, +days)
-          : addDays(anchorDate, +1)
-    bus.emit('calendar:set-date', iso)
-  }
-
   const title = useMemo(() => {
-    if (mode === 'month') {
-      const [y, m] = anchorDate.split('-')
-      return `${y}년 ${m}월`
-    }
-    if (mode === 'week') {
-      const s = startOfWeek(anchorDate)
-      const e = endOfWeek(anchorDate)
-      return `${dot(s)} ~ ${dot(e)}`
-    }
-    return fmtDay(anchorDate)
-  }, [anchorDate, mode])
+    const [y, m] = anchorDate.split('-')
+    return `${y}년 ${m}월`
+  }, [anchorDate])
 
   const { items: filterLabels, toggleLabel, toggleAll } = useLabelFilter()
 
@@ -238,7 +158,7 @@ export default function Header() {
     color: interpolateColor(
       progress.value,
       [0, 1],
-      [colors.icon.default, colors.primary.main],
+      [colors.icon.default, colors.icon.selected],
     ),
   }))
 
@@ -256,16 +176,12 @@ export default function Header() {
     <View style={styles.root}>
       <View style={styles.header}>
         {/* ☰ 메뉴 */}
-        <TouchableOpacity onPress={toggle}>
-          <AnimatedMenu width={28} height={28} animatedProps={menuIconProps} />
+        <TouchableOpacity onPress={toggle} style={styles.leftButton}>
+          <AnimatedMenu width={24} height={24} animatedProps={menuIconProps} />
         </TouchableOpacity>
 
         {/* 날짜 그룹 */}
-        <View style={styles.dateGroup}>
-          <TouchableOpacity onPress={goPrev}>
-            <Left width={24} height={24} color={colors.icon.default} />
-          </TouchableOpacity>
-
+        <View style={styles.dateGroup} pointerEvents="box-none">
           <TouchableOpacity
             onPress={() => {
               if (popup) {
@@ -278,20 +194,19 @@ export default function Header() {
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={goNext}>
-            <Right
-              width={24}
-              height={24}
-              color={colors.icon.default}
-              style={{ marginTop: 2 }}
-            />
+            <View style={styles.titleIconWrap}>
+              <DownL
+                width={12}
+                height={10}
+                color={calVisible ? colors.icon.selected : colors.icon.default}
+              />
+            </View>
           </TouchableOpacity>
         </View>
 
         {/* 필터 버튼 */}
         <TouchableOpacity
+          style={styles.rightButton}
           onPress={() => {
             const next = !popup
             setPopup(next)
@@ -306,10 +221,9 @@ export default function Header() {
           }}
         >
           <Filter
-            width={22}
-            height={22}
-            color={popup ? colors.primary.main : colors.icon.default}
-            style={{ marginRight: 15, marginTop: 2 }}
+            width={19}
+            height={19}
+            color={popup ? colors.icon.selected : colors.icon.default}
           />
         </TouchableOpacity>
       </View>
@@ -448,26 +362,59 @@ export default function Header() {
 
 /* 스타일 */
 const styles = StyleSheet.create({
-  root: { borderBottomWidth: 0.3, borderBottomColor: '#B3B3B3', height: 48 },
+  root: { height: 48 },
   header: {
+    position: 'relative',
+    height: '100%',
+  },
+  leftButton: {
+    position: 'absolute',
+    left: 16,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  rightButton: {
+    position: 'absolute',
+    right: 20,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  dateGroup: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingLeft: 75,
+    zIndex: 1,
+  },
+  titleContainer: {
+    height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 5,
-    marginLeft: 14,
-  },
-  dateGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  titleContainer: {
-    alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 10,
   },
   title: {
     textAlign: 'center',
+    ...ts('titleL'),
     fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 23,
-    letterSpacing: -0.4,
+    lineHeight: 30,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  titleIconWrap: {
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
   },
   popupContainer: { position: 'absolute', right: 10, top: 48, zIndex: 999 },
   popupBox: {

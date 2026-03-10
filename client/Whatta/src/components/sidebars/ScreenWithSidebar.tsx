@@ -19,7 +19,7 @@ import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
-const BASE_HEADER_H = 58
+const BASE_HEADER_H = 48
 const Tab = createBottomTabNavigator()
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
