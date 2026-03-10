@@ -73,6 +73,7 @@ import {
   getDayColWidth,
   resetLayoutDayEventsCache,
 } from '@/screens/Calender/Week/layout'
+import { SCHEDULE_COLOR_SET_CHANGED } from '@/styles/scheduleColorSets'
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
@@ -984,6 +985,7 @@ const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView() {
+  const [, forceColorSetTick] = useState(0)
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
   const isFocused = useIsFocused()
   const spanWrapRef = useRef<View>(null)
@@ -1057,6 +1059,12 @@ export default function WeekView() {
 
     bus.on('popup:image:create', handler)
     return () => bus.off('popup:image:create', handler)
+  }, [])
+
+  useEffect(() => {
+    const onColorSetChanged = () => forceColorSetTick((v) => v + 1)
+    bus.on(SCHEDULE_COLOR_SET_CHANGED, onColorSetChanged)
+    return () => bus.off(SCHEDULE_COLOR_SET_CHANGED, onColorSetChanged)
   }, [])
 
   const [anchorDate, setAnchorDate] = useState(todayISO())

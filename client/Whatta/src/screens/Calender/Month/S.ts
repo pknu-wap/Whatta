@@ -36,7 +36,7 @@ export const S = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'transparent',
     zIndex: 99,
   },
 

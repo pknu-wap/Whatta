@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { type DayTimelineEvent } from '@/screens/Calender/Week/layout'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 type CheckItem = {
   id: string
@@ -75,7 +76,7 @@ export function useWeekCalendarData(http: HttpClient) {
                 place: e.place ?? '',
                 startMin: sh * 60 + sm,
                 endMin: eh * 60 + em,
-                color: `#${(e.colorKey ?? 'B04FFF').replace('#', '')}`,
+                color: resolveScheduleColor(e.colorKey ?? 'C00'),
                 isRepeat: e.isRepeat ?? false,
                 labels: pickLabelIds(e),
               }

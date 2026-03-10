@@ -28,6 +28,13 @@ import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
 import { http } from '@/lib/http'
 import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
+import {
+  getActiveScheduleColorSet,
+  getScheduleColorSet,
+  resolveScheduleColor,
+  SCHEDULE_COLOR_SET_CHANGED,
+  toScheduleColorKeyForSave,
+} from '@/styles/scheduleColorSets'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -88,7 +95,7 @@ export default function EventDetailPopup({
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
   const sheetRef = useRef<View>(null)
   // ── 컬러 팝오버 배치 옵션 ──
-  const POPOVER_W = 105 // 팝오버 너비
+  const POPOVER_W = 184 // 팝오버 너비
   const POP_GAP = 8 // 버튼과 팝오버 사이 간격
   const RIGHT_ALIGN = true // true: 버튼 오른쪽에 맞춤, false: 왼쪽에 맞춤
 
@@ -268,7 +275,7 @@ export default function EventDetailPopup({
   const [start, setStart] = useState(new Date())
 
   const buildBasePayload = () => {
-    const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+    const colorKey = toScheduleColorKeyForSave(selectedColor)
     const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
 
     const base = {
@@ -279,12 +286,12 @@ export default function EventDetailPopup({
       endDate: ymdLocal(end),
       startTime: timeOn ? hms(start) : null,
       endTime: timeOn ? hms(end) : null,
-      colorKey: hex,
+      colorKey,
       reminderNoti,
     }
     return {
       payload: stripNil(base),
-      colorHex: hex,
+      colorKey,
     }
   }
 
@@ -500,18 +507,16 @@ export default function EventDetailPopup({
   const close = () => onClose()
 
   /** 색상 */
-  const COLORS = [
-    '#B04FFF',
-    '#668CFF',
-    '#FF6464',
-    '#FF8A66',
-    '#FFD966',
-    '#83E957',
-    '#665AE6',
-    '#FF75AE',
-  ]
-  const [selectedColor, setSelectedColor] = useState('#B04FFF')
+  const [, forceColorSetTick] = useState(0)
+  const paletteColors = getScheduleColorSet(getActiveScheduleColorSet())
+  const [selectedColor, setSelectedColor] = useState(resolveScheduleColor('C00'))
   const [showPalette, setShowPalette] = useState(false)
+
+  useEffect(() => {
+    const onColorSetChanged = () => forceColorSetTick((v) => v + 1)
+    bus.on(SCHEDULE_COLOR_SET_CHANGED, onColorSetChanged)
+    return () => bus.off(SCHEDULE_COLOR_SET_CHANGED, onColorSetChanged)
+  }, [])
 
   // 라벨
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([])
@@ -551,7 +556,7 @@ export default function EventDetailPopup({
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
   const saveNormal = async () => {
     try {
-      const { payload, colorHex } = buildBasePayload()
+      const { payload, colorKey } = buildBasePayload()
       const fieldsToClear: string[] = []
       if (!timeOn) {
         fieldsToClear.push('startTime', 'endTime')
@@ -573,7 +578,7 @@ export default function EventDetailPopup({
       if (saved) {
         const enriched = {
           ...(saved ?? {}),
-          colorKey: colorHex,
+          colorKey,
           startDate: saved?.startDate ?? payload.startDate,
           endDate: saved?.endDate ?? payload.endDate,
         }
@@ -601,7 +606,7 @@ export default function EventDetailPopup({
     }
 
     try {
-      const { payload, colorHex } = buildBasePayload()
+      const { payload, colorKey } = buildBasePayload()
       const occDate = payload.startDate as string // yyyy-MM-dd
 
       const prev = eventData.repeat.exceptionDates ?? []
@@ -632,7 +637,7 @@ export default function EventDetailPopup({
       if (saved) {
         const enriched = {
           ...(saved ?? {}),
-          colorKey: colorHex,
+          colorKey,
           startDate: saved?.startDate ?? createPayload.startDate,
           endDate: saved?.endDate ?? createPayload.endDate,
         }
@@ -661,7 +666,7 @@ export default function EventDetailPopup({
     }
 
     try {
-      const { payload, colorHex } = buildBasePayload()
+      const { payload, colorKey } = buildBasePayload()
       const occDate = payload.startDate as string // yyyy-MM-dd
 
       // 1) 기존 반복 일정 끝을 "전날"로 자르기
@@ -700,7 +705,7 @@ export default function EventDetailPopup({
       if (saved) {
         const enriched = {
           ...(saved ?? {}),
-          colorKey: colorHex,
+          colorKey,
           startDate: saved?.startDate ?? createPayload.startDate,
           endDate: saved?.endDate ?? createPayload.endDate,
         }
@@ -746,7 +751,7 @@ export default function EventDetailPopup({
       }
 
       // (1) 기본 payload + 컬러
-      const { payload, colorHex } = buildBasePayload()
+      const { payload, colorKey } = buildBasePayload()
       const repeatPayload = buildRepeatPayload()
 
       // (2) 시간 토글에 따라 시간 필드 / fieldsToClear 정리
@@ -778,7 +783,7 @@ export default function EventDetailPopup({
         if (saved) {
           const enriched = {
             ...(saved ?? {}),
-            colorKey: colorHex,
+            colorKey,
             startDate: saved?.startDate ?? finalPayload.startDate,
             endDate: saved?.endDate ?? finalPayload.endDate,
           }
@@ -1115,7 +1120,7 @@ export default function EventDetailPopup({
         setScheduleTitle(ev.title ?? '')
         setMemo(ev.content ?? '')
         setSelectedLabelIds(ev.labels ?? [])
-        setSelectedColor('#' + ev.colorKey)
+        setSelectedColor(resolveScheduleColor(ev.colorKey))
         setEventData(ev)
       } catch (err) {
         if (cancelled) return
@@ -1140,7 +1145,7 @@ export default function EventDetailPopup({
       const defaultLabel = labels.find((l) => l.title === '일정')
       setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
 
-      setSelectedColor('#B04FFF')
+      setSelectedColor(resolveScheduleColor('C00'))
 
       const today = new Date()
       setStart(today)
@@ -1416,7 +1421,7 @@ export default function EventDetailPopup({
                   {/* 색상 선택 */}
                   {showPalette && (
                     <View style={styles.paletteRow}>
-                      {COLORS.map((c) => (
+                      {paletteColors.map((c) => (
                         <Pressable
                           key={c}
                           onPress={() => {
@@ -2367,16 +2372,22 @@ export default function EventDetailPopup({
                       ]}
                     >
                       <Text style={styles.popoverTitle}>색상</Text>
-                      {COLORS.map((c) => (
-                        <Pressable
-                          key={c}
-                          onPress={() => {
-                            setSelectedColor(c)
-                            setPalette((p) => ({ ...p, visible: false }))
-                          }}
-                          style={[styles.colorPill, { backgroundColor: c }]}
-                        />
-                      ))}
+                      <View style={styles.paletteGrid}>
+                        {paletteColors.map((c, idx) => (
+                          <Pressable
+                            key={`${idx}-${c}`}
+                            onPress={() => {
+                              setSelectedColor(c)
+                              setPalette((p) => ({ ...p, visible: false }))
+                            }}
+                            style={[
+                              styles.colorPill,
+                              { backgroundColor: c },
+                              selectedColor === c && styles.selected,
+                            ]}
+                          />
+                        ))}
+                      </View>
                     </View>
                   </>
                 )}
@@ -2600,9 +2611,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   colorPill: {
+    width: 28,
     height: 28,
     borderRadius: 14,
-    marginVertical: 8,
+    margin: 6,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  paletteGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
   },
   cardDropdown: {
     marginTop: 6,

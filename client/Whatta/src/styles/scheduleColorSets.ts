@@ -66,6 +66,9 @@ export type ScheduleSlotKey = `C${string}`
 
 export const DEFAULT_SET: ScheduleColorSetId = 'basic'
 export const MAX_SCHEDULE_COLOR_SLOTS = SCHEDULE_COLOR_SETS[DEFAULT_SET].length
+export const SCHEDULE_COLOR_SET_CHANGED = 'schedule:color-set-changed'
+
+let activeSetId: ScheduleColorSetId = DEFAULT_SET
 
 const formatSlotKey = (index: number): ScheduleSlotKey =>
   `C${String(index).padStart(2, '0')}`
@@ -87,6 +90,19 @@ export const slotIndex = (key?: string | null): number => {
 export const getScheduleColorSet = (setId: ScheduleColorSetId) =>
   SCHEDULE_COLOR_SETS[setId]
 
+export const getScheduleColorSetIds = (): ScheduleColorSetId[] =>
+  Object.keys(SCHEDULE_COLOR_SETS) as ScheduleColorSetId[]
+
+export const getActiveScheduleColorSet = (): ScheduleColorSetId => activeSetId
+
+export const setActiveScheduleColorSet = (setId: string): ScheduleColorSetId => {
+  const nextSet = (getScheduleColorSetIds().includes(setId as ScheduleColorSetId)
+    ? setId
+    : DEFAULT_SET) as ScheduleColorSetId
+  activeSetId = nextSet
+  return activeSetId
+}
+
 // 슬롯 목록(C00..)
 export const getScheduleColorSlots = (setId: ScheduleColorSetId): ScheduleSlotKey[] =>
   getScheduleColorSet(setId).map((_, i) => slotKey(i))
@@ -97,13 +113,22 @@ const normalizeHex = (value?: string | null): string | null => {
   return `#${value.replace('#', '').toUpperCase()}`
 }
 
+const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+  const clean = hex.replace('#', '')
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  }
+}
+
 // colorKey -> 화면 표시 HEX
 // 1) Cnn 이면 세트 인덱스 색상
 // 2) 기존 6자리 HEX면 그대로 사용(레거시 호환)
 // 3) 그 외 기본 슬롯(C00)
 export const resolveScheduleColor = (
   colorKey: string | undefined,
-  setId: ScheduleColorSetId = DEFAULT_SET,
+  setId: ScheduleColorSetId = getActiveScheduleColorSet(),
 ): string => {
   const set = getScheduleColorSet(setId)
   const idx = slotIndex(colorKey)
@@ -121,7 +146,7 @@ export const resolveScheduleColor = (
 // - 못 찾으면 0
 export const resolveSlotIndex = (
   colorKey: string | undefined,
-  setId: ScheduleColorSetId = DEFAULT_SET,
+  setId: ScheduleColorSetId = getActiveScheduleColorSet(),
 ): number => {
   const set = getScheduleColorSet(setId)
   const idx = slotIndex(colorKey)
@@ -132,4 +157,51 @@ export const resolveSlotIndex = (
 
   const found = set.findIndex((hex) => hex === legacyHex)
   return found >= 0 ? found : 0
+}
+
+// 저장 시점 변환:
+// - Cnn이면 그대로 유지
+// - HEX면 현재 세트에서 가장 가까운 칩으로 Cnn 변환
+// - 유효하지 않으면 C00
+export const toScheduleColorKeyForSave = (
+  colorKey: string | undefined,
+  setId: ScheduleColorSetId = getActiveScheduleColorSet(),
+): string => {
+  const idx = slotIndex(colorKey)
+  if (idx >= 0 && idx < MAX_SCHEDULE_COLOR_SLOTS) return slotKey(idx)
+
+  const normalizedHex = normalizeHex(colorKey)
+  if (!normalizedHex) return slotKey(0)
+
+  const set = getScheduleColorSet(setId)
+  const found = set.findIndex((hex) => hex === normalizedHex)
+  if (found >= 0) return slotKey(found)
+
+  const src = hexToRgb(normalizedHex)
+  let nearestIndex = 0
+  let nearestDistance = Number.POSITIVE_INFINITY
+
+  set.forEach((hex, idx) => {
+    const dst = hexToRgb(hex)
+    const dr = src.r - dst.r
+    const dg = src.g - dst.g
+    const db = src.b - dst.b
+    const dist = dr * dr + dg * dg + db * db
+    if (dist < nearestDistance) {
+      nearestDistance = dist
+      nearestIndex = idx
+    }
+  })
+
+  return slotKey(nearestIndex)
+}
+
+// 할 일처럼 colorKey가 없는 항목도 세트 변경 테스트가 가능하도록 seed 기반 슬롯을 만든다.
+export const slotKeyFromSeed = (seed: string | number): ScheduleSlotKey => {
+  const text = String(seed ?? '')
+  let hash = 0
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0
+  }
+  return slotKey(hash % MAX_SCHEDULE_COLOR_SLOTS)
 }

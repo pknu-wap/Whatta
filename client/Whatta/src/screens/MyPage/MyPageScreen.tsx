@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from 'react'
+import React, { useLayoutEffect, useState } from 'react'
 import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import Constants from 'expo-constants'
@@ -6,6 +6,13 @@ import type { MyPageStackList } from '@/navigation/MyPageStack'
 import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/contants'
 import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { bus } from '@/lib/eventBus'
+import {
+  getActiveScheduleColorSet,
+  getScheduleColorSetIds,
+  setActiveScheduleColorSet,
+  SCHEDULE_COLOR_SET_CHANGED,
+} from '@/styles/scheduleColorSets'
 
 type Props = NativeStackScreenProps<MyPageStackList, 'MyPageList'>
 
@@ -72,6 +79,8 @@ export default function MyPageScreen({ navigation }: Props) {
   const apiBaseUrl = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '')
   const serverLabel = apiBaseUrl.includes('-dev-') ? 'DEV' : 'PROD'
   const showEnvBadge = variant === 'DEV' || serverLabel === 'DEV'
+  const colorSetIds = getScheduleColorSetIds()
+  const [selectedSet, setSelectedSet] = useState(getActiveScheduleColorSet())
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -120,9 +129,23 @@ export default function MyPageScreen({ navigation }: Props) {
               <View style={S.profileNameRow}>
                 <Text style={S.profileName}>사용자님</Text>
                 {showEnvBadge ? (
-                  <View style={[S.envBadge, S.envBadgeDev]}>
-                    <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
-                  </View>
+                  <>
+                    <View style={[S.envBadge, S.envBadgeDev]}>
+                      <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
+                    </View>
+                    <Pressable
+                      style={S.colorChipButton}
+                      onPress={() => {
+                        const currentIdx = colorSetIds.indexOf(selectedSet)
+                        const nextSet = colorSetIds[(currentIdx + 1) % colorSetIds.length]
+                        const applied = setActiveScheduleColorSet(nextSet)
+                        setSelectedSet(applied)
+                        bus.emit(SCHEDULE_COLOR_SET_CHANGED, { setId: applied })
+                      }}
+                    >
+                      <Text style={S.colorChipButtonText}>{`칩:${selectedSet.toUpperCase()}`}</Text>
+                    </Pressable>
+                  </>
                 ) : null}
               </View>
               {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
@@ -263,6 +286,22 @@ const S = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#333',
+  },
+  colorChipButton: {
+    minWidth: 78,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    backgroundColor: '#EEF4FF',
+  },
+  colorChipButtonText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1D4ED8',
   },
   profileMeta: { fontSize: 14, color: colors.text.body, marginTop: 7 },
   editLink: { color: '#333', fontWeight: '600' },

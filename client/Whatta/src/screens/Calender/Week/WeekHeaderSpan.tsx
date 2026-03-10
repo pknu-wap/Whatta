@@ -17,6 +17,7 @@ import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatSched
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { parseDate } from '@/screens/Calender/Week/date'
 import { thumbH, type WeekSpanEvent } from '@/screens/Calender/Week/layout'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 type FullBleedProps = {
   children: React.ReactNode
@@ -261,7 +262,7 @@ function WeekHeaderSpan({
                   )
                 }
 
-                const mainColor = s.color?.startsWith('#') ? s.color : `#${s.color || 'B04FFF'}`
+                const mainColor = resolveScheduleColor(s.color)
                 const barLeft = Math.min(
                   Math.max(left + 2, timeColWidth + 2),
                   timeColWidth + weekDates.length * dayColWidth - (width - 4),

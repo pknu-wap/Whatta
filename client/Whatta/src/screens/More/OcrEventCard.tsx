@@ -21,6 +21,10 @@ import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import type { CreateEventPayload } from '@/api/event_api'
 import { getMyLabels } from '@/api/label_api'
+import {
+  resolveScheduleColor,
+  toScheduleColorKeyForSave,
+} from '@/styles/scheduleColorSets'
 
 
 interface OCREventEditCardProps {
@@ -49,11 +53,13 @@ export default function OCREventEditCard({
 }: OCREventEditCardProps) {
 
   // ⭐ 색상 선택 state
-const [selectedColor, setSelectedColor] = useState(colorKey ? `#${colorKey}` : '#FFD966')
+const [selectedColor, setSelectedColor] = useState(
+  colorKey ? resolveScheduleColor(colorKey) : '#FFD966',
+)
 
 useEffect(() => {
   if (colorKey) {
-    setSelectedColor(`#${colorKey}`)
+    setSelectedColor(resolveScheduleColor(colorKey))
   }
 }, [colorKey])
 
@@ -380,7 +386,7 @@ const buildEventPayload = () => {
     startTime: startHM,
     endTime: endHM,
     repeat,
-    colorKey: selectedColor.replace('#', '').toUpperCase(),
+    colorKey: toScheduleColorKeyForSave(selectedColor),
     reminderNoti,
   }
 }

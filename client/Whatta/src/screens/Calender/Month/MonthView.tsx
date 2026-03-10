@@ -48,6 +48,10 @@ import RangeScheduleBar from '@/components/calendar-items/schedule/RangeSchedule
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { cellWidth } from './S'
+import {
+  resolveScheduleColor,
+  SCHEDULE_COLOR_SET_CHANGED,
+} from '@/styles/scheduleColorSets'
 
 
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
@@ -56,7 +60,7 @@ const MONTH_ITEM_WIDTH = cellWidth
 const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
-const MONTH_REFRESH_FOLLOWUPS_MS = [250, 900, 2200, 4500] as const
+const MONTH_MUTATION_FOLLOWUP_MS = 900
 const { width: SCREEN_W } = Dimensions.get('window')
 
 const getOccurrenceDedupKey = (item: UISchedule) => {
@@ -79,6 +83,7 @@ const dedupeSchedules = (items: UISchedule[]) => {
 
 
 export default function MonthView() {
+  const [, forceColorSetTick] = useState(0)
 
   // OCR hook & Popup hook
   const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
@@ -116,6 +121,12 @@ export default function MonthView() {
       return () => bus.off('popup:schedule:create', h)
     }, [])
 
+  useEffect(() => {
+    const onColorSetChanged = () => forceColorSetTick((v) => v + 1)
+    bus.on(SCHEDULE_COLOR_SET_CHANGED, onColorSetChanged)
+    return () => bus.off(SCHEDULE_COLOR_SET_CHANGED, onColorSetChanged)
+  }, [])
+
   // 캘린더 동기화 hooks
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
   const [ym, setYm] = useState<string>(() => {
@@ -124,9 +135,9 @@ export default function MonthView() {
   })
   const currentYmRef = useRef(ym)
   const mountedRef = useRef(true)
-  const followupRefreshTimersByYmRef = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map())
   const fetchSeqRef = useRef(0)
   const latestFetchSeqByYmRef = useRef<Map<string, number>>(new Map())
+  const followupTimerByYmRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   useEffect(() => {
     currentYmRef.current = ym
@@ -135,11 +146,11 @@ export default function MonthView() {
   useEffect(() => {
     return () => {
       mountedRef.current = false
-      for (const timers of followupRefreshTimersByYmRef.current.values()) {
-        timers.forEach((t) => clearTimeout(t))
-      }
-      followupRefreshTimersByYmRef.current.clear()
       latestFetchSeqByYmRef.current.clear()
+      for (const timer of followupTimerByYmRef.current.values()) {
+        clearTimeout(timer)
+      }
+      followupTimerByYmRef.current.clear()
     }
   }, [])
 
@@ -209,19 +220,19 @@ export default function MonthView() {
   )
 
   const refreshMonthWithFollowup = useCallback(
-    (targetYM: string) => {
+    (targetYM: string, opts?: { followup?: boolean }) => {
+      const withFollowup = opts?.followup === true
       void fetchFresh(targetYM)
 
-      const prevTimers = followupRefreshTimersByYmRef.current.get(targetYM) ?? []
-      prevTimers.forEach((t) => clearTimeout(t))
+      if (!withFollowup) return
 
-      const timers = MONTH_REFRESH_FOLLOWUPS_MS.map((delayMs) =>
-        setTimeout(() => {
-          void fetchFresh(targetYM)
-        }, delayMs),
-      )
+      const prev = followupTimerByYmRef.current.get(targetYM)
+      if (prev) clearTimeout(prev)
 
-      followupRefreshTimersByYmRef.current.set(targetYM, timers)
+      const timer = setTimeout(() => {
+        void fetchFresh(targetYM)
+      }, MONTH_MUTATION_FOLLOWUP_MS)
+      followupTimerByYmRef.current.set(targetYM, timer)
     },
     [fetchFresh],
   )
@@ -233,22 +244,15 @@ export default function MonthView() {
         typeof dirtyYM === 'string' && /^\d{4}-\d{2}$/.test(dirtyYM)
           ? dirtyYM
           : currentYmRef.current
-      refreshMonthWithFollowup(safeYM)
+      refreshMonthWithFollowup(safeYM, { followup: true })
     }
     bus.on('calendar:invalidate', onInvalidate)
     return () => bus.off('calendar:invalidate', onInvalidate)
   }, [refreshMonthWithFollowup])
 
-  useFocusEffect(
-    React.useCallback(() => {
-      // 포커스 복귀 시 항상 최신 월 데이터 재동기화
-      refreshMonthWithFollowup(ym)
-    }, [refreshMonthWithFollowup, ym]),
-  )
-
   useEffect(() => {
     const onMutated = (_payload?: { op?: 'create' | 'update' | 'delete'; item?: any }) => {
-      refreshMonthWithFollowup(currentYmRef.current)
+      refreshMonthWithFollowup(currentYmRef.current, { followup: true })
 
       const rawDate =
         _payload?.item?.startDate ??
@@ -258,7 +262,7 @@ export default function MonthView() {
       const itemYM =
         typeof rawDate === 'string' && rawDate.length >= 7 ? rawDate.slice(0, 7) : null
       if (itemYM && itemYM !== currentYmRef.current) {
-        refreshMonthWithFollowup(itemYM)
+        refreshMonthWithFollowup(itemYM, { followup: true })
       }
     }
 
@@ -531,11 +535,7 @@ const holidayIsoByWeek = useMemo(() => {
         ...(dateItem.schedules as ExtendedScheduleDataWithColor[])
           .filter((s) => s.multiDayStart && s.multiDayEnd)
           .map((s) => {
-            const baseColor = s.colorKey
-              ? s.colorKey.startsWith('#')
-                ? s.colorKey
-                : `#${s.colorKey}`
-              : '#8B5CF6'
+            const baseColor = resolveScheduleColor(s.colorKey)
             return {
               id: s.id,
               title: s.name,
@@ -547,15 +547,7 @@ const holidayIsoByWeek = useMemo(() => {
           }),
         ...allDaySingles.map((ev) => {
           const rawColor = ev.colorKey as string | undefined
-          const formatted =              
-            rawColor && rawColor.length > 0
-              ? rawColor.startsWith('#')
-                ? rawColor
-                : `#${rawColor}`
-              : null
-          const baseColor = !formatted || formatted.toUpperCase() === '#FFFFFF'
-            ? '#8B5CF6'
-            : formatted                     
+          const baseColor = resolveScheduleColor(rawColor)
           return {
             id: ev.id,
             title: ev.title ?? ev.name ?? '',
@@ -575,11 +567,7 @@ const holidayIsoByWeek = useMemo(() => {
             !allDaySingleIds.has(String(s.id)), // all-day 단일 일정은 여기서 제외
         )
         .map((s) => {
-          const baseColor = s.colorKey
-            ? s.colorKey.startsWith('#')
-              ? s.colorKey
-              : `#${s.colorKey}`
-            : '#F4EAFF'
+          const baseColor = resolveScheduleColor(s.colorKey)
           return {
             id: s.id,
             title: s.name,
@@ -591,9 +579,7 @@ const holidayIsoByWeek = useMemo(() => {
         }),
       timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
         const baseColor = t.colorKey
-          ? t.colorKey.startsWith('#')
-            ? t.colorKey
-            : `#${t.colorKey}`
+          ? resolveScheduleColor(t.colorKey)
           : '#FFD966'
         return {
           id: t.id,
@@ -711,56 +697,13 @@ const holidayIsoByWeek = useMemo(() => {
   }
 
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      setLoading(true)
-      try {
-        const fresh = await fetchMonthlyApi(ym)
-        const monthlySchedules = flattenMonthly(fresh)
+    refreshMonthWithFollowup(ym, { followup: false })
+  }, [ym, refreshMonthWithFollowup])
 
-        let tasksThisMonth: UISchedule[] = []
-        try {
-          tasksThisMonth = await fetchTasksForMonth(ym)
-        } catch (err) {
-          console.warn('[MonthView] fetchTasksForMonth 실패, 일정만 표시합니다.', err)
-        }
-
-        const mergedRaw: UISchedule[] = [...monthlySchedules, ...tasksThisMonth] 
-
-       const merged = dedupeSchedules(mergedRaw)
-
-       laneMapRef.current = buildLaneMap(merged.filter(isSpan))
-        
-
-        if (!alive) return
-        setDays(fresh.days)
-        setServerSchedules(merged)
-      } catch (err) {
-        if (!alive) return
-        console.warn('[MonthView] fetchMonthlyApi 실패', err)
-        setDays([])
-        setServerSchedules([])
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
-
-    return () => {
-      alive = false
-    }
-  }, [ym])
-
-  // 월이 바뀔 때 살짝 페이드 아웃
+  // 월 전환 시 화면을 뿌옇게 만드는 페이드 효과는 제거
   useEffect(() => {
-    RNAnimated.timing(fade, { toValue: 0.4, duration: 120, useNativeDriver: true }).start()
-  }, [ym])
-
-  // 로딩이 끝나면 다시 페이드 인
-  useEffect(() => {
-    if (!loading) {
-      RNAnimated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
-    }
-  }, [loading])
+    fade.setValue(1)
+  }, [fade])
 
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
@@ -841,10 +784,8 @@ const holidayIsoByWeek = useMemo(() => {
       if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
     }
 
-    const normalizeColor = (colorKey?: string, fallback = '#B04FFF') => {
-      if (!colorKey) return fallback
-      return colorKey.startsWith('#') ? colorKey : `#${colorKey}`
-    }
+    const normalizeColor = (colorKey?: string, fallback = '#B04FFF') =>
+      resolveScheduleColor(colorKey ?? fallback)
 
     const renderSlotItem = (
       slot: ScheduleData,
