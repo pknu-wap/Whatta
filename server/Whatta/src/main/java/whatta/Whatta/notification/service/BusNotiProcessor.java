@@ -13,6 +13,7 @@ import whatta.Whatta.traffic.service.TrafficService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BusNotiProcessor {
 
-    private final BusFavoriteRepository itemRepository;
+    private final BusFavoriteRepository busFavoriteRepository;
     private final TrafficService trafficService;
     private final NotificationSendService notificationSendService;
     private final TrafficNotiRepository alarmRepository;
@@ -29,22 +30,20 @@ public class BusNotiProcessor {
 
     @Async("notiExecutor")
     public void checkAndNotify(TrafficNotification alarm) {
-        //알림에 연결된 버스목록 조회
-        List<BusFavorite> items = itemRepository.findAllById(alarm.getTargetItemIds());
+        List<BusFavorite> favorites = resolveFavorites(alarm);
 
-        if(items.isEmpty()) {
+        if (favorites.isEmpty()) {
             disableAlarm(alarm, "즐겨찾기가 없는 알림 비활성화");
             return;
         }
 
-        //버스정류장ID을 기준으로 그룹핑
-        Map<String, List<BusFavorite>> itemsByStation = items.stream()
+        Map<String, List<BusFavorite>> favoritesByStation = favorites.stream()
                 .collect(Collectors.groupingBy(BusFavorite:: getBusStationId));
 
         StringBuilder notificationBody = new StringBuilder();
         int busesNotifiedCount = 0;
 
-        for(Map.Entry<String, List<BusFavorite>> entry : itemsByStation.entrySet()) {
+        for(Map.Entry<String, List<BusFavorite>> entry : favoritesByStation.entrySet()) {
             String busStationId = entry.getKey();
             List<BusFavorite> stationItems = entry.getValue();
 
@@ -87,6 +86,22 @@ public class BusNotiProcessor {
 
             handleRepeatOption(alarm);
         }
+    }
+
+    private List<BusFavorite> resolveFavorites(TrafficNotification alarm) {
+        List<String> ids = alarm.getTargetItemIds();
+        if (ids == null || ids.isEmpty()) return List.of();
+
+        List<String> sanitizedIds = ids.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .toList();
+
+        if (sanitizedIds.isEmpty()) return List.of();
+
+        return busFavoriteRepository.findAllById(sanitizedIds);
     }
 
     //반복 안 함 설정이면 알림 비활성화 처리
