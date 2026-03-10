@@ -20,9 +20,10 @@ const { width } = Dimensions.get('window')
 const CALENDAR_WIDTH = Math.round(width * 0.9 - 20)
 const CALENDAR_HEIGHT = 300
 const ACTIONS_BOTTOM_OFFSET = 19
-const MODAL_MIN_HEIGHT = 303
+const MODAL_MIN_HEIGHT = 343
 const MODAL_CALENDAR_HEIGHT = 410
 const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 426
+const DAY_CELL_SIZE = 34
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -152,15 +153,10 @@ export default function CalendarModal({
     setSelectedDate(day.dateString)
   }, [])
 
-  const getTodayString = () => {
-    const today = new Date()
-    return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
-  }
-
   // 마킹 로직: 오늘 + 현재 선택된 날짜
   const markedDates = useMemo(() => {
-    const todayStr = getTodayString()
-    const marks: any = {}
+    const todayStr = todayISO()
+    const marks: Record<string, any> = {}
 
     // 1. 오늘 날짜
     marks[todayStr] = {
@@ -185,7 +181,7 @@ export default function CalendarModal({
 
   // 오늘로 이동
   const goToToday = useCallback(() => {
-    const todayStr = getTodayString()
+    const todayStr = todayISO()
     const todayYear = Number(todayStr.slice(0, 4))
     const todayMonth = Number(todayStr.slice(5, 7))
 
@@ -373,8 +369,8 @@ export default function CalendarModal({
                         textDayStyle: { color: colors.text.text1 },
                         'stylesheet.day.basic': {
                           base: {
-                            width: 34,
-                            height: 34,
+                            width: DAY_CELL_SIZE,
+                            height: DAY_CELL_SIZE,
                             justifyContent: 'center',
                             alignItems: 'center',
                           },
@@ -390,8 +386,8 @@ export default function CalendarModal({
                           },
                           selected: {
                             borderRadius: 12,
-                            width: 32,
-                            height: 32,
+                            width: DAY_CELL_SIZE,
+                            height: DAY_CELL_SIZE,
                             justifyContent: 'center',
                             alignItems: 'center',
                             zIndex: 1,

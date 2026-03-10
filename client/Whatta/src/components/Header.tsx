@@ -29,7 +29,6 @@ import { useLabelFilter } from '@/providers/LabelFilterProvider'
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
 /* 날짜 관련 유틸 함수 */
-const pad2 = (n: number) => String(n).padStart(2, '0')
 const today = () => {
   const t = new Date()
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
@@ -122,6 +121,11 @@ export default function Header() {
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
 
+  const closeFilterPopup = () => {
+    setPopup(false)
+    globalPopupState.popup = false
+  }
+
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
     const onState = (st: { date: string; mode?: 'day' | 'week' | 'month' }) => {
@@ -178,8 +182,7 @@ export default function Header() {
 
   useEffect(() => {
     const closeHandler = () => {
-      setPopup(false)
-      globalPopupState.popup = false
+      closeFilterPopup()
       bus.emit('filter:popup', false)
     }
     bus.on('filter:close', closeHandler)
@@ -259,8 +262,7 @@ export default function Header() {
               activeOpacity={1}
               style={{ flex: 1 }}
               onPress={() => {
-                setPopup(false)
-                globalPopupState.popup = false
+                closeFilterPopup()
               }}
             />
           </View>
@@ -278,8 +280,7 @@ export default function Header() {
               activeOpacity={1}
               style={{ flex: 1 }}
               onPress={() => {
-                setPopup(false)
-                globalPopupState.popup = false
+                closeFilterPopup()
               }}
             />
           </View>
@@ -486,12 +487,10 @@ const styles = StyleSheet.create({
   allText: {
     ...ts('label3'),
     marginLeft: 16,
-    fontSize: 13
   },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
   labelText: {
     ...ts('body1'),
-    fontSize: 13
   },
   divider: { width: 126, height: 1, backgroundColor: colors.icon.default, alignSelf: 'center' },
 })

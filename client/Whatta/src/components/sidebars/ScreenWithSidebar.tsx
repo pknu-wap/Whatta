@@ -12,14 +12,11 @@ import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
 import { bus } from '@/lib/eventBus'
 import { useNavigation } from '@react-navigation/native'
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { PanResponder } from 'react-native'
 import colors from '@/styles/colors'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
 const BASE_HEADER_H = 48
-const Tab = createBottomTabNavigator()
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
   const SIDEBAR_GHOST_W = 155
@@ -38,8 +35,6 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   const dragVisible = useSharedValue(0)
   const dragPrimedRef = useRef(false)
   const [ghostFold, setGhostFold] = useState(false)
-  const [closing, setClosing] = useState(false)
-  const ghostMode = useSharedValue<'day' | 'week' | 'sidebar'>('sidebar')
   const [ghostMeta, setGhostMeta] = useState({ mode: 'day', w: 320, h: 44 })
 
   // 사이드바 외부 드래그 신호 수신
@@ -50,7 +45,6 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       dragY.value = y
       dragPrimedRef.current = true
       setGhostMeta({ mode: 'sidebar', w: SIDEBAR_GHOST_W, h: SIDEBAR_GHOST_H })
-      ghostMode.value = 'sidebar'
       setDragActive(true)
       dragVisible.value = 1
 
@@ -143,14 +137,12 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
           w: meta.dayColWidth - 2,
           h: meta.rowH - 6,
         })
-        ghostMode.value = 'week'
       } else {
         setGhostMeta({
           mode: 'day',
           w: 320,
           h: 44,
         })
-        ghostMode.value = 'day'
       }
     }
 
