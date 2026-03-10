@@ -9,6 +9,7 @@ import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
+import InnerDrag from '@/assets/icons/innerDrag.svg'
 
 type Props = {
   id: string
@@ -100,11 +101,12 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           delayLongPress={180}
           hitSlop={12}
           style={S.handle}
-          accessibilityLabel="drag handle"
-        />
-      ) : (
-        <View style={S.handleSpacer} />
-      )}
+          accessibilityRole="button"
+          accessibilityLabel="inner drag handle"
+        >
+          <InnerDrag width={20} height={20} />
+        </Pressable>
+      ) : null}
     </View>
   )
 })
@@ -145,8 +147,7 @@ const S = StyleSheet.create({
     height: 36,
     marginLeft: 6,
     backgroundColor: 'transparent',
-  },
-  handleSpacer: {
-    width: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 })

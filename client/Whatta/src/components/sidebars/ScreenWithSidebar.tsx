@@ -51,6 +51,8 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       dragPrimedRef.current = true
       setGhostMeta({ mode: 'sidebar', w: SIDEBAR_GHOST_W, h: SIDEBAR_GHOST_H })
       ghostMode.value = 'sidebar'
+      setDragActive(true)
+      dragVisible.value = 1
 
       if (isOpen) {
         setGhostFold(false)
@@ -73,8 +75,6 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       dragX.value = x
       dragY.value = y
       if (dragPrimedRef.current && isOpen && !ghostFold && x > sbWidth + 12) {
-        setDragActive(true)
-        dragVisible.value = 1
         setGhostFold(true)
         bus.emit('drawer:close')
         close()
