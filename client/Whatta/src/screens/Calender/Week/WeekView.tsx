@@ -965,7 +965,7 @@ function DraggableFlexalbeEvent({
           density="week"
           hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={width}
-          style={{ minHeight: 0, height: '100%', marginVertical: 3 }}
+          style={{ minHeight: 0, height: '100%' }}
           onPress={() => {
             if (!isActiveDrag.value) openEventDetail(id)
           }}
