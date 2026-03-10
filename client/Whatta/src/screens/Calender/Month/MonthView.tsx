@@ -56,7 +56,6 @@ const MONTH_ITEM_WIDTH = cellWidth
 const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
-const MONTH_REFRESH_FOLLOWUPS_MS = [250, 900, 2200, 4500] as const
 const { width: SCREEN_W } = Dimensions.get('window')
 
 const getOccurrenceDedupKey = (item: UISchedule) => {
@@ -122,26 +121,6 @@ export default function MonthView() {
     const t = new Date()
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`
   })
-  const currentYmRef = useRef(ym)
-  const mountedRef = useRef(true)
-  const followupRefreshTimersByYmRef = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map())
-  const fetchSeqRef = useRef(0)
-  const latestFetchSeqByYmRef = useRef<Map<string, number>>(new Map())
-
-  useEffect(() => {
-    currentYmRef.current = ym
-  }, [ym])
-
-  useEffect(() => {
-    return () => {
-      mountedRef.current = false
-      for (const timers of followupRefreshTimersByYmRef.current.values()) {
-        timers.forEach((t) => clearTimeout(t))
-      }
-      followupRefreshTimersByYmRef.current.clear()
-      latestFetchSeqByYmRef.current.clear()
-    }
-  }, [])
 
   useEffect(() => {
     const onSetDate = (iso: string) => {
@@ -163,8 +142,6 @@ export default function MonthView() {
   // 데이터 fetch
   const fetchFresh = useCallback(
     async (targetYM: string) => {
-      const seq = ++fetchSeqRef.current
-      latestFetchSeqByYmRef.current.set(targetYM, seq)
       try {
         const fresh = await fetchMonthlyApi(targetYM)
         const schedulesFromMonth = flattenMonthly(fresh)
@@ -194,10 +171,7 @@ export default function MonthView() {
 
        const merged = dedupeSchedules(mergedRaw)
 
-        if (!mountedRef.current) return
-        const latestSeq = latestFetchSeqByYmRef.current.get(targetYM)
-        if (latestSeq !== seq) return
-        if (targetYM === currentYmRef.current) {
+        if (targetYM === ym) {
           setDays(fresh.days)
           setServerSchedules(merged)
         }
@@ -205,25 +179,7 @@ export default function MonthView() {
         console.warn('[MonthView] fetchFresh 실패', err)
       }
     },
-    [],
-  )
-
-  const refreshMonthWithFollowup = useCallback(
-    (targetYM: string) => {
-      void fetchFresh(targetYM)
-
-      const prevTimers = followupRefreshTimersByYmRef.current.get(targetYM) ?? []
-      prevTimers.forEach((t) => clearTimeout(t))
-
-      const timers = MONTH_REFRESH_FOLLOWUPS_MS.map((delayMs) =>
-        setTimeout(() => {
-          void fetchFresh(targetYM)
-        }, delayMs),
-      )
-
-      followupRefreshTimersByYmRef.current.set(targetYM, timers)
-    },
-    [fetchFresh],
+    [ym],
   )
 
   useEffect(() => {
@@ -232,39 +188,32 @@ export default function MonthView() {
       const safeYM =
         typeof dirtyYM === 'string' && /^\d{4}-\d{2}$/.test(dirtyYM)
           ? dirtyYM
-          : currentYmRef.current
-      refreshMonthWithFollowup(safeYM)
+          : ym
+      void fetchFresh(safeYM)
     }
     bus.on('calendar:invalidate', onInvalidate)
     return () => bus.off('calendar:invalidate', onInvalidate)
-  }, [refreshMonthWithFollowup])
+  }, [fetchFresh, ym])
 
+  const isFirstFocusRef = useRef(true)
   useFocusEffect(
     React.useCallback(() => {
-      // 포커스 복귀 시 항상 최신 월 데이터 재동기화
-      refreshMonthWithFollowup(ym)
-    }, [refreshMonthWithFollowup, ym]),
+      if (isFirstFocusRef.current) {
+        isFirstFocusRef.current = false
+        return
+      }
+      void fetchFresh(ym)
+    }, [fetchFresh, ym]),
   )
 
   useEffect(() => {
     const onMutated = (_payload?: { op?: 'create' | 'update' | 'delete'; item?: any }) => {
-      refreshMonthWithFollowup(currentYmRef.current)
-
-      const rawDate =
-        _payload?.item?.startDate ??
-        _payload?.item?.date ??
-        _payload?.item?.endDate ??
-        _payload?.item?.placementDate
-      const itemYM =
-        typeof rawDate === 'string' && rawDate.length >= 7 ? rawDate.slice(0, 7) : null
-      if (itemYM && itemYM !== currentYmRef.current) {
-        refreshMonthWithFollowup(itemYM)
-      }
+      void fetchFresh(ym)
     }
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [refreshMonthWithFollowup])
+  }, [ym, fetchFresh])
 
   const sendToOCR = useCallback(async (base64: string, ext?: string) => {
     try {
@@ -308,7 +257,7 @@ export default function MonthView() {
     } catch (err) {
       Alert.alert('오류', 'OCR 처리 실패')
     } finally {
-      if (mountedRef.current) setOcrSplashVisible(false)
+      setOcrSplashVisible(false)
     }
   }, [])
 
@@ -630,7 +579,16 @@ const holidayIsoByWeek = useMemo(() => {
   }
 
   const fetchMonthlyApi = async (ymStr: string): Promise<MonthlyPayload> => {
-    const res = await http.get('/calendar/monthly', { params: { month: ymStr } })
+    const res = await http.get('/calendar/monthly', {
+      params: {
+        month: ymStr,
+        _ts: Date.now(),
+      },
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    })
     const data = res.data?.data ?? {}
     return {
       days: (data.days ?? []) as MonthlyDay[],
@@ -902,8 +860,10 @@ const holidayIsoByWeek = useMemo(() => {
         const daysDiff =
           Math.floor((end.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24)) + 1
         const colSpan = Math.max(1, Math.min(spanToWeekEnd, daysDiff))
-        const titleLeftInset = isRealStart ? 12 : 5
-        const titleRightInset = isRealEnd ? 8 : 5
+        // 기간 바의 양끝 칩 영역(좌/우 캡)에는 제목이 겹치지 않도록 안전 여백을 넉넉히 확보한다.
+        const CAP_SAFE_INSET = 12
+        const titleLeftInset = isRealStart ? CAP_SAFE_INSET + 4 : 6
+        const titleRightInset = isRealEnd ? CAP_SAFE_INSET + 4 : 6
         const titleWidth = Math.max(0, colSpan * MONTH_ITEM_WIDTH - titleLeftInset - titleRightInset)
         const weekHolidaySet = holidayIsoByWeek[weekIndex]
         const spanRowHasHoliday = !!weekHolidaySet && Array.from(weekHolidaySet).some(
@@ -1100,14 +1060,14 @@ const holidayIsoByWeek = useMemo(() => {
 const closeEventPopup = () => {
   setEventPopupVisible(false)
   setEventPopupData(null)
-  refreshMonthWithFollowup(currentYmRef.current)
+  void fetchFresh(ym)
 }
 
 const closeTaskPopup = () => {
   setTaskPopupVisible(false)
   setTaskPopupTask(null)
   setTaskPopupId(null)
-  refreshMonthWithFollowup(currentYmRef.current)
+  void fetchFresh(ym)
 }
 
 const handleTaskSave = useCallback(async (form:any) => {
