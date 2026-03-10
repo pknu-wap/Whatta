@@ -275,7 +275,7 @@ export default function Sidebar() {
   }
 
   // 예정 섹션 내부 드래그 종료 시 sortNumber 재계산 + 서버 저장
-  const onUpcomingReorderEnd = async (data: Task[], from: number, to: number) => {
+  const onUpcomingReorderEnd = (data: Task[], from: number, to: number) => {
     if (from === to) return
 
     const moved = data[to]
@@ -297,16 +297,15 @@ export default function Sidebar() {
       prev.map((t) => (t.id === moved.id ? { ...t, sortNumber: newSort } : t)),
     )
 
-    try {
-      await putSidebarTask(moved.id, {
+    void putSidebarTask(moved.id, {
         title: safeTitle(moved.title),
         sortNumber: newSort,
         completed: moved.completed,
       })
-    } catch (e) {
-      console.warn('reorder failed:', e)
-      setTasks(prevSnapshot)
-    }
+      .catch((e) => {
+        console.warn('reorder failed:', e)
+        setTasks(prevSnapshot)
+      })
   }
 
   // 예정/완료 분리 (sortNumber 오름차순: 작은 값이 위)
@@ -387,9 +386,10 @@ function SectionUpcoming({
         extraData={data}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        onDragEnd={({ data: newData, from, to }) =>
+        onDragEnd={({ data: newData, from, to }) => {
           onDragEnd(newData as Task[], from, to)
-        }
+        }}
+        renderPlaceholder={() => <View style={S.dragPlaceholder} />}
         style={{ height: SECTION_HEIGHT }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         autoscrollThreshold={40}
@@ -453,6 +453,15 @@ const S = StyleSheet.create({
     height: 1.2,
     backgroundColor: colors.divider.divider1,
     marginVertical: 10,
+  },
+  dragPlaceholder: {
+    width: 155,
+    height: 60,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.brand.primary,
+    backgroundColor: '#FFFFFF80',
   },
   // ✅ 입력창 스타일 (피그마 느낌의 보더/라운드)
   newInput: {

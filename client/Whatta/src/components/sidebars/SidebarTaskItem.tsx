@@ -68,7 +68,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   )
 
   return (
-    <View style={[S.card, isActive && { opacity: 0.9 }]}>
+    <View style={[S.card, isActive && S.hiddenCard]}>
       <Pressable
         onPress={onToggle}
         hitSlop={10}
@@ -79,25 +79,32 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
       </Pressable>
 
       {checked ? (
-        <Text style={[S.title, S.titleDone]} numberOfLines={1}>
-          {title}
-        </Text>
-      ) : (
-        <GestureDetector gesture={pan}>
-          <Text style={S.title} numberOfLines={1}>
+        <View style={S.titleArea}>
+          <Text style={[S.title, S.titleDone]} numberOfLines={1}>
             {title}
           </Text>
+        </View>
+      ) : (
+        <GestureDetector gesture={pan}>
+          <View style={S.titleArea}>
+            <Text style={S.title} numberOfLines={1}>
+              {title}
+            </Text>
+          </View>
         </GestureDetector>
       )}
 
-      <Pressable
-        onLongPress={onLongPressHandle}
-        delayLongPress={180}
-        hitSlop={12}
-        style={S.handle}
-        accessibilityLabel="drag handle"
-      >
-      </Pressable>
+      {onLongPressHandle ? (
+        <Pressable
+          onLongPress={onLongPressHandle}
+          delayLongPress={180}
+          hitSlop={12}
+          style={S.handle}
+          accessibilityLabel="drag handle"
+        />
+      ) : (
+        <View style={S.handleSpacer} />
+      )}
     </View>
   )
 })
@@ -120,23 +127,26 @@ const S = StyleSheet.create({
     ...ts('label3'),
     color: colors.text.text1,
     marginLeft: 10,
+    flexShrink: 1,
+  },
+  titleArea: {
     flex: 1,
+    height: '100%',
+    justifyContent: 'center',
   },
   titleDone: {
     textDecorationLine: 'line-through',
   },
+  hiddenCard: {
+    opacity: 0,
+  },
   handle: {
     width: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
+    height: 36,
     marginLeft: 6,
+    backgroundColor: 'transparent',
   },
-  handleText: {
-    fontSize: 22,
-    lineHeight: 22,
-    includeFontPadding: false,
-    textAlign: 'center',
-    opacity: 0.5,
+  handleSpacer: {
+    width: 34,
   },
 })
