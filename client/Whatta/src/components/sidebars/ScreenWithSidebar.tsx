@@ -396,7 +396,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
 const S = StyleSheet.create({
   sidebarWrap: {
     position: 'absolute',
-    backgroundColor: colors.neutral.surface,
+    backgroundColor: colors.background.bg2,
   },
   headerSafeFixed: {
     position: 'absolute',

@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useMemo, useState } from 'react'
-import { Dimensions } from 'react-native'
 import { useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated'
 
 type Ctx = {
@@ -15,10 +14,11 @@ type Ctx = {
 }
 
 const Ctx = createContext<Ctx | null>(null)
+const DRAWER_WIDTH = 187
 
 export const DrawerProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const width = Math.round(Dimensions.get('window').width * 0.55)
+  const width = DRAWER_WIDTH
   const progress = useSharedValue(0)
 
   const today = () => {
