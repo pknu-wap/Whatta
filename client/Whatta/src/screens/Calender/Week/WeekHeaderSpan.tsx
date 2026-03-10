@@ -271,7 +271,7 @@ function WeekHeaderSpan({
                   !!s.isSpan || s.startISO !== s.endISO || s.startIdx !== s.endIdx
                 const isStartCap = (s.rawStartISO ?? s.startISO) === s.startISO
                 const isEndCap = (s.rawEndISO ?? s.endISO) === s.endISO
-                const SpanScheduleCard = s.isRepeat ? RepeatScheduleCard : FixedScheduleCard
+                const SpanScheduleCard = s.isRepeat ? FixedScheduleCard : RepeatScheduleCard
 
                 return (
                   <View

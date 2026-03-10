@@ -937,7 +937,7 @@ function DraggableFlexalbeEvent({
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
   const timeRangeText = `${fmtHm(startMin)}~${fmtHm(endMin)}`
-  const EventCard = isRepeat ? RepeatScheduleCard : FixedScheduleCard
+  const EventCard = isRepeat ? FixedScheduleCard : RepeatScheduleCard
 
   return (
     <GestureDetector gesture={composedGesture}>

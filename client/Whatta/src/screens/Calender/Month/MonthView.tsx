@@ -953,7 +953,7 @@ const holidayIsoByWeek = useMemo(() => {
         )
       }
 
-      const ScheduleCard = item.isRecurring ? RepeatScheduleCard : FixedScheduleCard
+      const ScheduleCard = item.isRecurring ? FixedScheduleCard : RepeatScheduleCard
       return (
         <View key={itemKey} style={[slotCardRowStyle, dimStyle]}>
           <ScheduleCard
