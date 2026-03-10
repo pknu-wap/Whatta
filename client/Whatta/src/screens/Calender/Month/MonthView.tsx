@@ -932,6 +932,8 @@ const holidayIsoByWeek = useMemo(() => {
                   width: titleWidth,
                   height: MONTH_ITEM_HEIGHT,
                   justifyContent: 'center',
+                  zIndex: 20,
+                  elevation: 20,
                 }}
               >
                 <Text
@@ -974,6 +976,7 @@ const holidayIsoByWeek = useMemo(() => {
             S.dateCell,
             weekRowHeight ? { minHeight: weekRowHeight } : null,
             dayIndex === 6 ? { borderRightWidth: 0 } : null,
+            { zIndex: 100 - dayIndex },
           ]}
           hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
           onPress={() => handleDatePress(dateItem)}
@@ -1239,7 +1242,11 @@ const handleOcrSaveAll = useCallback(async () => {
                     {weeks.map((week, weekIndex) => (
                       <View
                         key={`week-${weekIndex}`}
-                        style={[S.weekRow, weekRowHeight ? { minHeight: weekRowHeight } : null]}
+                        style={[
+                          S.weekRow,
+                          weekRowHeight ? { minHeight: weekRowHeight } : null,
+                          { zIndex: weeks.length - weekIndex },
+                        ]}
                       >
                         {week.map((dateItem, dayIndex) =>
                           renderDateCell(dateItem, weekIndex, dayIndex)
