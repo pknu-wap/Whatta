@@ -29,11 +29,11 @@ public class TrafficNotiScheduler {
         ZoneId zone = ZoneId.of("Asia/Seoul");
         LocalTime now = LocalTime.now(zone).truncatedTo(ChronoUnit.MINUTES);
         DayOfWeek today = LocalDate.now(zone).getDayOfWeek();
+        int minuteOfDay = now.getHour() * 60 + now.getMinute();
 
         //지정된 시간과 날짜에 켜져있는 알림만 DB에서 조회
         List<TrafficNotification> targets = alarmRepository.findAlarmsToNotify(
-                now.getHour(),
-                now.getMinute(),
+                minuteOfDay,
                 today
         );
 

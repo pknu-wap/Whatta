@@ -31,6 +31,9 @@ public class TrafficNotification {
     @NotNull
     private LocalTime alarmTime;
 
+    // 0 ~ 1439, timezone-independent lookup key for scheduler queries
+    private Integer alarmMinuteOfDay;
+
     @Builder.Default
     private Set<DayOfWeek> days = new HashSet<>();
 

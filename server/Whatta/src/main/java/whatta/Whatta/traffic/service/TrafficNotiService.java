@@ -42,6 +42,7 @@ public class TrafficNotiService {
         TrafficNotification alarm = TrafficNotification.builder()
                 .userId(userId)
                 .alarmTime(cleanTime)
+                .alarmMinuteOfDay(toMinuteOfDay(cleanTime))
                 .days(request.days() != null ? request.days() : new HashSet<>())
                 .targetItemIds(targetItemIds)
                 .isEnabled(true)
@@ -64,8 +65,13 @@ public class TrafficNotiService {
 
         TrafficNotification.TrafficNotificationBuilder builder = originalAlarm.toBuilder();
 
-        if (request.alarmTime() != null) builder.alarmTime(request.alarmTime()
-                .truncatedTo(ChronoUnit.MINUTES));
+        if (request.alarmTime() != null) {
+            LocalTime cleanTime = request.alarmTime().truncatedTo(ChronoUnit.MINUTES);
+            builder.alarmTime(cleanTime);
+            builder.alarmMinuteOfDay(toMinuteOfDay(cleanTime));
+        } else if (originalAlarm.getAlarmMinuteOfDay() == null && originalAlarm.getAlarmTime() != null) {
+            builder.alarmMinuteOfDay(toMinuteOfDay(originalAlarm.getAlarmTime()));
+        }
         if (request.days() != null) {
             builder.days(request.days());
             boolean shouldRepeat = !request.days().isEmpty();
@@ -125,5 +131,9 @@ public class TrafficNotiService {
         }
 
         return new ArrayList<>(sanitized);
+    }
+
+    private int toMinuteOfDay(LocalTime time) {
+        return time.getHour() * 60 + time.getMinute();
     }
 }

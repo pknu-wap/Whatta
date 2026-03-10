@@ -14,11 +14,7 @@ public interface TrafficNotiRepository extends MongoRepository<TrafficNotificati
 
     Optional<TrafficNotification> findByIdAndUserId(String id, String userId);
 
-    @Query("{ 'isEnabled': true, " +
-            "$or: [ { 'days': ?2 }, { 'isRepeatEnabled': false } ], " +
-            "$expr: { $and: [ " +
-            "{ $eq: [ { $hour: { date: '$alarmTime', timezone: 'Asia/Seoul' } }, ?0 ] }, " +
-            "{ $eq: [ { $minute: { date: '$alarmTime', timezone: 'Asia/Seoul' } }, ?1 ] } " +
-            "] } }")
-    List<TrafficNotification> findAlarmsToNotify(int hour, int minute, DayOfWeek today);
+    @Query("{ 'isEnabled': true, 'alarmMinuteOfDay': ?0, " +
+            "$or: [ { 'days': ?1 }, { 'isRepeatEnabled': false } ] }")
+    List<TrafficNotification> findAlarmsToNotify(int minuteOfDay, DayOfWeek today);
 }
