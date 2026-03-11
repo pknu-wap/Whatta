@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { http } from '@/lib/http'
 import { computeEventOverlap } from './overlapUtils'
+import { normalizeScheduleColorKey } from '@/styles/scheduleColorSets'
 
 export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
   const [events, setEvents] = useState<any[]>([])
@@ -32,6 +33,7 @@ const parsedEvents = timed
 
     return {
       ...e,
+      colorKey: normalizeScheduleColorKey(e?.colorKey),
       startMin: sh * 60 + sm,
       endMin: eh * 60 + em,
     }
@@ -48,7 +50,14 @@ const parsedEvents = timed
       }
 
       setEvents(overlapped.filter(filterByLabel))
-      setSpanEvents([...allDaySpan, ...allDayEvents].filter(filterByLabel))
+      setSpanEvents(
+        [...allDaySpan, ...allDayEvents]
+          .map((e: any) => ({
+            ...e,
+            colorKey: normalizeScheduleColorKey(e?.colorKey),
+          }))
+          .filter(filterByLabel),
+      )
       setTasks(timedTasks.filter(filterByLabel))
       setChecks([...allDay, ...floating].filter(filterByLabel))
     } catch (err) {

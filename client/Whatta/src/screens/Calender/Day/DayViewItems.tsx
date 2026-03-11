@@ -592,7 +592,8 @@ const endTime = fmt(endMin)
 type DraggableFlexibleEventProps = {
   id: string
   title: string
-  labels: string[]
+  labels?: string[]
+  place?: string
   startMin: number
   endMin: number
   color: string
@@ -607,6 +608,7 @@ export function DraggableFlexalbeEvent({
   id,
   title,
   labels,
+  place,
   startMin,
   endMin,
   color,
@@ -870,7 +872,7 @@ const left = BASE_LEFT + shift
   id={id}
   title={title}
   color={color}
-  timeRangeText={labels?.[0]}
+  timeRangeText={place ?? labels?.[0]}
   density="day"
   onPress={onPress}
 />

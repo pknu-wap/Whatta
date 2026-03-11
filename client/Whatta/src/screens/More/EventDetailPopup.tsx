@@ -28,6 +28,7 @@ import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
 import { http } from '@/lib/http'
 import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
+import { getScheduleColorSet, resolveSlotIndex, slotKey } from '@/styles/scheduleColorSets'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -268,7 +269,8 @@ export default function EventDetailPopup({
   const [start, setStart] = useState(new Date())
 
   const buildBasePayload = () => {
-    const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+    const colorIndex = resolveSlotIndex(selectedColor)
+    const key = slotKey(colorIndex)
     const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
 
     const base = {
@@ -279,12 +281,12 @@ export default function EventDetailPopup({
       endDate: ymdLocal(end),
       startTime: timeOn ? hms(start) : null,
       endTime: timeOn ? hms(end) : null,
-      colorKey: hex,
+      colorKey: key,
       reminderNoti,
     }
     return {
       payload: stripNil(base),
-      colorHex: hex,
+      colorHex: key,
     }
   }
 
@@ -500,17 +502,8 @@ export default function EventDetailPopup({
   const close = () => onClose()
 
   /** 색상 */
-  const COLORS = [
-    '#B04FFF',
-    '#668CFF',
-    '#FF6464',
-    '#FF8A66',
-    '#FFD966',
-    '#83E957',
-    '#665AE6',
-    '#FF75AE',
-  ]
-  const [selectedColor, setSelectedColor] = useState('#B04FFF')
+  const COLORS = getScheduleColorSet('basic') as readonly string[]
+  const [selectedColor, setSelectedColor] = useState<string>(COLORS[0])
   const [showPalette, setShowPalette] = useState(false)
 
   // 라벨
@@ -1115,7 +1108,8 @@ export default function EventDetailPopup({
         setScheduleTitle(ev.title ?? '')
         setMemo(ev.content ?? '')
         setSelectedLabelIds(ev.labels ?? [])
-        setSelectedColor('#' + ev.colorKey)
+        const idx = resolveSlotIndex(ev.colorKey)
+        setSelectedColor(COLORS[idx] ?? COLORS[0])
         setEventData(ev)
       } catch (err) {
         if (cancelled) return
@@ -1140,7 +1134,7 @@ export default function EventDetailPopup({
       const defaultLabel = labels.find((l) => l.title === '일정')
       setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
 
-      setSelectedColor('#B04FFF')
+      setSelectedColor(COLORS[0])
 
       const today = new Date()
       setStart(today)
@@ -2600,9 +2594,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   colorPill: {
-    height: 28,
+    height: 24,
     borderRadius: 14,
-    marginVertical: 8,
+    marginVertical: 4,
   },
   cardDropdown: {
     marginTop: 6,

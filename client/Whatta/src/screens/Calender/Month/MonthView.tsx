@@ -49,6 +49,7 @@ import RangeScheduleBar from '@/components/calendar-items/schedule/RangeSchedule
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { cellWidth } from './S'
+import { normalizeScheduleColorKey, resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 
 
@@ -439,11 +440,7 @@ const holidayIsoByWeek = useMemo(() => {
         ...(dateItem.schedules as ExtendedScheduleDataWithColor[])
           .filter((s) => s.multiDayStart && s.multiDayEnd)
           .map((s) => {
-            const baseColor = s.colorKey
-              ? s.colorKey.startsWith('#')
-                ? s.colorKey
-                : `#${s.colorKey}`
-              : '#8B5CF6'
+            const baseColor = resolveScheduleColor(s.colorKey)
             return {
               id: s.id,
               title: s.name,
@@ -454,13 +451,7 @@ const holidayIsoByWeek = useMemo(() => {
             }
           }),
         ...allDaySingles.map((ev) => {
-          const rawColor = ev.colorKey as string | undefined
-          const formatted =              
-            rawColor && rawColor.length > 0
-              ? rawColor.startsWith('#')
-                ? rawColor
-                : `#${rawColor}`
-              : null
+          const formatted = resolveScheduleColor(ev.colorKey as string | undefined)
           const baseColor = !formatted || formatted.toUpperCase() === '#FFFFFF'
             ? '#8B5CF6'
             : formatted                     
@@ -483,11 +474,7 @@ const holidayIsoByWeek = useMemo(() => {
             !allDaySingleIds.has(String(s.id)), // all-day 단일 일정은 여기서 제외
         )
         .map((s) => {
-          const baseColor = s.colorKey
-            ? s.colorKey.startsWith('#')
-              ? s.colorKey
-              : `#${s.colorKey}`
-            : '#F4EAFF'
+          const baseColor = s.colorKey ? resolveScheduleColor(s.colorKey) : '#F4EAFF'
           return {
             id: s.id,
             title: s.name,
@@ -498,11 +485,7 @@ const holidayIsoByWeek = useMemo(() => {
           }
         }),
       timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
-        const baseColor = t.colorKey
-          ? t.colorKey.startsWith('#')
-            ? t.colorKey
-            : `#${t.colorKey}`
-          : '#FFD966'
+        const baseColor = t.colorKey ? resolveScheduleColor(t.colorKey) : '#FFD966'
         return {
           id: t.id,
           done: t.isCompleted,
@@ -583,7 +566,7 @@ const holidayIsoByWeek = useMemo(() => {
           labelId: pickLabelId(ev),
           colorKey:
             typeof ev.colorKey === 'string'
-              ? ev.colorKey.replace(/^#/, '').toUpperCase()
+              ? normalizeScheduleColorKey(ev.colorKey)
               : undefined,
         })
       })
@@ -617,7 +600,7 @@ const holidayIsoByWeek = useMemo(() => {
         labelId: pickLabelId(ev),
         colorKey:
           typeof ev.colorKey === 'string'
-            ? ev.colorKey.replace(/^#/, '').toUpperCase()
+            ? normalizeScheduleColorKey(ev.colorKey)
             : undefined,
         multiDayStart: start,
         multiDayEnd: end,
@@ -760,7 +743,7 @@ const holidayIsoByWeek = useMemo(() => {
 
     const normalizeColor = (colorKey?: string, fallback = '#B04FFF') => {
       if (!colorKey) return fallback
-      return colorKey.startsWith('#') ? colorKey : `#${colorKey}`
+      return resolveScheduleColor(colorKey)
     }
 
     const renderSlotItem = (

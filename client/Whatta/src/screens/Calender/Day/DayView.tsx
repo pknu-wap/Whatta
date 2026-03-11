@@ -61,6 +61,7 @@ import {
   getInstanceDates,
 } from '../../../utils/dateUtils'
 import { getMyLabels } from '@/api/label_api'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 function FullBleed({
   children,
@@ -623,12 +624,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                       const isStart = current === start
                       const isEnd = current === end
 
-                      const raw = t.colorKey || t.color
-                      const base = raw
-                        ? raw.startsWith('#')
-                          ? raw
-                          : `#${raw}`
-                        : '#8B5CF6'
+                      const base = resolveScheduleColor(t.colorKey || t.color)
                       const bg = `${base}4D`
 
                       return (
@@ -784,7 +780,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                       place={getLabelName(evt.labels?.[0])}
                       startMin={startMin}
                       endMin={endMin}
-                      color={`#${evt.colorKey}`}
+                      color={resolveScheduleColor(evt.colorKey)}
                       anchorDate={anchorDate}
                       onPress={() => openEventDetail(evt)}
                     />
@@ -800,7 +796,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
   place={getLabelName(evt.labels?.[0])}
   startMin={startMin}
   endMin={endMin}
-  color={`#${evt.colorKey}`}
+  color={resolveScheduleColor(evt.colorKey)}
   anchorDate={anchorDate}
   isRepeat={!!evt.isRepeat}
   _column={evt._column}        
@@ -1082,4 +1078,3 @@ function thumbH(visibleH: number, contentH: number) {
   const h = (visibleH * visibleH) / Math.max(contentH, 1)
   return Math.max(minH, Math.min(h, visibleH))
 }
-

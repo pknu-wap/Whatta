@@ -97,9 +97,39 @@ const normalizeHex = (value?: string | null): string | null => {
   return `#${value.replace('#', '').toUpperCase()}`
 }
 
+const hexToRgb = (hex: string) => {
+  const h = hex.replace('#', '')
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  }
+}
+
+const findClosestSlotIndex = (hex: string, setId: ScheduleColorSetId = DEFAULT_SET): number => {
+  const target = hexToRgb(hex)
+  const set = getScheduleColorSet(setId)
+  let best = 0
+  let bestDist = Number.POSITIVE_INFINITY
+
+  set.forEach((chip, idx) => {
+    const c = hexToRgb(chip)
+    const dr = target.r - c.r
+    const dg = target.g - c.g
+    const db = target.b - c.b
+    const dist = dr * dr + dg * dg + db * db
+    if (dist < bestDist) {
+      bestDist = dist
+      best = idx
+    }
+  })
+
+  return best
+}
+
 // colorKey -> 화면 표시 HEX
 // 1) Cnn 이면 세트 인덱스 색상
-// 2) 기존 6자리 HEX면 그대로 사용(레거시 호환)
+// 2) 기존 6자리 HEX면 basic에서 같은/가장 가까운 슬롯 색상으로 보정
 // 3) 그 외 기본 슬롯(C00)
 export const resolveScheduleColor = (
   colorKey: string | undefined,
@@ -110,7 +140,7 @@ export const resolveScheduleColor = (
   if (idx >= 0 && idx < set.length) return set[idx]
 
   const legacyHex = normalizeHex(colorKey)
-  if (legacyHex) return legacyHex
+  if (legacyHex) return set[findClosestSlotIndex(legacyHex, setId)]
 
   return set[0]
 }
@@ -131,5 +161,30 @@ export const resolveSlotIndex = (
   if (!legacyHex) return 0
 
   const found = set.findIndex((hex) => hex === legacyHex)
-  return found >= 0 ? found : 0
+  if (found >= 0) return found
+
+  return findClosestSlotIndex(legacyHex, setId)
+}
+
+// 서버/레거시 colorKey를 클라이언트 표준 키로 정규화
+// - Cnn -> Cnn
+// - basic 세트와 일치하는 HEX -> 해당 Cnn
+// - 일치하지 않는 HEX -> 가장 가까운 basic 슬롯의 Cnn
+// - 그 외 -> undefined
+export const normalizeScheduleColorKey = (
+  colorKey?: string | null,
+  setId: ScheduleColorSetId = DEFAULT_SET,
+): string | undefined => {
+  if (!colorKey) return undefined
+  const trimmed = String(colorKey).trim()
+  if (!trimmed) return undefined
+
+  const normalizedSlot = trimmed.toUpperCase()
+  const idx = slotIndex(normalizedSlot)
+  if (idx >= 0 && idx < getScheduleColorSet(setId).length) return normalizedSlot
+
+  const legacyHex = normalizeHex(trimmed)
+  if (!legacyHex) return undefined
+
+  return slotKey(findClosestSlotIndex(legacyHex, setId))
 }

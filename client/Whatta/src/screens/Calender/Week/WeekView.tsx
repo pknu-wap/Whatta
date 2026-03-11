@@ -74,6 +74,7 @@ import {
   getDayColWidth,
   resetLayoutDayEventsCache,
 } from '@/screens/Calender/Week/layout'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
@@ -849,7 +850,7 @@ function DraggableFlexalbeEvent({
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
-  const safeColor = color.startsWith('#') ? color : `#${color}`
+  const safeColor = resolveScheduleColor(color)
   const colGap = EVENT_OVERLAP_GAP
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount

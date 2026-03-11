@@ -14,6 +14,7 @@ import colors from '@/styles/colors'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { parseDate } from '@/screens/Calender/Week/date'
 import { thumbH, type WeekSpanEvent } from '@/screens/Calender/Week/layout'
@@ -261,7 +262,7 @@ function WeekHeaderSpan({
                   )
                 }
 
-                const mainColor = s.color?.startsWith('#') ? s.color : `#${s.color || 'B04FFF'}`
+                const mainColor = resolveScheduleColor(s.color)
                 const barLeft = Math.min(
                   Math.max(left + 2, timeColWidth + 2),
                   timeColWidth + weekDates.length * dayColWidth - (width - 4),

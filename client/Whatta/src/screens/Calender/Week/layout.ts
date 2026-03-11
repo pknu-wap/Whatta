@@ -1,3 +1,5 @@
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
+
 export type DayTimelineEvent = {
   id: string
   title: string
@@ -154,8 +156,8 @@ export function buildWeekSpanEvents(weekDates: string[], data: Record<string, an
 
       const colorKey = isTask
         ? '000000'
-        : (e.colorKey && String(e.colorKey).replace('#', '')) || '8B5CF6'
-      const color = colorKey.startsWith('#') ? colorKey : `#${colorKey}`
+        : e.colorKey
+      const color = isTask ? '#000000' : resolveScheduleColor(colorKey)
 
       const rawStartISO = toDateISO(
         e.originalStartDate ?? e.originStartDate ?? e.startDate ?? e.startAt ?? e.date,
