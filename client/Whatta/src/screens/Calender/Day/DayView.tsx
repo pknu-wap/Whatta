@@ -183,6 +183,7 @@ useEffect(() => {
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
+  const [eventPopupCreateType, setEventPopupCreateType] = useState<'event' | 'task'>('event')
 
   async function openEventDetail(ev: any) {
 
@@ -196,12 +197,14 @@ useEffect(() => {
       endDate,
     })
     setEventPopupMode('edit')
+    setEventPopupCreateType('event')
     setEventPopupVisible(true)
   }
   useEffect(() => {
-    const h = (payload?: { source?: string }) => {
+    const h = (payload?: { source?: string; createType?: 'event' | 'task' }) => {
       if (payload?.source !== 'Day') return
       setEventPopupMode('create')
+      setEventPopupCreateType(payload?.createType ?? 'event')
       setEventPopupData(null)
       setEventPopupVisible(true)
     }
@@ -657,37 +660,27 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
   const handleDeleteTask = async () => {
   if (!taskPopupId) return
+  try {
+    await deleteTask(taskPopupId)
 
-  Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
-    { text: '취소', style: 'cancel' },
-    {
-      text: '삭제',
-      style: 'destructive',
-      onPress: async () => {
-        try {
-          await deleteTask(taskPopupId)
+    bus.emit('calendar:mutated', {
+      op: 'delete',
+      item: { id: taskPopupId, date: anchorDate },
+    })
 
-          bus.emit('calendar:mutated', {
-            op: 'delete',
-            item: { id: taskPopupId, date: anchorDate },
-          })
+    bus.emit('calendar:invalidate', {
+      ym: anchorDate.slice(0, 7),
+    })
 
-          bus.emit('calendar:invalidate', {
-            ym: anchorDate.slice(0, 7),
-          })
+    await fetchDailyEvents()
 
-          await fetchDailyEvents()
-
-          setTaskPopupVisible(false)
-          setTaskPopupId(null)
-          setTaskPopupTask(null)
-        } catch (err) {
-          console.error('❌ 테스크 삭제 실패:', err)
-          Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
-        }
-      },
-    },
-  ])
+    setTaskPopupVisible(false)
+    setTaskPopupId(null)
+    setTaskPopupTask(null)
+  } catch (err) {
+    console.error('❌ 테스크 삭제 실패:', err)
+    Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+  }
 }
 
   return (
@@ -1011,6 +1004,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
         </GestureDetector>
         <TaskDetailPopup
           visible={taskPopupVisible}
+          source="Day"
           mode={taskPopupMode}
           taskId={taskPopupId ?? undefined}
           initialTask={taskPopupTask}
@@ -1114,12 +1108,15 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
         <EventDetailPopup
           visible={eventPopupVisible}
+          source="Day"
           eventId={eventPopupData?.id ?? null}
           initial={eventPopupData ?? undefined}
           mode={eventPopupMode}
+          initialCreateType={eventPopupCreateType}
           onClose={() => {
             setEventPopupVisible(false)
             setEventPopupData(null)
+            setEventPopupCreateType('event')
             fetchDailyEvents() // 일정 새로 반영
           }}
         />

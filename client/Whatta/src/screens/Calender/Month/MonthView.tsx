@@ -93,6 +93,7 @@ export default function MonthView() {
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
+  const [eventPopupCreateType, setEventPopupCreateType] = useState<'event' | 'task'>('event')
 
   const [taskPopupVisible, setTaskPopupVisible] = useState(false)
   const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
@@ -110,9 +111,10 @@ export default function MonthView() {
   }, [])
 
   useEffect(() => {
-      const h = (payload?: { source?: string }) => {
+      const h = (payload?: { source?: string; createType?: 'event' | 'task' }) => {
         if (payload?.source !== 'Month') return
         setEventPopupMode('create')
+        setEventPopupCreateType(payload?.createType ?? 'event')
         setEventPopupData(null)
         setEventPopupVisible(true)
       }
@@ -1018,6 +1020,7 @@ const holidayIsoByWeek = useMemo(() => {
 const closeEventPopup = () => {
   setEventPopupVisible(false)
   setEventPopupData(null)
+  setEventPopupCreateType('event')
   void fetchFresh(ym)
 }
 
@@ -1192,13 +1195,16 @@ const handleOcrSaveAll = useCallback(async () => {
       />
       <EventDetailPopup
         visible={eventPopupVisible}
+        source="Month"
         eventId={eventPopupData?.id ?? null}
         mode={eventPopupMode}
         initial={eventPopupData ?? undefined}
+        initialCreateType={eventPopupCreateType}
         onClose={closeEventPopup}
       />
       <TaskDetailPopup
         visible={taskPopupVisible}
+        source="Month"
         mode={taskPopupMode}
         taskId={taskPopupId ?? undefined}
         initialTask={taskPopupTask}

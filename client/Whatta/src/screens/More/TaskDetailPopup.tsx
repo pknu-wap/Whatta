@@ -25,6 +25,10 @@ import { useLabels } from '@/providers/LabelProvider'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
+import CreateModeTypeStep from '@/screens/More/CreateModeTypeStep'
+import CreateEventDetailStep from '@/screens/More/CreateEventDetailStep'
+import colors from '@/styles/colors'
+import { ts } from '@/styles/typography'
 
 const H_PAD = 18
 
@@ -47,6 +51,7 @@ type TaskFormValue = {
 type TaskDetailPopupProps = {
   visible: boolean
   mode?: 'create' | 'edit'
+  source?: 'Day' | 'Week' | 'Month'
   initialTitle?: string
   initialDate?: Date
   initialHasDate?: boolean
@@ -137,6 +142,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const {
     visible,
     mode = 'create',
+    source,
     initialTitle = '',
     initialDate,
     initialHasDate = true,
@@ -153,11 +159,14 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const insets = useSafeAreaInsets()
   const { width: W, height: H } = Dimensions.get('window')
   const MARGIN = 10
-  const SHEET_W = Math.min(W - MARGIN, 342)
+  const SHEET_W = Math.min(W - MARGIN, 350)
   const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
-  const SHEET_H = Math.min(573, MAX_H)
+  const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
+  const [showCreateIntro, setShowCreateIntro] = useState(mode === 'create')
+  const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const scrollRef = useRef<ScrollView>(null)
   const titleRef = useRef<TextInput>(null)
@@ -172,6 +181,20 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
   const [labelIds, setLabelIds] = useState<number[]>(initialLabelIds)
   const [memo, setMemo] = useState('')
+  const [taskDueOn, setTaskDueOn] = useState(false)
+  const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
+  const [detailStart, setDetailStart] = useState<Date>(new Date())
+  const [detailEnd, setDetailEnd] = useState<Date>(new Date(Date.now() + 60 * 60 * 1000))
+  const [repeatOn, setRepeatOn] = useState(false)
+  const [repeatMode, setRepeatMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>(
+    'daily',
+  )
+  const [repeatEvery, setRepeatEvery] = useState(1)
+  const [repeatUnit, setRepeatUnit] = useState<'day' | 'week' | 'month'>('day')
+  const [monthlyOpt, setMonthlyOpt] = useState<'byDate' | 'byNthWeekday' | 'byLastWeekday'>(
+    'byDate',
+  )
+  const [repeatEndDate, setRepeatEndDate] = useState<Date | null>(null)
 
   // 알림(리마인드) state
   const [remindOn, setRemindOn] = useState(false)
@@ -179,8 +202,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [remindValue, setRemindValue] = useState<'custom' | ReminderPreset | null>(null) // 추가
 
   const [customOpen, setCustomOpen] = useState(false)
-  const [customHour, setCustomHour] = useState(1)
-  const [customMinute, setCustomMinute] = useState(0)
+  const [customHour, setCustomHour] = useState(0)
+  const [customMinute, setCustomMinute] = useState(10)
 
   const [reminderPresets, setReminderPresets] = useState<
     { id: string; day: number; hour: number; minute: number }[]
@@ -280,6 +303,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     ...presetOptions,
     { type: 'custom' as const, label: '맞춤 설정' },
   ]
+  const remindSelectedKey = remindValue === 'custom' ? 'custom' : remindValue?.id ?? null
 
   // reminderNoti 빌더
   function buildReminderNoti() {
@@ -333,6 +357,21 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       hasTimeFlag ? new Date(`2020-01-01T${initialTask.placementTime}`) : new Date(),
     )
 
+    const dueRaw = initialTask.dueDateTime
+    if (dueRaw) {
+      const parsed = new Date(dueRaw)
+      if (!Number.isNaN(parsed.getTime())) {
+        setTaskDueOn(true)
+        setTaskDueDate(parsed)
+      } else {
+        setTaskDueOn(false)
+        setTaskDueDate(null)
+      }
+    } else {
+      setTaskDueOn(false)
+      setTaskDueDate(null)
+    }
+
     if (Array.isArray(initialTask.labels)) {
       const first = initialTask.labels[0]
 
@@ -353,6 +392,24 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setRemindValue(null)
     setCustomOpen(false)
     setRemindOpen(false)
+
+    const baseDate = hasDateFlag && initialTask.placementDate
+      ? new Date(initialTask.placementDate)
+      : new Date()
+    const startAt = new Date(baseDate)
+    if (hasTimeFlag && initialTask.placementTime) {
+      const [hh, mm] = String(initialTask.placementTime)
+        .split(':')
+        .map((v: string) => Number(v))
+      if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+        startAt.setHours(hh, mm, 0, 0)
+      }
+    } else {
+      startAt.setHours(9, 0, 0, 0)
+    }
+    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000)
+    setDetailStart(startAt)
+    setDetailEnd(endAt)
   }, [visible, initialTask])
 
   // reminder preset 로딩/변경 시 리마인더 값만 동기화
@@ -411,6 +468,12 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setLabelModalOpen(false)
   }, [visible])
 
+  useEffect(() => {
+    if (!visible) return
+    setShowCreateIntro(mode === 'create')
+    setCreateTypeSelected(null)
+  }, [visible, mode])
+
   // 알림 on 가능 조건 (날짜+시간 둘다 있어야 함)
   const remindEligible = hasDate && hasTime
 
@@ -439,6 +502,28 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     onSave(value)
   }
 
+  const handleDeletePress = () => {
+    if (!onDelete) return
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleCreateLabel = async (title: string): Promise<UiLabel> => {
+    const res = await http.post('/user/setting/label', { title })
+    bus.emit('label:mutated')
+    return { id: res.data.data.id, title }
+  }
+
+  const handleSelectRemindOption = (opt: any) => {
+    if (opt.type === 'custom') {
+      setRemindValue('custom')
+      setCustomOpen((v) => !v)
+      return
+    }
+    setRemindValue(opt as ReminderPreset)
+    setCustomOpen(false)
+    setRemindOpen(false)
+  }
+
   const hasLabels = labelIds.length > 0
   const btnBaseColor = hasLabels ? '#333333' : '#B3B3B3'
   const btnText = hasLabels ? undefined : '없음'
@@ -453,46 +538,160 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
           ]}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-          <View style={[styles.box, { width: SHEET_W, height: SHEET_H }]}>
-            {/* 헤더: X / 체크 */}
-            <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} hitSlop={20}>
-                <Xbutton width={12} height={12} color={'#808080'} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleSave}>
-                <Check width={12} height={12} hitSlop={25} color={'#808080'} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.body}>
-              <ScrollView
-                ref={scrollRef}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: H_PAD }}
-                keyboardShouldPersistTaps="always"
-                keyboardDismissMode="on-drag"
-                scrollEnabled={!isPickerTouching}
-                bounces={false}
-                showsVerticalScrollIndicator={false}
-                automaticallyAdjustKeyboardInsets
-              >
-                {/* 제목 */}
-                <View style={[styles.row, styles.titleHeader]}>
-                  <Pressable
-                    style={{ flex: 1, justifyContent: 'center', minHeight: 42 }}
-                    onPress={() => titleRef.current?.focus()}
-                    hitSlop={10}
-                  >
-                    <TextInput
-                      ref={titleRef}
-                      placeholder="할 일을 입력하세요"
-                      placeholderTextColor="#808080"
-                      style={styles.titleInput}
-                      value={title}
-                      onChangeText={setTitle}
-                    />
+          <View style={[styles.boxShadow, { width: SHEET_W, height: SHEET_H }]}>
+            <View style={styles.box}>
+              {/* 헤더: X / 체크 */}
+              <View style={[styles.header, mode === 'edit' && styles.headerEdit]}>
+                {mode === 'edit' && onDelete ? (
+                  <Pressable onPress={handleDeletePress} style={styles.deletePillBtn} hitSlop={10}>
+                    <Text style={styles.deletePillText}>삭제</Text>
                   </Pressable>
-                </View>
+                ) : (
+                  <TouchableOpacity onPress={onClose} hitSlop={20}>
+                    <Xbutton width={12} height={12} color={'#808080'} />
+                  </TouchableOpacity>
+                )}
+              <TouchableOpacity
+                onPress={() => {
+                  if (showCreateIntro) {
+                    const nextType = createTypeSelected ?? 'task'
+                    if (nextType === 'event') {
+                      if (!source) return
+                      onClose()
+                      requestAnimationFrame(() => {
+                        bus.emit('popup:schedule:create', { source })
+                      })
+                      return
+                    }
+                    setShowCreateIntro(false)
+                    return
+                  }
+                  handleSave()
+                  }}
+                >
+                  <Check width={12} height={12} hitSlop={25} color={'#808080'} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.body}>
+                {showCreateIntro ? (
+                <CreateModeTypeStep
+                  title={title}
+                  onChangeTitle={setTitle}
+                  colors={['#B04FFF']}
+                  selectedColorIndex={0}
+                  onSelectColorIndex={() => {}}
+                  selectedType={createTypeSelected}
+                  onSelectType={(value) => {
+                    setCreateTypeSelected(value)
+                  }}
+                />
+                ) : mode === 'edit' ? (
+                  <CreateEventDetailStep
+                    title={title}
+                    onChangeTitle={setTitle}
+                    memo={memo}
+                    onChangeMemo={setMemo}
+                    colors={['#B04FFF']}
+                    selectedColorIndex={0}
+                    onSelectColorIndex={() => {}}
+                    selectedType={'task'}
+                    onSelectType={() => {}}
+                    start={detailStart}
+                    end={detailEnd}
+                    onPressDateBox={() => {}}
+                    onChangeStartTime={(next) => {
+                      setDetailStart(next)
+                      setHasTime(true)
+                      setTime(next)
+                      if (detailEnd.getTime() <= next.getTime()) {
+                        setDetailEnd(new Date(next.getTime() + 60 * 60 * 1000))
+                      }
+                    }}
+                    onChangeEndTime={setDetailEnd}
+                    timeOn={hasTime}
+                    onToggleTime={(next) => {
+                      setHasTime(next)
+                      if (next) {
+                        const t = new Date(detailStart)
+                        t.setSeconds(0, 0)
+                        setDetailStart(t)
+                        setTime(t)
+                      }
+                    }}
+                    repeatOn={repeatOn}
+                    onToggleRepeat={setRepeatOn}
+                    repeatMode={repeatMode}
+                    repeatEvery={repeatEvery}
+                    repeatUnit={repeatUnit}
+                    monthlyOpt={monthlyOpt}
+                    onChangeRepeatMode={setRepeatMode}
+                    onChangeRepeatEvery={setRepeatEvery}
+                    onChangeRepeatUnit={setRepeatUnit}
+                    onChangeMonthlyOpt={setMonthlyOpt}
+                    repeatEndDate={repeatEndDate}
+                    onChangeRepeatEndDate={setRepeatEndDate}
+                    remindOn={remindOn}
+                    onToggleRemind={setRemindOn}
+                    remindOpen={remindOpen}
+                    onSetRemindOpen={setRemindOpen}
+                    remindDisplayText={displayRemind}
+                    remindOptions={remindOptions as any}
+                    remindSelectedKey={remindSelectedKey}
+                    onSelectRemindOption={handleSelectRemindOption}
+                    customOpen={customOpen}
+                    onSetCustomOpen={setCustomOpen}
+                    customHour={customHour}
+                    customMinute={customMinute}
+                    onChangeCustomHour={setCustomHour}
+                    onChangeCustomMinute={setCustomMinute}
+                    labels={labels}
+                    selectedLabelIds={labelIds}
+                    onChangeSelectedLabelIds={(ids) => setLabelIds(ids.slice(0, 3))}
+                    onCreateLabel={handleCreateLabel}
+                    taskDate={hasDate ? date : null}
+                    onChangeTaskDate={(next) => {
+                      if (next) {
+                        setHasDate(true)
+                        setDate(next)
+                      } else {
+                        setHasDate(false)
+                      }
+                    }}
+                    taskDueOn={taskDueOn}
+                    onChangeTaskDueOn={setTaskDueOn}
+                    taskDueDate={taskDueDate}
+                    onChangeTaskDueDate={setTaskDueDate}
+                  />
+                ) : (
+                  <ScrollView
+                    ref={scrollRef}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingHorizontal: H_PAD }}
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="on-drag"
+                    scrollEnabled={!isPickerTouching}
+                    bounces={false}
+                    showsVerticalScrollIndicator={false}
+                    automaticallyAdjustKeyboardInsets
+                  >
+                  {/* 제목 */}
+                  <View style={[styles.row, styles.titleHeader]}>
+                    <Pressable
+                      style={{ flex: 1, justifyContent: 'center', minHeight: 42 }}
+                      onPress={() => titleRef.current?.focus()}
+                      hitSlop={10}
+                    >
+                      <TextInput
+                        ref={titleRef}
+                        placeholder="할 일을 입력하세요"
+                        placeholderTextColor="#808080"
+                        style={styles.titleInput}
+                        value={title}
+                        onChangeText={setTitle}
+                      />
+                    </Pressable>
+                  </View>
 
                 {/* 날짜 토글 */}
                 <Pressable
@@ -882,20 +1081,41 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                   />
                 </View>
 
-                {/* 삭제 버튼 (편집 모드에서만) */}
-                {mode === 'edit' && onDelete && (
-                  <>
-                    <View style={styles.sep} />
-                    <Pressable onPress={onDelete} style={styles.deleteBtn} hitSlop={13}>
-                      <Text style={styles.deleteTxt}>삭제</Text>
-                    </Pressable>
-                  </>
+                  </ScrollView>
                 )}
-              </ScrollView>
+              </View>
             </View>
           </View>
         </View>
       </KeyboardAvoidingView>
+      {deleteConfirmOpen && (
+        <View style={styles.deleteOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setDeleteConfirmOpen(false)}
+          />
+          <View style={styles.deleteCard}>
+            <Text style={styles.deleteTitle}>할 일을 삭제할까요?</Text>
+            <View style={styles.deleteRow}>
+              <Pressable
+                style={[styles.deleteActionBtn, styles.deleteCancelBtn]}
+                onPress={() => setDeleteConfirmOpen(false)}
+              >
+                <Text style={styles.deleteCancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deleteActionBtn, styles.deleteConfirmBtn]}
+                onPress={() => {
+                  setDeleteConfirmOpen(false)
+                  onDelete?.()
+                }}
+              >
+                <Text style={styles.deleteConfirmTxt}>삭제</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </Modal>
   )
 }
@@ -903,24 +1123,103 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.62)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  boxShadow: {
+    borderRadius: 20,
+    shadowColor: '#8D99A3',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 16,
+  },
   box: {
-    width: 342,
-    height: 573,
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   header: {
     height: 40,
     marginTop: 3,
-    paddingHorizontal: 15,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerEdit: {
+    marginTop: 12,
+  },
+  deletePillBtn: {
+    width: 40,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.feedback.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deletePillText: {
+    ...ts('body1'),
+    color: colors.feedback.error,
+  },
+  deleteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCard: {
+    width: 302,
+    height: 152,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 30,
+    paddingBottom: 20,
+    shadowColor: '#8D99A3',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 16,
+  },
+  deleteTitle: {
+    ...ts('label1'),
+    fontWeight: '700',
+    color: colors.text.text1,
+  },
+  deleteRow: {
+    width: 302,
+    paddingHorizontal: 32,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    columnGap: 16,
+  },
+  deleteActionBtn: {
+    width: 119,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCancelBtn: {
+    backgroundColor: colors.background.bg1,
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.brand.primary,
+  },
+  deleteCancelTxt: {
+    ...ts('label1'),
+    color: colors.text.text3,
+  },
+  deleteConfirmTxt: {
+    ...ts('label1'),
+    color: colors.text.text1w,
   },
   body: {
     flex: 1,
@@ -1115,14 +1414,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#222222',
     backgroundColor: '#FFFFFF',
-  },
-  deleteBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 10,
-  },
-  deleteTxt: {
-    color: '#9D7BFF',
-    fontSize: 15,
-    fontWeight: '700',
   },
 })

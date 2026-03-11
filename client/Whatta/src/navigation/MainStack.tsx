@@ -247,7 +247,7 @@ export default function MainTabs() {
             bottomOffset={TAB_BAR_H + insets.bottom - 36}
             rightOffset={20}
             onPressTop1={() => {
-              bus.emit('task:create', { source: activeTab })
+              bus.emit('popup:schedule:create', { source: activeTab, createType: 'task' })
             }}
             onPressTop2={() => {
               bus.emit('popup:image:create', { source: activeTab })

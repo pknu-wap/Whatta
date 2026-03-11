@@ -10,6 +10,8 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native'
+import colors from '@/styles/colors'
+import { ts } from '@/styles/typography'
 
 export type UiLabel = { id: number; title: string }
 type Anchor = { x: number; y: number; w: number; h: number }
@@ -109,7 +111,11 @@ export default function LabelPickerModal({
         >
           <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
             {all.map((l) => (
-              <Pressable key={l.id} style={styles.item} onPress={() => toggle(l.id)}>
+              <Pressable
+                key={l.id}
+                style={[styles.item, selected.includes(l.id) && styles.itemActive]}
+                onPress={() => toggle(l.id)}
+              >
                 <Text
                   style={[
                     styles.itemText,
@@ -131,7 +137,7 @@ export default function LabelPickerModal({
                     value={draft}
                     onChangeText={setDraft}
                     placeholder="입력..."
-                    placeholderTextColor="#B3B3B3"
+                    placeholderTextColor={colors.text.text4}
                     style={styles.input}
                     returnKeyType="done"
                     onSubmitEditing={add}
@@ -156,9 +162,9 @@ const styles = StyleSheet.create({
   },
   card: {
     width: 145,
-    maxHeight: 200,
+    height: 200,
     backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: 12,
     shadowColor: '#525252',
     shadowOpacity: 0.25,
     shadowRadius: 5,
@@ -172,9 +178,21 @@ const styles = StyleSheet.create({
     color: '#B04FFF',
   },
   item: { paddingVertical: 16, paddingHorizontal: 19, alignItems: 'center' },
-  itemText: { fontSize: 16, color: '#111', fontWeight: '600' },
-  itemTextActive: { color: '#B04FFF' },
+  itemActive: {
+    backgroundColor: colors.background.bg2,
+  },
+  itemText: {
+    ...ts('date1'),
+    color: colors.text.text1,
+  },
+  itemTextActive: {
+    ...ts('label2'),
+    color: colors.text.text1,
+  },
   sep: { height: 1, backgroundColor: '#E9E9E9' },
   inputRow: { paddingHorizontal: 22, paddingVertical: 14 },
-  input: { fontSize: 16, color: '#9B9B9B' },
+  input: {
+    ...ts('label2'),
+    color: colors.text.text4,
+  },
 })

@@ -1096,6 +1096,7 @@ const {
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
   const [eventPopupData, setEventPopupData] = useState<any | null>(null)
+  const [eventPopupCreateType, setEventPopupCreateType] = useState<'event' | 'task'>('event')
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   async function openEventDetail(eventId: string, occDate?: string) {
@@ -1106,6 +1107,7 @@ const {
       if (!data) return
 
       setEventPopupMode('edit')
+      setEventPopupCreateType('event')
       setEventPopupData(
         occDate
           ? {
@@ -1122,10 +1124,11 @@ const {
   }
 
   useEffect(() => {
-    const h = (payload?: { source?: string }) => {
+    const h = (payload?: { source?: string; createType?: 'event' | 'task' }) => {
       if (payload?.source !== 'Week') return
 
       setEventPopupMode('create')
+      setEventPopupCreateType(payload?.createType ?? 'event')
       setEventPopupData(null)
       setEventPopupVisible(true)
     }
@@ -1535,40 +1538,28 @@ const {
   })
   const handleDeleteTask = () => {
     if (!taskPopupId) return
+    void (async () => {
+      try {
+        await http.delete(`/task/${taskPopupId}`)
 
-    Alert.alert('삭제', '이 테스크를 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            // 서버에서 삭제
-            await http.delete(`/task/${taskPopupId}`)
+        bus.emit('calendar:mutated', {
+          op: 'delete',
+          item: { id: taskPopupId },
+        })
+        bus.emit('calendar:invalidate', {
+          ym: anchorDate.slice(0, 7),
+        })
 
-            // 캘린더 쪽에 변경 알리기 (Day/Month/Week 모두)
-            bus.emit('calendar:mutated', {
-              op: 'delete',
-              item: { id: taskPopupId },
-            })
-            bus.emit('calendar:invalidate', {
-              ym: anchorDate.slice(0, 7),
-            })
+        await fetchWeek(weekDates)
 
-            // 주간 데이터 새로고침
-            await fetchWeek(weekDates)
-
-            // 팝업 닫기 + 상태 초기화
-            setTaskPopupVisible(false)
-            setTaskPopupId(null)
-            setTaskPopupTask(null)
-          } catch (err) {
-            console.error('❌ 테스크 삭제 실패:', err)
-            Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
-          }
-        },
-      },
-    ])
+        setTaskPopupVisible(false)
+        setTaskPopupId(null)
+        setTaskPopupTask(null)
+      } catch (err) {
+        console.error('❌ 테스크 삭제 실패:', err)
+        Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
+      }
+    })()
   }
 
   const enabledLabelIds = useMemo(
@@ -1726,8 +1717,10 @@ const {
           eventPopupVisible={eventPopupVisible}
           eventPopupMode={eventPopupMode}
           eventPopupData={eventPopupData}
+          eventPopupCreateType={eventPopupCreateType}
           setEventPopupVisible={setEventPopupVisible}
           setEventPopupData={setEventPopupData}
+          setEventPopupCreateType={setEventPopupCreateType}
           imagePopupVisible={imagePopupVisible}
           setImagePopupVisible={setImagePopupVisible}
           ocrSplashVisible={ocrSplashVisible}
