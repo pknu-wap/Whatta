@@ -146,6 +146,16 @@ const {
   sendToOCR,
 } = useOCR()
 
+useEffect(() => {
+  const handler = (payload?: { source?: string }) => {
+    if (payload?.source !== 'Day') return
+    setImagePopupVisible(true)
+  }
+
+  bus.on('popup:image:create', handler)
+  return () => bus.off('popup:image:create', handler)
+}, [])
+
   const anchorDateRef = useRef(anchorDate)
   useEffect(() => {
     anchorDateRef.current = anchorDate
