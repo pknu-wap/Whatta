@@ -1,30 +1,82 @@
-import { StyleSheet, Platform } from 'react-native'
+import { StyleSheet } from 'react-native'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
-
-
-const BORDER = 'rgba(0,0,0,0.08)'
+import { ROW_H } from './constants'
 
 const S = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.neutral.surface },
 
   taskBox: {
     width: '100%',
-    height: 150,
-    backgroundColor: colors.neutral.surface,
-    overflow: 'hidden',
-    borderColor: BORDER,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: { elevation: 3 },
-    }),
+    height: 160,
+    backgroundColor: '#FFFFFF',
+    overflow: 'visible',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
-  boxContent: { paddingVertical: 4 },
+  boxContent: {
+    paddingVertical: 3,
+    paddingBottom: 3,
+    width: '100%',
+    minWidth: '100%',
+    flexGrow: 1,
+    alignItems: 'stretch',
+  },
+  boxScroll: {
+    overflow: 'visible',
+  },
+  taskBoxInner: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  taskBoxDateCol: {
+    width: 50,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    paddingTop: 1,
+    paddingLeft: 0,
+  },
+  taskBoxDateText: {
+    ...ts('label1'),
+    fontSize: 19,
+    color: '#111111',
+  },
+  taskBoxWeekdayText: {
+    ...ts('date3'),
+    marginTop: 0,
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: '500',
+    color: '#333333',
+  },
+  taskBoxContentArea: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'visible',
+  },
+  topItemRow: {
+    width: '100%',
+    height: 30,
+    marginBottom: 6,
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+  },
+  topCard: {
+    width: 308,
+    minHeight: 30,
+    height: 30,
+    alignSelf: 'flex-start',
+  },
+  topCardFull: {
+    width: '100%',
+    minHeight: 30,
+    height: 30,
+    alignSelf: 'stretch',
+  },
+  topCardSpanExtend: {
+    marginRight: 0,
+  },
 
   chip: {
     marginHorizontal: 12,
@@ -122,7 +174,7 @@ const S = StyleSheet.create({
   row: {
     position: 'relative',
     flexDirection: 'row',
-    height: 48,
+    height: ROW_H,
     backgroundColor: colors.neutral.surface,
     paddingHorizontal: 16,
     borderBottomWidth: 0,
@@ -133,7 +185,7 @@ const S = StyleSheet.create({
   timeCol: {
     width: 50,
     alignItems: 'flex-end',
-    paddingRight: 10,
+    paddingRight: 0,
   },
 
   slotCol: {
@@ -142,51 +194,43 @@ const S = StyleSheet.create({
     position: 'relative',
   },
 
-  verticalLine: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 0.3,
-    backgroundColor: colors.neutral.timeline,
-  },
-
   guideLine: {
     position: 'absolute',
     left: 16,
     right: 16,
     bottom: 0,
     height: 0.3,
-    backgroundColor: colors.neutral.timeline,
+    backgroundColor: '#C7D0D6',
   },
-  timeText: { ...ts('time'), color: colors.neutral.gray },
+  timeText: {
+    ...ts('date3'),
+    fontSize: 12,
+    lineHeight: 20,
+    color: colors.text.text4,
+    fontWeight: '500',
+    textAlign: 'left',
+    width: '100%',
+    marginLeft: 0,
+    marginRight: 0,
+    includeFontPadding: false,
+  },
 
   taskBoxWrap: {
     position: 'relative',
     overflow: 'visible',
   },
 
-  boxBottomLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth || 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    zIndex: 2,
-  },
-
   fadeBelow: {
     position: 'absolute',
-    left: -12,
-    right: -12,
+    left: -16,
+    right: -16,
     top: '100%',
-    height: 18,
+    height: 24,
     zIndex: 1,
   },
 
   fadeGap: {
-    height: 13, // taskBox와 그리드 사이 간격
+    height: 0,
   },
 
   gridContent: {

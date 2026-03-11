@@ -83,7 +83,7 @@ function TaskGroupCard({
   const effectivePadRight = isWeekGroup ? (expanded ? 1 : 0) : d.padX
   const minGroupHeight = isWeekGroup ? 0 : isDayGroup ? 60 : 24
   const headerMinHeight = expanded ? (isCompact ? 30 : 34) : minGroupHeight
-  const groupRadius = isWeekVertical ? WEEK_VERTICAL_RADIUS : 8
+  const groupRadius = isWeekVertical ? WEEK_VERTICAL_RADIUS : isDayGroup ? 12 : 8
   // 좁은 칸에서는 아이콘/텍스트를 줄여 가독성을 유지한다.
   const taskIconSize = resolvedWidth > 0 && resolvedWidth <= 54 ? 14 : 16
   const headerIconSize = isMini ? 8 : 10

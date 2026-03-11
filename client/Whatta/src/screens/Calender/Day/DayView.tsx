@@ -61,6 +61,13 @@ import {
   getInstanceDates,
 } from '../../../utils/dateUtils'
 import { getMyLabels } from '@/api/label_api'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
+import colors from '@/styles/colors'
+import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
+import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
+import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
+import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 
 function FullBleed({
   children,
@@ -124,6 +131,7 @@ export default function DayView() {
   const isFocused = useIsFocused()
 
   const [anchorDate, setAnchorDate] = useState<string>(today())
+  const [, setColorSetVersion] = useState(0)
 
   const { swipeGesture, swipeStyle } =
   useDaySwipe(setAnchorDate)
@@ -190,6 +198,12 @@ const {
 
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
+  }, [])
+
+  useEffect(() => {
+    const onColorSetChanged = () => setColorSetVersion((v) => v + 1)
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
   }, [])
 
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
@@ -432,7 +446,10 @@ const {
   )
 
   // 라벨 필터링
-  const enabledLabelIds = filterLabels.filter((l) => l.enabled).map((l) => l.id)
+  const enabledLabelIds = useMemo(
+    () => filterLabels.filter((l) => l.enabled).map((l) => l.id),
+    [filterLabels],
+  )
 
     const measureLayouts = useCallback(() => {
     taskBoxRef.current?.measure?.((x, y, w, h, px, py) => {
@@ -516,15 +533,104 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
     setThumbTop(top)
   }
   const showScrollbar = contentH > wrapH
+  const anchorDateMeta = useMemo(() => {
+    const [yy, mm, dd] = anchorDate.split('-').map(Number)
+    const d = new Date(yy, (mm || 1) - 1, dd || 1)
+    const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+    return {
+      day: d.getDate(),
+      weekday: weekdays[d.getDay()] ?? '',
+      weekdayColor: d.getDay() === 0 ? '#FF3B30' : colors.text.text2,
+    }
+  }, [anchorDate])
+  const TOP_ITEM_WIDTH = 308
+  // 좌측 날짜 컬럼(50) 이후 시작하는 상단 아이템이 화면 오른쪽 끝까지 닿도록 하는 폭
+  const TOP_PERIOD_SPAN_WIDTH = Math.max(
+    TOP_ITEM_WIDTH,
+    Dimensions.get('window').width - (16 + 50),
+  )
+  const topItems = useMemo(() => {
+    type TopScheduleKind = 'basic' | 'period' | 'repeat'
+    type TopScheduleItem = {
+      type: 'schedule'
+      kind: TopScheduleKind
+      id: string
+      title: string
+      color: string
+      isStart: boolean
+      isEnd: boolean
+      startISO: string
+      endISO: string
+      raw: any
+    }
+    type TopTaskItem = {
+      type: 'task'
+      id: string
+      title: string
+      done: boolean
+    }
+
+    const scheduleItems: TopScheduleItem[] = (spanEvents ?? []).map((ev: any) => {
+      let startISO = anchorDate
+      let endISO = anchorDate
+      if (ev.startDate && ev.endDate) {
+        startISO = String(ev.startDate).slice(0, 10)
+        endISO = String(ev.endDate).slice(0, 10)
+      } else if (ev.startAt && ev.endAt) {
+        startISO = String(ev.startAt).slice(0, 10)
+        endISO = String(ev.endAt).slice(0, 10)
+      }
+
+      const isStart = anchorDate === startISO
+      const isEnd = anchorDate === endISO
+      const isPeriod = startISO !== endISO
+      const kind: TopScheduleKind = isPeriod ? 'period' : ev.isRepeat ? 'repeat' : 'basic'
+
+      return {
+        type: 'schedule',
+        kind,
+        id: String(ev.id ?? ''),
+        title: ev.title ?? '',
+        color: resolveScheduleColor(ev.colorKey || ev.color),
+        isStart,
+        isEnd,
+        startISO,
+        endISO,
+        raw: ev,
+      }
+    })
+
+    const taskItems: TopTaskItem[] = (checks ?? []).map((c: any) => ({
+      type: 'task',
+      id: String(c.id),
+      title: c.title ?? '',
+      done: !!c.done,
+    }))
+
+    const order: Record<TopScheduleKind, number> = {
+      basic: 0,
+      period: 1,
+      repeat: 2,
+    }
+    scheduleItems.sort((a, b) => order[a.kind] - order[b.kind])
+
+    return [...scheduleItems, ...taskItems]
+  }, [spanEvents, checks, anchorDate])
 
   const toggleCheck = async (id: string) => {
-    const current = checks.find((c) => c.id === id)
+    const current = checks.find((c) => String(c.id) === String(id))
     if (!current) return
 
-    const nextDone = !current.done
+    const nextDone = !(current.done ?? current.completed)
 
     // UI 즉시 변경
-    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, done: nextDone } : c)))
+    setChecks((prev) =>
+      prev.map((c) =>
+        String(c.id) === String(id)
+          ? { ...c, done: nextDone, completed: nextDone }
+          : c,
+      ),
+    )
 
     // 서버에 보낼 값도 nextDone 사용
     try {
@@ -580,7 +686,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
         <GestureDetector gesture={swipeGesture}>
           <Animated.View style={[S.screen, swipeStyle]}>
             {/* ✅ 상단 테스크 박스 */}
-            <FullBleed padH={12}>
+            <FullBleed padH={16}>
               <View style={S.taskBoxWrap} ref={taskBoxRef} onLayout={measureLayouts}>
                 <View
                   style={S.taskBox}
@@ -589,130 +695,113 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                     measureLayouts()
                   }}
                 >
-                  <ScrollView
-                    ref={boxScrollRef}
-                    onScroll={onScroll}
-                    onContentSizeChange={onContentSizeChange}
-                    showsVerticalScrollIndicator={false}
-                    scrollEventThrottle={16}
-                    contentContainerStyle={S.boxContent}
-                    bounces={false}
-                  >
-                    {spanEvents.map((t, i) => {
-                      const current = anchorDate
+                  <View style={S.taskBoxInner}>
+                    <View style={S.taskBoxDateCol}>
+                      <Text style={S.taskBoxDateText}>{`${anchorDateMeta.day}일`}</Text>
+                      <Text style={[S.taskBoxWeekdayText, { color: anchorDateMeta.weekdayColor }]}>
+                        {anchorDateMeta.weekday}
+                      </Text>
+                    </View>
+                    <View style={S.taskBoxContentArea}>
+                      <ScrollView
+                        style={S.boxScroll}
+                        ref={boxScrollRef}
+                        onScroll={onScroll}
+                        onContentSizeChange={onContentSizeChange}
+                        showsVerticalScrollIndicator={false}
+                        scrollEventThrottle={16}
+                        contentContainerStyle={S.boxContent}
+                        bounces={false}
+                      >
+                        {topItems.map((item, i) => {
+                          if (item.type === 'task') {
+                            return (
+                              <View key={`task-${item.id}-${i}`} style={S.topItemRow}>
+                                <TaskItemCard
+                                  id={item.id}
+                                  title={item.title}
+                                  done={item.done}
+                                  density="week"
+                                  isUntimed
+                                  layoutWidthHint={TOP_ITEM_WIDTH}
+                                  style={S.topCard}
+                                  onPress={() => openTaskPopupFromApi(item.id)}
+                                  onToggle={(id) => toggleCheck(id)}
+                                />
+                              </View>
+                            )
+                          }
 
-                      let start = ''
-                      let end = ''
+                          if (item.kind === 'period') {
+                            const periodStyle = item.isEnd
+                              ? S.topCard
+                              : [S.topCard, { width: TOP_PERIOD_SPAN_WIDTH }, S.topCardSpanExtend]
+                            return (
+                              <View key={`period-${item.id}-${i}`} style={S.topItemRow}>
+                                <RangeScheduleBar
+                                  id={item.id}
+                                  title={item.title}
+                                  color={item.color}
+                                  startISO={item.startISO}
+                                  endISO={item.endISO}
+                                  isStart={item.isStart}
+                                  isEnd={item.isEnd}
+                                  density="day"
+                                  isUntimed
+                                  style={periodStyle}
+                                  onPress={() => openEventDetail(item.raw)}
+                                />
+                              </View>
+                            )
+                          }
 
-                      // 하루짜리 allDayEvents
-                      if (!t.startDate && !t.endDate && !t.startAt && !t.endAt) {
-                        start = current
-                        end = current
-                      }
-                      // allDaySpan (기간 있음)
-                      else if (t.startDate && t.endDate) {
-                        start = t.startDate
-                        end = t.endDate
-                      }
-                      // timed span
-                      else if (t.startAt && t.endAt) {
-                        start = t.startAt.slice(0, 10)
-                        end = t.endAt.slice(0, 10)
-                      }
+                          const ScheduleCard =
+                            item.kind === 'repeat' ? RepeatScheduleCard : FixedScheduleCard
+                          return (
+                            <View key={`schedule-${item.id}-${i}`} style={S.topItemRow}>
+                              <ScheduleCard
+                                id={item.id}
+                                title={item.title}
+                                color={item.color}
+                                density="day"
+                                isUntimed
+                                layoutWidthHint={TOP_ITEM_WIDTH}
+                                style={S.topCard}
+                                onPress={() => openEventDetail(item.raw)}
+                              />
+                            </View>
+                          )
+                        })}
 
-                      const isStart = current === start
-                      const isEnd = current === end
+                        <View style={{ height: 8 }} />
+                      </ScrollView>
 
-                      const raw = t.colorKey || t.color
-                      const base = raw
-                        ? raw.startsWith('#')
-                          ? raw
-                          : `#${raw}`
-                        : '#8B5CF6'
-                      const bg = `${base}4D`
-
-                      return (
-                        <Pressable key={t.id ?? i} onPress={() => openEventDetail(t)}>
+                      {showScrollbar && (
+                        <View pointerEvents="none" style={S.scrollTrack}>
                           <View
                             style={[
-                              S.chip,
+                              S.scrollThumb,
                               {
-                                backgroundColor: bg,
-                                borderTopLeftRadius: isStart ? 6 : 0,
-                                borderBottomLeftRadius: isStart ? 6 : 0,
-                                borderTopRightRadius: isEnd ? 6 : 0,
-                                borderBottomRightRadius: isEnd ? 6 : 0,
+                                height: thumbH(wrapH, contentH),
+                                transform: [{ translateY: thumbTop }],
                               },
                             ]}
-                          >
-                            {isStart && (
-                              <View
-                                style={[S.chipBar, { left: 0, backgroundColor: base }]}
-                              />
-                            )}
-                            {isEnd && (
-                              <View
-                                style={[S.chipBar, { right: 0, backgroundColor: base }]}
-                              />
-                            )}
-                            <View style={{ flex: 1, paddingHorizontal: 12 }}>
-                              <Text style={S.chipText} numberOfLines={1}>
-                                {t.title}
-                              </Text>
-                            </View>
-                          </View>
-                        </Pressable>
-                      )
-                    })}
-
-                    {checks.map((c) => (
-                      <Pressable
-                        key={c.id}
-                        style={S.checkRow}
-                        onPress={() => openTaskPopupFromApi(c.id)}
-                      >
-                        {/* 체크박스만 눌렀을 때 토글 */}
-                        <Pressable
-                          onPress={() => toggleCheck(c.id)}
-                          style={S.checkboxWrap}
-                          hitSlop={10}
-                        >
-                          <View style={[S.checkbox, c.done && S.checkboxOn]}>
-                            {c.done && <Text style={S.checkmark}>✓</Text>}
-                          </View>
-                        </Pressable>
-
-                        <Text
-                          style={[S.checkText, c.done && S.checkTextDone]}
-                          numberOfLines={1}
-                        >
-                          {c.title}
-                        </Text>
-                      </Pressable>
-                    ))}
-
-                    <View style={{ height: 8 }} />
-                  </ScrollView>
-
-                  {showScrollbar && (
-                    <View pointerEvents="none" style={S.scrollTrack}>
-                      <View
-                        style={[
-                          S.scrollThumb,
-                          {
-                            height: thumbH(wrapH, contentH),
-                            transform: [{ translateY: thumbTop }],
-                          },
-                        ]}
-                      />
+                          />
+                        </View>
+                      )}
                     </View>
-                  )}
+                  </View>
                 </View>
 
-                <View pointerEvents="none" style={S.boxBottomLine} />
                 <LinearGradient
                   pointerEvents="none"
-                  colors={['rgba(0,0,0,0.10)', 'rgba(0,0,0,0.04)', 'rgba(0,0,0,0)']}
+                  colors={[
+                    'rgba(0,0,0,0.07)',
+                    'rgba(0,0,0,0.04)',
+                    'rgba(0,0,0,0.015)',
+                    'rgba(0,0,0,0)',
+                  ]}
+                  locations={[0, 0.35, 0.72, 1]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 0, y: 1 }}
                   style={S.fadeBelow}
@@ -752,7 +841,6 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                       </View>
 
                       <View style={S.slotCol}>
-                        <View style={S.verticalLine} />
                       </View>
 
                       {!isLast && <View pointerEvents="none" style={S.guideLine} />}
@@ -784,7 +872,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                       place={getLabelName(evt.labels?.[0])}
                       startMin={startMin}
                       endMin={endMin}
-                      color={`#${evt.colorKey}`}
+                      color={resolveScheduleColor(evt.colorKey)}
                       anchorDate={anchorDate}
                       onPress={() => openEventDetail(evt)}
                     />
@@ -800,7 +888,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
   place={getLabelName(evt.labels?.[0])}
   startMin={startMin}
   endMin={endMin}
-  color={`#${evt.colorKey}`}
+  color={resolveScheduleColor(evt.colorKey)}
   anchorDate={anchorDate}
   isRepeat={!!evt.isRepeat}
   _column={evt._column}        
@@ -814,8 +902,11 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
               {taskGroups.map((group, idx) => {
                 const { tasks: list, startMin } = group
 
-                // 4개 이상 → 그룹박스 1개만
-                if (list.length >= 4) {
+                // 펼쳐진 그룹은 접힘 카드 렌더를 숨긴다.
+                if (openGroupIndex === idx) return null
+
+                // 2개 이상 겹치면 그룹박스 1개로 표시
+                if (list.length >= 2) {
                   return (
                     <DraggableTaskGroupBox
                       key={`group-${idx}`}
@@ -869,51 +960,39 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                     <View
                       style={{
                         position: 'absolute',
-                        top: startMin * PIXELS_PER_MIN + 52,
+                        top: startMin * PIXELS_PER_MIN + 2,
                         left: 50 + 18,
-                        right: 18,
-                        backgroundColor: '#FFF',
-                        borderRadius: 10,
-                        borderColor: '#B3B3B3',
-                        borderWidth: 0.3,
-                        paddingVertical: 16,
-                        paddingHorizontal: 20,
+                        width: 308,
+                        backgroundColor: 'transparent',
                         zIndex: 500,
                       }}
                     >
-                      {list.map((task) => (
-                        <Pressable
-                          key={task.id}
-                          onPress={() => openTaskPopupFromApi(task.id)}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            marginBottom: 18,
-                          }}
-                        >
-                          <View
-                            style={{
-                              width: 18,
-                              height: 18,
-                              borderWidth: 2,
-                              borderRadius: 2,
-                              borderColor: '#333',
-                              marginRight: 14,
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              backgroundColor: '#FFF', // ⭐ 추가
-                            }}
-                          >
-                            {task.completed && (
-                              <Text style={{ fontSize: 12, color: '#333' }}>✓</Text>
-                            )}
-                          </View>
-
-                          <Text style={{ fontSize: 14, color: '#000' }}>
-                            {task.title}
-                          </Text>
-                        </Pressable>
-                      ))}
+                      <TaskGroupCard
+                        groupId={`day-group-open-${startMin}-${openGroupIndex}`}
+                        density="day"
+                        expanded
+                        layoutWidthHint={308}
+                        tasks={list.map((task) => ({
+                          id: String(task.id),
+                          title: task.title ?? '',
+                          done: !!task.completed,
+                        }))}
+                        onToggleExpand={() => setOpenGroupIndex(null)}
+                        onToggleTask={(taskId, nextDone) => {
+                          void updateTask(taskId, { completed: nextDone })
+                          setChecks((prev) =>
+                            prev.map((c) =>
+                              String(c.id) === String(taskId)
+                                ? { ...c, done: nextDone }
+                                : c,
+                            ),
+                          )
+                          bus.emit('calendar:mutated', {
+                            op: 'update',
+                            item: { id: taskId, isTask: true, date: anchorDate },
+                          })
+                        }}
+                      />
                     </View>
                   )
                 })()}
@@ -1082,4 +1161,3 @@ function thumbH(visibleH: number, contentH: number) {
   const h = (visibleH * visibleH) / Math.max(contentH, 1)
   return Math.max(minH, Math.min(h, visibleH))
 }
-

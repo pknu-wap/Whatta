@@ -21,6 +21,8 @@ import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatSched
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 let draggingEventId: string | null = null
+const DAY_CARD_WIDTH = 318
+const DAY_CARD_HEIGHT = 60
 
 const { width: SCREEN_W } = Dimensions.get('window')
 
@@ -121,7 +123,7 @@ export function DraggableTaskBox({
   }))
 
   const COLUMN_GAP = 4
-  const LEFT_OFFSET = 50 + 18
+  const LEFT_OFFSET = 50 + 20
   const RIGHT_OFFSET = 18
   const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
 
@@ -136,15 +138,14 @@ const overlappingEvents = events.filter(ev => {
 })
 
 const widthPercent = 1 / safeTotalColumns
-  
 const isOverlapWithEvent = overlappingEvents.length > 0
 
-let boxWidth = usableWidth * widthPercent - COLUMN_GAP
-let left = LEFT_OFFSET + safeColumn * (usableWidth * widthPercent)
+let boxWidth = DAY_CARD_WIDTH
+let left = LEFT_OFFSET
 
 if (isOverlapWithEvent) {
-  boxWidth = usableWidth * 0.5
-  left = LEFT_OFFSET + usableWidth * 0.5
+  boxWidth = DAY_CARD_WIDTH
+  left = LEFT_OFFSET + Math.max(0, safeColumn) * COLUMN_GAP
 }
 
   return (
@@ -155,14 +156,8 @@ if (isOverlapWithEvent) {
             position: 'absolute',
             left,
             width: boxWidth,
-            height: ROW_H - 4,
-            backgroundColor: '#FFFFFF80',
-            borderWidth: 0.4,
-            borderColor: '#333333',
-            borderRadius: 10,
-            paddingHorizontal: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
+            height: DAY_CARD_HEIGHT,
+            backgroundColor: 'transparent',
             zIndex: 20,
           },
           style,
@@ -173,6 +168,8 @@ if (isOverlapWithEvent) {
   title={title ?? ''}
   done={done}
   density="day"
+  layoutWidthHint={DAY_CARD_WIDTH}
+  style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
   onPress={onPress}
   onToggle={(taskId, next) => {
     setDone(next)
@@ -297,7 +294,7 @@ export function DraggableTaskGroupBox({
   const LEFT_OFFSET = 50 + 18
   const RIGHT_OFFSET = 18
   const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
-  const boxWidth = usableWidth - 4
+  const boxWidth = DAY_CARD_WIDTH
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -307,15 +304,8 @@ export function DraggableTaskGroupBox({
             position: 'absolute',
             left: LEFT_OFFSET,
             width: boxWidth,
-            height: ROW_H - 4,
-            backgroundColor: '#FFFFFF80',
-            borderWidth: 0.4,
-            borderRadius: 10,
-            borderColor: '#333333',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 16,
+            height: DAY_CARD_HEIGHT,
+            backgroundColor: 'transparent',
             zIndex: 30,
           },
           style,
@@ -329,6 +319,7 @@ tasks={group.map(t => ({
   done: Boolean(t.completed)
 }))}
   density="day"
+  layoutWidthHint={DAY_CARD_WIDTH}
   expanded={false}
   onToggleTask={(taskId, next) => {
     updateTask(taskId, { completed: next }).catch(err =>
@@ -366,8 +357,8 @@ export function DraggableFixedEvent({
   onPress,
 }: DraggableFixedEventProps) {
 
-  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
-  const height = rawHeight
+  const rawHeight = DAY_CARD_HEIGHT
+  const height = DAY_CARD_HEIGHT
 
   const translateY = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
@@ -565,23 +556,22 @@ const endTime = fmt(endMin)
           {
             position: 'absolute',
             left: 50 + 16,
-            right: 16,
+            width: DAY_CARD_WIDTH,
             height,
             backgroundColor: 'transparent',
-            paddingHorizontal: 6,
-            paddingTop: 10,
-            borderRadius: 12,
             zIndex: 10,
           },
           style,
         ]}
       >
-<FixedScheduleCard
+<RepeatScheduleCard
   id={id}
   title={title}
   color={color}
   timeRangeText={`${startTime} ~ ${endTime}`}
   density="day"
+  layoutWidthHint={DAY_CARD_WIDTH}
+  style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
   onPress={onPress}
 />
       </Animated.View>
@@ -592,7 +582,8 @@ const endTime = fmt(endMin)
 type DraggableFlexibleEventProps = {
   id: string
   title: string
-  labels: string[]
+  labels?: string[]
+  place?: string
   startMin: number
   endMin: number
   color: string
@@ -607,6 +598,7 @@ export function DraggableFlexalbeEvent({
   id,
   title,
   labels,
+  place,
   startMin,
   endMin,
   color,
@@ -617,8 +609,8 @@ export function DraggableFlexalbeEvent({
 }: DraggableFlexibleEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
-  const rawHeight = durationMin * PIXELS_PER_MIN
-  const height = rawHeight - 2
+  const rawHeight = DAY_CARD_HEIGHT
+  const height = DAY_CARD_HEIGHT
   const offsetY = 1
 
   // 절대 Y(위에서부터의 픽셀)로 관리
@@ -836,8 +828,6 @@ export function DraggableFlexalbeEvent({
     transform: [{ translateX: translateX.value }],
   }))
 
-  const backgroundColor = color.startsWith('#') ? color : `#${color}`
-
   // ⭐ 겹침용 계단식 offset
 const BASE_LEFT = 50 + 16
 const STAGGER = 40       // 하나 겹칠 때마다 오른쪽으로 32px
@@ -854,24 +844,23 @@ const left = BASE_LEFT + shift
           {
             position: 'absolute',
             left,
-            right: 16,
+            width: DAY_CARD_WIDTH,
             height,
-            backgroundColor,
-            paddingHorizontal: 6,
-            paddingTop: 10,
-            borderRadius: 12,
+            backgroundColor: 'transparent',
             justifyContent: 'flex-start',
             zIndex: 10,
           },
           style,
         ]}
       >
-<RepeatScheduleCard
+<FixedScheduleCard
   id={id}
   title={title}
   color={color}
-  timeRangeText={labels?.[0]}
+  timeRangeText={place ?? labels?.[0] ?? ''}
   density="day"
+  layoutWidthHint={DAY_CARD_WIDTH}
+  style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
   onPress={onPress}
 />
       </Animated.View>

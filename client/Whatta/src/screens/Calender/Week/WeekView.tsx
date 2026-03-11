@@ -74,6 +74,7 @@ import {
   getDayColWidth,
   resetLayoutDayEventsCache,
 } from '@/screens/Calender/Week/layout'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
@@ -702,6 +703,7 @@ const askRepeatAction = (): Promise<'single' | 'future' | 'cancel'> => {
 type DraggableFlexalbeEventProps = {
   id: string
   title: string
+  labelText?: string
   startMin: number
   endMin: number
   color: string
@@ -719,6 +721,7 @@ type DraggableFlexalbeEventProps = {
 function DraggableFlexalbeEvent({
   id,
   title,
+  labelText,
   startMin,
   endMin,
   color,
@@ -849,7 +852,7 @@ function DraggableFlexalbeEvent({
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
-  const safeColor = color.startsWith('#') ? color : `#${color}`
+  const safeColor = resolveScheduleColor(color)
   const colGap = EVENT_OVERLAP_GAP
   const colCount = Math.max(columnsTotal, 1)
   const slotWidth = dayColWidth / colCount
@@ -938,7 +941,8 @@ function DraggableFlexalbeEvent({
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
   const timeRangeText = `${fmtHm(startMin)}~${fmtHm(endMin)}`
-  const EventCard = isRepeat ? FixedScheduleCard : RepeatScheduleCard
+  const subText = isRepeat ? timeRangeText : (labelText ?? '')
+  const EventCard = isRepeat ? RepeatScheduleCard : FixedScheduleCard
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -962,7 +966,7 @@ function DraggableFlexalbeEvent({
           id={id}
           title={title}
           color={safeColor}
-          timeRangeText={timeRangeText}
+          timeRangeText={subText}
           density="week"
           hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={width}
@@ -1010,6 +1014,7 @@ const {
   }, [])
 
   const [anchorDate, setAnchorDate] = useState(todayISO())
+  const [, setColorSetVersion] = useState(0)
   const anchorDateRef = useRef(anchorDate)
   const [isZoomed, setIsZoomed] = useState(false)
   useEffect(() => {
@@ -1127,6 +1132,12 @@ const {
 
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
+  }, [])
+
+  useEffect(() => {
+    const onColorSetChanged = () => setColorSetVersion((v) => v + 1)
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
   }, [])
 
   useEffect(() => {

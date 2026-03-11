@@ -18,6 +18,7 @@ import FixedScheduleCard from '@/components/calendar-items/schedule/FixedSchedul
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
+import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
 const { width, height } = Dimensions.get('window')
 const DETAIL_ITEM_WIDTH = 302
@@ -168,7 +169,7 @@ export default function MonthlyDetailPopup({
 
   const normalizeColor = (rawColor?: string, fallback = '#8B5CF6') => {
     if (!rawColor) return fallback
-    return rawColor.startsWith('#') ? rawColor : `#${rawColor}`
+    return resolveScheduleColor(rawColor)
   }
 
   const renderScheduleCard = (
@@ -178,7 +179,8 @@ export default function MonthlyDetailPopup({
     isUntimed = false,
   ) => {
     const color = normalizeColor(ev.colorKey || ev.color, '#8B5CF6')
-    const ScheduleCard = ev.isRecurring ? FixedScheduleCard : RepeatScheduleCard
+    const ScheduleCard = ev.isRecurring ? RepeatScheduleCard : FixedScheduleCard
+    const subText = isUntimed ? undefined : ev.isRecurring ? timeText : (ev.place ?? '')
 
     return (
       <View key={key} style={S.itemWrap}>
@@ -188,7 +190,7 @@ export default function MonthlyDetailPopup({
           color={color}
           density="day"
           isUntimed={isUntimed}
-          timeRangeText={isUntimed ? undefined : timeText}
+          timeRangeText={subText}
           style={S.itemCard}
         />
       </View>

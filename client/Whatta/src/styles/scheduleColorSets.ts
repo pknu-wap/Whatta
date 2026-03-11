@@ -63,9 +63,25 @@ export const SCHEDULE_COLOR_SETS = {
 
 export type ScheduleColorSetId = keyof typeof SCHEDULE_COLOR_SETS
 export type ScheduleSlotKey = `C${string}`
+export const SCHEDULE_COLOR_SET_IDS = Object.keys(
+  SCHEDULE_COLOR_SETS,
+) as ScheduleColorSetId[]
 
 export const DEFAULT_SET: ScheduleColorSetId = 'basic'
 export const MAX_SCHEDULE_COLOR_SLOTS = SCHEDULE_COLOR_SETS[DEFAULT_SET].length
+let activeScheduleColorSetId: ScheduleColorSetId = DEFAULT_SET
+const resolvedColorCache = new Map<string, string>()
+
+const resolveSetId = (setId?: ScheduleColorSetId): ScheduleColorSetId =>
+  setId ?? activeScheduleColorSetId
+
+export const getActiveScheduleColorSetId = (): ScheduleColorSetId => activeScheduleColorSetId
+
+export const setActiveScheduleColorSetId = (setId: ScheduleColorSetId): ScheduleColorSetId => {
+  activeScheduleColorSetId = setId
+  resolvedColorCache.clear()
+  return activeScheduleColorSetId
+}
 
 const formatSlotKey = (index: number): ScheduleSlotKey =>
   `C${String(index).padStart(2, '0')}`
@@ -84,11 +100,11 @@ export const slotIndex = (key?: string | null): number => {
 }
 
 // 선택 세트의 칩 목록 반환
-export const getScheduleColorSet = (setId: ScheduleColorSetId) =>
-  SCHEDULE_COLOR_SETS[setId]
+export const getScheduleColorSet = (setId?: ScheduleColorSetId) =>
+  SCHEDULE_COLOR_SETS[resolveSetId(setId)]
 
 // 슬롯 목록(C00..)
-export const getScheduleColorSlots = (setId: ScheduleColorSetId): ScheduleSlotKey[] =>
+export const getScheduleColorSlots = (setId?: ScheduleColorSetId): ScheduleSlotKey[] =>
   getScheduleColorSet(setId).map((_, i) => slotKey(i))
 
 const normalizeHex = (value?: string | null): string | null => {
@@ -97,22 +113,68 @@ const normalizeHex = (value?: string | null): string | null => {
   return `#${value.replace('#', '').toUpperCase()}`
 }
 
+const hexToRgb = (hex: string) => {
+  const h = hex.replace('#', '')
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  }
+}
+
+const findClosestSlotIndex = (hex: string, setId?: ScheduleColorSetId): number => {
+  const target = hexToRgb(hex)
+  const set = getScheduleColorSet(setId)
+  let best = 0
+  let bestDist = Number.POSITIVE_INFINITY
+
+  set.forEach((chip, idx) => {
+    const c = hexToRgb(chip)
+    const dr = target.r - c.r
+    const dg = target.g - c.g
+    const db = target.b - c.b
+    const dist = dr * dr + dg * dg + db * db
+    if (dist < bestDist) {
+      bestDist = dist
+      best = idx
+    }
+  })
+
+  return best
+}
+
 // colorKey -> 화면 표시 HEX
 // 1) Cnn 이면 세트 인덱스 색상
-// 2) 기존 6자리 HEX면 그대로 사용(레거시 호환)
+// 2) 기존 6자리 HEX면 basic에서 같은/가장 가까운 슬롯 색상으로 보정
 // 3) 그 외 기본 슬롯(C00)
 export const resolveScheduleColor = (
   colorKey: string | undefined,
-  setId: ScheduleColorSetId = DEFAULT_SET,
+  setId?: ScheduleColorSetId,
 ): string => {
-  const set = getScheduleColorSet(setId)
+  const resolvedSetId = resolveSetId(setId)
+  const cacheKey = `${resolvedSetId}::${colorKey ?? '__EMPTY__'}`
+  const cached = resolvedColorCache.get(cacheKey)
+  if (cached) return cached
+
+  const set = getScheduleColorSet(resolvedSetId)
   const idx = slotIndex(colorKey)
-  if (idx >= 0 && idx < set.length) return set[idx]
+  if (idx >= 0 && idx < set.length) {
+    const out = set[idx]
+    resolvedColorCache.set(cacheKey, out)
+    return out
+  }
 
   const legacyHex = normalizeHex(colorKey)
-  if (legacyHex) return legacyHex
+  if (legacyHex) {
+    const exact = set.findIndex((hex) => hex === legacyHex)
+    const out = exact >= 0 ? set[exact] : set[findClosestSlotIndex(legacyHex, resolvedSetId)]
+    resolvedColorCache.set(cacheKey, out)
+    return out
+  }
 
-  return set[0]
+  const fallback = set[0]
+  resolvedColorCache.set(cacheKey, fallback)
+  return fallback
 }
 
 // 편집화면에서 현재 colorKey를 "선택 슬롯 index"로 맞출 때 사용
@@ -121,7 +183,7 @@ export const resolveScheduleColor = (
 // - 못 찾으면 0
 export const resolveSlotIndex = (
   colorKey: string | undefined,
-  setId: ScheduleColorSetId = DEFAULT_SET,
+  setId?: ScheduleColorSetId,
 ): number => {
   const set = getScheduleColorSet(setId)
   const idx = slotIndex(colorKey)
@@ -131,5 +193,30 @@ export const resolveSlotIndex = (
   if (!legacyHex) return 0
 
   const found = set.findIndex((hex) => hex === legacyHex)
-  return found >= 0 ? found : 0
+  if (found >= 0) return found
+
+  return findClosestSlotIndex(legacyHex, setId)
+}
+
+// 서버/레거시 colorKey를 클라이언트 표준 키로 정규화
+// - Cnn -> Cnn
+// - basic 세트와 일치하는 HEX -> 해당 Cnn
+// - 일치하지 않는 HEX -> 가장 가까운 basic 슬롯의 Cnn
+// - 그 외 -> undefined
+export const normalizeScheduleColorKey = (
+  colorKey?: string | null,
+  setId?: ScheduleColorSetId,
+): string | undefined => {
+  if (!colorKey) return undefined
+  const trimmed = String(colorKey).trim()
+  if (!trimmed) return undefined
+
+  const normalizedSlot = trimmed.toUpperCase()
+  const idx = slotIndex(normalizedSlot)
+  if (idx >= 0 && idx < getScheduleColorSet(setId).length) return normalizedSlot
+
+  const legacyHex = normalizeHex(trimmed)
+  if (!legacyHex) return undefined
+
+  return slotKey(findClosestSlotIndex(legacyHex, setId))
 }
