@@ -85,7 +85,7 @@ const BASE_ROW_H = 48
 const DRAG_LONG_PRESS_MS = 380
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
-const TIME_COL_W = 44
+const TIME_COL_W = 50
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 // 겹침(반분할) 카드 폭 튜닝: + 넓어지고, - 좁아진다
@@ -1761,6 +1761,7 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
+    height: 40,
     backgroundColor: '#FFFFFF',
     alignItems: 'flex-start',
   },
@@ -1841,20 +1842,20 @@ const S = StyleSheet.create({
 
   timeCol: {
     width: TIME_COL_W,
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     paddingRight: 0,
   },
   timeRow: {
     height: BASE_ROW_H,
-    paddingTop: 2,
+    paddingTop: 0,
     justifyContent: 'flex-start',
   },
   timeText: {
     ...ts('date3'),
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 20,
     color: colors.text.text4,
-    fontWeight: 500,
+    fontWeight: '500',
     textAlign: 'left',
     width: '100%',
     marginLeft: 0,

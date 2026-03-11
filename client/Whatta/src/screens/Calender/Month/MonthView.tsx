@@ -59,6 +59,12 @@ const MONTH_ITEM_WIDTH = cellWidth
 const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
+const MONTH_ITEM_SLOT_HEIGHT = MONTH_ITEM_HEIGHT + MONTH_ITEM_GAP
+const HOLIDAY_HEADER_BASE_OFFSET = 13
+const HOLIDAY_EVENT_OFFSET = Math.max(
+  0,
+  MONTH_ITEM_SLOT_HEIGHT - HOLIDAY_HEADER_BASE_OFFSET,
+)
 const { width: SCREEN_W } = Dimensions.get('window')
 
 const getOccurrenceDedupKey = (item: UISchedule) => {
@@ -391,12 +397,11 @@ const holidayIsoByWeek = useMemo(() => {
   return weeks.map((week) => {
     const set = new Set<string>()
     week.forEach((d) => {
-      if (d.holidayName) {
-        const iso = `${d.fullDate.getFullYear()}-${String(d.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
-          d.fullDate.getDate(),
-        ).padStart(2, '0')}`
-        set.add(iso)
-      }
+      if (!d.holidayName) return
+      const iso = `${d.fullDate.getFullYear()}-${String(d.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
+        d.fullDate.getDate(),
+      ).padStart(2, '0')}`
+      set.add(iso)
     })
     return set
   })
@@ -814,17 +819,10 @@ const holidayIsoByWeek = useMemo(() => {
         const titleLeftInset = isRealStart ? CAP_SAFE_INSET + 4 : 6
         const titleRightInset = isRealEnd ? CAP_SAFE_INSET + 4 : 6
         const titleWidth = Math.max(0, colSpan * MONTH_ITEM_WIDTH - titleLeftInset - titleRightInset)
-        const weekHolidaySet = holidayIsoByWeek[weekIndex]
-        const spanRowHasHoliday = !!weekHolidaySet && Array.from(weekHolidaySet).some(
-          (holidayISO) => item.multiDayStart! <= holidayISO && holidayISO <= item.multiDayEnd!,
-        )
-
-        const holidaySpanOffset = !dateItem.holidayName && spanRowHasHoliday ? 13 : 0
-
         return (
           <View
             key={itemKey}
-            style={[slotRowBaseStyle, dimStyle, holidaySpanOffset ? { marginTop: holidaySpanOffset } : null]}
+            style={[slotRowBaseStyle, dimStyle]}
           >
             <RangeScheduleBar
               id={String(item.id)}
@@ -935,6 +933,17 @@ const holidayIsoByWeek = useMemo(() => {
 
           {/* 일정 및 할 일 영역 */}
           <View style={S.eventArea}>
+            {(holidayIsoByWeek[weekIndex]?.size ?? 0) > 0 ? (
+              <View
+                style={{
+                  width: MONTH_ITEM_WIDTH,
+                  height: dateItem.holidayName
+                    ? HOLIDAY_EVENT_OFFSET
+                    : MONTH_ITEM_SLOT_HEIGHT,
+                }}
+              />
+            ) : null}
+
             {laneSlots.map((slot, idx) =>
               slot ? (
                 renderSlotItem(slot, idx, 'slot')

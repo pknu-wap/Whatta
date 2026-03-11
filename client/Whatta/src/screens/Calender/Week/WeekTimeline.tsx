@@ -138,14 +138,14 @@ function WeekTimeline({
             <View style={styles.timeCol}>
               {hours.map((h) => (
                 <View key={`hour-${h}`} style={[styles.timeRow, { height: rowH }]}>
-                  <Text style={styles.timeText} numberOfLines={1} ellipsizeMode="clip">
+                  <Text style={styles.timeText}>
                     {h === 0
-                      ? '오전12시'
+                      ? '오전 12시'
                       : h < 12
-                        ? `오전${h}시`
+                        ? `오전 ${h}시`
                         : h === 12
-                          ? '오후12시'
-                          : `오후${h - 12}시`}
+                          ? '오후 12시'
+                          : `오후 ${h - 12}시`}
                   </Text>
                 </View>
               ))}
