@@ -16,6 +16,10 @@ import { DayViewTask } from './overlapUtils'
 import { updateEvent, getEvent, createEvent } from '@/api/event_api'
 import { Alert } from 'react-native'
 import { ROW_H, PIXELS_PER_MIN } from './constants'
+import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
+import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
+import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 let draggingEventId: string | null = null
 
 const { width: SCREEN_W } = Dimensions.get('window')
@@ -164,46 +168,22 @@ if (isOverlapWithEvent) {
           style,
         ]}
       >
-        {/* ✅ 체크박스 영역 */}
-        <Pressable
-          onPress={() => {
-            const next = !done
-            setDone(next)
+<TaskItemCard
+  id={id}
+  title={title ?? ''}
+  done={done}
+  density="day"
+  onPress={onPress}
+  onToggle={(taskId, next) => {
+    setDone(next)
 
-            updateTask(id, {
-                completed: next,
-              })
-              .catch((err) => console.error('❌ 테스크 체크 상태 업데이트 실패:', err))
-          }}
-          style={{
-            width: 18,
-            height: 18,
-            marginRight: 12,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          hitSlop={8}
-        >
-          {done ? (
-            <CheckOn width={18} height={18} />
-          ) : (
-            <CheckOff width={18} height={18} />
-          )}
-        </Pressable>
-        {/* 제목 / 팝업 영역 */}
-        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={8}>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: done ? '#999' : '#000',
-              fontWeight: 'bold',
-              fontSize: 12,
-              textDecorationLine: done ? 'line-through' : 'none',
-            }}
-          >
-            {title}
-          </Text>
-        </Pressable>
+    updateTask(taskId, {
+      completed: next,
+    }).catch((err) =>
+      console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
+    )
+  }}
+/>
       </Animated.View>
     </GestureDetector>
   )
@@ -341,29 +321,24 @@ export function DraggableTaskGroupBox({
           style,
         ]}
       >
-        <Pressable
-          onPress={onPress}
-          style={{ flexDirection: 'row', alignItems: 'center' }}
-        >
-          <View
-            style={{
-              width: 18,
-              height: 18,
-              borderWidth: 2,
-              borderRadius: 2,
-              borderColor: '#333',
-              marginRight: 14,
-              justifyContent: 'center',
-              alignItems: 'center',
-              backgroundColor: '#FFF',
-            }}
-          />
-          <Text style={{ fontWeight: '700', fontSize: 13, color: '#9B4FFF' }}>
-            할 일이 있어요! ({count})
-          </Text>
-          <View style={{ flex: 1 }} />
-          <Text style={{ fontSize: 12 }}>▼</Text>
-        </Pressable>
+<TaskGroupCard
+  groupId={group[0]?.id ?? 'group'}
+tasks={group.map(t => ({
+  id: t.id,
+  title: t.title ?? '',
+  done: Boolean(t.completed)
+}))}
+  density="day"
+  expanded={false}
+  onToggleTask={(taskId, next) => {
+    updateTask(taskId, { completed: next }).catch(err =>
+      console.error('❌ 그룹 테스크 업데이트 실패:', err)
+    )
+  }}
+  onToggleExpand={() => {
+    onPress()
+  }}
+/>
       </Animated.View>
     </GestureDetector>
   )
@@ -575,7 +550,13 @@ export function DraggableFixedEvent({
   }))
 
   const base = color.startsWith('#') ? color : `#${color}`
-  const bg = `${base}4D` 
+  const bg = `${base}` 
+
+  const fmt = (min: number) =>
+  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
+const startTime = fmt(startMin)
+const endTime = fmt(endMin)
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -586,46 +567,32 @@ export function DraggableFixedEvent({
             left: 50 + 16,
             right: 16,
             height,
-            backgroundColor: bg,
+            backgroundColor: 'transparent',
             paddingHorizontal: 6,
             paddingTop: 10,
+            borderRadius: 12,
             zIndex: 10,
           },
           style,
         ]}
       >
-        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={10}>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: '#000',
-              fontWeight: '600',
-              fontSize: 12,
-            }}
-          >
-            {title}
-          </Text>
-
-          <Text
-            numberOfLines={1}
-            style={{
-              color: '#6B6B6B',
-              marginTop: 8,
-              fontSize: 10,
-            }}
-          >
-            {place}
-          </Text>
-        </Pressable>
+<FixedScheduleCard
+  id={id}
+  title={title}
+  color={color}
+  timeRangeText={`${startTime} ~ ${endTime}`}
+  density="day"
+  onPress={onPress}
+/>
       </Animated.View>
     </GestureDetector>
   )
 }
 
-type DraggableFlexalbeEventProps = {
+type DraggableFlexibleEventProps = {
   id: string
   title: string
-  place: string
+  labels: string[]
   startMin: number
   endMin: number
   color: string
@@ -639,7 +606,7 @@ type DraggableFlexalbeEventProps = {
 export function DraggableFlexalbeEvent({
   id,
   title,
-  place,
+  labels,
   startMin,
   endMin,
   color,
@@ -647,7 +614,7 @@ export function DraggableFlexalbeEvent({
   isRepeat = false,
   onPress,
   _column
-}: DraggableFlexalbeEventProps) {
+}: DraggableFlexibleEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
   const rawHeight = durationMin * PIXELS_PER_MIN
@@ -872,9 +839,9 @@ export function DraggableFlexalbeEvent({
   const backgroundColor = color.startsWith('#') ? color : `#${color}`
 
   // ⭐ 겹침용 계단식 offset
-const BASE_LEFT = 50 + 18
-const STAGGER = 32         // 하나 겹칠 때마다 오른쪽으로 32px
-const MAX_STAGGER = 96        // 너무 많아지면 제한
+const BASE_LEFT = 50 + 16
+const STAGGER = 40       // 하나 겹칠 때마다 오른쪽으로 32px
+const MAX_STAGGER = 120    // 너무 많아지면 제한
 
 const shift = Math.min((_column ?? 0) * STAGGER, MAX_STAGGER)
 
@@ -887,42 +854,26 @@ const left = BASE_LEFT + shift
           {
             position: 'absolute',
             left,
-            right: 18,
+            right: 16,
             height,
             backgroundColor,
             paddingHorizontal: 6,
             paddingTop: 10,
-            borderRadius: 3,
+            borderRadius: 12,
             justifyContent: 'flex-start',
             zIndex: 10,
           },
           style,
         ]}
       >
-        <Pressable onPress={onPress} style={{ flex: 1 }} hitSlop={10}>
-          <Text
-            style={{
-              color: '#000000',
-              fontWeight: '600',
-              fontSize: 13,
-              lineHeight: 15,
-            }}
-          >
-            {title}
-          </Text>
-          {!!place && (
-            <Text
-              style={{
-                color: '#FFFFFF',
-                fontSize: 10,
-                marginTop: 10,
-                lineHeight: 10,
-              }}
-            >
-              {place}
-            </Text>
-          )}
-        </Pressable>
+<RepeatScheduleCard
+  id={id}
+  title={title}
+  color={color}
+  timeRangeText={labels?.[0]}
+  density="day"
+  onPress={onPress}
+/>
       </Animated.View>
     </GestureDetector>
   )
