@@ -179,7 +179,8 @@ export default function MonthlyDetailPopup({
     isUntimed = false,
   ) => {
     const color = normalizeColor(ev.colorKey || ev.color, '#8B5CF6')
-    const ScheduleCard = ev.isRecurring ? FixedScheduleCard : RepeatScheduleCard
+    const ScheduleCard = ev.isRecurring ? RepeatScheduleCard : FixedScheduleCard
+    const subText = isUntimed ? undefined : ev.isRecurring ? timeText : (ev.place ?? '')
 
     return (
       <View key={key} style={S.itemWrap}>
@@ -189,7 +190,7 @@ export default function MonthlyDetailPopup({
           color={color}
           density="day"
           isUntimed={isUntimed}
-          timeRangeText={isUntimed ? undefined : timeText}
+          timeRangeText={subText}
           style={S.itemCard}
         />
       </View>

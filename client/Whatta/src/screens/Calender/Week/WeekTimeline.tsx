@@ -218,6 +218,7 @@ function WeekTimeline({
                       key={`ev-${ev.id}-${i}`}
                       id={ev.id}
                       title={ev.title}
+                      labelText={ev.place ?? ''}
                       startMin={ev.startMin}
                       endMin={ev.endMin}
                       color={ev.color}

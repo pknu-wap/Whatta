@@ -28,11 +28,11 @@ function RepeatScheduleCard({
       hideText={hideText}
       onPress={onPress}
       style={style}
-      backgroundColor={colors.background.bg1}
-      borderColor={mainColor}
-      borderWidth={1}
-      titleColor={colors.text.text1}
-      subTextColor={colors.text.text1}
+      backgroundColor={mainColor}
+      borderColor="transparent"
+      borderWidth={0}
+      titleColor={colors.background.bg1}
+      subTextColor={colors.background.bg1}
     />
   )
 }

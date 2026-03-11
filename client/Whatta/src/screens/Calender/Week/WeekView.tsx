@@ -703,6 +703,7 @@ const askRepeatAction = (): Promise<'single' | 'future' | 'cancel'> => {
 type DraggableFlexalbeEventProps = {
   id: string
   title: string
+  labelText?: string
   startMin: number
   endMin: number
   color: string
@@ -720,6 +721,7 @@ type DraggableFlexalbeEventProps = {
 function DraggableFlexalbeEvent({
   id,
   title,
+  labelText,
   startMin,
   endMin,
   color,
@@ -939,7 +941,8 @@ function DraggableFlexalbeEvent({
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
   const timeRangeText = `${fmtHm(startMin)}~${fmtHm(endMin)}`
-  const EventCard = isRepeat ? FixedScheduleCard : RepeatScheduleCard
+  const subText = isRepeat ? timeRangeText : (labelText ?? '')
+  const EventCard = isRepeat ? RepeatScheduleCard : FixedScheduleCard
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -963,7 +966,7 @@ function DraggableFlexalbeEvent({
           id={id}
           title={title}
           color={safeColor}
-          timeRangeText={timeRangeText}
+          timeRangeText={subText}
           density="week"
           hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={width}
