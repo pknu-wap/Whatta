@@ -24,8 +24,6 @@ let draggingEventId: string | null = null
 const DAY_CARD_WIDTH = 318
 const DAY_CARD_HEIGHT = 60
 
-const { width: SCREEN_W } = Dimensions.get('window')
-
 type DraggableTaskBoxProps = {
   id: string
   title: string | undefined
@@ -122,11 +120,7 @@ export function DraggableTaskBox({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
   }))
 
-  const COLUMN_GAP = 4
   const LEFT_OFFSET = 50 + 20
-
-  const safeColumn = column ?? 0
-  const safeTotalColumns = totalColumns ?? 1
 
 const startMin = startHour * 60
 const endMin = startMin + 60 
@@ -140,8 +134,8 @@ let boxWidth = DAY_CARD_WIDTH
 let left = LEFT_OFFSET
 
 if (isOverlapWithEvent) {
-  boxWidth = DAY_CARD_WIDTH
-  left = LEFT_OFFSET + Math.max(0, safeColumn) * COLUMN_GAP
+  boxWidth = DAY_CARD_WIDTH / 2
+  left = LEFT_OFFSET + DAY_CARD_WIDTH / 2
 }
 
   return (
@@ -153,8 +147,9 @@ if (isOverlapWithEvent) {
             left,
             width: boxWidth,
             height: DAY_CARD_HEIGHT,
+            top: -1.75,
             backgroundColor: 'transparent',
-            zIndex: 20,
+            zIndex: 100,
           },
           style,
         ]}
@@ -300,7 +295,7 @@ export function DraggableTaskGroupBox({
             width: boxWidth,
             height: DAY_CARD_HEIGHT,
             backgroundColor: 'transparent',
-            zIndex: 30,
+            zIndex: 200,
           },
           style,
         ]}

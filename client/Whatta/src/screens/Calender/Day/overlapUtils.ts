@@ -97,16 +97,16 @@ export function groupTasksByOverlap(tasks: DayViewTask[]) {
     cur = []
   }
 
-  for (const t of sorted) {
-    if (t.startMin! > curEnd) {
-      flush()
-      cur = [t]
-      curEnd = t.endMin!
-    } else {
-      cur.push(t)
-      curEnd = Math.max(curEnd, t.endMin!)
-    }
+for (const t of sorted) {
+  if (t.startMin! >= curEnd) {
+    flush()
+    cur = [t]
+    curEnd = t.endMin!
+  } else {
+    cur.push(t)
+    curEnd = Math.max(curEnd, t.endMin!)
   }
+}
 
   flush()
   return groups
