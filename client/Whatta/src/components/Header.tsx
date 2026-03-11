@@ -221,6 +221,19 @@ export default function Header() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.todayButton}
+          onPress={() => {
+            if (popup) {
+              closeFilterPopup()
+              bus.emit('filter:popup', false)
+            }
+            bus.emit('calendar:set-date', today())
+          }}
+        >
+          <Text style={styles.todayText}>Today</Text>
+        </TouchableOpacity>
+
         {/* 필터 버튼 */}
         <TouchableOpacity
           style={styles.rightButton}
@@ -369,7 +382,7 @@ export default function Header() {
         onPressToday={() => bus.emit('calendar:set-date', today())}
         autoConfirmOnDayPress
         showCalendarActions={false}
-        pickerContentHeight={250}
+        pickerContentHeight={286}
         initialOpenMode={calendarMode === 'month' ? 'picker' : 'calendar'}
         pickerConfirmVariant={calendarMode === 'month' ? 'move' : 'icon'}
         showPickerCancel={calendarMode !== 'month'}
@@ -404,6 +417,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2,
+  },
+  todayButton: {
+    position: 'absolute',
+    right: 51,
+    width: 57,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.divider.divider1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+    top: 9,
+  },
+  todayText: {
+    ...ts('label4'),
+    color: colors.text.text2,
   },
   dateGroup: {
     position: 'absolute',
