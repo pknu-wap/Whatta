@@ -39,7 +39,7 @@ public class TrafficMongoIndexConfig {
             log.info("BusFavorite 고유 인덱스 보장: uniq_user_station_route");
         } catch (Exception e) {
             String message = "고유 인덱스 생성 실패 "
-                    + "중복되는 데이터가 즐겨찾게 있으므로 중복데이터 마이그레이션 필요";
+                    + "중복되는 데이터가 즐겨찾기에 있으므로 중복데이터 마이그레이션 필요";
             if (failOnError) {
                 throw e;
             }
