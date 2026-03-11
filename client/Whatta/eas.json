@@ -7,7 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": { "APP_VARIANT": "dev" }
+      "env": { "APP_VARIANT": "local" }
     },
     "preview": {
       "distribution": "internal",
