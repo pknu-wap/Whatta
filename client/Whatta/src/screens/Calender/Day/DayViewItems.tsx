@@ -124,8 +124,6 @@ export function DraggableTaskBox({
 
   const COLUMN_GAP = 4
   const LEFT_OFFSET = 50 + 20
-  const RIGHT_OFFSET = 18
-  const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
 
   const safeColumn = column ?? 0
   const safeTotalColumns = totalColumns ?? 1
@@ -136,8 +134,6 @@ const endMin = startMin + 60
 const overlappingEvents = events.filter(ev => {
   return !(ev.endMin <= startMin || ev.startMin >= endMin)
 })
-
-const widthPercent = 1 / safeTotalColumns
 const isOverlapWithEvent = overlappingEvents.length > 0
 
 let boxWidth = DAY_CARD_WIDTH
@@ -292,8 +288,6 @@ export function DraggableTaskGroupBox({
   }))
 
   const LEFT_OFFSET = 50 + 18
-  const RIGHT_OFFSET = 18
-  const usableWidth = SCREEN_W - LEFT_OFFSET - RIGHT_OFFSET
   const boxWidth = DAY_CARD_WIDTH
 
   return (
@@ -344,6 +338,8 @@ type DraggableFixedEventProps = {
   color: string
   anchorDate: string
   onPress?: () => void
+  _column?: number
+  _totalColumns?: number
 }
 
 export function DraggableFixedEvent({
@@ -555,11 +551,11 @@ const endTime = fmt(endMin)
         style={[
           {
             position: 'absolute',
-            left: 50 + 16,
+            left: 50 + 18,
             width: DAY_CARD_WIDTH,
             height,
             backgroundColor: 'transparent',
-            zIndex: 10,
+            zIndex: 1,
           },
           style,
         ]}
@@ -592,9 +588,10 @@ type DraggableFlexibleEventProps = {
   onPress?: () => void
   _column?: number
   _totalColumns?: number
+  events: any[]
 }
 
-export function DraggableFlexalbeEvent({
+export function DraggableFlexibleEvent({
   id,
   title,
   labels,
@@ -605,7 +602,7 @@ export function DraggableFlexalbeEvent({
   anchorDate,
   isRepeat = false,
   onPress,
-  _column
+  events, 
 }: DraggableFlexibleEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
@@ -828,14 +825,47 @@ export function DraggableFlexalbeEvent({
     transform: [{ translateX: translateX.value }],
   }))
 
-  // ⭐ 겹침용 계단식 offset
-const BASE_LEFT = 50 + 16
-const STAGGER = 40       // 하나 겹칠 때마다 오른쪽으로 32px
-const MAX_STAGGER = 120    // 너무 많아지면 제한
+// 겹침용 계단식 offset
+const BASE_LEFT = 50 + 18
+const STAGGER = 40
 
-const shift = Math.min((_column ?? 0) * STAGGER, MAX_STAGGER)
+// 시작 시간 기준 정렬
+const sorted = [...events].sort((a, b) => a.startMin - b.startMin)
 
-const left = BASE_LEFT + shift
+const shiftMap = new Map<string, number>()
+
+for (let i = 0; i < sorted.length; i++) {
+  const cur = sorted[i]
+
+  let shift = 0
+
+  for (let j = 0; j < i; j++) {
+    const prev = sorted[j]
+
+    const isOverlap =
+      !(prev.endMin <= cur.startMin || prev.startMin >= cur.endMin)
+
+    if (isOverlap) {
+      shift = Math.max(shift, (shiftMap.get(prev.id) ?? 0) + 1)
+    }
+  }
+
+  shiftMap.set(cur.id, shift)
+}
+
+const overlapShift = shiftMap.get(id) ?? 0
+
+const overlapWithFixed = events.some(ev => {
+  if (!ev.isRepeat) return false
+
+  return !(ev.endMin <= startMin || ev.startMin >= endMin)
+})
+
+// 기존 계단식 + 고정 overlap 추가
+const finalShift = Math.max(overlapShift, overlapWithFixed ? 1 : 0)
+
+const left = BASE_LEFT + finalShift * STAGGER
+const width = DAY_CARD_WIDTH - finalShift * STAGGER
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -844,11 +874,11 @@ const left = BASE_LEFT + shift
           {
             position: 'absolute',
             left,
-            width: DAY_CARD_WIDTH,
+            width,
             height,
             backgroundColor: 'transparent',
             justifyContent: 'flex-start',
-            zIndex: 10,
+            zIndex: 50,
           },
           style,
         ]}
