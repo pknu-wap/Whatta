@@ -440,65 +440,134 @@ const holidayIsoByWeek = useMemo(() => {
       return dayISO === isoDate
     })
     const rawEvents: any[] = (rawDay as any)?.events ?? []
+    const rawTasks: any[] = (rawDay as any)?.tasks ?? []
     const allDaySingles = rawEvents.filter(
       (ev) => ev.startTime == null && ev.endTime == null,
     )
     const allDaySingleIds = new Set(allDaySingles.map((ev) => String(ev.id)))
+    const timedEventIds = new Set(
+      rawEvents
+        .filter((ev) => ev.startTime != null || ev.endTime != null)
+        .map((ev) => String(ev.id)),
+    )
+    const timedTaskIds = new Set(
+      rawTasks
+        .filter((t) => t.placementTime != null && String(t.placementTime).trim() !== '')
+        .map((t) => String(t.id)),
+    )
+    const rawEventById = new Map(rawEvents.map((ev) => [String(ev.id), ev]))
+    const rawTaskById = new Map(rawTasks.map((t) => [String(t.id), t]))
+    const pickLabelText = (raw: any): string => {
+      const labels = Array.isArray(raw?.labels) ? raw.labels : []
+      if (labels.length === 0) return ''
+      const first = labels[0]
+      if (typeof first === 'string') return first
+      if (typeof first === 'number') return String(first)
+      if (first && typeof first === 'object') {
+        return String(first.title ?? first.name ?? first.labelName ?? '')
+      }
+      return ''
+    }
 
+
+    const daySchedules = (dateItem.schedules as ExtendedScheduleDataWithColor[]).filter(
+      (s) => !s.isTask,
+    )
+    const isRealSpan = (s: ExtendedScheduleDataWithColor) =>
+      !!s.multiDayStart && !!s.multiDayEnd && s.multiDayStart !== s.multiDayEnd
+    const multiDaySchedules = daySchedules.filter((s) => isRealSpan(s))
+    const singleDaySchedules = daySchedules.filter((s) => !isRealSpan(s))
+    const hasTime = (x: any) =>
+      !!(x?.time && String(x.time).trim().length > 0) || (!!x?.startAt && !!x?.endAt)
+
+    const untimedSchedules = singleDaySchedules.filter(
+      (s) =>
+        !timedEventIds.has(String(s.id)) &&
+        !hasTime(s) &&
+        !allDaySingleIds.has(String(s.id)),
+    )
+    const timedSchedules = singleDaySchedules.filter(
+      (s) =>
+        timedEventIds.has(String(s.id)) ||
+        (hasTime(s) && !allDaySingleIds.has(String(s.id))),
+    )
+    const dayTasks = dateItem.tasks as ExtendedScheduleDataWithColor[]
+    const untimedTasks = dayTasks.filter(
+      (t) => !timedTaskIds.has(String(t.id)) && !hasTime(t),
+    )
+    const timedTasks = dayTasks.filter(
+      (t) => timedTaskIds.has(String(t.id)) || hasTime(t),
+    )
 
     setSelectedDayData({
       date: `${d.getMonth() + 1}월 ${d.getDate()}일`,
       dateISO: isoDate,
       dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][d.getDay()],
-      spanEvents: [
-        ...(dateItem.schedules as ExtendedScheduleDataWithColor[])
-          .filter((s) => s.multiDayStart && s.multiDayEnd)
-          .map((s) => {
-            const baseColor = resolveScheduleColor(s.colorKey)
-            return {
-              id: s.id,
-              title: s.name,
-              period: `${s.multiDayStart}~${s.multiDayEnd}`,
-              isRecurring: !!s.isRecurring,
-              colorKey: s.colorKey,
-              color: baseColor,
-            }
-          }),
-        ...allDaySingles.map((ev) => {
-          const formatted = resolveScheduleColor(ev.colorKey as string | undefined)
-          const baseColor = !formatted || formatted.toUpperCase() === '#FFFFFF'
-            ? '#8B5CF6'
-            : formatted                     
-          return {
-            id: ev.id,
-            title: ev.title ?? ev.name ?? '',
-            // 단일 all-day 일정은 period 없이 제목만 표시 
-            isRecurring: !!ev.isRepeat,
-            colorKey: ev.colorKey,
-            color: baseColor,
-          }
-        }),
-      ],
-      normalEvents: (dateItem.schedules as ExtendedScheduleDataWithColor[])
-        .filter(
-          (s) =>
-            !s.multiDayStart &&
-            !s.multiDayEnd &&
-            !s.isTask &&
-            !allDaySingleIds.has(String(s.id)), // all-day 단일 일정은 여기서 제외
-        )
+      spanEvents: multiDaySchedules.map((s) => {
+        const baseColor = resolveScheduleColor(s.colorKey)
+        return {
+          id: s.id,
+          title: s.name,
+          period: `${s.multiDayStart}~${s.multiDayEnd}`,
+          isRecurring: !!s.isRecurring,
+          colorKey: s.colorKey,
+          color: baseColor,
+        }
+      }),
+      normalEvents: untimedSchedules
         .map((s) => {
           const baseColor = s.colorKey ? resolveScheduleColor(s.colorKey) : '#F4EAFF'
+          const raw = rawEventById.get(String(s.id))
           return {
             id: s.id,
             title: s.name,
+            labelText: pickLabelText(raw),
             memo: s.memo ?? '',
             time: s.time ?? '',
             isRecurring: !!s.isRecurring,
             color: baseColor,
           }
-        }),
-      timeEvents: (dateItem.tasks as ExtendedScheduleDataWithColor[]).map((t) => {
+        })
+        .concat(
+          allDaySingles.map((ev) => {
+            const formatted = resolveScheduleColor(ev.colorKey as string | undefined)
+            const baseColor =
+              !formatted || formatted.toUpperCase() === '#FFFFFF' ? '#8B5CF6' : formatted
+            return {
+              id: ev.id,
+              title: ev.title ?? ev.name ?? '',
+              labelText: pickLabelText(ev),
+              memo: '',
+              time: '',
+              isRecurring: !!ev.isRepeat,
+              color: baseColor,
+              colorKey: ev.colorKey,
+            }
+          }),
+        ),
+      timedScheduleEvents: timedSchedules.map((s) => {
+        const baseColor = s.colorKey ? resolveScheduleColor(s.colorKey) : '#F4EAFF'
+        const raw = rawEventById.get(String(s.id))
+        const startHHMM = String(raw?.startTime ?? '').slice(0, 5)
+        const endHHMM = String(raw?.endTime ?? '').slice(0, 5)
+        const timeText =
+          startHHMM && endHHMM
+            ? `${startHHMM}~${endHHMM}`
+            : startHHMM || (s.time ?? '')
+        return {
+          id: s.id,
+          title: s.name,
+          labelText: pickLabelText(raw),
+          memo: s.memo ?? '',
+          time: timeText,
+          startAt: (s as any).startAt,
+          endAt: (s as any).endAt,
+          isRecurring: !!s.isRecurring,
+          color: baseColor,
+          colorKey: s.colorKey,
+        }
+      }),
+      untimedTasks: untimedTasks.map((t) => {
         const baseColor = t.colorKey ? resolveScheduleColor(t.colorKey) : '#FFD966'
         return {
           id: t.id,
@@ -506,8 +575,28 @@ const holidayIsoByWeek = useMemo(() => {
           title: t.name,
           place: t.place ?? '',
           time: t.time ?? '',
+          startAt: (t as any).startAt,
+          endAt: (t as any).endAt,
           color: baseColor,
           borderColor: baseColor,
+          isTask: true,
+        }
+      }),
+      timedTasks: timedTasks.map((t) => {
+        const baseColor = t.colorKey ? resolveScheduleColor(t.colorKey) : '#FFD966'
+        const raw = rawTaskById.get(String(t.id))
+        const placementHHMM = String(raw?.placementTime ?? '').slice(0, 5)
+        return {
+          id: t.id,
+          done: t.isCompleted,
+          title: t.name,
+          place: t.place ?? '',
+          time: placementHHMM || (t.time ?? ''),
+          startAt: (t as any).startAt,
+          endAt: (t as any).endAt,
+          color: baseColor,
+          borderColor: baseColor,
+          isTask: true,
         }
       }),
     })

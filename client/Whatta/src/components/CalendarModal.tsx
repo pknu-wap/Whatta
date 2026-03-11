@@ -58,6 +58,7 @@ type Props = {
   autoConfirmOnDayPress?: boolean
   showCalendarActions?: boolean
   pickerContentHeight?: number
+  modalTopOffset?: number
 }
 
 const getMonthName = (month: number) => {
@@ -87,6 +88,7 @@ export default function CalendarModal({
   autoConfirmOnDayPress = false,
   showCalendarActions = true,
   pickerContentHeight = CALENDAR_HEIGHT,
+  modalTopOffset = 110,
 }: Props) {
   const safeCurrentDate =
     typeof currentDate === 'string' && currentDate.length >= 10 ? currentDate : todayISO()
@@ -255,7 +257,7 @@ export default function CalendarModal({
       statusBarTranslucent
     >
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={S.centeredView}>
+        <View style={[S.centeredView, { marginTop: modalTopOffset }]}>
           <View
             style={[
               S.modalView,
@@ -466,7 +468,6 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    marginTop: 110,
   },
   modalView: {
     backgroundColor: '#FFF',
