@@ -34,6 +34,7 @@ import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import { S } from './S'
 import { buildLaneMap, getDisplayItems, getCalendarDates, CalendarDateItem } from './MonthView.utils'
+import { useOCR } from '@/hooks/useOCR'
 
 import { createEvent } from '@/api/event_api'
 import OcrSplash from '@/screens/More/OcrSplash'
@@ -48,6 +49,7 @@ import RangeScheduleBar from '@/components/calendar-items/schedule/RangeSchedule
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { cellWidth } from './S'
+
 
 
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
@@ -78,11 +80,6 @@ const dedupeSchedules = (items: UISchedule[]) => {
 
 
 export default function MonthView() {
-
-  // OCR hook & Popup hook
-  const [ocrSplashVisible, setOcrSplashVisible] = useState(false)
-  const [ocrModalVisible, setOcrModalVisible] = useState(false)
-  const [ocrEvents, setOcrEvents] = useState<OCREventDisplay[]>([])
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
 
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
@@ -215,51 +212,13 @@ export default function MonthView() {
     return () => bus.off('calendar:mutated', onMutated)
   }, [ym, fetchFresh])
 
-  const sendToOCR = useCallback(async (base64: string, ext?: string) => {
-    try {
-      setOcrSplashVisible(true)
-      
-      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64
-      const lower = (ext ?? 'jpg').toLowerCase()
-      const format = lower === 'png' ? 'png' : lower === 'jpeg' ? 'jpeg' : 'jpg'
-
-      const res = await http.post(
-        '/ocr',
-        {
-          imageType: 'COLLEGE_TIMETABLE',
-          image: {
-            format,
-            name: `timetable.${format}`,
-            data: cleanBase64,
-          },
-        },
-        
-      )
-
-      const events = res.data?.data?.events ?? []
-
-      const parsed = events
-        .map((ev: any, idx: number) => {
-          return {
-            id: String(idx),
-            title: ev.title ?? '',
-            content: ev.content ?? '',
-            weekDay: ev.weekDay ?? '',
-            date: getDateOfWeek(ev.weekDay),
-            startTime: ev.startTime ?? '',
-            endTime: ev.endTime ?? '',
-          }
-        })
-        .sort((a: OCREventDisplay, b: OCREventDisplay) => a.date.localeCompare(b.date))
-
-      setOcrEvents(parsed)
-      setOcrModalVisible(true)
-    } catch (err) {
-      Alert.alert('오류', 'OCR 처리 실패')
-    } finally {
-      setOcrSplashVisible(false)
-    }
-  }, [])
+const {
+  ocrSplashVisible,
+  ocrModalVisible,
+  ocrEvents,
+  setOcrModalVisible,
+  sendToOCR,
+} = useOCR()
 
   const laneMapRef = useRef<Map<string, number>>(new Map())
 
