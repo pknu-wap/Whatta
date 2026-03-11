@@ -1,23 +1,14 @@
-import React, { useEffect, useMemo, useState, memo, useCallback, useRef } from 'react'
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { View, Text, StyleSheet, TextInput } from 'react-native'
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist'
 import { useFocusEffect } from '@react-navigation/native'
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from 'react-native-reanimated'
-import { runOnJS } from 'react-native-worklets'
 import { bus } from '@/lib/eventBus'
 
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
-import CheckOff from '@/assets/icons/check_off.svg'
-import CheckOn from '@/assets/icons/check_on.svg'
 import { http } from '@/lib/http'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
-import * as Haptics from 'expo-haptics'
+import SidebarTaskItem from '@/components/sidebars/SidebarTaskItem'
 
 // type 정의
 export type Task = {
@@ -58,40 +49,6 @@ function mapTask(d: any): Task {
     createdAt: d.createdAt ?? null,
     updatedAt: d.updatedAt ?? null,
   }
-}
-
-function TaskCardDraggable({ item }: { item: Task }) {
-  const translateY = useSharedValue(0)
-  const opacity = useSharedValue(1)
-
-  const drag = Gesture.Pan()
-    .onChange((e) => {
-      translateY.value += e.changeY
-      bus.emit('sidebar:dragging', { task: item, x: e.absoluteX, y: e.absoluteY })
-    })
-    .onEnd((e) => {
-      bus.emit('sidebar:drop', { task: item, x: e.absoluteX, y: e.absoluteY })
-      translateY.value = withTiming(0)
-      opacity.value = withTiming(1)
-    })
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }))
-
-  return (
-    <GestureDetector gesture={drag}>
-      <Animated.View style={[S.card, style]}>
-        <TaskCard
-          id={item.id}
-          title={item.title}
-          checked={item.completed}
-          onToggle={() => {}}
-        />
-      </Animated.View>
-    </GestureDetector>
-  )
 }
 
 function isTimelessTask(t: Task) {
@@ -318,7 +275,7 @@ export default function Sidebar() {
   }
 
   // 예정 섹션 내부 드래그 종료 시 sortNumber 재계산 + 서버 저장
-  const onUpcomingReorderEnd = async (data: Task[], from: number, to: number) => {
+  const onUpcomingReorderEnd = (data: Task[], from: number, to: number) => {
     if (from === to) return
 
     const moved = data[to]
@@ -340,16 +297,15 @@ export default function Sidebar() {
       prev.map((t) => (t.id === moved.id ? { ...t, sortNumber: newSort } : t)),
     )
 
-    try {
-      await putSidebarTask(moved.id, {
+    void putSidebarTask(moved.id, {
         title: safeTitle(moved.title),
         sortNumber: newSort,
         completed: moved.completed,
       })
-    } catch (e) {
-      console.warn('reorder failed:', e)
-      setTasks(prevSnapshot)
-    }
+      .catch((e) => {
+        console.warn('reorder failed:', e)
+        setTasks(prevSnapshot)
+      })
   }
 
   // 예정/완료 분리 (sortNumber 오름차순: 작은 값이 위)
@@ -372,7 +328,7 @@ export default function Sidebar() {
   return (
     <View style={S.board}>
       <SectionUpcoming
-        title="예정"
+        title="할 일"
         data={upcoming}
         onToggle={toggleDone}
         onDragEnd={onUpcomingReorderEnd}
@@ -384,7 +340,7 @@ export default function Sidebar() {
           value={newTitle}
           onChangeText={setNewTitle}
           placeholder="할 일을 입력하세요"
-          placeholderTextColor="#D199FF"
+          placeholderTextColor={colors.brand.primary}
           onSubmitEditing={handleCreate}
           returnKeyType="done"
           style={S.newInput}
@@ -411,7 +367,7 @@ function SectionUpcoming({
   onDragEnd: (data: Task[], from: number, to: number) => void
 }) {
   const renderItem = ({ item, drag, isActive }: RenderItemParams<Task>) => (
-    <TaskCard
+    <SidebarTaskItem
       id={item.id}
       title={item.title}
       checked={item.completed}
@@ -423,18 +379,19 @@ function SectionUpcoming({
 
   return (
     <View>
-      <Text style={[ts('date'), S.sectionTitle]}>{title}</Text>
+      <Text style={S.sectionTitle}>{title}</Text>
 
       <DraggableFlatList
         data={data}
         extraData={data}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        onDragEnd={({ data: newData, from, to }) =>
+        onDragEnd={({ data: newData, from, to }) => {
           onDragEnd(newData as Task[], from, to)
-        }
+        }}
+        renderPlaceholder={() => <View style={S.dragPlaceholder} />}
         style={{ height: SECTION_HEIGHT }}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         autoscrollThreshold={40}
         autoscrollSpeed={80}
         containerStyle={{ overflow: 'hidden' }}
@@ -456,12 +413,12 @@ function SectionCompleted({
 }) {
   return (
     <View>
-      <Text style={[ts('date'), S.sectionTitle]}>{title}</Text>
+      <Text style={S.sectionTitle}>{title}</Text>
       <DraggableFlatList
         data={data}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TaskCard
+          <SidebarTaskItem
             id={item.id}
             title={item.title}
             checked={item.completed}
@@ -473,188 +430,49 @@ function SectionCompleted({
         onDragEnd={() => {}}
         activationDistance={99999}
         style={{ height: SECTION_HEIGHT }}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         showsVerticalScrollIndicator={false}
       />
     </View>
   )
 }
 
-const TaskCard = memo(function TaskCard({
-  id,
-  title,
-  checked,
-  onToggle,
-  onLongPressHandle,
-  isActive,
-  registerSimultaneous,
-}: {
-  id: string
-  title: string
-  checked: boolean
-  onToggle: () => void
-  onLongPressHandle?: () => void // 우측 3점(핸들) 롱프레스 → 내부 정렬
-  isActive?: boolean
-  registerSimultaneous?: (gh: any) => void
-}) {
-  const start = useCallback(
-    (x: number, y: number) => {
-      bus.emit('xdrag:start', { task: { id, title }, x, y })
-    },
-    [id, title],
-  )
-
-  const move = useCallback(
-    (x: number, y: number) => {
-      bus.emit('xdrag:move', { task: { id, title }, x, y })
-    },
-    [id, title],
-  )
-
-  const drop = useCallback(
-    (x: number, y: number) => {
-      bus.emit('xdrag:drop', { task: { id, title }, x, y })
-    },
-    [id, title],
-  )
-  const midPanRef = React.useRef<any>(null)
-  // Pan 제스처: 롱프레스 후 활성 + 바깥으로 나가도 유지
-  const pan = useMemo(
-    () =>
-      Gesture.Pan()
-        .withRef(midPanRef)
-        .activateAfterLongPress(180)
-        .minDistance(10)
-        .shouldCancelWhenOutside(false)
-        .onStart((e) => {
-          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
-          runOnJS(start)(e.absoluteX, e.absoluteY)
-        })
-        .onChange((e) => {
-          runOnJS(move)(e.absoluteX, e.absoluteY)
-        })
-        .onFinalize((e) => {
-          runOnJS(drop)(e.absoluteX, e.absoluteY)
-        }),
-    [start, move, drop],
-  )
-
-  useEffect(() => {
-    registerSimultaneous?.(midPanRef.current)
-  }, [registerSimultaneous])
-
-  return (
-    <View style={[S.card, isActive && { opacity: 0.9 }]}>
-      {/* 체크박스 */}
-      <Pressable
-        onPress={onToggle}
-        hitSlop={10}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked }}
-      >
-        {checked ? (
-          <CheckOn width={24} height={24} />
-        ) : (
-          <CheckOff width={24} height={24} />
-        )}
-      </Pressable>
-
-      {/* 제목 영역 */}
-      {checked ? (
-        // 완료된 테스크: 드래그 비활성화
-        <Text
-          style={[
-            ts('taskName'),
-            { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
-            { textDecorationLine: 'line-through' },
-          ]}
-          numberOfLines={1}
-        >
-          {title}
-        </Text>
-      ) : (
-        // 예정 테스크만 드래그 가능
-        <GestureDetector gesture={pan}>
-          <Text
-            style={[
-              ts('taskName'),
-              { fontSize: 15, color: colors.task.taskName, marginLeft: 12, flex: 1 },
-            ]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-        </GestureDetector>
-      )}
-
-      {/* 점3개 핸들: 내부 순서 변경용 */}
-      <Pressable
-        onLongPress={onLongPressHandle}
-        delayLongPress={180}
-        hitSlop={12}
-        style={S.handle}
-        accessibilityLabel="drag handle"
-      >
-        <Text style={S.handleText}>···</Text>
-      </Pressable>
-    </View>
-  )
-})
-
 const S = StyleSheet.create({
   board: {
     flex: 1,
-    backgroundColor: '#E6E6E6',
+    backgroundColor: colors.background.bg2,
     borderTopRightRadius: 22,
     padding: 16,
   },
-  card: {
-    width: '100%',
-    minHeight: 48,
-    flexDirection: 'row',
-    borderWidth: 0.4,
-    borderColor: '#B3B3B3',
-    alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: colors.neutral.surface,
-    paddingHorizontal: 12,
-    // marginTop: 4,
-    // marginBottom: -5,
-  },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...ts('titleS'),
     marginBottom: 8,
-    color: colors.task.taskName,
+    color: colors.text.text1,
   },
   divider: {
     height: 1.2,
-    backgroundColor: colors.task.taskName,
-    opacity: 0.1,
+    backgroundColor: colors.divider.divider1,
     marginVertical: 10,
   },
-  handle: {
-    width: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    marginLeft: 6,
-  },
-  handleText: {
-    fontSize: 22,
-    lineHeight: 22,
-    includeFontPadding: false,
-    textAlign: 'center',
-    opacity: 0.5,
+  dragPlaceholder: {
+    width: 155,
+    height: 60,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.brand.primary,
+    backgroundColor: '#FFFFFF80',
   },
   // ✅ 입력창 스타일 (피그마 느낌의 보더/라운드)
   newInput: {
+    ...ts('body1'),
     height: 48,
     borderWidth: 0.5,
-    borderColor: '#B04FFF', // 연보라
+    borderColor: colors.brand.primary,
     borderRadius: 10,
     paddingHorizontal: 14,
     backgroundColor: 'transparent',
-    color: colors.task.taskName,
+    color: colors.brand.primary,
+    fontWeight: 400
   },
 })
