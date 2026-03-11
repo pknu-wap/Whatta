@@ -340,7 +340,6 @@ type DraggableFixedEventProps = {
 export function DraggableFixedEvent({
   id,
   title,
-  place,
   startMin,
   endMin,
   color,
@@ -348,8 +347,8 @@ export function DraggableFixedEvent({
   onPress,
 }: DraggableFixedEventProps) {
 
-  const rawHeight = DAY_CARD_HEIGHT
-  const height = DAY_CARD_HEIGHT
+const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+const height = rawHeight
 
   const translateY = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
@@ -562,7 +561,7 @@ const endTime = fmt(endMin)
   timeRangeText={`${startTime} ~ ${endTime}`}
   density="day"
   layoutWidthHint={DAY_CARD_WIDTH}
-  style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
+  style={{ height }}
   onPress={onPress}
 />
       </Animated.View>
@@ -601,8 +600,8 @@ export function DraggableFlexibleEvent({
 }: DraggableFlexibleEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
-  const rawHeight = DAY_CARD_HEIGHT
-  const height = DAY_CARD_HEIGHT
+const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+const height = rawHeight
   const offsetY = 1
 
   // 절대 Y(위에서부터의 픽셀)로 관리
@@ -885,7 +884,7 @@ const width = DAY_CARD_WIDTH - finalShift * STAGGER
   timeRangeText={place ?? labels?.[0] ?? ''}
   density="day"
   layoutWidthHint={DAY_CARD_WIDTH}
-  style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
+  style={{ height }}
   onPress={onPress}
 />
       </Animated.View>
