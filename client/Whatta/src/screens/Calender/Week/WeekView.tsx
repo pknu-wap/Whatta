@@ -938,7 +938,7 @@ function DraggableFlexalbeEvent({
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
   const timeRangeText = `${fmtHm(startMin)}~${fmtHm(endMin)}`
-  const EventCard = isRepeat ? RepeatScheduleCard : FixedScheduleCard
+  const EventCard = isRepeat ? FixedScheduleCard : RepeatScheduleCard
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -966,7 +966,7 @@ function DraggableFlexalbeEvent({
           density="week"
           hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={width}
-          style={{ minHeight: 0, height: '100%', marginVertical: 3 }}
+          style={{ minHeight: 0, height: '100%' }}
           onPress={() => {
             if (!isActiveDrag.value) openEventDetail(id)
           }}

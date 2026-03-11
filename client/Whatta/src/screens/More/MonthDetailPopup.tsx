@@ -10,13 +10,19 @@ import {
   Animated,
 } from 'react-native'
 import colors from '@/styles/colors'
-import { ts } from '@/styles/typography'
 import { Easing } from 'react-native'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
 import { useNavigation } from '@react-navigation/native'
+import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
+import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
+import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
+import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 
 const { width, height } = Dimensions.get('window')
+const DETAIL_ITEM_WIDTH = 302
+const DETAIL_ITEM_HEIGHT = 50
+const DETAIL_ITEM_RADIUS = 12
 
 export interface DayEvent {
   title: string
@@ -33,6 +39,7 @@ export interface DayEvent {
   startAt?: string
   endAt?: string
   done?: boolean
+  isRecurring?: boolean
 }
 
 interface MonthlyDetailPopupProps {
@@ -159,6 +166,69 @@ export default function MonthlyDetailPopup({
     }
   }
 
+  const normalizeColor = (rawColor?: string, fallback = '#8B5CF6') => {
+    if (!rawColor) return fallback
+    return rawColor.startsWith('#') ? rawColor : `#${rawColor}`
+  }
+
+  const renderScheduleCard = (
+    ev: DayEvent,
+    key: string,
+    timeText?: string,
+    isUntimed = false,
+  ) => {
+    const color = normalizeColor(ev.colorKey || ev.color, '#8B5CF6')
+    const ScheduleCard = ev.isRecurring ? FixedScheduleCard : RepeatScheduleCard
+
+    return (
+      <View key={key} style={S.itemWrap}>
+        <ScheduleCard
+          id={String(ev.id ?? key)}
+          title={ev.title}
+          color={color}
+          density="day"
+          isUntimed={isUntimed}
+          timeRangeText={isUntimed ? undefined : timeText}
+          style={S.itemCard}
+        />
+      </View>
+    )
+  }
+
+  const renderSpanCard = (ev: DayEvent, key: string) => {
+    const color = normalizeColor(ev.colorKey || ev.color, '#8B5CF6')
+    const fallbackISO = dayData.dateISO ?? ''
+    const [rawStart, rawEnd] = (ev.period ?? '').split('~').map((v) => v.trim())
+    const startISO = rawStart || fallbackISO
+    const endISO = rawEnd || startISO || fallbackISO
+    const periodText = ev.period || (fallbackISO ? `${fallbackISO}~${fallbackISO}` : undefined)
+
+    return (
+      <View key={key} style={S.itemWrap}>
+        <RangeScheduleBar
+          id={String(ev.id ?? key)}
+          title={ev.title}
+          color={color}
+          startISO={startISO}
+          endISO={endISO}
+          isStart
+          isEnd
+          density="day"
+          isUntimed={!periodText}
+          timeRangeText={periodText}
+          radiusOverride={DETAIL_ITEM_RADIUS}
+          capWidthOverride={DETAIL_ITEM_RADIUS}
+          style={S.itemCard}
+        />
+      </View>
+    )
+  }
+
+  const spanEvents = dayData.spanEvents ?? []
+  const recurringEvents = (dayData.normalEvents ?? []).filter((ev) => !!ev.isRecurring)
+  const basicEvents = (dayData.normalEvents ?? []).filter((ev) => !ev.isRecurring)
+  const hasAnySchedule = spanEvents.length > 0 || recurringEvents.length > 0 || basicEvents.length > 0
+
   return (
     <Modal transparent visible={visible} animationType="none">
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
@@ -185,298 +255,60 @@ export default function MonthlyDetailPopup({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 28 }}
             >
-              {/* Span Events */}
-              {dayData.spanEvents && dayData.spanEvents.length > 0 && (
+              {hasAnySchedule && (
                 <View style={S.section}>
-                  {dayData.spanEvents.map((t, i) => {
-                    const currentDate = dayData.date?.trim()
+                  <Text style={S.sectionTitle}>일정</Text>
+                  {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
 
-                    let startDate = ''
-                    let endDate = ''
-                    if (t.period?.includes('~')) {
-                      const [start, end] = t.period.split('~').map((s) => s.trim())
-                      startDate = start
-                      endDate = end
-                    }
+                  {recurringEvents.map((ev, i) => {
+                    const timeText = ev.time?.trim()
+                      ? ev.time
+                      : ev.startAt && ev.endAt
+                      ? formatTimeRange(ev.startAt, ev.endAt)
+                      : undefined
 
-                    // ✅ YYYY-MM-DD → MM월 DD일로 변환
-                    const formatToKoreanDate = (isoDate: string) => {
-                      if (!isoDate) return ''
-                      const [year, month, day] = isoDate.split('-')
-                      return `${parseInt(month)}월 ${parseInt(day)}일`
-                    }
+                    return renderScheduleCard(
+                      ev,
+                      `repeat-${String(ev.id ?? i)}`,
+                      timeText,
+                      !timeText,
+                    )
+                  })}
 
-                    const startKorean = formatToKoreanDate(startDate)
-                    const endKorean = formatToKoreanDate(endDate)
+                  {basicEvents.map((ev, i) => {
+                    const timeText = ev.time?.trim()
+                      ? ev.time
+                      : ev.startAt && ev.endAt
+                        ? formatTimeRange(ev.startAt, ev.endAt)
+                        : undefined
 
-                    const isSingleAllDay =
-                      !t.period || !t.period.includes('~')
-
-                      if (isSingleAllDay) { // ⭐ 단 하루짜리 all-day 일정 전용 디자인
-                      const rawColor = t.colorKey || t.color //여기 수정됐어요
-                      const formatted = rawColor
-                        ? rawColor.startsWith('#')
-                          ? rawColor
-                          : `#${rawColor}`
-                        : null //여기 수정됐어요
-                      const baseColor =
-                        !formatted || formatted.toUpperCase() === '#FFFFFF'
-                          ? '#8B5CF6'
-                          : formatted //여기 수정됐어요
-                      const bgWithOpacity =
-                        baseColor.length === 7 ? `${baseColor}26` : baseColor
-
-                      return (
-                        <View
-                          key={t.id ?? i}
-                          style={[
-                            S.chip,
-                            {
-                              marginLeft: 24, 
-                              marginRight: 24,
-                              backgroundColor: bgWithOpacity,
-                              borderRadius: 6,
-                            },
-                          ]}
-                        >
-                          {/* ⭐ 양쪽 칩바 추가 */}
-                          <View
-                            style={[S.chipBar, { left: 0, backgroundColor: baseColor }]}
-                          />
-                          <View
-                            style={[S.chipBar, { right: 0, backgroundColor: baseColor }]}
-                          />
-                          <View style={{ flex: 1, paddingHorizontal: 10 }}>
-                            <Text style={S.chipText} numberOfLines={1}>
-                              {t.title}
-                            </Text>
-                            {dayData.dateISO && (
-                            <Text
-                              style={[
-                                ts('place'),
-                                { color: '#333333', fontSize: 10, marginTop: 2 },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {dayData.dateISO}
-                            </Text>
-                            )}
-                          </View>
-                        </View>
-                      )
-                    }
-
-                    // ✅ 비교
-                    const isStart = currentDate === startKorean
-                    const isEnd = currentDate === endKorean
-
-                    // ✅ 마진 조건
-                    let marginStyle = { marginLeft: 0, marginRight: 0 }
-
-                    // 하루짜리 span 일정 → 양쪽 24px
-                    if (isStart && isEnd) {
-                      marginStyle = { marginLeft: 24, marginRight: 24 }
-                    }
-                    // 시작일
-                    else if (isStart) {
-                      marginStyle = { marginLeft: 24, marginRight: 0 }
-                    }
-                    // 종료일
-                    else if (isEnd) {
-                      marginStyle = { marginLeft: 0, marginRight: 24 }
-                    }
-
-                    const rawColor = t.colorKey || t.color
-                    const formatted = rawColor
-                      ? rawColor.startsWith('#')
-                        ? rawColor
-                        : `#${rawColor}`
-                      : null
-
-                    const baseColor =
-                      !formatted || formatted.toUpperCase() === '#FFFFFF'
-                        ? '#8B5CF6'
-                        : formatted
-
-                    const bgWithOpacity =
-                      baseColor.length === 7 ? `${baseColor}26` : baseColor
-
-                    return (
-                      <View
-                        key={t.id ?? i}
-                        style={[
-                          S.chip,
-                          marginStyle,
-                          {
-                            backgroundColor: bgWithOpacity,
-                            borderTopLeftRadius: isStart ? 6 : 0,
-                            borderBottomLeftRadius: isStart ? 6 : 0,
-                            borderTopRightRadius: isEnd ? 6 : 0,
-                            borderBottomRightRadius: isEnd ? 6 : 0,
-                          },
-                        ]}
-                      >
-                        {isStart && (
-                          <View
-                            style={[S.chipBar, { left: 0, backgroundColor: baseColor }]}
-                          />
-                        )}
-                        {isEnd && (
-                          <View
-                            style={[S.chipBar, { right: 0, backgroundColor: baseColor }]}
-                          />
-                        )}
-
-                        {/* ✅ 내용 */}
-                        <View
-                          style={{
-                            flex: 1,
-                            paddingLeft: isStart ? 14 : 10,
-                            paddingRight: isEnd ? 14 : 10,
-                          }}
-                        >
-                          <Text style={S.chipText} numberOfLines={1}>
-                            {t.title}
-                          </Text>
-                          {t.period && (
-                            <Text
-                              style={[
-                                ts('place'),
-                                { color: '#333333', fontSize: 10, marginTop: 2 },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {t.period}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
+                    return renderScheduleCard(
+                      ev,
+                      `normal-${String(ev.id ?? i)}`,
+                      timeText,
+                      !timeText,
                     )
                   })}
                 </View>
               )}
 
-              <View style={S.divider} />
-              <View style={S.section}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: '600',
-                    color: '#333333',
-                    marginLeft: 24,
-                    marginBottom: 12,
-                    marginTop: -6,
-                  }}
-                >
-                  시간별 일정
-                </Text>
+              {hasAnySchedule && tasks.length > 0 ? <View style={S.divider} /> : null}
 
-                {/* spanEvents) */}
-                {dayData.timeEvents
-                  ?.filter((ev) => ev.startAt && ev.endAt)
-                  .map((ev, i) => (
-                    <View
-                      key={i}
-                      style={[S.card, { backgroundColor: ev.color || '#FFF8F0' }]}
-                    >
-                      <View
-                        style={{
-                          width: 8,
-                          height: '100%',
-                          backgroundColor: ev.color || '#FFD966',
-                          borderTopLeftRadius: 8,
-                          borderBottomLeftRadius: 8,
-                          marginRight: 10,
-                        }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[
-                            ts('daySchedule'),
-                            { fontWeight: '700', color: '#000' },
-                          ]}
-                        >
-                          {ev.title}
-                        </Text>
-                        <Text style={[ts('time'), { color: '#333', marginTop: 3 }]}>
-                          {ev.startAt && ev.endAt
-                            ? formatTimeRange(ev.startAt, ev.endAt)
-                            : '시간 미정'}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-              </View>
-
-              {/* 🧾 Task (시간 미정 일정) */}
               {tasks.length > 0 && (
-                <View style={{ gap: 8 }}>
-                  {tasks.map((task, i) => (
-                    <Pressable
-                      key={i}
-                      onPress={() => toggleTask(i)}
-                      style={[S.taskCard, task.done && S.taskCardDone]}
-                    >
-                      <View style={S.checkboxWrap}>
-                        <View
-                          style={[S.checkbox, task.done ? S.checkboxOn : S.checkboxOff]}
-                        >
-                          {task.done && <Text style={S.checkMark}>✓</Text>}
-                        </View>
-                      </View>
-
-                      <Text
-                        style={[S.taskText, task.done && S.taskTextDone]}
-                        numberOfLines={1}
-                      >
-                        {task.title}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-
-              {/* DnD Events */}
-              {dayData.normalEvents && dayData.normalEvents.length > 0 && (
                 <View style={S.section}>
-                  {dayData.normalEvents.map((ev: DayEvent, i: number) => (
-                    <View
-                      key={i}
-                      style={[
-                        S.card,
-                        {
-                          backgroundColor: colors.neutral.surface,
-                        },
-                      ]}
-                    >
-                      {/* 왼쪽 컬러 바 */}
-                      <View
-                        style={{
-                          width: 10,
-                          height: 44,
-                          backgroundColor: ev.color || '#FFD966', // 노란색 기본
-                          marginRight: 10,
-                        }}
+                  <Text style={S.sectionTitle}>할 일</Text>
+                  {tasks.map((task, i) => (
+                    <View key={`task-${String(task.id ?? i)}`} style={S.itemWrap}>
+                      <TaskItemCard
+                        id={String(task.id ?? i)}
+                        title={task.title}
+                        done={!!task.done}
+                        density="day"
+                        layoutWidthHint={DETAIL_ITEM_WIDTH}
+                        style={S.itemCard}
+                        onPress={() => toggleTask(i)}
+                        onToggle={() => toggleTask(i)}
                       />
-
-                      {/* 내용 */}
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[
-                            ts('daySchedule'),
-                            { fontSize: 11, fontWeight: '600', color: '#000000' },
-                          ]}
-                        >
-                          {ev.title}
-                        </Text>
-                        <Text style={[ts('time'), { color: '#333', marginTop: 3 }]}>
-                          {ev.time?.trim()
-                            ? ev.time
-                            : ev.startAt && ev.endAt
-                              ? formatTimeRange(ev.startAt, ev.endAt)
-                              : '시간 미정'}
-                        </Text>
-                      </View>
                     </View>
                   ))}
                 </View>
@@ -556,6 +388,23 @@ const S = StyleSheet.create({
     marginTop: 8,
     gap: 8,
   },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.text1,
+    marginLeft: 24,
+    marginBottom: 4,
+  },
+  itemWrap: {
+    width: DETAIL_ITEM_WIDTH,
+    alignSelf: 'center',
+  },
+  itemCard: {
+    width: DETAIL_ITEM_WIDTH,
+    height: DETAIL_ITEM_HEIGHT,
+    minHeight: 0,
+    borderRadius: DETAIL_ITEM_RADIUS,
+  },
 
   chip: {
     position: 'relative',
@@ -582,11 +431,11 @@ const S = StyleSheet.create({
   },
 
   divider: {
-    height: 0.5,
-    backgroundColor: '#333333',
+    height: 0.7,
+    backgroundColor: colors.divider.divider1,
     marginHorizontal: 7,
-    marginTop: 12,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 7,
   },
 
   card: {
