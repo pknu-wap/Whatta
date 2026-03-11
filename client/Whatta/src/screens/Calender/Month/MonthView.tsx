@@ -82,6 +82,7 @@ const dedupeSchedules = (items: UISchedule[]) => {
 
 export default function MonthView() {
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
+  const [, setColorSetVersion] = useState(0)
 
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
@@ -112,6 +113,12 @@ export default function MonthView() {
       bus.on('popup:schedule:create', h)
       return () => bus.off('popup:schedule:create', h)
     }, [])
+
+  useEffect(() => {
+    const onColorSetChanged = () => setColorSetVersion((v) => v + 1)
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
+  }, [])
 
   // 캘린더 동기화 hooks
   const [focusedDateISO, setFocusedDateISO] = useState<string>(today())

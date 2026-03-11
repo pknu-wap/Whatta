@@ -1011,6 +1011,7 @@ const {
   }, [])
 
   const [anchorDate, setAnchorDate] = useState(todayISO())
+  const [, setColorSetVersion] = useState(0)
   const anchorDateRef = useRef(anchorDate)
   const [isZoomed, setIsZoomed] = useState(false)
   useEffect(() => {
@@ -1128,6 +1129,12 @@ const {
 
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
+  }, [])
+
+  useEffect(() => {
+    const onColorSetChanged = () => setColorSetVersion((v) => v + 1)
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
   }, [])
 
   useEffect(() => {

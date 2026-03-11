@@ -28,7 +28,12 @@ import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
 import { http } from '@/lib/http'
 import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
-import { getScheduleColorSet, resolveSlotIndex, slotKey } from '@/styles/scheduleColorSets'
+import {
+  getActiveScheduleColorSetId,
+  getScheduleColorSet,
+  resolveSlotIndex,
+  slotKey,
+} from '@/styles/scheduleColorSets'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -269,8 +274,7 @@ export default function EventDetailPopup({
   const [start, setStart] = useState(new Date())
 
   const buildBasePayload = () => {
-    const colorIndex = resolveSlotIndex(selectedColor)
-    const key = slotKey(colorIndex)
+    const key = slotKey(selectedSlot)
     const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
 
     const base = {
@@ -502,9 +506,23 @@ export default function EventDetailPopup({
   const close = () => onClose()
 
   /** 색상 */
-  const COLORS = getScheduleColorSet('basic') as readonly string[]
-  const [selectedColor, setSelectedColor] = useState<string>(COLORS[0])
+  const [activeSetId, setActiveSetId] = useState(getActiveScheduleColorSetId())
+  const COLORS = React.useMemo(
+    () => getScheduleColorSet(activeSetId) as readonly string[],
+    [activeSetId],
+  )
+  const [selectedSlot, setSelectedSlot] = useState(0)
+  const selectedColor = COLORS[selectedSlot] ?? COLORS[0]
   const [showPalette, setShowPalette] = useState(false)
+
+  useEffect(() => {
+    const onColorSetChanged = (payload?: { setId?: string }) => {
+      const nextSetId = (payload?.setId as any) ?? getActiveScheduleColorSetId()
+      setActiveSetId(nextSetId)
+    }
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
+  }, [])
 
   // 라벨
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([])
@@ -1108,8 +1126,8 @@ export default function EventDetailPopup({
         setScheduleTitle(ev.title ?? '')
         setMemo(ev.content ?? '')
         setSelectedLabelIds(ev.labels ?? [])
-        const idx = resolveSlotIndex(ev.colorKey)
-        setSelectedColor(COLORS[idx] ?? COLORS[0])
+        const idx = resolveSlotIndex(ev.colorKey, activeSetId)
+        setSelectedSlot(idx)
         setEventData(ev)
       } catch (err) {
         if (cancelled) return
@@ -1121,7 +1139,7 @@ export default function EventDetailPopup({
     return () => {
       cancelled = true
     }
-  }, [visible, mode, eventId, initial?.startDate]) // 발생일 변경 때만 재조회
+  }, [visible, mode, eventId, initial?.startDate, activeSetId]) // 발생일 변경 때만 재조회
 
 
   useEffect(() => {
@@ -1134,7 +1152,7 @@ export default function EventDetailPopup({
       const defaultLabel = labels.find((l) => l.title === '일정')
       setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
 
-      setSelectedColor(COLORS[0])
+      setSelectedSlot(0)
 
       const today = new Date()
       setStart(today)
@@ -1410,17 +1428,17 @@ export default function EventDetailPopup({
                   {/* 색상 선택 */}
                   {showPalette && (
                     <View style={styles.paletteRow}>
-                      {COLORS.map((c) => (
+                      {COLORS.map((c, i) => (
                         <Pressable
-                          key={c}
+                          key={`${c}-${i}`}
                           onPress={() => {
-                            setSelectedColor(c)
+                            setSelectedSlot(i)
                             setShowPalette(false)
                           }}
                           style={[
                             styles.colorOption,
                             { backgroundColor: c },
-                            selectedColor === c && styles.selected,
+                            selectedSlot === i && styles.selected,
                           ]}
                         />
                       ))}
@@ -2361,11 +2379,11 @@ export default function EventDetailPopup({
                       ]}
                     >
                       <Text style={styles.popoverTitle}>색상</Text>
-                      {COLORS.map((c) => (
+                      {COLORS.map((c, i) => (
                         <Pressable
                           key={c}
                           onPress={() => {
-                            setSelectedColor(c)
+                            setSelectedSlot(i)
                             setPalette((p) => ({ ...p, visible: false }))
                           }}
                           style={[styles.colorPill, { backgroundColor: c }]}

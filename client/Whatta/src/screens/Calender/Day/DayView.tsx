@@ -125,6 +125,7 @@ export default function DayView() {
   const isFocused = useIsFocused()
 
   const [anchorDate, setAnchorDate] = useState<string>(today())
+  const [, setColorSetVersion] = useState(0)
 
   const { swipeGesture, swipeStyle } =
   useDaySwipe(setAnchorDate)
@@ -191,6 +192,12 @@ const {
 
     bus.on('popup:schedule:create', h)
     return () => bus.off('popup:schedule:create', h)
+  }, [])
+
+  useEffect(() => {
+    const onColorSetChanged = () => setColorSetVersion((v) => v + 1)
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
   }, [])
 
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
