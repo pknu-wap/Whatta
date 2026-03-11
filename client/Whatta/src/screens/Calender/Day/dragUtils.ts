@@ -75,6 +75,8 @@ export function useDayDrag({
             placementTime: null,
           })
 
+          bus.emit('sidebar:remove-task', { id })
+
           bus.emit('calendar:mutated', {
             op: 'update',
             item: { id, isTask: true, date: dateISO },
@@ -98,6 +100,8 @@ export function useDayDrag({
             placementDate: dateISO,
             placementTime: `${hh}:${mm}:00`,
           })
+
+          bus.emit('sidebar:remove-task', { id })
 
           bus.emit('calendar:mutated', {
             op: 'update',
