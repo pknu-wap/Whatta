@@ -115,8 +115,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    borderWidth: 0.5,
-    borderColor: colors.divider.divider1,
   },
   colorPaletteBox: {
     width: 320,
@@ -124,7 +122,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     position: 'absolute',
-    top: 58,
+    top: 42, // 팔레트 높이
     left: 15,
     zIndex: 30,
     shadowColor: '#A4ADB2',

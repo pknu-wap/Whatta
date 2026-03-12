@@ -67,7 +67,7 @@ export const SCHEDULE_COLOR_SET_IDS = Object.keys(
   SCHEDULE_COLOR_SETS,
 ) as ScheduleColorSetId[]
 
-export const DEFAULT_SET: ScheduleColorSetId = 'basic'
+export const DEFAULT_SET: ScheduleColorSetId = 'set2'
 export const MAX_SCHEDULE_COLOR_SLOTS = SCHEDULE_COLOR_SETS[DEFAULT_SET].length
 let activeScheduleColorSetId: ScheduleColorSetId = DEFAULT_SET
 const resolvedColorCache = new Map<string, string>()
