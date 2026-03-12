@@ -37,16 +37,25 @@ public class BusFavoriteService {
 
             return BusFavoriteResponse.fromEntity(favorite);
         }
-        else {
-            BusFavorite favorite = BusFavorite.builder()
-                    .userId(userId)
-                    .busStationId(request.busStationId())
-                    .busStationName(request.busStationName())
-                    .busRouteId(request.busRouteId())
-                    .busRouteNo(request.busRouteNo())
-                    .build();
+
+        BusFavorite favorite = BusFavorite.builder()
+                .userId(userId)
+                .busStationId(request.busStationId())
+                .busStationName(request.busStationName())
+                .busRouteId(request.busRouteId())
+                .busRouteNo(request.busRouteNo())
+                .build();
+        try {
             BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
             return BusFavoriteResponse.fromEntity(savedFavorite);
+        } catch (DuplicateKeyException e) {
+            BusFavorite duplicatedFavorite = busFavoriteRepository.findByUserIdAndBusStationIdAndBusRouteId(
+                    userId,
+                    request.busStationId(),
+                    request.busRouteId()
+            ).orElseThrow(() -> e);
+            log.info("즐겨찾기 중복 삽입 레이스 감지: 기존 ID({})를 반환합니다.", duplicatedFavorite.getId());
+            return BusFavoriteResponse.fromEntity(duplicatedFavorite);
         }
     }
 
