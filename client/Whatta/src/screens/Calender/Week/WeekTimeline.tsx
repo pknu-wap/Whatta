@@ -22,6 +22,7 @@ type WeekTimelineProps = {
   todayISO: string
   nowTop: number | null
   dayColWidth: number
+  labelTitleById: Record<string, string>
   getTaskTime: (task: any) => string
   openEventDetail: (id: string, occDate?: string) => void
   openTaskPopupFromApi: (taskId: string) => void
@@ -105,6 +106,7 @@ function WeekTimeline({
   todayISO,
   nowTop,
   dayColWidth,
+  labelTitleById,
   getTaskTime,
   openEventDetail,
   openTaskPopupFromApi,
@@ -165,6 +167,16 @@ function WeekTimeline({
                 acc[timeKey] = acc[timeKey] ? [...acc[timeKey], t] : [t]
                 return acc
               }, {})
+              const getEventSubText = (ev: any) => {
+                const place = String(ev?.place ?? '').trim()
+                if (place) return place
+
+                const names = (ev?.labels ?? [])
+                  .map((id: number | string) => labelTitleById[String(id)])
+                  .filter((name: string | undefined): name is string => !!name && name.trim().length > 0)
+
+                return names.length ? names.join(', ') : ''
+              }
 
               const taskBlocks: TaskVisualBlock[] = []
               for (const [timeKey, group] of Object.entries(groupedTasks)) {
@@ -218,7 +230,7 @@ function WeekTimeline({
                       key={`ev-${ev.id}-${i}`}
                       id={ev.id}
                       title={ev.title}
-                      labelText={ev.place ?? ''}
+                      labelText={getEventSubText(ev)}
                       startMin={ev.startMin}
                       endMin={ev.endMin}
                       color={ev.color}

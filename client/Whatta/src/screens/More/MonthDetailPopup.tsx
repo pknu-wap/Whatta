@@ -6,27 +6,34 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Dimensions,
   Animated,
+  TextInput,
 } from 'react-native'
-import colors from '@/styles/colors'
 import { Easing } from 'react-native'
+import colors from '@/styles/colors'
+import { ts } from '@/styles/typography'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
-import { useNavigation } from '@react-navigation/native'
+import DownL from '@/assets/icons/drop_down.svg'
+import XIcon from '@/assets/icons/x.svg'
+import PlusBtn from '@/assets/icons/plusbtn.svg'
+import CalendarModal from '@/components/CalendarModal'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 
-const { width, height } = Dimensions.get('window')
 const DETAIL_ITEM_WIDTH = 302
-const DETAIL_ITEM_HEIGHT = 50
+const DETAIL_RIGHT_EXTENSION = 24
+const DETAIL_ITEM_HEIGHT = 60
+const QUICK_INPUT_HEIGHT = 50
 const DETAIL_ITEM_RADIUS = 12
 
 export interface DayEvent {
+  id?: string | number
   title: string
+  labelText?: string
   period?: string
   memo?: string
   place?: string
@@ -34,13 +41,13 @@ export interface DayEvent {
   color?: string
   borderColor?: string
   colorKey?: string
-  id?: string | number
   isStart?: boolean
   isEnd?: boolean
   startAt?: string
   endAt?: string
   done?: boolean
   isRecurring?: boolean
+  isTask?: boolean
 }
 
 interface MonthlyDetailPopupProps {
@@ -52,60 +59,75 @@ interface MonthlyDetailPopupProps {
     dayOfWeek?: string
     spanEvents?: DayEvent[]
     normalEvents?: DayEvent[]
+    timedScheduleEvents?: DayEvent[]
+    untimedTasks?: DayEvent[]
+    timedTasks?: DayEvent[]
     timeEvents?: DayEvent[]
   }
 }
+
+const hasTime = (ev: DayEvent) => {
+  if (ev?.time && String(ev.time).trim().length > 0) return true
+  return !!ev?.startAt && !!ev?.endAt
+}
+
+const WEEK_KO = ['일', '월', '화', '수', '목', '금', '토'] as const
+
+const buildHeaderTitle = (dayData: MonthlyDetailPopupProps['dayData']) => {
+  const rawDate = dayData.date?.trim()
+  const rawDow = dayData.dayOfWeek?.trim()
+  if (rawDate && rawDow) return `${rawDate}(${rawDow})`
+
+  const iso = dayData.dateISO
+  if (!iso || iso.length < 10) return ''
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const dt = new Date(y, m - 1, d)
+  return `${m}월 ${d}일(${WEEK_KO[dt.getDay()]})`
+}
+
+const toStartMinutes = (ev: DayEvent) => {
+  if (ev.startAt && ev.startAt.includes('T')) {
+    const hm = ev.startAt.split('T')[1]?.slice(0, 5) ?? ''
+    const [h, m] = hm.split(':').map(Number)
+    if (Number.isFinite(h) && Number.isFinite(m)) return h * 60 + m
+  }
+
+  const raw = (ev.time ?? '').trim()
+  if (!raw) return Number.MAX_SAFE_INTEGER
+
+  const direct = raw.match(/(\d{1,2}):(\d{2})/)
+  if (direct) {
+    let h = Number(direct[1])
+    const m = Number(direct[2])
+    if (raw.includes('오후') && h < 12) h += 12
+    if (raw.includes('오전') && h === 12) h = 0
+    if (Number.isFinite(h) && Number.isFinite(m)) return h * 60 + m
+  }
+
+  return Number.MAX_SAFE_INTEGER
+}
+
+const toISODate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const todayISO = () => toISODate(new Date())
 
 export default function MonthlyDetailPopup({
   visible,
   onClose,
   dayData,
 }: MonthlyDetailPopupProps) {
-  const nav = useNavigation<any>()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
-  const scaleAnim = React.useRef(new Animated.Value(0.95)).current
+  const scaleAnim = React.useRef(new Animated.Value(0.96)).current
   const [isVisible, setIsVisible] = React.useState(visible)
+  const [taskDoneMap, setTaskDoneMap] = React.useState<Record<string, boolean>>({})
+  const [quickTitle, setQuickTitle] = React.useState('')
+  const [quickSaving, setQuickSaving] = React.useState(false)
+  const [quickCreatedUntimed, setQuickCreatedUntimed] = React.useState<DayEvent[]>([])
+  const [calendarVisible, setCalendarVisible] = React.useState(false)
 
-  // ✅ 시간 미정 Task 상태 관리
-  const [tasks, setTasks] = React.useState<DayEvent[]>([])
-
-  React.useEffect(() => {
-    if (dayData.timeEvents) {
-      setTasks(
-        dayData.timeEvents
-          .filter((ev) => !ev.startAt && !ev.endAt)
-          .map((ev) => ({ ...ev, done: ev.done ?? false })),
-      )
-    }
-  }, [dayData])
-
-  const toggleTask = async (idx: number) => {
-    const task = tasks[idx]
-    if (!task.id) return
-
-    const nextDone = !task.done
-
-    // 1. UI 즉시 반영
-    setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: nextDone } : t)))
-
-    // 2. 서버 요청 & 이벤트 발행
-    try {
-      await http.patch(`/task/${task.id}`, {
-        completed: nextDone,
-      })
-
-      bus.emit('calendar:mutated', {
-        op: 'update',
-        item: { id: task.id, isTask: true, isCompleted: nextDone },
-      })
-    } catch (e) {
-      console.error('Task toggle failed:', e)
-      setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !nextDone } : t)))
-    }
-  }
-
-  // ✅ 애니메이션 지속 시간 늘리기
-  const ANIM_DURATION = 450
+  const ANIM_DURATION = 260
 
   React.useEffect(() => {
     if (visible) {
@@ -119,52 +141,99 @@ export default function MonthlyDetailPopup({
         }),
         Animated.spring(scaleAnim, {
           toValue: 1,
-          friction: 7,
-          tension: 50,
+          friction: 8,
+          tension: 65,
           useNativeDriver: true,
         }),
       ]).start()
-    } else {
-      // ✅ 닫힘 애니메이션 (살짝 느리게)
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: ANIM_DURATION + 100,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.92,
-          duration: ANIM_DURATION + 100,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        // 애니 끝난 후 unmount
-        setIsVisible(false)
-      })
+      return
     }
-  }, [visible])
 
-  if (!isVisible) return null
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: ANIM_DURATION,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.96,
+        duration: ANIM_DURATION,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(() => setIsVisible(false))
+  }, [visible, fadeAnim, scaleAnim])
 
-  const handleHeaderDatePress = () => {
-    const iso = dayData.dateISO
-    if (!iso) return
-    nav.navigate('Day')
-    onClose()
+  const spanEvents = dayData.spanEvents ?? []
+  const normalEvents = dayData.normalEvents ?? []
+  const timedScheduleEvents = dayData.timedScheduleEvents ?? []
+
+  const legacyTimeEvents = dayData.timeEvents ?? []
+  const fallbackUntimedTasks = React.useMemo(
+    () => legacyTimeEvents.filter((ev) => !hasTime(ev)),
+    [legacyTimeEvents],
+  )
+  const fallbackTimedTasks = React.useMemo(
+    () => legacyTimeEvents.filter((ev) => hasTime(ev)),
+    [legacyTimeEvents],
+  )
+
+  const untimedTasks = dayData.untimedTasks ?? fallbackUntimedTasks
+  const timedTasks = dayData.timedTasks ?? fallbackTimedTasks
+  const headerTitle = React.useMemo(() => buildHeaderTitle(dayData), [dayData])
+  const untimedDisplayEvents = React.useMemo(
+    () => [...normalEvents, ...quickCreatedUntimed],
+    [normalEvents, quickCreatedUntimed],
+  )
+  const timedMerged = React.useMemo(() => {
+    const merged = [
+      ...timedScheduleEvents.map((ev) => ({ kind: 'schedule' as const, ev })),
+      ...timedTasks.map((ev) => ({ kind: 'task' as const, ev })),
+    ]
+    return merged.sort((a, b) => toStartMinutes(a.ev) - toStartMinutes(b.ev))
+  }, [timedScheduleEvents, timedTasks])
+
+  React.useEffect(() => {
+    if (!visible) return
+    const next: Record<string, boolean> = {}
+    ;[...untimedTasks, ...timedTasks].forEach((task) => {
+      if (task.id == null) return
+      next[String(task.id)] = !!task.done
+    })
+    setTaskDoneMap(next)
+  }, [visible, dayData.dateISO])
+
+  React.useEffect(() => {
+    if (!visible) return
+    setQuickTitle('')
+    setQuickCreatedUntimed([])
+  }, [visible, dayData.dateISO])
+
+  const toggleTask = async (task: DayEvent) => {
+    if (task.id == null) return
+    const id = String(task.id)
+    const nextDone = !(taskDoneMap[id] ?? !!task.done)
+
+    setTaskDoneMap((prev) => ({ ...prev, [id]: nextDone }))
+
+    try {
+      await http.patch(`/task/${id}`, { completed: nextDone })
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: { id, isTask: true, isCompleted: nextDone },
+      })
+    } catch (e) {
+      console.error('Task toggle failed:', e)
+      setTaskDoneMap((prev) => ({ ...prev, [id]: !nextDone }))
+    }
   }
 
-  // ✅ ISO 시간 변환 함수
   const formatTimeRange = (startAt?: string, endAt?: string) => {
     if (!startAt || !endAt) return ''
-    try {
-      const start = startAt.split('T')[1]?.slice(0, 5) ?? ''
-      const end = endAt.split('T')[1]?.slice(0, 5) ?? ''
-      return `${start}~${end}`
-    } catch {
-      return ''
-    }
+    const start = startAt.split('T')[1]?.slice(0, 5) ?? ''
+    const end = endAt.split('T')[1]?.slice(0, 5) ?? ''
+    return start && end ? `${start}~${end}` : ''
   }
 
   const normalizeColor = (rawColor?: string, fallback = '#8B5CF6') => {
@@ -180,7 +249,11 @@ export default function MonthlyDetailPopup({
   ) => {
     const color = normalizeColor(ev.colorKey || ev.color, '#8B5CF6')
     const ScheduleCard = ev.isRecurring ? RepeatScheduleCard : FixedScheduleCard
-    const subText = isUntimed ? undefined : ev.isRecurring ? timeText : (ev.place ?? '')
+    const subText = isUntimed
+      ? undefined
+      : ev.isRecurring
+      ? timeText || ev.time?.trim() || ev.labelText?.trim() || ''
+      : ev.labelText?.trim() || timeText || ev.time?.trim() || ev.place?.trim() || ev.memo?.trim() || ''
 
     return (
       <View key={key} style={S.itemWrap}>
@@ -191,7 +264,13 @@ export default function MonthlyDetailPopup({
           density="day"
           isUntimed={isUntimed}
           timeRangeText={subText}
-          style={S.itemCard}
+          style={
+            isUntimed
+              ? S.itemCard
+              : ev.isRecurring
+              ? S.itemCardRepeat
+              : S.itemCardTimed
+          }
         />
       </View>
     )
@@ -203,7 +282,11 @@ export default function MonthlyDetailPopup({
     const [rawStart, rawEnd] = (ev.period ?? '').split('~').map((v) => v.trim())
     const startISO = rawStart || fallbackISO
     const endISO = rawEnd || startISO || fallbackISO
-    const periodText = ev.period || (fallbackISO ? `${fallbackISO}~${fallbackISO}` : undefined)
+    const selectedISO = fallbackISO
+
+    const isStart = !!startISO && selectedISO === startISO
+    const isEnd = !!endISO && selectedISO === endISO
+    const spanWidth = isEnd ? DETAIL_ITEM_WIDTH : DETAIL_ITEM_WIDTH + DETAIL_RIGHT_EXTENSION
 
     return (
       <View key={key} style={S.itemWrap}>
@@ -213,112 +296,213 @@ export default function MonthlyDetailPopup({
           color={color}
           startISO={startISO}
           endISO={endISO}
-          isStart
-          isEnd
+          isStart={isStart}
+          isEnd={isEnd}
           density="day"
-          isUntimed={!periodText}
-          timeRangeText={periodText}
+          isUntimed
           radiusOverride={DETAIL_ITEM_RADIUS}
           capWidthOverride={DETAIL_ITEM_RADIUS}
-          style={S.itemCard}
+          style={[S.itemCard, { width: spanWidth }]}
         />
       </View>
     )
   }
 
-  const spanEvents = dayData.spanEvents ?? []
-  const recurringEvents = (dayData.normalEvents ?? []).filter((ev) => !!ev.isRecurring)
-  const basicEvents = (dayData.normalEvents ?? []).filter((ev) => !ev.isRecurring)
-  const hasAnySchedule = spanEvents.length > 0 || recurringEvents.length > 0 || basicEvents.length > 0
+  const renderTaskCard = (task: DayEvent, key: string) => {
+    const id = task.id == null ? key : String(task.id)
+    const done = taskDoneMap[id] ?? !!task.done
+
+    return (
+      <View key={key} style={S.itemWrap}>
+        <TaskItemCard
+          id={id}
+          title={task.title}
+          done={done}
+          density="day"
+          layoutWidthHint={DETAIL_ITEM_WIDTH}
+          style={S.itemCard}
+          onPress={() => toggleTask(task)}
+          onToggle={() => toggleTask(task)}
+        />
+      </View>
+    )
+  }
+
+  const submitQuickAdd = async () => {
+    const title = quickTitle.trim()
+    const iso = dayData.dateISO?.slice(0, 10)
+    if (!title || !iso || quickSaving) return
+
+    setQuickSaving(true)
+    try {
+      const res = await http.post('/event', {
+        title,
+        content: '',
+        labels: [],
+        startDate: iso,
+        endDate: iso,
+        startTime: null,
+        endTime: null,
+        repeat: null,
+        colorKey: 'C00',
+      })
+      const newId =
+        res.data?.data?.id ??
+        res.data?.data?._id ??
+        res.data?.id ??
+        res.data?._id
+
+      setQuickCreatedUntimed((prev) => [
+        ...prev,
+        {
+          id: String(newId ?? `quick-${Date.now()}`),
+          title,
+          isRecurring: false,
+          colorKey: 'C00',
+          color: resolveScheduleColor('C00'),
+        },
+      ])
+      setQuickTitle('')
+
+      bus.emit('calendar:mutated', {
+        op: 'create',
+        item: {
+          id: newId,
+          isTask: false,
+          startDate: iso,
+          endDate: iso,
+          date: iso,
+        },
+      })
+    } catch (e) {
+      console.error('quick add event failed:', e)
+    } finally {
+      setQuickSaving(false)
+    }
+  }
+
+  const selectCalendarDate = React.useCallback(
+    (iso: string) => {
+      bus.emit('calendar:set-date', iso)
+      setCalendarVisible(false)
+      onClose()
+    },
+    [onClose],
+  )
+
+  if (!isVisible) return null
 
   return (
-    <Modal transparent visible={visible} animationType="none">
+    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
       <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
         <Pressable onPress={(e) => e.stopPropagation()}>
-          <Animated.View style={[S.container, { transform: [{ scale: scaleAnim }] }]}>
-            {/* Header */}
-            <View style={S.header}>
-              <View style={S.headerInner}>
-                <Pressable onPress={handleHeaderDatePress}>
-                  <Text style={[S.headerText]}>
-                    {dayData.date} ({dayData.dayOfWeek})
-                  </Text>
+          <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
+            <View style={S.container}>
+              <View style={S.headerRow}>
+                <Pressable style={S.headerLeft} onPress={() => setCalendarVisible(true)}>
+                  <Text style={S.headerText}>{headerTitle}</Text>
+                  <View style={S.headerDownIconWrap}>
+                    <DownL width={24} height={24} color={colors.icon.default} />
+                  </View>
                 </Pressable>
-                {/* 커스텀 X 아이콘 */}
-                <Pressable onPress={onClose} hitSlop={10} style={S.closeWrap}>
-                  <View style={S.closeLine1} />
-                  <View style={S.closeLine2} />
-                </Pressable>
+                <View style={S.headerRightGroup}>
+                  <Pressable
+                    style={S.todayBtn}
+                    onPress={() => {
+                      selectCalendarDate(todayISO())
+                    }}
+                  >
+                    <Text style={S.todayBtnText}>Today</Text>
+                  </Pressable>
+                  <Pressable onPress={onClose} hitSlop={10} style={S.headerRightIconWrap}>
+                    <XIcon width={13} height={13} color={colors.icon.default} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <ScrollView
+                style={S.scroll}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={S.scrollContent}
+              >
+                {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
+
+                {untimedDisplayEvents.map((ev, i) =>
+                  renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
+                )}
+
+                {untimedTasks.map((task, i) =>
+                  renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
+                )}
+
+                <View style={S.divider} />
+                <Text style={S.sectionTitle}>시간별 일정</Text>
+
+                {timedMerged.map((item, i) => {
+                  if (item.kind === 'task') {
+                    return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
+                  }
+                  const ev = item.ev
+                  const timeText = ev.time?.trim()
+                    ? ev.time
+                    : ev.startAt && ev.endAt
+                    ? formatTimeRange(ev.startAt, ev.endAt)
+                    : undefined
+
+                  return renderScheduleCard(
+                    ev,
+                    `timed-${String(ev.id ?? i)}`,
+                    timeText,
+                    false,
+                  )
+                })}
+              </ScrollView>
+
+              <View style={S.bottomReserved} />
+              <View style={S.quickInputWrap}>
+                <View style={S.quickInputBox}>
+                  <Pressable
+                    onPress={submitQuickAdd}
+                    hitSlop={8}
+                    disabled={quickSaving}
+                    style={S.quickPlusBtn}
+                  >
+                    <PlusBtn width={18} height={18} color={colors.icon.default} />
+                  </Pressable>
+                  <TextInput
+                    value={quickTitle}
+                    onChangeText={setQuickTitle}
+                    placeholder="일정 제목을 입력하세요..."
+                    placeholderTextColor={colors.brand.primary}
+                    style={S.quickInput}
+                    returnKeyType="done"
+                    onSubmitEditing={submitQuickAdd}
+                    editable={!quickSaving}
+                    blurOnSubmit={false}
+                  />
+                </View>
               </View>
             </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 28 }}
-            >
-              {hasAnySchedule && (
-                <View style={S.section}>
-                  <Text style={S.sectionTitle}>일정</Text>
-                  {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
-
-                  {recurringEvents.map((ev, i) => {
-                    const timeText = ev.time?.trim()
-                      ? ev.time
-                      : ev.startAt && ev.endAt
-                      ? formatTimeRange(ev.startAt, ev.endAt)
-                      : undefined
-
-                    return renderScheduleCard(
-                      ev,
-                      `repeat-${String(ev.id ?? i)}`,
-                      timeText,
-                      !timeText,
-                    )
-                  })}
-
-                  {basicEvents.map((ev, i) => {
-                    const timeText = ev.time?.trim()
-                      ? ev.time
-                      : ev.startAt && ev.endAt
-                        ? formatTimeRange(ev.startAt, ev.endAt)
-                        : undefined
-
-                    return renderScheduleCard(
-                      ev,
-                      `normal-${String(ev.id ?? i)}`,
-                      timeText,
-                      !timeText,
-                    )
-                  })}
-                </View>
-              )}
-
-              {hasAnySchedule && tasks.length > 0 ? <View style={S.divider} /> : null}
-
-              {tasks.length > 0 && (
-                <View style={S.section}>
-                  <Text style={S.sectionTitle}>할 일</Text>
-                  {tasks.map((task, i) => (
-                    <View key={`task-${String(task.id ?? i)}`} style={S.itemWrap}>
-                      <TaskItemCard
-                        id={String(task.id ?? i)}
-                        title={task.title}
-                        done={!!task.done}
-                        density="day"
-                        layoutWidthHint={DETAIL_ITEM_WIDTH}
-                        style={S.itemCard}
-                        onPress={() => toggleTask(i)}
-                        onToggle={() => toggleTask(i)}
-                      />
-                    </View>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
           </Animated.View>
         </Pressable>
       </Animated.View>
+      <CalendarModal
+        visible={calendarVisible}
+        onClose={() => setCalendarVisible(false)}
+        currentDate={dayData.dateISO ?? ''}
+        modalTopOffset={220}
+        onSelectDate={selectCalendarDate}
+        onPressToday={() => selectCalendarDate(todayISO())}
+        autoConfirmOnDayPress
+        showCalendarActions={false}
+        pickerContentHeight={286}
+        initialOpenMode="calendar"
+        pickerConfirmVariant="icon"
+        showPickerCancel
+        pickerActionsLift={0}
+      />
     </Modal>
   )
 }
@@ -328,78 +512,87 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000B2',
+    backgroundColor: '#FFFFFFB3',
+  },
+  shadowWrap: {
+    width: 350,
+    height: 569,
+    shadowColor: '#8D99A3',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 16,
   },
   container: {
-    width: width * 0.877,
-    maxHeight: height * 0.678,
-    backgroundColor: colors.neutral.surface,
-    borderRadius: 10,
+    width: 350,
+    height: 569,
+    backgroundColor: colors.background.bg1,
+    borderRadius: 20,
     overflow: 'hidden',
   },
-  header: {
-    width: '100%',
-    height: height * 0.071,
-    backgroundColor: '#F7F7F7',
-    paddingTop: 18,
-    paddingBottom: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E6E6E6',
-    justifyContent: 'center',
-  },
-
-  headerInner: {
+  headerRow: {
+    marginTop: 24,
+    paddingHorizontal: 24,
+    height: 32,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-
-  headerText: {
-    fontWeight: '700',
-    fontSize: 16,
-    color: '#000',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 32,
   },
-
-  closeWrap: {
-    width: 24,
-    height: 24,
+  headerText: {
+    ...ts('titleM'),
+    color: colors.text.text1,
+    fontWeight: '700',
+    includeFontPadding: false,
+    lineHeight: ts('titleM').lineHeight,
+    marginRight: 2,
+  },
+  headerDownIconWrap: {
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  closeLine1: {
-    position: 'absolute',
-    width: 14,
-    height: 2,
-    backgroundColor: '#808080',
-    transform: [{ rotate: '45deg' }],
-    borderRadius: 1,
+  headerRightIconWrap: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  closeLine2: {
-    position: 'absolute',
-    width: 14,
-    height: 2,
-    backgroundColor: '#808080',
-    transform: [{ rotate: '-45deg' }],
-    borderRadius: 1,
+  headerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10,
   },
-
-  section: {
-    marginTop: 8,
-    gap: 8,
+  todayBtn: {
+    width: 57,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.divider.divider1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background.bg1,
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text.text1,
-    marginLeft: 24,
-    marginBottom: 4,
+  todayBtnText: {
+    ...ts('label4'),
+    color: colors.text.text2,
+  },
+  scroll: {
+    flex: 1,
+    marginTop: 22,
+  },
+  scrollContent: {
+    paddingBottom: 118,
   },
   itemWrap: {
     width: DETAIL_ITEM_WIDTH,
     alignSelf: 'center',
+    marginBottom: 8,
   },
   itemCard: {
     width: DETAIL_ITEM_WIDTH,
@@ -407,109 +600,76 @@ const S = StyleSheet.create({
     minHeight: 0,
     borderRadius: DETAIL_ITEM_RADIUS,
   },
-
-  chip: {
-    position: 'relative',
-    overflow: 'visible',
-    marginTop: 4,
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+  itemCardTimed: {
+    width: DETAIL_ITEM_WIDTH,
+    height: DETAIL_ITEM_HEIGHT,
+    minHeight: 0,
+    borderRadius: DETAIL_ITEM_RADIUS,
   },
-
-  chipBar: {
-    position: 'absolute',
-    width: 10,
-    top: 0,
-    bottom: 0,
+  itemCardRepeat: {
+    width: DETAIL_ITEM_WIDTH,
+    height: DETAIL_ITEM_HEIGHT,
+    minHeight: 0,
+    borderRadius: DETAIL_ITEM_RADIUS,
   },
-
-  chipText: {
-    color: '#000000',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-
   divider: {
-    height: 0.7,
+    width: 304,
+    height: 1,
     backgroundColor: colors.divider.divider1,
-    marginHorizontal: 7,
-    marginTop: 16,
-    marginBottom: 7,
-  },
-
-  card: {
-    width: '86%',
     alignSelf: 'center',
-    height: 44,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    ...ts('label3'),
+    color: colors.text.text3,
+    marginLeft: 24,
+    marginBottom: 8,
+  },
+  bottomReserved: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 94,
+    backgroundColor: colors.background.bg1,
+    shadowColor: '#A4ADB2',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  quickInputWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 94,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickInputBox: {
+    width: DETAIL_ITEM_WIDTH,
+    height: QUICK_INPUT_HEIGHT,
+    borderRadius: DETAIL_ITEM_RADIUS,
+    borderWidth: 0.5,
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.background.bg1,
     flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#B3B3B3',
-    borderRightWidth: 0,
-    borderLeftWidth: 0,
-    marginHorizontal: '4%',
-  },
-
-  taskCard: {
-    width: '86%',
-    alignSelf: 'center',
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#333333',
-    borderRadius: 10,
     paddingHorizontal: 14,
   },
-  checkboxWrap: {
-    width: 17,
-    height: 17,
-    borderWidth: 2,
-    borderColor: '#333333',
-    borderRadius: 2,
+  quickPlusBtn: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  checkbox: {
-    width: 11,
-    height: 11,
-    borderRadius: 1,
-  },
-  taskText: {
-    fontSize: 12,
-    color: '#333333',
-    fontWeight: '600',
-  },
-  checkboxOff: {
-    width: 18,
-    height: 18,
-    borderColor: '#333',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxOn: {
-    width: 18,
-    height: 18,
-    backgroundColor: '#333333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkMark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  taskCardDone: {
-    backgroundColor: '#FFFFFF',
-  },
-  taskTextDone: {
-    textDecorationLine: 'line-through',
-    fontSize: 12,
+  quickInput: {
+    flex: 1,
+    ...ts('body1'),
+    color: colors.brand.primary,
+    includeFontPadding: false,
   },
 })

@@ -443,6 +443,7 @@ const S = StyleSheet.create({
     backgroundColor: colors.background.bg2,
     borderTopRightRadius: 22,
     padding: 16,
+    paddingTop: 24,
   },
   sectionTitle: {
     ...ts('titleS'),
@@ -453,7 +454,8 @@ const S = StyleSheet.create({
   divider: {
     height: 1.2,
     backgroundColor: colors.divider.divider1,
-    marginVertical: 10,
+    marginTop: 10,
+    marginBottom: 24,
   },
   dragPlaceholder: {
     width: 155,
@@ -473,6 +475,7 @@ const S = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     backgroundColor: 'transparent',
+    opacity: 0.5,
     color: colors.brand.primary,
     fontWeight: 400
   },

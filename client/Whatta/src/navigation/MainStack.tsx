@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Pressable, Dimensions } from 'react-native'
+import { View, Pressable, Dimensions, StyleSheet } from 'react-native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
@@ -18,10 +18,15 @@ import MyPageIcon from '@/assets/icons/mypage.svg'
 import MonthIcon from '@/assets/icons/month.svg'
 import WeekIcon from '@/assets/icons/week.svg'
 import DayIcon from '@/assets/icons/day.svg'
+import PillMonthIcon from '@/assets/icons/pill_month.svg'
+import PiliWeekIcon from '@/assets/icons/pili_week.svg'
+import PillDayIcon from '@/assets/icons/pill_day.svg'
+import PillMypageIcon from '@/assets/icons/pill_mypage.svg'
 import TaskIcon from '@/assets/icons/task.svg'
 import colors from '@/styles/colors'
 
 const TAB_BAR_H = 83
+const TAB_ACTIVE_COLOR = '#464A4D'
 const Tab = createBottomTabNavigator()
 
 type RootStackParamList = {
@@ -148,13 +153,22 @@ export default function MainTabs() {
           }}
           screenOptions={{
             headerShown: false,
+            tabBarBackground: () => <View style={S.tabBarBg} />,
             tabBarStyle: {
               height: TAB_BAR_H,
               paddingTop: 3,
               paddingHorizontal: 10,
+              backgroundColor: colors.background.bg1,
+              borderTopWidth: 0,
+              borderTopColor: 'transparent',
+              shadowColor: '#D2D2D2',
+              shadowOpacity: 0.25,
+              shadowRadius: 15,
+              shadowOffset: { width: 0, height: 0 },
+              elevation: 15,
             },
             tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
-            tabBarActiveTintColor: colors.primary.main,
+            tabBarActiveTintColor: TAB_ACTIVE_COLOR,
             tabBarInactiveTintColor: colors.icon.default,
             tabBarLabelStyle: { fontSize: 12, textAlign: 'center', marginTop: -2 },
             tabBarButton: (p) => <GuardedTabButton {...p} />,
@@ -167,11 +181,11 @@ export default function MainTabs() {
             options={{
               tabBarLabel: '일간',
               tabBarIcon: ({ focused }) => (
-                <DayIcon
-                  width={24}
-                  height={24}
-                  color={focused ? colors.primary.main : colors.icon.default}
-                />
+                focused ? (
+                  <PillDayIcon width={24} height={24} />
+                ) : (
+                  <DayIcon width={24} height={24} color={colors.icon.default} />
+                )
               ),
             }}
           />
@@ -183,11 +197,11 @@ export default function MainTabs() {
             options={{
               tabBarLabel: '주간',
               tabBarIcon: ({ focused }) => (
-                <WeekIcon
-                  width={24}
-                  height={24}
-                  color={focused ? colors.primary.main : colors.icon.default}
-                />
+                focused ? (
+                  <PiliWeekIcon width={24} height={24} />
+                ) : (
+                  <WeekIcon width={24} height={24} color={colors.icon.default} />
+                )
               ),
             }}
           />
@@ -199,30 +213,14 @@ export default function MainTabs() {
             options={{
               tabBarLabel: '월간',
               tabBarIcon: ({ focused }) => (
-                <MonthIcon
-                  width={24}
-                  height={24}
-                  color={focused ? colors.primary.main : colors.icon.default}
-                />
+                focused ? (
+                  <PillMonthIcon width={24} height={24} />
+                ) : (
+                  <MonthIcon width={24} height={24} color={colors.icon.default} />
+                )
               ),
             }}
           />
-
-          {/* ✅ 할 일 관리
-          <Tab.Screen
-            name="Task"
-            component={TaskScreen}
-            options={{
-              tabBarLabel: '할 일 관리',
-              tabBarIcon: ({ focused }) => (
-                <TaskIcon
-                  width={24}
-                  height={24}
-                  color={focused ? colors.primary.main : colors.icon.default}
-                />
-              ),
-            }}
-          /> */}
 
           {/* ✅ 마이페이지 */}
           <Tab.Screen
@@ -231,11 +229,11 @@ export default function MainTabs() {
             options={{
               tabBarLabel: '마이페이지',
               tabBarIcon: ({ focused }) => (
-                <MyPageIcon
-                  width={24}
-                  height={24}
-                  color={focused ? colors.primary.main : colors.icon.default}
-                />
+                focused ? (
+                    <PillMypageIcon width={24} height={24} />
+                 ) : (
+                    <MyPageIcon width={24} height={24} color={colors.icon.default}/>
+                 )
               ),
             }}
           />
@@ -247,7 +245,7 @@ export default function MainTabs() {
             bottomOffset={TAB_BAR_H + insets.bottom - 36}
             rightOffset={20}
             onPressTop1={() => {
-              bus.emit('task:create', { source: activeTab })
+              bus.emit('popup:schedule:create', { source: activeTab, createType: 'task' })
             }}
             onPressTop2={() => {
               bus.emit('popup:image:create', { source: activeTab })
@@ -261,3 +259,12 @@ export default function MainTabs() {
     </DrawerProvider>
   )
 }
+
+const S = StyleSheet.create({
+  tabBarBg: {
+    flex: 1,
+    backgroundColor: colors.background.bg1,
+    borderTopWidth: 0,
+    borderTopColor: 'transparent',
+  },
+})

@@ -5,7 +5,6 @@ import {
   Modal,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
   TouchableWithoutFeedback,
 } from 'react-native'
 import { CalendarList, LocaleConfig, DateData } from 'react-native-calendars'
@@ -16,16 +15,13 @@ import Check from '@/assets/icons/check.svg'
 import X from '@/assets/icons/x.svg'
 import { ts } from '@/styles/typography'
 
-const { width } = Dimensions.get('window')
-const CALENDAR_WIDTH = Math.round(width * 0.9 - 20)
-const CALENDAR_HEIGHT = 290
+const CALENDAR_WIDTH = 358
+const CALENDAR_HEIGHT = 286
+const CALENDAR_HEIGHT_SIX_WEEKS = 312
+const MODAL_MAX_HEIGHT = 390
 const ACTIONS_BOTTOM_OFFSET = 19
-const MODAL_MIN_HEIGHT = 290
-const MODAL_CALENDAR_HEIGHT = 340
-const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 356
-const MODAL_CALENDAR_ACTIONS_RESERVED = 20
 const MODAL_ACTIONS_HEIGHT = 56
-const DAY_CELL_SIZE = 26
+const DAY_CELL_SIZE = 36
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -62,6 +58,7 @@ type Props = {
   autoConfirmOnDayPress?: boolean
   showCalendarActions?: boolean
   pickerContentHeight?: number
+  modalTopOffset?: number
 }
 
 const getMonthName = (month: number) => {
@@ -78,7 +75,6 @@ const getWeeksInMonth = (year: number, month: number) => {
   const daysInMonth = new Date(year, month, 0).getDate()
   return Math.ceil((firstDay + daysInMonth) / 7)
 }
-
 export default function CalendarModal({
   visible,
   onClose,
@@ -92,6 +88,7 @@ export default function CalendarModal({
   autoConfirmOnDayPress = false,
   showCalendarActions = true,
   pickerContentHeight = CALENDAR_HEIGHT,
+  modalTopOffset = 110,
 }: Props) {
   const safeCurrentDate =
     typeof currentDate === 'string' && currentDate.length >= 10 ? currentDate : todayISO()
@@ -219,18 +216,13 @@ export default function CalendarModal({
     () => getWeeksInMonth(pickYear, pickMonth) >= 6,
     [pickYear, pickMonth],
   )
-  const modalCalendarHeight = isSixWeekMonth
-    ? MODAL_CALENDAR_HEIGHT_SIX_WEEKS
-    : MODAL_CALENDAR_HEIGHT
+  const displayedCalendarHeight = isSixWeekMonth
+    ? CALENDAR_HEIGHT_SIX_WEEKS
+    : CALENDAR_HEIGHT
   const isCompactHeaderModal = !showCalendarActions
-  const compactCalendarHeight = Math.max(
-    MODAL_MIN_HEIGHT,
-    modalCalendarHeight - MODAL_CALENDAR_ACTIONS_RESERVED,
-  )
-  const fullCalendarHeight = modalCalendarHeight + MODAL_ACTIONS_HEIGHT
   const appliedCalendarHeight = showCalendarActions
-    ? fullCalendarHeight
-    : compactCalendarHeight
+    ? Math.min(MODAL_MAX_HEIGHT, displayedCalendarHeight + MODAL_ACTIONS_HEIGHT + 32)
+    : Math.min(MODAL_MAX_HEIGHT, displayedCalendarHeight + 78)
   const isMonthPickerMode = ymVisible && pickerConfirmVariant === 'move'
 
   const renderExternalHeader = () => {
@@ -265,7 +257,7 @@ export default function CalendarModal({
       statusBarTranslucent
     >
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={S.centeredView}>
+        <View style={[S.centeredView, { marginTop: modalTopOffset }]}>
           <View
             style={[
               S.modalView,
@@ -292,27 +284,37 @@ export default function CalendarModal({
                       isCompactHeaderModal ? YMStayle.ymContentCompactHeader : null,
                     ]}
                   >
-                    <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-                      <Picker
-                        selectedValue={pickYear}
-                        onValueChange={setPickYear}
-                        style={[YMStayle.pickerWrapper, { height: Math.max(160, pickerContentHeight - 70) }]}
-                        itemStyle={{ fontSize: 20, color: '#000' }}
-                      >
-                        {years.map((y) => (
-                          <Picker.Item key={y} label={`${y}년`} value={y} />
-                        ))}
-                      </Picker>
-                      <Picker
-                        selectedValue={pickMonth}
-                        onValueChange={setPickMonth}
-                        style={[YMStayle.pickerWrapper, { height: Math.max(160, pickerContentHeight - 70) }]}
-                        itemStyle={{ fontSize: 20, color: '#000' }}
-                      >
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                          <Picker.Item key={m} label={`${m}월`} value={m} />
-                        ))}
-                      </Picker>
+                    <View style={YMStayle.ymPickersRow}>
+                      <View style={YMStayle.ymPickerCard}>
+                        <Picker
+                          selectedValue={pickYear}
+                          onValueChange={setPickYear}
+                          style={[
+                            YMStayle.pickerWrapper,
+                            { height: Math.max(168, pickerContentHeight - 96) },
+                          ]}
+                          itemStyle={YMStayle.pickerItem}
+                        >
+                          {years.map((y) => (
+                            <Picker.Item key={y} label={`${y}년`} value={y} />
+                          ))}
+                        </Picker>
+                      </View>
+                      <View style={YMStayle.ymPickerCard}>
+                        <Picker
+                          selectedValue={pickMonth}
+                          onValueChange={setPickMonth}
+                          style={[
+                            YMStayle.pickerWrapper,
+                            { height: Math.max(168, pickerContentHeight - 96) },
+                          ]}
+                          itemStyle={YMStayle.pickerItem}
+                        >
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                            <Picker.Item key={m} label={`${m}월`} value={m} />
+                          ))}
+                        </Picker>
+                      </View>
                     </View>
                     {pickerConfirmVariant === 'move' ? (
                       <View
@@ -351,8 +353,8 @@ export default function CalendarModal({
                   </View>
                 </View>
               ) : (
-                <View style={[S.calendarWrap, { height: CALENDAR_HEIGHT }]}>
-                  <CalendarList
+                  <View style={[S.calendarWrap, { height: displayedCalendarHeight }]}>
+                    <CalendarList
                     key={`calendar-list-${calendarKey}`}
                     horizontal={true}
                     pagingEnabled={true}
@@ -360,10 +362,10 @@ export default function CalendarModal({
                     alwaysBounceHorizontal={false}
                     current={currentMonth}
                     calendarWidth={CALENDAR_WIDTH}
-                    calendarHeight={CALENDAR_HEIGHT}
+                    calendarHeight={displayedCalendarHeight}
                     style={{
                       width: CALENDAR_WIDTH,
-                      height: CALENDAR_HEIGHT,
+                      height: displayedCalendarHeight,
                     }}
                     pastScrollRange={24}
                     futureScrollRange={24}
@@ -381,9 +383,14 @@ export default function CalendarModal({
                     theme={
                       {
                         'stylesheet.calendar.header': {
-                          header: { height: 10, opacity: 0 },
+                          header: { height: 0, opacity: 0 },
                           monthText: { fontSize: 0 },
-                          dayHeader: { color: colors.text.text1, marginBottom: 4 },
+                          dayHeader: {
+                            width: DAY_CELL_SIZE,
+                            color: colors.text.text1,
+                            marginBottom: 1,
+                            textAlign: 'center',
+                          },
                           dayTextAtIndex0: { color: colors.text.monday },
                         },
                         textDayHeaderFontSize: ts('date3').fontSize,
@@ -461,16 +468,15 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    marginTop: 110,
   },
   modalView: {
     backgroundColor: '#FFF',
     borderRadius: 20,
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
     paddingTop: 12,
     paddingBottom: 0,
-    width: 358,
-    minHeight: MODAL_MIN_HEIGHT,
+    width: CALENDAR_WIDTH,
+    maxHeight: MODAL_MAX_HEIGHT,
     shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
@@ -480,7 +486,7 @@ const S = StyleSheet.create({
     alignItems: 'center',
   },
   contentColumn: {
-    width: '100%',
+    width: CALENDAR_WIDTH,
     borderRadius: 20,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -503,7 +509,8 @@ const HeaderStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    width: CALENDAR_WIDTH,
+    paddingHorizontal: 0,
     paddingVertical: 8,
     marginTop: 10,
   },
@@ -513,10 +520,9 @@ const HeaderStyles = StyleSheet.create({
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: {
-    ...ts('titleM'),
+    ...ts('label1'),
     color: colors.text.text1,
     marginRight: 6,
-    paddingLeft: 10,
   },
 })
 
@@ -536,15 +542,35 @@ const YMStayle = StyleSheet.create({
   },
   ymContent: {
     flexDirection: 'column',
-    justifyContent: 'center',
-    height: CALENDAR_HEIGHT,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    height: MODAL_MAX_HEIGHT - 44,
+    paddingTop: 8,
   },
   ymContentCompactHeader: {
     justifyContent: 'flex-start',
   },
+  ymPickersRow: {
+    width: CALENDAR_WIDTH,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+  },
+  ymPickerCard: {
+    width: 150,
+    borderRadius: 14,
+    backgroundColor: colors.background.bg1,
+    overflow: 'hidden',
+  },
   pickerWrapper: {
-    width: CALENDAR_WIDTH - 200,
-    height: CALENDAR_HEIGHT - 30,
+    width: 150,
+    height: MODAL_MAX_HEIGHT - 120,
+  },
+  pickerItem: {
+    fontSize: 22,
+    color: colors.text.text1,
   },
   buttonGroup: {
     flexDirection: 'row',
@@ -568,7 +594,7 @@ const YMStayle = StyleSheet.create({
     width: CALENDAR_WIDTH,
     height: 56,
     position: 'relative',
-    marginTop: 4,
+    marginTop: 2,
   },
   pickerTodayButton: {
     position: 'absolute',
@@ -577,7 +603,8 @@ const YMStayle = StyleSheet.create({
   },
   moveBtn: {
     position: 'absolute',
-    right: 15,
+    right: 36,
+    top: 10,
     height: 52,
     justifyContent: 'center',
   },
