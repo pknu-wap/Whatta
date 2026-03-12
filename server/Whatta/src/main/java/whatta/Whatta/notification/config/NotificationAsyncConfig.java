@@ -17,7 +17,7 @@ public class NotificationAsyncConfig {
         executor.setMaxPoolSize(12);
         executor.setQueueCapacity(300);
         executor.setThreadNamePrefix("noti-executor-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();

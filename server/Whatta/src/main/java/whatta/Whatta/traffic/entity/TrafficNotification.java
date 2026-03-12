@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.DayOfWeek;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Set;
 
 @Document("traffic_notifications")
+@CompoundIndex(name = "idx_enabled_alarm_minute", def = "{'isEnabled': 1, 'alarmMinuteOfDay': 1}")
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
@@ -31,7 +33,6 @@ public class TrafficNotification {
     @NotNull
     private LocalTime alarmTime;
 
-    // 0 ~ 1439, timezone-independent lookup key for scheduler queries
     private Integer alarmMinuteOfDay;
 
     @Builder.Default

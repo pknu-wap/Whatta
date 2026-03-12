@@ -1,6 +1,8 @@
 package whatta.Whatta.traffic.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
@@ -22,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -29,6 +32,28 @@ public class TrafficNotiService {
 
     private final BusFavoriteRepository busFavoriteRepository;
     private final TrafficNotiRepository trafficNotiRepository;
+
+    @PostConstruct
+    void backfillAlarmMinuteOfDay() {
+        List<TrafficNotification> legacyAlarms = trafficNotiRepository.findByAlarmMinuteOfDayIsNull();
+        if (legacyAlarms.isEmpty()) {
+            return;
+        }
+
+        List<TrafficNotification> toUpdate = legacyAlarms.stream()
+                .filter(alarm -> alarm.getAlarmTime() != null)
+                .map(alarm -> alarm.toBuilder()
+                        .alarmMinuteOfDay(toMinuteOfDay(alarm.getAlarmTime()))
+                        .build())
+                .toList();
+
+        if (toUpdate.isEmpty()) {
+            return;
+        }
+
+        trafficNotiRepository.saveAll(toUpdate);
+        log.info("Traffic alarmMinuteOfDay backfill completed. updated={}", toUpdate.size());
+    }
 
     public TrafficNotiResponse createTrafficNoti(String userId, TrafficNotiCreateRequest request) {
         List<String> targetItemIds = sanitizeTargetItemIds(request.targetItemIds());

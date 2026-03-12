@@ -17,12 +17,13 @@ import whatta.Whatta.traffic.entity.BusFavorite;
 @ConditionalOnProperty(
         prefix = "traffic.favorite.index",
         name = "ensure-on-startup",
-        havingValue = "true"
+        havingValue = "true",
+        matchIfMissing = true
 )
 public class TrafficMongoIndexConfig {
 
     private final MongoTemplate mongoTemplate;
-    @Value("${traffic.favorite.index.fail-on-error:false}")
+    @Value("${traffic.favorite.index.fail-on-error:true}")
     private boolean failOnError;
 
     @PostConstruct
