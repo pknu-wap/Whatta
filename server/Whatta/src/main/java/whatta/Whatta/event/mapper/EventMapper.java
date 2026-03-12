@@ -4,7 +4,7 @@ import org.springframework.stereotype.Component;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.payload.response.EventResponse;
 import whatta.Whatta.event.payload.response.RepeatResponse;
-import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.global.util.LocalDateTimeUtil;
 
 @Component
 public class EventMapper {
@@ -16,8 +16,8 @@ public class EventMapper {
                 .labels(event.getLabels())
                 .startDate(event.getStartDate())
                 .endDate(event.getEndDate())
-                .startTime(LocalTimeUtil.localTimeToString(event.getStartTime()))
-                .endTime(LocalTimeUtil.localTimeToString(event.getEndTime()))
+                .startTime(LocalDateTimeUtil.localTimeToString(event.getStartTime()))
+                .endTime(LocalDateTimeUtil.localTimeToString(event.getEndTime()))
                 .repeat(RepeatResponse.fromEntity(event.getRepeat()))
                 .colorKey(event.getColorKey())
                 .reminderNoti(event.getReminderNotiAt())
