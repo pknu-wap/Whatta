@@ -226,6 +226,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const labelBtnRef = useRef<View>(null)
   const { labels: globalLabels } = useLabels()
   const labels = globalLabels ?? []
+  const MAX_SELECTED_LABELS = 10
   const MAX_LABELS = 10
   const isFull = labels.length >= MAX_LABELS
 
@@ -495,7 +496,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       date: hasDate ? date : undefined,
       hasTime,
       time: hasTime ? time : undefined,
-      labels: labelIds.slice(0, 3),
+      labels: labelIds.slice(0, MAX_SELECTED_LABELS),
       reminderNoti: buildReminderNoti(), // 추가
     }
 
@@ -647,7 +648,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     onChangeCustomMinute={setCustomMinute}
                     labels={labels}
                     selectedLabelIds={labelIds}
-                    onChangeSelectedLabelIds={(ids) => setLabelIds(ids.slice(0, 3))}
+                    labelMaxSelected={MAX_SELECTED_LABELS}
+                    onChangeSelectedLabelIds={(ids) => setLabelIds(ids.slice(0, MAX_SELECTED_LABELS))}
                     onCreateLabel={handleCreateLabel}
                     taskDate={hasDate ? date : null}
                     onChangeTaskDate={(next) => {
@@ -993,30 +995,28 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     }}
                   >
                     {/* 선택된 라벨 칩 */}
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        flexWrap: 'wrap',
-                        justifyContent: 'flex-end',
-                        gap: 6,
-                        maxWidth: 210,
-                        flexShrink: 1,
-                      }}
+                    <ScrollView
+                      horizontal
+                      nestedScrollEnabled
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ alignItems: 'center', paddingRight: 2 }}
+                      style={{ width: 210, maxWidth: 210, flexShrink: 1 }}
                     >
-                      {labelIds.map((id) => {
+                      {labelIds.map((id, idx) => {
                         const item = (labels ?? []).find((l) => l.id === id)
                         if (!item) return null
                         return (
-                          <LabelChip
-                            key={id}
-                            title={item.title}
-                            onRemove={() =>
-                              setLabelIds((prev) => prev.filter((x) => x !== id))
-                            }
-                          />
+                          <View key={id} style={{ marginRight: idx === labelIds.length - 1 ? 0 : 6 }}>
+                            <LabelChip
+                              title={item.title}
+                              onRemove={() =>
+                                setLabelIds((prev) => prev.filter((x) => x !== id))
+                              }
+                            />
+                          </View>
                         )
                       })}
-                    </View>
+                    </ScrollView>
 
                     {/* 라벨 선택 버튼 */}
                     <Pressable
@@ -1046,7 +1046,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     visible
                     all={labels ?? []}
                     selected={labelIds}
-                    onChange={(ids) => setLabelIds(ids.slice(0, 3))}
+                    maxSelected={MAX_SELECTED_LABELS}
+                    onChange={(ids) => setLabelIds(ids.slice(0, MAX_SELECTED_LABELS))}
                     onRequestClose={() => setLabelModalOpen(false)}
                     anchor={labelAnchor}
                     canAdd={!isFull}

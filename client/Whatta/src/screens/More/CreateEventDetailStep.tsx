@@ -57,6 +57,7 @@ type Props = {
   onChangeCustomMinute: (next: number) => void
   labels: UiLabel[]
   selectedLabelIds: number[]
+  labelMaxSelected?: number
   onChangeSelectedLabelIds: (next: number[]) => void
   onCreateLabel: (title: string) => Promise<UiLabel>
   taskDate: Date | null
@@ -180,6 +181,7 @@ export default function CreateEventDetailStep({
   onChangeCustomMinute,
   labels,
   selectedLabelIds,
+  labelMaxSelected = 3,
   onChangeSelectedLabelIds,
   onCreateLabel,
   taskDate,
@@ -1226,20 +1228,30 @@ export default function CreateEventDetailStep({
       </View>
       <View style={styles.labelBox}>
         {selectedLabelIds.length > 0 ? (
-          <View style={styles.labelChipWrap}>
-            {selectedLabelIds.map((id) => {
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.labelChipScroll}
+            contentContainerStyle={styles.labelChipWrap}
+          >
+            {selectedLabelIds.map((id, idx) => {
               const item = labels.find((l) => l.id === id)
               if (!item) return null
               return (
-                <LabelChip
+                <View
                   key={id}
-                  title={item.title}
-                  removeIconSize={8}
-                  onRemove={() => onChangeSelectedLabelIds(selectedLabelIds.filter((x) => x !== id))}
-                />
+                  style={[styles.labelChipItem, idx === selectedLabelIds.length - 1 && { marginRight: 0 }]}
+                >
+                  <LabelChip
+                    title={item.title}
+                    removeIconSize={8}
+                    onRemove={() => onChangeSelectedLabelIds(selectedLabelIds.filter((x) => x !== id))}
+                  />
+                </View>
               )
             })}
-          </View>
+          </ScrollView>
         ) : (
           <Text style={styles.labelBoxPlaceholder}>없음</Text>
         )}
@@ -1249,6 +1261,7 @@ export default function CreateEventDetailStep({
           visible
           all={labels}
           selected={selectedLabelIds}
+          maxSelected={labelMaxSelected}
           onChange={onChangeSelectedLabelIds}
           onRequestClose={() => setLabelModalOpen(false)}
           anchor={labelAnchor}
@@ -1838,11 +1851,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     justifyContent: 'center',
   },
+  labelChipScroll: {
+    width: '100%',
+    maxWidth: '100%',
+  },
   labelChipWrap: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
     paddingLeft: 16,
+    paddingRight: 8,
+  },
+  labelChipItem: {
+    marginRight: 8,
   },
   labelBoxPlaceholder: {
     ...ts('label2'),

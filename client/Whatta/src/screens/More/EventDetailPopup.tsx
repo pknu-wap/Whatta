@@ -84,6 +84,7 @@ export default function EventDetailPopup({
   source?: 'Day' | 'Week' | 'Month'
   initialCreateType?: 'event' | 'task'
 }) {
+  const MAX_SELECTED_LABELS = 10
   const [openCalendar, setOpenCalendar] = useState(false)
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
   const [openStartTime, setOpenStartTime] = useState(false)
@@ -1738,6 +1739,7 @@ export default function EventDetailPopup({
                       onChangeCustomMinute={setCustomMinute}
                       labels={labels}
                       selectedLabelIds={selectedLabelIds}
+                      labelMaxSelected={MAX_SELECTED_LABELS}
                       onChangeSelectedLabelIds={setSelectedLabelIds}
                       onCreateLabel={handleCreateLabel}
                       taskDate={taskDate}
@@ -2635,32 +2637,33 @@ export default function EventDetailPopup({
                       }}
                     >
                       {/* 선택된 라벨 칩들 */}
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          flexWrap: 'wrap',
-                          justifyContent: 'flex-end',
-                          gap: 6,
-                          maxWidth: 210,
-                          flexShrink: 1,
-                        }}
+                      <ScrollView
+                        horizontal
+                        nestedScrollEnabled
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ alignItems: 'center', paddingRight: 2 }}
+                        style={{ width: 210, maxWidth: 210, flexShrink: 1 }}
                       >
-                        {selectedLabelIds.map((id) => {
+                        {selectedLabelIds.map((id, idx) => {
                           const item = labels.find((l) => l.id === id)
                           if (!item) return null
                           return (
-                            <LabelChip
+                            <View
                               key={id}
-                              title={item.title}
-                              onRemove={() =>
-                                setSelectedLabelIds((prev) =>
-                                  prev.filter((x) => x !== id),
-                                )
-                              }
-                            />
+                              style={{ marginRight: idx === selectedLabelIds.length - 1 ? 0 : 6 }}
+                            >
+                              <LabelChip
+                                title={item.title}
+                                onRemove={() =>
+                                  setSelectedLabelIds((prev) =>
+                                    prev.filter((x) => x !== id),
+                                  )
+                                }
+                              />
+                            </View>
                           )
                         })}
-                      </View>
+                      </ScrollView>
 
                       {/* 라벨 선택 버튼 */}
                       <Pressable
@@ -2694,6 +2697,7 @@ export default function EventDetailPopup({
                       visible
                       all={labels}
                       selected={selectedLabelIds}
+                      maxSelected={MAX_SELECTED_LABELS}
                       onChange={(nextIds) => setSelectedLabelIds(nextIds)}
                       onRequestClose={() => setLabelModalOpen(false)}
                       anchor={labelAnchor}

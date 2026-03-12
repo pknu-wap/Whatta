@@ -20,6 +20,7 @@ type Props = {
   visible: boolean
   all: UiLabel[]
   selected: number[]
+  maxSelected?: number
   onChange: (ids: number[]) => void
   onRequestClose: () => void
   anchor: Anchor | null
@@ -27,12 +28,13 @@ type Props = {
   canAdd?: boolean
 }
 
-const MAX_SELECTED_LABELS = 3
+const DEFAULT_MAX_SELECTED_LABELS = 3
 
 export default function LabelPickerModal({
   visible,
   all,
   selected,
+  maxSelected = DEFAULT_MAX_SELECTED_LABELS,
   onChange,
   onRequestClose,
   anchor,
@@ -59,7 +61,7 @@ export default function LabelPickerModal({
 
   const toggle = (id: number) => {
     const already = selected.includes(id)
-    if (!already && selected.length >= MAX_SELECTED_LABELS) return
+    if (!already && selected.length >= maxSelected) return
     const next = already ? selected.filter((x) => x !== id) : [...selected, id]
     onChange(next)
   }
@@ -73,7 +75,7 @@ export default function LabelPickerModal({
         const newLabel = await onCreateLabel(name) // API 호출은 부모에게 맡김
         // 선택 목록 업데이트
         if (!selected.includes(newLabel.id)) {
-          onChange([...selected, newLabel.id].slice(0, MAX_SELECTED_LABELS))
+          onChange([...selected, newLabel.id].slice(0, maxSelected))
         }
 
         setDraft('')
