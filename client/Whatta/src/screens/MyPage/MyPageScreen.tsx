@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from 'react'
+import React, { useLayoutEffect, useMemo, useState } from 'react'
 import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import Constants from 'expo-constants'
@@ -6,6 +6,12 @@ import type { MyPageStackList } from '@/navigation/MyPageStack'
 import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/contants'
 import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { bus } from '@/lib/eventBus'
+import {
+  getActiveScheduleColorSetId,
+  SCHEDULE_COLOR_SET_IDS,
+  setActiveScheduleColorSetId,
+} from '@/styles/scheduleColorSets'
 
 type Props = NativeStackScreenProps<MyPageStackList, 'MyPageList'>
 
@@ -72,6 +78,19 @@ export default function MyPageScreen({ navigation }: Props) {
   const apiBaseUrl = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '')
   const serverLabel = apiBaseUrl.includes('-dev-') ? 'DEV' : 'PROD'
   const showEnvBadge = variant === 'DEV' || serverLabel === 'DEV'
+  const showColorSetChip = showEnvBadge
+  const [activeColorSet, setActiveColorSet] = useState(getActiveScheduleColorSetId())
+
+  const nextColorSet = useMemo(() => {
+    const idx = SCHEDULE_COLOR_SET_IDS.indexOf(activeColorSet)
+    return SCHEDULE_COLOR_SET_IDS[(idx + 1) % SCHEDULE_COLOR_SET_IDS.length]
+  }, [activeColorSet])
+
+  const onPressColorSetChip = () => {
+    const changed = setActiveScheduleColorSetId(nextColorSet)
+    setActiveColorSet(changed)
+    bus.emit('scheduleColorSet:changed', { setId: changed })
+  }
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -123,6 +142,11 @@ export default function MyPageScreen({ navigation }: Props) {
                   <View style={[S.envBadge, S.envBadgeDev]}>
                     <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
                   </View>
+                ) : null}
+                {showColorSetChip ? (
+                  <Pressable style={[S.envBadge, S.colorSetBadge]} onPress={onPressColorSetChip}>
+                    <Text style={S.envBadgeText}>{`SET:${activeColorSet}`}</Text>
+                  </Pressable>
                 ) : null}
               </View>
               {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
@@ -258,6 +282,11 @@ const S = StyleSheet.create({
     backgroundColor: '#E8FFF0',
     borderWidth: 1,
     borderColor: '#22C55E',
+  },
+  colorSetBadge: {
+    backgroundColor: '#EEF5FF',
+    borderWidth: 1,
+    borderColor: '#4F7BFF',
   },
   envBadgeText: {
     fontSize: 10,

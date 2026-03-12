@@ -22,8 +22,10 @@ type WeekPopupsProps = {
   eventPopupVisible: boolean
   eventPopupMode: 'create' | 'edit'
   eventPopupData: any | null
+  eventPopupCreateType: 'event' | 'task'
   setEventPopupVisible: React.Dispatch<React.SetStateAction<boolean>>
   setEventPopupData: React.Dispatch<React.SetStateAction<any | null>>
+  setEventPopupCreateType: React.Dispatch<React.SetStateAction<'event' | 'task'>>
   imagePopupVisible: boolean
   setImagePopupVisible: React.Dispatch<React.SetStateAction<boolean>>
   ocrSplashVisible: boolean
@@ -48,8 +50,10 @@ export default function WeekPopups({
   eventPopupVisible,
   eventPopupMode,
   eventPopupData,
+  eventPopupCreateType,
   setEventPopupVisible,
   setEventPopupData,
+  setEventPopupCreateType,
   imagePopupVisible,
   setImagePopupVisible,
   ocrSplashVisible,
@@ -65,6 +69,7 @@ export default function WeekPopups({
     <>
       <TaskDetailPopup
         visible={taskPopupVisible}
+        source="Week"
         mode={taskPopupMode}
         taskId={taskPopupId ?? undefined}
         initialTask={taskPopupTask}
@@ -150,12 +155,15 @@ export default function WeekPopups({
 
       <EventDetailPopup
         visible={eventPopupVisible}
+        source="Week"
         eventId={eventPopupData?.id ?? null}
         mode={eventPopupMode}
         initial={eventPopupData ?? undefined}
+        initialCreateType={eventPopupCreateType}
         onClose={() => {
           setEventPopupVisible(false)
           setEventPopupData(null)
+          setEventPopupCreateType('event')
           fetchWeek(weekDates)
         }}
       />

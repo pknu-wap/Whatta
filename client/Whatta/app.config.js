@@ -1,27 +1,65 @@
 module.exports = ({ config }) => {
   const variant = process.env.APP_VARIANT ?? "prod";
-  const isDev = variant === "dev";
+  const profile = process.env.EAS_BUILD_PROFILE ?? "";
+
+  const envByProfile = {
+    development: "local",
+    devTestFlight: "dev",
+    preview: "prod",
+    production: "prod",
+  };
+
+  const env =
+    envByProfile[profile] ??
+    (variant === "local" ? "local" : variant === "dev" ? "dev" : "prod");
+
+  const envConfig = {
+    prod: {
+      appName: "Whatta",
+      iosBundleIdentifier: "com.whatta.whatta",
+      androidPackage: "com.whatta.whatta",
+      iosGoogleServicesFile: "./GoogleService-Info.prod.plist",
+      apiBaseUrl:
+        "https://whatta-server-741565423469.asia-northeast3.run.app/api",
+    },
+    dev: {
+      appName: "Whatta Dev",
+      iosBundleIdentifier: "com.whatta.whatta.dev",
+      androidPackage: "com.whatta.whatta.dev",
+      iosGoogleServicesFile: "./GoogleService-Info.dev.plist",
+      apiBaseUrl:
+        "https://whatta-server-dev-741565423469.asia-northeast3.run.app/api",
+    },
+    local: {
+      appName: "Whatta Local",
+      iosBundleIdentifier: "com.whatta.whatta.local",
+      androidPackage: "com.whatta.whatta.local",
+      iosGoogleServicesFile: "./GoogleService-Info.local.plist",
+      apiBaseUrl:
+        "https://whatta-server-dev-741565423469.asia-northeast3.run.app/api",
+    },
+  };
+
+  const selected = envConfig[env];
 
   return {
     ...config,
-    name: isDev ? "Whatta Dev" : "Whatta",
+    name: selected.appName,
     ios: {
       ...config.ios,
-      bundleIdentifier: isDev ? "com.whatta.whatta.dev" : "com.whatta.whatta",
-      googleServicesFile: isDev
-        ? "./GoogleService-Info.dev.plist"
-        : "./GoogleService-Info.prod.plist",
+      bundleIdentifier: selected.iosBundleIdentifier,
+      googleServicesFile: selected.iosGoogleServicesFile,
     },
     android: {
       ...config.android,
-      package: isDev ? "com.whatta.whatta.dev" : "com.whatta.whatta",
+      package: selected.androidPackage,
     },
     extra: {
       ...config.extra,
       variant,
-      apiBaseUrl: isDev
-        ? 'https://whatta-server-dev-741565423469.asia-northeast3.run.app/api'
-        : 'https://whatta-server-741565423469.asia-northeast3.run.app/api',
+      profile,
+      env,
+      apiBaseUrl: selected.apiBaseUrl,
     },
   };
 };

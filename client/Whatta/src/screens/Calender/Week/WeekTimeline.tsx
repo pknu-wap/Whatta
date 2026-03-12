@@ -22,6 +22,7 @@ type WeekTimelineProps = {
   todayISO: string
   nowTop: number | null
   dayColWidth: number
+  labelTitleById: Record<string, string>
   getTaskTime: (task: any) => string
   openEventDetail: (id: string, occDate?: string) => void
   openTaskPopupFromApi: (taskId: string) => void
@@ -36,7 +37,64 @@ type WeekTimelineProps = {
   DraggableTaskBoxComponent: React.ComponentType<any>
 }
 
-export default function WeekTimeline({
+type TaskVisualBlock = {
+  kind: 'single' | 'group'
+  key: string
+  startMin: number
+  endMin: number
+  task?: any
+  tasks?: any[]
+}
+
+type LayoutedTaskVisualBlock = TaskVisualBlock & {
+  column: number
+  columnsTotal: number
+}
+
+function layoutTaskBlocks(blocks: TaskVisualBlock[]): LayoutedTaskVisualBlock[] {
+  if (!blocks.length) return []
+
+  const sorted = [...blocks].sort((a, b) => {
+    if (a.startMin !== b.startMin) return a.startMin - b.startMin
+    if (a.endMin !== b.endMin) return a.endMin - b.endMin
+    return a.key.localeCompare(b.key)
+  })
+
+  const out: LayoutedTaskVisualBlock[] = []
+  let i = 0
+
+  while (i < sorted.length) {
+    const cluster: TaskVisualBlock[] = [sorted[i]]
+    let clusterEnd = sorted[i].endMin
+    let j = i + 1
+
+    while (j < sorted.length && sorted[j].startMin < clusterEnd) {
+      cluster.push(sorted[j])
+      clusterEnd = Math.max(clusterEnd, sorted[j].endMin)
+      j++
+    }
+
+    const colEndTimes: number[] = []
+    const placed = cluster.map((b) => {
+      let col = colEndTimes.findIndex((end) => end <= b.startMin)
+      if (col === -1) {
+        col = colEndTimes.length
+        colEndTimes.push(b.endMin)
+      } else {
+        colEndTimes[col] = b.endMin
+      }
+      return { ...b, column: col }
+    })
+
+    const columnsTotal = Math.max(1, colEndTimes.length)
+    placed.forEach((p) => out.push({ ...p, columnsTotal }))
+    i = j
+  }
+
+  return out
+}
+
+function WeekTimeline({
   styles,
   gridContainerRef,
   gridScrollRef,
@@ -48,6 +106,7 @@ export default function WeekTimeline({
   todayISO,
   nowTop,
   dayColWidth,
+  labelTitleById,
   getTaskTime,
   openEventDetail,
   openTaskPopupFromApi,
@@ -71,8 +130,6 @@ export default function WeekTimeline({
       >
         <View ref={gridWrapRef} style={styles.timelineInner}>
           <View pointerEvents="none" style={styles.hourLinesOverlay}>
-            <View style={styles.mainVerticalLine} />
-
             {hours.map((_, i) => {
               if (i === hours.length - 1) return null
               return <View key={`hline-${i}`} style={[styles.hourLine, { top: (i + 1) * rowH }]} />
@@ -82,7 +139,7 @@ export default function WeekTimeline({
           <View style={T.row}>
             <View style={styles.timeCol}>
               {hours.map((h) => (
-                <View key={`hour-${h}`} style={styles.timeRow}>
+                <View key={`hour-${h}`} style={[styles.timeRow, { height: rowH }]}>
                   <Text style={styles.timeText}>
                     {h === 0
                       ? '오전 12시'
@@ -110,6 +167,47 @@ export default function WeekTimeline({
                 acc[timeKey] = acc[timeKey] ? [...acc[timeKey], t] : [t]
                 return acc
               }, {})
+              const getEventSubText = (ev: any) => {
+                const place = String(ev?.place ?? '').trim()
+                if (place) return place
+
+                const names = (ev?.labels ?? [])
+                  .map((id: number | string) => labelTitleById[String(id)])
+                  .filter((name: string | undefined): name is string => !!name && name.trim().length > 0)
+
+                return names.length ? names.join(', ') : ''
+              }
+
+              const taskBlocks: TaskVisualBlock[] = []
+              for (const [timeKey, group] of Object.entries(groupedTasks)) {
+                const list = group as any[]
+                if (!list.length) continue
+
+                const [h, m] = getTaskTime(list[0]).split(':').map((n) => Number(n) || 0)
+                const startMin = h * 60 + m
+                const endMin = Math.min(24 * 60, startMin + 60)
+
+                if (list.length > 1) {
+                  taskBlocks.push({
+                    kind: 'group',
+                    key: `${d}-${timeKey}-group`,
+                    startMin,
+                    endMin,
+                    tasks: list,
+                  })
+                  continue
+                }
+
+                taskBlocks.push({
+                  kind: 'single',
+                  key: `${d}-${timeKey}-single-${list[0].id}`,
+                  startMin,
+                  endMin,
+                  task: list[0],
+                })
+              }
+
+              const layoutedTaskBlocks = layoutTaskBlocks(taskBlocks)
 
               return (
                 <View
@@ -117,7 +215,7 @@ export default function WeekTimeline({
                   style={[styles.dayCol, { width: dayColWidth }, colIdx === 0 && styles.firstDayCol]}
                 >
                   {hours.map((_, i) => (
-                    <View key={`${d}-row-${i}`} style={styles.hourRow} />
+                    <View key={`${d}-row-${i}`} style={[styles.hourRow, { height: rowH }]} />
                   ))}
 
                   {isTodayCol && nowTop !== null && (
@@ -132,41 +230,38 @@ export default function WeekTimeline({
                       key={`ev-${ev.id}-${i}`}
                       id={ev.id}
                       title={ev.title}
-                      place={ev.place}
+                      labelText={getEventSubText(ev)}
                       startMin={ev.startMin}
                       endMin={ev.endMin}
                       color={ev.color}
                       dateISO={d}
                       column={ev.column}
                       columnsTotal={ev.columnsTotal}
-                      isPartialOverlap={ev.isPartialOverlap}
-                      overlapDepth={ev.overlapDepth ?? 0}
                       dayColWidth={dayColWidth}
                       weekDates={weekDates}
                       dayIndex={colIdx}
+                      rowH={rowH}
                       openEventDetail={openEventDetail}
                       isRepeat={ev.isRepeat}
                     />
                   ))}
 
-                  {Object.entries(groupedTasks).map(([timeKey, group]) => {
-                    const list = group as any[]
-                    if (!list.length) return null
+                  {layoutedTaskBlocks.map((block) => {
+                    const start = block.startMin / 60
 
-                    const timeStr = getTaskTime(list[0])
-                    const [h, m] = timeStr.split(':').map((n) => Number(n) || 0)
-                    const start = h + m / 60
-
-                    if (list.length > 1) {
+                    if (block.kind === 'group' && block.tasks) {
                       return (
                         <TaskGroupBoxComponent
-                          key={`${d}-${timeKey}-${dayColWidth}`}
-                          tasks={list}
+                          key={block.key}
+                          tasks={block.tasks}
                           startHour={start}
                           dayColWidth={dayColWidth}
                           dateISO={d}
                           dayIndex={colIdx}
                           weekCount={weekDates.length}
+                          rowH={rowH}
+                          column={block.column}
+                          columnsTotal={block.columnsTotal}
                           onLocalChange={({ id, dateISO, completed }: any) => {
                             if (typeof completed === 'boolean') {
                               onTimedTaskCompletedChange({
@@ -180,29 +275,36 @@ export default function WeekTimeline({
                       )
                     }
 
-                    return (
-                      <DraggableTaskBoxComponent
-                        key={`${d}-${timeKey}-single-${list[0].id}`}
-                        id={String(list[0].id)}
-                        title={list[0].title}
-                        startHour={start}
-                        done={list[0].completed ?? false}
-                        dateISO={d}
-                        dayColWidth={dayColWidth}
-                        dayIndex={colIdx}
-                        weekCount={weekDates.length}
-                        openDetail={openTaskPopupFromApi}
-                        onLocalChange={({ id, dateISO, completed }: any) => {
-                          if (typeof completed === 'boolean') {
-                            onTimedTaskCompletedChange({
-                              id: String(id),
-                              dateISO,
-                              completed,
-                            })
-                          }
-                        }}
-                      />
-                    )
+                    if (block.kind === 'single' && block.task) {
+                      return (
+                        <DraggableTaskBoxComponent
+                          key={block.key}
+                          id={String(block.task.id)}
+                          title={block.task.title}
+                          startHour={start}
+                          done={block.task.completed ?? false}
+                          dateISO={d}
+                          dayColWidth={dayColWidth}
+                          dayIndex={colIdx}
+                          weekCount={weekDates.length}
+                          rowH={rowH}
+                          column={block.column}
+                          columnsTotal={block.columnsTotal}
+                          openDetail={openTaskPopupFromApi}
+                          onLocalChange={({ id, dateISO, completed }: any) => {
+                            if (typeof completed === 'boolean') {
+                              onTimedTaskCompletedChange({
+                                id: String(id),
+                                dateISO,
+                                completed,
+                              })
+                            }
+                          }}
+                        />
+                      )
+                    }
+
+                    return null
                   })}
                 </View>
               )
@@ -213,6 +315,8 @@ export default function WeekTimeline({
     </View>
   )
 }
+
+export default React.memo(WeekTimeline)
 
 const T = StyleSheet.create({
   flex1: {

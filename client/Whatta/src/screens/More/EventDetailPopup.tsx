@@ -24,10 +24,20 @@ import Down from '@/assets/icons/down.svg'
 import { Picker } from '@react-native-picker/picker'
 import LabelChip from '@/components/LabelChip'
 import LabelPickerModal from '@/components/LabelPicker'
+import CreateModeTypeStep from '@/screens/More/CreateModeTypeStep'
+import CreateEventDateStep from '@/screens/More/CreateEventDateStep'
+import CreateEventDetailStep from '@/screens/More/CreateEventDetailStep'
 import colors from '@/styles/colors'
 import type { EventItem } from '@/api/event_api'
 import { http } from '@/lib/http'
 import { ensureNotificationPermissionForToggle } from '@/lib/fcm'
+import {
+  getActiveScheduleColorSetId,
+  getScheduleColorSet,
+  resolveSlotIndex,
+  slotKey,
+} from '@/styles/scheduleColorSets'
+import { ts } from '@/styles/typography'
 
 /** Toggle Props 타입 */
 type ToggleProps = {
@@ -55,19 +65,26 @@ type RouteParams = {
   initial?: Partial<EventItem>
 }
 
+type CreateStep = 'intro' | 'detail'
+
 export default function EventDetailPopup({
   visible,
   eventId,
   mode = 'create',
   onClose,
   initial,
+  source,
+  initialCreateType = 'event',
 }: {
   visible: boolean
   eventId: string | null
   mode?: 'edit' | 'create'
   onClose: () => void
   initial?: Partial<EventItem>
+  source?: 'Day' | 'Week' | 'Month'
+  initialCreateType?: 'event' | 'task'
 }) {
+  const MAX_SELECTED_LABELS = 10
   const [openCalendar, setOpenCalendar] = useState(false)
   const [whichDate, setWhichDate] = useState<'start' | 'end'>('start')
   const [openStartTime, setOpenStartTime] = useState(false)
@@ -75,18 +92,23 @@ export default function EventDetailPopup({
   const [isPickerTouching, setIsPickerTouching] = useState(false)
   const titleRef = useRef<TextInput>(null)
   const [saving, setSaving] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const insets = useSafeAreaInsets()
   const MARGIN = 10
 
   const scrollRef = useRef<ScrollView>(null)
   const { width: W, height: H } = Dimensions.get('window')
-  const SHEET_W = Math.min(W - MARGIN, 342)
+  const SHEET_W = Math.min(W - MARGIN, 350)
   const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
-  const SHEET_H = Math.min(573, MAX_H)
+  const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
   const sheetRef = useRef<View>(null)
+  const isCreateFlow = mode === 'create' && !initial
+  const [createStep, setCreateStep] = useState<CreateStep>(isCreateFlow ? 'intro' : 'detail')
+  const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
+  const [editDatePicking, setEditDatePicking] = useState(false)
   // ── 컬러 팝오버 배치 옵션 ──
   const POPOVER_W = 105 // 팝오버 너비
   const POP_GAP = 8 // 버튼과 팝오버 사이 간격
@@ -105,8 +127,8 @@ export default function EventDetailPopup({
 
   // 맞춤 설정 인라인 시간 피커
   const [customOpen, setCustomOpen] = useState(false)
-  const [customHour, setCustomHour] = useState(1) // 기본 1시간 전
-  const [customMinute, setCustomMinute] = useState(0)
+  const [customHour, setCustomHour] = useState(0) // 기본 10분 전
+  const [customMinute, setCustomMinute] = useState(10)
 
   const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0~23
   const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5) // 0,5,10,...55
@@ -268,7 +290,7 @@ export default function EventDetailPopup({
   const [start, setStart] = useState(new Date())
 
   const buildBasePayload = () => {
-    const hex = (selectedColor ?? '#6B46FF').replace(/^#/, '').toUpperCase()
+    const key = slotKey(selectedSlot)
     const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
 
     const base = {
@@ -279,12 +301,12 @@ export default function EventDetailPopup({
       endDate: ymdLocal(end),
       startTime: timeOn ? hms(start) : null,
       endTime: timeOn ? hms(end) : null,
-      colorKey: hex,
+      colorKey: key,
       reminderNoti,
     }
     return {
       payload: stripNil(base),
-      colorHex: hex,
+      colorHex: key,
     }
   }
 
@@ -500,18 +522,23 @@ export default function EventDetailPopup({
   const close = () => onClose()
 
   /** 색상 */
-  const COLORS = [
-    '#B04FFF',
-    '#668CFF',
-    '#FF6464',
-    '#FF8A66',
-    '#FFD966',
-    '#83E957',
-    '#665AE6',
-    '#FF75AE',
-  ]
-  const [selectedColor, setSelectedColor] = useState('#B04FFF')
+  const [activeSetId, setActiveSetId] = useState(getActiveScheduleColorSetId())
+  const COLORS = React.useMemo(
+    () => getScheduleColorSet(activeSetId) as readonly string[],
+    [activeSetId],
+  )
+  const [selectedSlot, setSelectedSlot] = useState(0)
+  const selectedColor = COLORS[selectedSlot] ?? COLORS[0]
   const [showPalette, setShowPalette] = useState(false)
+
+  useEffect(() => {
+    const onColorSetChanged = (payload?: { setId?: string }) => {
+      const nextSetId = (payload?.setId as any) ?? getActiveScheduleColorSetId()
+      setActiveSetId(nextSetId)
+    }
+    bus.on('scheduleColorSet:changed', onColorSetChanged)
+    return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
+  }, [])
 
   // 라벨
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([])
@@ -547,9 +574,13 @@ export default function EventDetailPopup({
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
   const [remindOn, setRemindOn] = useState(false)
+  const [repeatOn, setRepeatOn] = useState(false)
+  const [taskDate, setTaskDate] = useState<Date | null>(null)
+  const [taskDueOn, setTaskDueOn] = useState(false)
+  const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
 
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
-  const saveNormal = async () => {
+  const saveNormal = async (opts?: { clearRepeat?: boolean }) => {
     try {
       const { payload, colorHex } = buildBasePayload()
       const fieldsToClear: string[] = []
@@ -558,14 +589,22 @@ export default function EventDetailPopup({
         payload.startTime = null
         payload.endTime = null
       }
+      const clearRepeat = opts?.clearRepeat ?? false
+      if (clearRepeat) {
+        fieldsToClear.push('repeat')
+      }
 
       let saved: any
 
       if (mode === 'edit' && eventId) {
-        const res = await http.patch(`/event/${eventId}`, { ...payload, fieldsToClear })
+        const patchPayload: any = { ...payload, fieldsToClear }
+        if (clearRepeat) patchPayload.repeat = null
+        const res = await http.patch(`/event/${eventId}`, patchPayload)
         saved = res?.data
       } else {
-        const res = await http.post('/event', { ...payload, fieldsToClear })
+        const createPayload: any = { ...payload, fieldsToClear }
+        if (clearRepeat) createPayload.repeat = null
+        const res = await http.post('/event', createPayload)
         saved = res?.data
       }
 
@@ -588,6 +627,44 @@ export default function EventDetailPopup({
     } catch (err) {
       console.log('일정 저장 실패:', err)
       alert('저장 실패')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveTask = async () => {
+    const reminderNoti = buildReminderNoti()
+    const placementDate = taskDate ? ymdLocal(taskDate) : null
+    const placementTime = timeOn ? hms(start) : null
+    const dueDateTime =
+      taskDueOn && taskDueDate
+        ? `${ymdLocal(taskDueDate)}T23:59:59`
+        : null
+    const targetDate = placementDate ?? ymdLocal(start)
+
+    try {
+      const res = await http.post('/task', {
+        title: scheduleTitle,
+        content: memo ?? '',
+        labels: selectedLabelIds.length ? selectedLabelIds : [],
+        placementDate,
+        placementTime,
+        reminderNoti,
+        dueDateTime,
+        date: targetDate,
+      })
+
+      const newId = res?.data?.data?.id
+      bus.emit('calendar:mutated', {
+        op: 'create',
+        item: { id: newId, isTask: true, date: targetDate },
+      })
+      const ym = targetDate.slice(0, 7)
+      if (ym) bus.emit('calendar:invalidate', { ym })
+      onClose()
+    } catch (err) {
+      console.log('할 일 저장 실패:', err)
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
     } finally {
       setSaving(false)
     }
@@ -720,10 +797,77 @@ export default function EventDetailPopup({
     }
   }
 
+  // 반복 일정 수정 – "반복 끄기 + 이후 일정 모두"
+  const saveRepeatTurnOffAllFuture = async () => {
+    const repeatRule = eventData?.repeat ?? initial?.repeat
+    if (!eventId || !repeatRule) {
+      await saveNormal({ clearRepeat: true })
+      return
+    }
+
+    try {
+      const { payload, colorHex } = buildBasePayload()
+      const occDate = payload.startDate as string
+
+      const d = new Date(
+        Number(occDate.slice(0, 4)),
+        Number(occDate.slice(5, 7)) - 1,
+        Number(occDate.slice(8, 10)),
+      )
+      d.setDate(d.getDate() - 1)
+      const prevDay = ymdLocal(d)
+
+      await http.patch(`/event/${eventId}`, {
+        repeat: {
+          ...repeatRule,
+          endDate: prevDay,
+        },
+      })
+
+      if (!timeOn) {
+        payload.startTime = null
+        payload.endTime = null
+      }
+
+      const createPayload: any = {
+        ...payload,
+        repeat: null,
+      }
+
+      const resNew = await http.post('/event', createPayload)
+      const saved = resNew?.data
+
+      if (saved) {
+        const enriched = {
+          ...(saved ?? {}),
+          colorKey: colorHex,
+          startDate: saved?.startDate ?? createPayload.startDate,
+          endDate: saved?.endDate ?? createPayload.endDate,
+        }
+
+        bus.emit('calendar:mutated', { op: 'create', item: enriched })
+        const ym = enriched.startDate?.slice(0, 7)
+        if (ym) bus.emit('calendar:invalidate', { ym })
+      }
+
+      onClose()
+    } catch (err) {
+      console.log('반복 일정 끄기(이후 모두) 실패:', err)
+      Alert.alert('저장 실패', (err as any)?.response?.data?.message ?? '저장 실패')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
-    // 1) 반복 탭 저장
-    if (activeTab === 'repeat') {
+    if (mode === 'create' && createTypeSelected === 'task') {
+      await saveTask()
+      return
+    }
+
+    // 1) 반복 토글이 켜진 경우에만 반복 저장
+    if (repeatOn) {
       // 편집 모드 + 기존에 repeat 있는 일정 → 분기(이 일정만 / 이후 모두)
       if (mode === 'edit' && eventData?.repeat != null) {
         setSaving(false)
@@ -800,7 +944,28 @@ export default function EventDetailPopup({
       return
     }
 
-    // 2) 일반 일정 저장(기존 로직 유지)
+    // 2) 일반 일정 저장
+    // 기존 반복 일정에서 토글을 껐으면 repeat를 명시적으로 제거
+    const hadRepeat = mode === 'edit' && (eventData?.repeat != null || initial?.repeat != null)
+    if (hadRepeat) {
+      setSaving(false)
+      Alert.alert('반복 일정 수정', '반복 설정 변경을 어떻게 적용할까요?', [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '이 일정만',
+          onPress: () => {
+            void saveRepeatOnlyThis()
+          },
+        },
+        {
+          text: '이후 일정 모두',
+          onPress: () => {
+            void saveRepeatTurnOffAllFuture()
+          },
+        },
+      ])
+      return
+    }
     await saveNormal()
   }
 
@@ -983,6 +1148,7 @@ export default function EventDetailPopup({
       formatCustomLabel(remindValue.hour, remindValue.minute, remindValue.day)
     )
   }, [remindOn, remindValue, customLabel])
+  const remindSelectedKey = remindValue === 'custom' ? 'custom' : remindValue?.id ?? null
 
   // 반복 모드: monthly 세부 옵션 펼침 여부
   const [monthlyOpen, setMonthlyOpen] = useState(false)
@@ -1019,11 +1185,12 @@ export default function EventDetailPopup({
     if (initial) return
 
     if (selectedLabelIds.length > 0) return
-    const defaultLabel = labels.find((l) => l.title === '일정')
+    const defaultLabelTitle = createTypeSelected === 'task' ? '할 일' : '일정'
+    const defaultLabel = labels.find((l) => l.title === defaultLabelTitle)
     if (defaultLabel) {
       setSelectedLabelIds([defaultLabel.id])
     }
-  }, [visible, mode, labels, initial])
+  }, [visible, mode, labels, initial, createTypeSelected, selectedLabelIds.length])
 
   const handleCreateLabel = async (title: string) => {
     try {
@@ -1115,7 +1282,9 @@ export default function EventDetailPopup({
         setScheduleTitle(ev.title ?? '')
         setMemo(ev.content ?? '')
         setSelectedLabelIds(ev.labels ?? [])
-        setSelectedColor('#' + ev.colorKey)
+        const idx = resolveSlotIndex(ev.colorKey, activeSetId)
+        setSelectedSlot(idx)
+        setRepeatOn(!!ev.repeat)
         setEventData(ev)
       } catch (err) {
         if (cancelled) return
@@ -1127,7 +1296,7 @@ export default function EventDetailPopup({
     return () => {
       cancelled = true
     }
-  }, [visible, mode, eventId, initial?.startDate]) // 발생일 변경 때만 재조회
+  }, [visible, mode, eventId, initial?.startDate, activeSetId]) // 발생일 변경 때만 재조회
 
 
   useEffect(() => {
@@ -1137,15 +1306,18 @@ export default function EventDetailPopup({
 
       setScheduleTitle('')
       setMemo('')
-      const defaultLabel = labels.find((l) => l.title === '일정')
+      const effectiveCreateType = createTypeSelected ?? initialCreateType
+      const defaultLabelTitle = effectiveCreateType === 'task' ? '할 일' : '일정'
+      const defaultLabel = labels.find((l) => l.title === defaultLabelTitle)
       setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
 
-      setSelectedColor('#B04FFF')
+      setSelectedSlot(0)
 
       const today = new Date()
       setStart(today)
       setEnd(today)
       setTimeOn(false)
+      setRepeatOn(false)
       setRemindOn(false)
       setRemindValue(null)
       setRepeatMode('daily')
@@ -1156,7 +1328,7 @@ export default function EventDetailPopup({
       setRepeatEndDate(null)
       setActiveTab('schedule')
     }
-  }, [visible, mode, initial])
+  }, [visible, mode, initial, initialCreateType])
 
   useEffect(() => {
     if (!visible) return
@@ -1212,6 +1384,18 @@ export default function EventDetailPopup({
     }
   }, [visible])
 
+  useEffect(() => {
+    if (!visible) return
+    const inCreate = mode === 'create' && !initial
+    const createType = inCreate ? initialCreateType : null
+    setCreateStep(inCreate ? (createType === 'task' ? 'detail' : 'intro') : 'detail')
+    setCreateTypeSelected(mode === 'edit' ? 'event' : createType)
+    setEditDatePicking(false)
+    setTaskDate(null)
+    setTaskDueOn(false)
+    setTaskDueDate(null)
+  }, [visible, mode, initial, initialCreateType])
+
   const deleteNormal = async () => {
     try {
       await http.delete(`/event/${eventId}`)
@@ -1225,7 +1409,8 @@ export default function EventDetailPopup({
   }
 
   const deleteRepeatOnlyThis = async () => {
-    if (!eventData?.repeat) {
+    const repeatRule = eventData?.repeat ?? initial?.repeat
+    if (!repeatRule) {
       await deleteNormal()
       return
     }
@@ -1233,12 +1418,12 @@ export default function EventDetailPopup({
     try {
       const occDate = ymdLocal(start)
 
-      const prev = eventData.repeat.exceptionDates ?? []
+      const prev = repeatRule.exceptionDates ?? []
       const next = prev.includes(occDate) ? prev : [...prev, occDate]
 
       await http.patch(`/event/${eventId}`, {
         repeat: {
-          ...eventData.repeat,
+          ...repeatRule,
           exceptionDates: next,
         },
       })
@@ -1254,7 +1439,8 @@ export default function EventDetailPopup({
   }
 
   const deleteRepeatAllFuture = async () => {
-    if (!eventData?.repeat) {
+    const repeatRule = eventData?.repeat ?? initial?.repeat
+    if (!repeatRule) {
       await deleteNormal()
       return
     }
@@ -1266,7 +1452,7 @@ export default function EventDetailPopup({
 
       await http.patch(`/event/${eventId}`, {
         repeat: {
-          ...eventData.repeat,
+          ...repeatRule,
           endDate: prevDay,
         },
       })
@@ -1281,9 +1467,9 @@ export default function EventDetailPopup({
     }
   }
 
-  const confirmDelete = () => {
-    // 반복 일정이면 옵션 2개
-    if (eventData?.repeat != null) {
+  const openDeletePrompt = () => {
+    const hasRepeat = eventData?.repeat != null || initial?.repeat != null
+    if (hasRepeat) {
       Alert.alert('반복 일정 삭제', '이후 반복하는 일정들도 삭제하시겠습니까?', [
         { text: '취소', style: 'cancel' },
         {
@@ -1302,18 +1488,7 @@ export default function EventDetailPopup({
       ])
       return
     }
-
-    // 일반 일정
-    Alert.alert('삭제', '이 일정을 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () => {
-          void deleteNormal()
-        },
-      },
-    ])
+    setDeleteConfirmOpen(true)
   }
 
   return (
@@ -1334,15 +1509,31 @@ export default function EventDetailPopup({
           >
             <View
               ref={sheetRef}
-              style={[styles.box, { width: SHEET_W, height: SHEET_H }]}
+              style={[styles.boxShadow, { width: SHEET_W, height: SHEET_H }]}
             >
-              {/* HEADER */}
-              <View style={styles.header}>
-                <TouchableOpacity onPress={close} hitSlop={20}>
-                  <Xbutton width={12} height={12} color={'#808080'} />
-                </TouchableOpacity>
+              <View style={styles.box}>
+                {/* HEADER */}
+                <View style={[styles.header, mode === 'edit' && styles.headerEdit]}>
+                {mode === 'edit' ? (
+                  <Pressable
+                    onPress={openDeletePrompt}
+                    style={styles.deletePillBtn}
+                    hitSlop={10}
+                  >
+                    <Text style={styles.deletePillText}>삭제</Text>
+                  </Pressable>
+                ) : (
+                  <TouchableOpacity onPress={close} hitSlop={20}>
+                    <Xbutton width={12} height={12} color={'#808080'} />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   onPress={async () => {
+                    if (isCreateFlow && createStep === 'intro') {
+                      setCreateTypeSelected((createTypeSelected ?? 'event'))
+                      setCreateStep('detail')
+                      return
+                    }
                     if (saving) return
                     setSaving(true)
                     try {
@@ -1356,77 +1547,277 @@ export default function EventDetailPopup({
                 >
                   <Check width={12} height={12} color={'#808080'} />
                 </TouchableOpacity>
-              </View>
-              {/* 제목 + 색 */}
-              <View style={styles.body}>
-                <ScrollView
-                  ref={scrollRef}
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: 40 }}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="on-drag"
-                  scrollEnabled={!isPickerTouching}
-                  bounces={false}
-                  showsVerticalScrollIndicator={true}
-                  automaticallyAdjustKeyboardInsets={true} // iOS 15+
-                  nestedScrollEnabled={true}
-                >
-                  <View style={[styles.row, styles.titleHeader]}>
-                    <Pressable
-                      onPress={() => titleRef.current?.focus()}
-                      style={{ flex: 1, justifyContent: 'center', minHeight: 42 }}
-                      hitSlop={10} // 살짝 여유
+                </View>
+                {/* 제목 + 색 */}
+                <View style={styles.body}>
+                  {isCreateFlow && createStep === 'intro' ? (
+                    <ScrollView
+                      style={{ flex: 1 }}
+                      contentContainerStyle={{ paddingBottom: 0 }}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={false}
                     >
-                      <TextInput
-                        ref={titleRef}
-                        placeholder="제목"
-                        placeholderTextColor="#808080"
-                        style={[styles.titleInput]}
-                        value={scheduleTitle}
-                        onChangeText={setScheduleTitle}
+                      <CreateModeTypeStep
+                        title={scheduleTitle}
+                        onChangeTitle={setScheduleTitle}
+                        colors={COLORS}
+                        selectedColorIndex={selectedSlot}
+                        onSelectColorIndex={setSelectedSlot}
+                        selectedType={createTypeSelected}
+                        onSelectType={(value) => {
+                          setCreateTypeSelected(value)
+                          const defaultLabel = labels.find((l) =>
+                            l.title === (value === 'task' ? '할 일' : '일정'),
+                          )
+                          setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
+                          if (value === 'task' && !taskDate) {
+                            setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
+                          }
+                          if (value === 'task') {
+                            setCreateStep('detail')
+                          }
+                        }}
                       />
-                    </Pressable>
-                    <Pressable
-                      ref={colorBtnRef}
-                      onPress={() => {
-                        colorBtnRef.current?.measureInWindow((bx, by, bw, bh) => {
-                          sheetRef.current?.measureInWindow((sx, sy) => {
-                            const relX = bx - sx
-                            const relY = by - sy
-
-                            // 정렬 기준 좌표
-                            const baseLeft = RIGHT_ALIGN ? relX + bw - POPOVER_W : relX
-                            // 화면 가장자리 보호(좌우 클램프)
-                            const left = Math.max(
-                              8,
-                              Math.min(baseLeft, SHEET_W - POPOVER_W - 8),
-                            )
-
-                            // 기본은 버튼 아래로
-                            const top = relY + bh + POP_GAP
-
-                            setPalette({ visible: true, x: left, y: top, w: bw, h: bh })
-                          })
-                        })
+                      {createTypeSelected === 'event' && (
+                        <CreateEventDateStep
+                          start={start}
+                          end={end}
+                          onChangeRange={(nextStart, nextEnd) => {
+                            setStart(nextStart)
+                            setEnd(nextEnd)
+                          }}
+                          onNext={() => setCreateStep('detail')}
+                        />
+                      )}
+                    </ScrollView>
+                  ) : mode === 'edit' && editDatePicking ? (
+                    <CreateEventDateStep
+                      start={start}
+                      end={end}
+                      onChangeRange={(nextStart, nextEnd) => {
+                        setStart(nextStart)
+                        setEnd(nextEnd)
                       }}
+                      onNext={() => setEditDatePicking(false)}
+                    />
+                  ) : (isCreateFlow && createStep === 'detail') || mode === 'edit' ? (
+                    <CreateEventDetailStep
+                      title={scheduleTitle}
+                      onChangeTitle={setScheduleTitle}
+                      memo={memo}
+                      onChangeMemo={setMemo}
+                      colors={COLORS}
+                      selectedColorIndex={selectedSlot}
+                      onSelectColorIndex={setSelectedSlot}
+                      selectedType={mode === 'edit' ? 'event' : createTypeSelected}
+                      onSelectType={(value) => {
+                        if (mode === 'edit') return
+                        setCreateTypeSelected(value)
+                        const defaultLabel = labels.find((l) =>
+                          l.title === (value === 'task' ? '할 일' : '일정'),
+                        )
+                        setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
+                        if (value === 'task' && !taskDate) {
+                          setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
+                        }
+                      }}
+                      start={start}
+                      end={end}
+                      onPressDateBox={() => {
+                        if (mode === 'edit') {
+                          setEditDatePicking(true)
+                          return
+                        }
+                        setCreateTypeSelected('event')
+                        setCreateStep('intro')
+                      }}
+                      onChangeStartTime={(next) => {
+                        setStart(next)
+                        if (end.getTime() < next.getTime()) {
+                          const autoEnd = new Date(next)
+                          autoEnd.setHours(next.getHours() + 1)
+                          setEnd(autoEnd)
+                        }
+                      }}
+                      onChangeEndTime={setEnd}
+                      timeOn={timeOn}
+                      onToggleTime={(next) => {
+                        setTimeOn(next)
+                        if (next) {
+                          const now = new Date()
+                          const snapMin = now.getMinutes() - (now.getMinutes() % 5)
+
+                          const newStart = new Date(start)
+                          newStart.setHours(now.getHours())
+                          newStart.setMinutes(snapMin)
+                          newStart.setSeconds(0)
+                          newStart.setMilliseconds(0)
+                          setStart(newStart)
+
+                          const newEnd = new Date(newStart)
+                          newEnd.setHours(newStart.getHours() + 1)
+                          setEnd(newEnd)
+                        } else {
+                          setRemindOn(false)
+                          setRemindOpen(false)
+                          setCustomOpen(false)
+                        }
+                      }}
+                      repeatOn={repeatOn}
+                      onToggleRepeat={(next) => {
+                        setRepeatOn(next)
+                        if (!next) {
+                          setEndMode('none')
+                          setRepeatEndDate(null)
+                        }
+                      }}
+                      repeatMode={repeatMode}
+                      repeatEvery={repeatEvery}
+                      repeatUnit={repeatUnit}
+                      monthlyOpt={monthlyOpt}
+                      onChangeRepeatMode={setRepeatMode}
+                      onChangeRepeatEvery={setRepeatEvery}
+                      onChangeRepeatUnit={setRepeatUnit}
+                      onChangeMonthlyOpt={setMonthlyOpt}
+                      repeatEndDate={endMode === 'date' ? repeatEndDate : null}
+                      onChangeRepeatEndDate={(next) => {
+                        if (!next) {
+                          setEndMode('none')
+                          setRepeatEndDate(null)
+                          return
+                        }
+                        setEndMode('date')
+                        setRepeatEndDate(next)
+                      }}
+                      remindOn={remindOn}
+                      onToggleRemind={(next) => {
+                        if (!next) {
+                          setRemindOn(false)
+                          setRemindOpen(false)
+                          setCustomOpen(false)
+                          return
+                        }
+                        void (async () => {
+                          const ok = await ensureNotificationPermissionForToggle()
+                          if (!ok) {
+                            setRemindOn(false)
+                            setRemindOpen(false)
+                            setCustomOpen(false)
+                            return
+                          }
+                          if (presetOptions.length > 0) {
+                            setRemindValue(presetOptions[0])
+                            setCustomOpen(false)
+                          } else {
+                            setRemindValue('custom')
+                            setCustomOpen(false)
+                          }
+                          setRemindOn(true)
+                          setRemindOpen(true)
+                        })()
+                      }}
+                      remindOpen={remindOpen}
+                      onSetRemindOpen={setRemindOpen}
+                      remindDisplayText={displayRemind}
+                      remindOptions={remindOptions}
+                      remindSelectedKey={remindSelectedKey}
+                      onSelectRemindOption={(opt) => {
+                        if (opt.type === 'custom') {
+                          setRemindValue('custom')
+                          setCustomOpen((v) => !v)
+                          return
+                        }
+                        setRemindValue(opt)
+                        setCustomOpen(false)
+                        setRemindOpen(false)
+                      }}
+                      customOpen={customOpen}
+                      onSetCustomOpen={setCustomOpen}
+                      customHour={customHour}
+                      customMinute={customMinute}
+                      onChangeCustomHour={setCustomHour}
+                      onChangeCustomMinute={setCustomMinute}
+                      labels={labels}
+                      selectedLabelIds={selectedLabelIds}
+                      labelMaxSelected={MAX_SELECTED_LABELS}
+                      onChangeSelectedLabelIds={setSelectedLabelIds}
+                      onCreateLabel={handleCreateLabel}
+                      taskDate={taskDate}
+                      onChangeTaskDate={setTaskDate}
+                      taskDueOn={taskDueOn}
+                      onChangeTaskDueOn={setTaskDueOn}
+                      taskDueDate={taskDueDate}
+                      onChangeTaskDueDate={setTaskDueDate}
+                    />
+                  ) : (
+                    <ScrollView
+                      ref={scrollRef}
+                      style={{ flex: 1 }}
+                      contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: 40 }}
+                      keyboardShouldPersistTaps="handled"
+                      keyboardDismissMode="on-drag"
+                      scrollEnabled={!isPickerTouching}
+                      bounces={false}
+                      showsVerticalScrollIndicator={true}
+                      automaticallyAdjustKeyboardInsets={true} // iOS 15+
+                      nestedScrollEnabled={true}
                     >
-                      <Text style={[styles.colorDot, { color: selectedColor }]}>●</Text>
-                    </Pressable>
-                  </View>
+                    <View style={[styles.row, styles.titleHeader]}>
+                      <Pressable
+                        onPress={() => titleRef.current?.focus()}
+                        style={{ flex: 1, justifyContent: 'center', minHeight: 42 }}
+                        hitSlop={10} // 살짝 여유
+                      >
+                        <TextInput
+                          ref={titleRef}
+                          placeholder="제목"
+                          placeholderTextColor="#808080"
+                          style={[styles.titleInput]}
+                          value={scheduleTitle}
+                          onChangeText={setScheduleTitle}
+                        />
+                      </Pressable>
+                      <Pressable
+                        ref={colorBtnRef}
+                        onPress={() => {
+                          colorBtnRef.current?.measureInWindow((bx, by, bw, bh) => {
+                            sheetRef.current?.measureInWindow((sx, sy) => {
+                              const relX = bx - sx
+                              const relY = by - sy
+
+                              // 정렬 기준 좌표
+                              const baseLeft = RIGHT_ALIGN ? relX + bw - POPOVER_W : relX
+                              // 화면 가장자리 보호(좌우 클램프)
+                              const left = Math.max(
+                                8,
+                                Math.min(baseLeft, SHEET_W - POPOVER_W - 8),
+                              )
+
+                              // 기본은 버튼 아래로
+                              const top = relY + bh + POP_GAP
+
+                              setPalette({ visible: true, x: left, y: top, w: bw, h: bh })
+                            })
+                          })
+                        }}
+                      >
+                        <Text style={[styles.colorDot, { color: selectedColor }]}>●</Text>
+                      </Pressable>
+                    </View>
                   {/* 색상 선택 */}
                   {showPalette && (
                     <View style={styles.paletteRow}>
-                      {COLORS.map((c) => (
+                      {COLORS.map((c, i) => (
                         <Pressable
-                          key={c}
+                          key={`${c}-${i}`}
                           onPress={() => {
-                            setSelectedColor(c)
+                            setSelectedSlot(i)
                             setShowPalette(false)
                           }}
                           style={[
                             styles.colorOption,
                             { backgroundColor: c },
-                            selectedColor === c && styles.selected,
+                            selectedSlot === i && styles.selected,
                           ]}
                         />
                       ))}
@@ -2246,32 +2637,33 @@ export default function EventDetailPopup({
                       }}
                     >
                       {/* 선택된 라벨 칩들 */}
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          flexWrap: 'wrap',
-                          justifyContent: 'flex-end',
-                          gap: 6,
-                          maxWidth: 210,
-                          flexShrink: 1,
-                        }}
+                      <ScrollView
+                        horizontal
+                        nestedScrollEnabled
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ alignItems: 'center', paddingRight: 2 }}
+                        style={{ width: 210, maxWidth: 210, flexShrink: 1 }}
                       >
-                        {selectedLabelIds.map((id) => {
+                        {selectedLabelIds.map((id, idx) => {
                           const item = labels.find((l) => l.id === id)
                           if (!item) return null
                           return (
-                            <LabelChip
+                            <View
                               key={id}
-                              title={item.title}
-                              onRemove={() =>
-                                setSelectedLabelIds((prev) =>
-                                  prev.filter((x) => x !== id),
-                                )
-                              }
-                            />
+                              style={{ marginRight: idx === selectedLabelIds.length - 1 ? 0 : 6 }}
+                            >
+                              <LabelChip
+                                title={item.title}
+                                onRemove={() =>
+                                  setSelectedLabelIds((prev) =>
+                                    prev.filter((x) => x !== id),
+                                  )
+                                }
+                              />
+                            </View>
                           )
                         })}
-                      </View>
+                      </ScrollView>
 
                       {/* 라벨 선택 버튼 */}
                       <Pressable
@@ -2305,6 +2697,7 @@ export default function EventDetailPopup({
                       visible
                       all={labels}
                       selected={selectedLabelIds}
+                      maxSelected={MAX_SELECTED_LABELS}
                       onChange={(nextIds) => setSelectedLabelIds(nextIds)}
                       onRequestClose={() => setLabelModalOpen(false)}
                       anchor={labelAnchor}
@@ -2334,57 +2727,74 @@ export default function EventDetailPopup({
                       style={styles.memoBox}
                     />
                   </View>
-                  {mode === 'edit' && eventId && (
+                    </ScrollView>
+                  )}
+                  {/* 팝오버: 시트(box) 기준 절대배치 */}
+                  {(!isCreateFlow || createStep === 'detail') && palette.visible && (
                     <>
-                      <View style={styles.sep} />
+                      {/* 백드롭 */}
                       <Pressable
-                        onPress={confirmDelete}
-                        style={styles.deleteBtn}
-                        hitSlop={8}
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setPalette((p) => ({ ...p, visible: false }))}
+                      />
+                      <View
+                        style={[
+                          styles.palettePopover,
+                          {
+                            top: palette.y,
+                            left: palette.x,
+                            width: POPOVER_W,
+                            transform: [{ translateX: NUDGE_X }, { translateY: NUDGE_Y }],
+                          },
+                        ]}
                       >
-                        <Text style={styles.deleteTxt}>삭제</Text>
-                      </Pressable>
+                        <Text style={styles.popoverTitle}>색상</Text>
+                        {COLORS.map((c, i) => (
+                          <Pressable
+                            key={c}
+                            onPress={() => {
+                              setSelectedSlot(i)
+                              setPalette((p) => ({ ...p, visible: false }))
+                            }}
+                            style={[styles.colorPill, { backgroundColor: c }]}
+                          />
+                        ))}
+                      </View>
                     </>
                   )}
-                </ScrollView>
-                {/* 팝오버: 시트(box) 기준 절대배치 */}
-                {palette.visible && (
-                  <>
-                    {/* 백드롭 */}
-                    <Pressable
-                      style={StyleSheet.absoluteFill}
-                      onPress={() => setPalette((p) => ({ ...p, visible: false }))}
-                    />
-                    <View
-                      style={[
-                        styles.palettePopover,
-                        {
-                          top: palette.y,
-                          left: palette.x,
-                          width: POPOVER_W,
-                          transform: [{ translateX: NUDGE_X }, { translateY: NUDGE_Y }],
-                        },
-                      ]}
-                    >
-                      <Text style={styles.popoverTitle}>색상</Text>
-                      {COLORS.map((c) => (
-                        <Pressable
-                          key={c}
-                          onPress={() => {
-                            setSelectedColor(c)
-                            setPalette((p) => ({ ...p, visible: false }))
-                          }}
-                          style={[styles.colorPill, { backgroundColor: c }]}
-                        />
-                      ))}
-                    </View>
-                  </>
-                )}
+                </View>
               </View>
-              {/* </View> */}
             </View>
           </View>
         </KeyboardAvoidingView>
+            {deleteConfirmOpen && (
+              <View style={styles.deleteOverlay}>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={() => setDeleteConfirmOpen(false)}
+                />
+                <View style={styles.deleteCard}>
+                  <Text style={styles.deleteTitle}>일정을 삭제할까요?</Text>
+                  <View style={styles.deleteRow}>
+                    <Pressable
+                      style={[styles.deleteActionBtn, styles.deleteCancelBtn]}
+                      onPress={() => setDeleteConfirmOpen(false)}
+                    >
+                      <Text style={styles.deleteCancelTxt}>취소</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.deleteActionBtn, styles.deleteConfirmBtn]}
+                      onPress={() => {
+                        setDeleteConfirmOpen(false)
+                        void deleteNormal()
+                      }}
+                    >
+                      <Text style={styles.deleteConfirmTxt}>삭제</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            )}
       </Modal>
     </>
   )
@@ -2397,15 +2807,22 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.62)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  boxShadow: {
+    borderRadius: 20,
+    shadowColor: '#8D99A3',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 16,
+  },
   box: {
-    width: 342,
-    height: 573,
+    flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   titleHeader: {
@@ -2421,8 +2838,80 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     height: 40,
-    paddingHorizontal: 15,
-    marginTop: 3,
+    paddingHorizontal: 24,
+    marginTop: 10,
+  },
+  headerEdit: {
+    marginTop: 16,
+  },
+  deletePillBtn: {
+    width: 40,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.feedback.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deletePillText: {
+    ...ts('body1'),
+    color: colors.feedback.error,
+  },
+  deleteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCard: {
+    width: 302,
+    height: 152,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 30,
+    paddingBottom: 20,
+    shadowColor: '#8D99A3',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 16,
+  },
+  deleteTitle: {
+    ...ts('label1'),
+    fontWeight: '700',
+    color: colors.text.text1,
+  },
+  deleteRow: {
+    width: 302,
+    paddingHorizontal: 32,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    columnGap: 16,
+  },
+  deleteActionBtn: {
+    width: 119,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCancelBtn: {
+    backgroundColor: colors.background.bg1,
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.brand.primary,
+  },
+  deleteCancelTxt: {
+    ...ts('label1'),
+    color: colors.text.text3,
+  },
+  deleteConfirmTxt: {
+    ...ts('label1'),
+    color: colors.text.text1w,
   },
   sameDayText: {
     fontSize: 18,
@@ -2430,9 +2919,6 @@ const styles = StyleSheet.create({
     color: '#B3B3B3',
     marginLeft: 1,
   },
-  cancel: { color: '#555', fontSize: 16 },
-  hTitle: { fontSize: 18, fontWeight: 'bold' },
-  saveBtn: { color: '#B04FFF', fontSize: 16, fontWeight: 'bold' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2600,9 +3086,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   colorPill: {
-    height: 28,
+    height: 24,
     borderRadius: 14,
-    marginVertical: 8,
+    marginVertical: 4,
   },
   cardDropdown: {
     marginTop: 6,
@@ -2655,17 +3141,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   arrowGap: { marginHorizontal: 13 }, // 화살표는 고정폭
-
-  deleteBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 10,
-    paddingBottom: 25,
-  },
-  deleteTxt: {
-    color: '#B04FFF', // 피그마 기준 보라
-    fontSize: 15,
-    fontWeight: '700',
-  },
 
   timeBoxWrap: {
     width: 143,

@@ -218,10 +218,11 @@ export function getCalendarDates(
   const lastDayOfMonth = new Date(year, month + 1, 0)
   const startWeekDay = firstDayOfMonth.getDay()
   const totalDays = lastDayOfMonth.getDate()
+  const totalCells = Math.ceil((startWeekDay + totalDays) / 7) * 7
   const prevMonthLastDate = new Date(year, month, 0).getDate()
   const systemTodayISO = TODAY_ISO
 
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < totalCells; i++) {
     const dayNum = i - startWeekDay + 1
     let date: number
     let isCurrentMonth = true

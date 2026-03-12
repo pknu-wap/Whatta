@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from 'react'
+import React, { useMemo, useEffect, useState, useRef } from 'react'
 import { StyleSheet, View, Pressable, Dimensions, Text } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, {
@@ -12,17 +12,15 @@ import Sidebar from '@/components/sidebars/Sidebar'
 import Header from '@/components/Header'
 import { bus } from '@/lib/eventBus'
 import { useNavigation } from '@react-navigation/native'
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { PanResponder } from 'react-native'
 import colors from '@/styles/colors'
-import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 type Props = { mode: 'push' | 'overlay'; children: React.ReactNode }
 
-const BASE_HEADER_H = 58
-const Tab = createBottomTabNavigator()
+const BASE_HEADER_H = 48
 
 export default function ScreenWithSidebar({ mode, children }: Props) {
+  const SIDEBAR_GHOST_W = 155
+  const SIDEBAR_GHOST_H = 60
   const { progress, width: sbWidth, close, isOpen } = useDrawer()
   const CLOSE_ANIM_MS = 220
   const insets = useSafeAreaInsets()
@@ -35,9 +33,8 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   const dragX = useSharedValue(0) // 워크릿용 좌표
   const dragY = useSharedValue(0)
   const dragVisible = useSharedValue(0)
+  const dragPrimedRef = useRef(false)
   const [ghostFold, setGhostFold] = useState(false)
-  const [closing, setClosing] = useState(false)
-  const ghostMode = useSharedValue<'day' | 'week'>('day')
   const [ghostMeta, setGhostMeta] = useState({ mode: 'day', w: 320, h: 44 })
 
   // 사이드바 외부 드래그 신호 수신
@@ -46,19 +43,18 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
       setDragTitle(task?.title ?? '')
       dragX.value = x
       dragY.value = y
+      dragPrimedRef.current = true
+      setGhostMeta({ mode: 'sidebar', w: SIDEBAR_GHOST_W, h: SIDEBAR_GHOST_H })
       setDragActive(true)
       dragVisible.value = 1
 
       if (isOpen) {
-        setGhostFold(true)
-        if (currentCalendarView.get() === 'day') {
-          bus.emit('xdrag:ready')
-        }
+        setGhostFold(false)
       }
     }
     bus.on('xdrag:start', onStart)
     return () => bus.off('xdrag:start', onStart)
-  }, [])
+  }, [isOpen])
 
   useEffect(() => {
     // 앱 시작 시 한 번, 현재 달을 강제 재조회
@@ -72,21 +68,22 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
     const onMove = ({ x, y }: any) => {
       dragX.value = x
       dragY.value = y
-      if (isOpen && !ghostFold && x > sbWidth + 12) {
+      if (dragPrimedRef.current && isOpen && !ghostFold && x > sbWidth + 12) {
         setGhostFold(true)
+        bus.emit('drawer:close')
+        close()
         bus.emit('xdrag:ready')
       }
     }
     const onDrop = ({ x, y }: any) => {
       dragX.value = x
       dragY.value = y
+      dragPrimedRef.current = false
       setDragActive(false)
       setDragTitle(null)
       dragVisible.value = 0
       if (ghostFold) {
         setGhostFold(false)
-        bus.emit('drawer:close')
-        close()
       } else {
         bus.emit('xdrag:cancel')
       }
@@ -100,8 +97,6 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
   }, [isOpen, sbWidth, ghostFold, close])
 
   const ghostStyle = useAnimatedStyle(() => {
-    const isWeek = ghostMode.value === 'week'
-
     const OFFSET_X = -28 // 손가락보다 25px 오른쪽
     const OFFSET_Y = -15 // 손가락보다 15px 위쪽
 
@@ -134,49 +129,62 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
 
   useEffect(() => {
     const handler = (meta: any) => {
+      // 사이드바에서 드래그 중에는 고스트를 사이드바 카드 크기로 유지
+      if (dragActive) return
       if (meta.mode === 'week') {
         setGhostMeta({
           mode: 'week',
           w: meta.dayColWidth - 2,
           h: meta.rowH - 6,
         })
-        ghostMode.value = 'week'
       } else {
         setGhostMeta({
           mode: 'day',
           w: 320,
           h: 44,
         })
-        ghostMode.value = 'day'
       }
     }
 
     bus.on('calendar:meta', handler)
     return () => bus.off('calendar:meta', handler)
-  }, [])
+  }, [dragActive])
 
   const ghostCardStyleDay = {
     position: 'absolute' as const,
     width: ghostMeta.w,
     height: ghostMeta.h,
     borderRadius: 10,
-    borderWidth: 0.4,
-    borderColor: '#333333',
-    backgroundColor: '#FFFFFFCC',
+    borderWidth: 1,
+    borderColor: '#5E5E5E',
+    backgroundColor: '#FFFFFFF2',
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 16,
     left: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   }
 
   const ghostCardStyleWeek = {
     position: 'absolute' as const,
     width: ghostMeta.w + 8,
     height: ghostMeta.h,
-    backgroundColor: '#FFFFFF80',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#5E5E5E',
+    backgroundColor: '#FFFFFFE8',
     paddingHorizontal: 4,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   }
 
   // close() 호출 전에 항상 drawer:close 이벤트 발생
@@ -306,7 +314,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
             ]}
           >
             {/* DayView 고스트 */}
-            {ghostMeta.mode === 'day' && (
+            {ghostMeta.mode !== 'week' && (
               <View
                 style={{
                   flexDirection: 'row',
@@ -396,7 +404,7 @@ export default function ScreenWithSidebar({ mode, children }: Props) {
 const S = StyleSheet.create({
   sidebarWrap: {
     position: 'absolute',
-    backgroundColor: colors.neutral.surface,
+    backgroundColor: colors.background.bg2,
   },
   headerSafeFixed: {
     position: 'absolute',

@@ -19,58 +19,29 @@ import { useDrawer } from '@/providers/DrawerProvider'
 import CalendarModal from '@/components/CalendarModal'
 import Menu from '@/assets/icons/menu.svg'
 import Filter from '@/assets/icons/filter.svg'
-import Left from '@/assets/icons/left.svg'
-import Right from '@/assets/icons/right.svg'
+import DownL from '@/assets/icons/downL.svg'
 import colors from '@/styles/colors'
-import {
-  useNavigation,
-  useFocusEffect,
-  useNavigationState,
-} from '@react-navigation/native'
+import { ts } from '@/styles/typography'
+import { useFocusEffect, useNavigationState } from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
-type ViewMode = 'month' | 'week' | 'day'
-
 /* 날짜 관련 유틸 함수 */
-const pad2 = (n: number) => String(n).padStart(2, '0')
-const addDays = (iso: string, d: number) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const t = new Date(y, m - 1, dd + d)
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-const addMonths = (iso: string, dm: number) => {
-  const [y, m, dd] = iso.split('-').map(Number)
-  const t = new Date(y, m - 1 + dm, dd)
-  return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`
-}
-const toDate = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-const toISO = (dt: Date) =>
-  `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`
-const startOfWeek = (iso: string) => {
-  const dt = toDate(iso)
-  const wd = dt.getDay()
-  const s = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() - wd)
-  return toISO(s)
-}
-const endOfWeek = (iso: string) =>
-  toISO(new Date(toDate(startOfWeek(iso)).getTime() + 6 * 86400000))
-const dot = (ymd: string) => ymd.split('-').join('.')
-const fmtDay = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  const w = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()]
-  return `${y}년 ${pad2(m)}월 ${pad2(d)}일 (${w})`
-}
 const today = () => {
   const t = new Date()
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
     t.getDate(),
   ).padStart(2, '0')}`
+}
+
+const startOfWeekISO = (iso: string) => {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  const day = dt.getDay()
+  dt.setDate(dt.getDate() - day)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
 
 /* Custom Toggle 컴포넌트 정의 */
@@ -92,7 +63,7 @@ const CustomToggle = ({
         borderRadius: 26,
         padding: 3,
         justifyContent: 'center',
-        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
+        backgroundColor: disabled ? '#D9D9D9' : value ? colors.brand.primary : '#D9D9D9',
         opacity: disabled ? 0.4 : 1,
         marginRight: 16, // 기존 레이아웃 맞춤용 여백
       }}
@@ -121,16 +92,11 @@ export default function Header() {
   const { progress, toggle, close } = useDrawer()
 
   const [calVisible, setCalVisible] = useState(false)
+  const [calendarMode, setCalendarMode] = useState<'day' | 'week' | 'month'>('day')
   const [popup, setPopup] = useState(globalPopupState.popup)
   const popupOpacity = useState(new Animated.Value(globalPopupState.opacity))[0]
   const sliderX = useState(new Animated.Value(globalPopupState.sliderX))[0]
   const maxSlide = 38
-  const [mode, setMode] = useState<ViewMode>('month')
-
-  const [days, setDays] = useState<number>(7)
-  const [rangeStart, setRangeStart] = useState<string | null>(null)
-  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
-
   /* ✅ 현재 활성 탭 감지 */
   const currentRouteName = useNavigationState((state) => {
     const route = state.routes[state.index]
@@ -162,22 +128,28 @@ export default function Header() {
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
+  const [rangeStart, setRangeStart] = useState<string | null>(null)
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
+
+  const closeFilterPopup = () => {
+    setPopup(false)
+    globalPopupState.popup = false
+  }
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
     const onState = (st: {
       date: string
-      mode: ViewMode
-      days?: number
+      mode?: 'day' | 'week' | 'month'
       rangeStart?: string
       rangeEnd?: string
     }) => {
-      setAnchorDate(st.date)
-      setMode(st.mode)
-
-      if (st.days) setDays(st.days)
-      if (st.rangeStart) setRangeStart(st.rangeStart)
-      if (st.rangeEnd) setRangeEnd(st.rangeEnd)
+      if (typeof st?.date === 'string' && st.date.length >= 10) {
+        setAnchorDate(st.date)
+      }
+      if (st.mode) setCalendarMode(st.mode)
+      setRangeStart(typeof st?.rangeStart === 'string' ? st.rangeStart : null)
+      setRangeEnd(typeof st?.rangeEnd === 'string' ? st.rangeEnd : null)
     }
 
     bus.on('calendar:state', onState)
@@ -185,37 +157,29 @@ export default function Header() {
     return () => bus.off('calendar:state', onState)
   }, [])
 
-  const goPrev = () => {
-    const iso =
-      mode === 'month'
-        ? addMonths(anchorDate, -1)
-        : mode === 'week'
-          ? addDays(anchorDate, -days)
-          : addDays(anchorDate, -1)
-    bus.emit('calendar:set-date', iso)
-  }
-  const goNext = () => {
-    const iso =
-      mode === 'month'
-        ? addMonths(anchorDate, +1)
-        : mode === 'week'
-          ? addDays(anchorDate, +days)
-          : addDays(anchorDate, +1)
-    bus.emit('calendar:set-date', iso)
-  }
-
   const title = useMemo(() => {
-    if (mode === 'month') {
-      const [y, m] = anchorDate.split('-')
-      return `${y}년 ${m}월`
+    if (!anchorDate || anchorDate.length < 7) return ''
+    const [y, m] = anchorDate.split('-')
+    return `${y}년 ${m}월`
+  }, [anchorDate])
+  const todayISO = today()
+  const isTodayButtonVisible = (() => {
+    if (typeof anchorDate !== 'string' || anchorDate.length < 10) return true
+    const selectedISO = anchorDate.slice(0, 10)
+
+    if (calendarMode === 'week') {
+      if (rangeStart && rangeEnd) {
+        return !(todayISO >= rangeStart.slice(0, 10) && todayISO <= rangeEnd.slice(0, 10))
+      }
+      return startOfWeekISO(selectedISO) !== startOfWeekISO(todayISO)
     }
-    if (mode === 'week') {
-      const s = startOfWeek(anchorDate)
-      const e = endOfWeek(anchorDate)
-      return `${dot(s)} ~ ${dot(e)}`
+
+    if (calendarMode === 'month') {
+      return selectedISO.slice(0, 7) !== todayISO.slice(0, 7)
     }
-    return fmtDay(anchorDate)
-  }, [anchorDate, mode])
+
+    return selectedISO !== todayISO
+  })()
 
   const { items: filterLabels, toggleLabel, toggleAll } = useLabelFilter()
 
@@ -234,18 +198,26 @@ export default function Header() {
     },
   })
 
+  const applyOpacityFromSliderX = (rawX: number) => {
+    const clampedX = Math.min(Math.max(rawX, 0), maxSlide)
+    sliderX.setValue(clampedX)
+    const opacity = 0.7 + (clampedX / maxSlide) * 0.3
+    popupOpacity.setValue(opacity)
+    globalPopupState.opacity = opacity
+    globalPopupState.sliderX = clampedX
+  }
+
   const menuIconProps = useAnimatedProps(() => ({
     color: interpolateColor(
       progress.value,
       [0, 1],
-      [colors.icon.default, colors.primary.main],
+      [colors.icon.default, colors.icon.selected],
     ),
   }))
 
   useEffect(() => {
     const closeHandler = () => {
-      setPopup(false)
-      globalPopupState.popup = false
+      closeFilterPopup()
       bus.emit('filter:popup', false)
     }
     bus.on('filter:close', closeHandler)
@@ -256,16 +228,12 @@ export default function Header() {
     <View style={styles.root}>
       <View style={styles.header}>
         {/* ☰ 메뉴 */}
-        <TouchableOpacity onPress={toggle}>
-          <AnimatedMenu width={28} height={28} animatedProps={menuIconProps} />
+        <TouchableOpacity onPress={toggle} style={styles.leftButton}>
+          <AnimatedMenu width={24} height={24} animatedProps={menuIconProps} />
         </TouchableOpacity>
 
         {/* 날짜 그룹 */}
-        <View style={styles.dateGroup}>
-          <TouchableOpacity onPress={goPrev}>
-            <Left width={24} height={24} color={colors.icon.default} />
-          </TouchableOpacity>
-
+        <View style={styles.dateGroup} pointerEvents="box-none">
           <TouchableOpacity
             onPress={() => {
               if (popup) {
@@ -278,20 +246,34 @@ export default function Header() {
             style={styles.titleContainer}
           >
             <Text style={styles.title}>{title}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={goNext}>
-            <Right
-              width={24}
-              height={24}
-              color={colors.icon.default}
-              style={{ marginTop: 2 }}
-            />
+            <View style={styles.titleIconWrap}>
+              <DownL
+                width={12}
+                height={10}
+                color={calVisible ? colors.icon.selected : colors.icon.default}
+              />
+            </View>
           </TouchableOpacity>
         </View>
 
+        {isTodayButtonVisible && (
+          <TouchableOpacity
+            style={styles.todayButton}
+            onPress={() => {
+              if (popup) {
+                closeFilterPopup()
+                bus.emit('filter:popup', false)
+              }
+              bus.emit('calendar:set-date', today())
+            }}
+          >
+            <Text style={styles.todayText}>Today</Text>
+          </TouchableOpacity>
+        )}
+
         {/* 필터 버튼 */}
         <TouchableOpacity
+          style={styles.rightButton}
           onPress={() => {
             const next = !popup
             setPopup(next)
@@ -306,10 +288,9 @@ export default function Header() {
           }}
         >
           <Filter
-            width={22}
-            height={22}
-            color={popup ? colors.primary.main : colors.icon.default}
-            style={{ marginRight: 15, marginTop: 2 }}
+            width={19}
+            height={19}
+            color={popup ? colors.icon.selected : colors.icon.default}
           />
         </TouchableOpacity>
       </View>
@@ -331,8 +312,7 @@ export default function Header() {
               activeOpacity={1}
               style={{ flex: 1 }}
               onPress={() => {
-                setPopup(false)
-                globalPopupState.popup = false
+                closeFilterPopup()
               }}
             />
           </View>
@@ -350,8 +330,7 @@ export default function Header() {
               activeOpacity={1}
               style={{ flex: 1 }}
               onPress={() => {
-                setPopup(false)
-                globalPopupState.popup = false
+                closeFilterPopup()
               }}
             />
           </View>
@@ -378,15 +357,14 @@ export default function Header() {
             <Text style={styles.popupTitle}>필터</Text>
 
             {/* 투명도 슬라이더 */}
-            <TouchableWithoutFeedback
-              onPress={(e) => {
-                const { locationX } = e.nativeEvent
-                const clampedX = Math.min(Math.max(locationX, 0), maxSlide)
-                sliderX.setValue(clampedX)
-                const opacity = 0.7 + (clampedX / maxSlide) * 0.3
-                popupOpacity.setValue(opacity)
-                globalPopupState.opacity = opacity
-                globalPopupState.sliderX = clampedX
+            <View
+              style={styles.sliderHitArea}
+              onStartShouldSetResponder={() => true}
+              onResponderGrant={(e) => {
+                applyOpacityFromSliderX(e.nativeEvent.locationX)
+              }}
+              onResponderMove={(e) => {
+                applyOpacityFromSliderX(e.nativeEvent.locationX)
               }}
             >
               <View style={styles.sliderTrack}>
@@ -395,7 +373,7 @@ export default function Header() {
                   style={[styles.sliderThumb, { transform: [{ translateX: sliderX }] }]}
                 />
               </View>
-            </TouchableWithoutFeedback>
+            </View>
 
             <View style={{ height: 16 }} />
 
@@ -411,9 +389,7 @@ export default function Header() {
               />
             </View>
 
-            <View style={{ height: 7 }} />
             <View style={styles.divider} />
-            <View style={{ height: 15 }} />
 
             {/* 개별 라벨 토글 */}
             {filterLabels.map((l) => (
@@ -441,6 +417,13 @@ export default function Header() {
         currentDate={anchorDate}
         onSelectDate={(iso) => bus.emit('calendar:set-date', iso)}
         onPressToday={() => bus.emit('calendar:set-date', today())}
+        autoConfirmOnDayPress
+        showCalendarActions={false}
+        pickerContentHeight={286}
+        initialOpenMode={calendarMode === 'month' ? 'picker' : 'calendar'}
+        pickerConfirmVariant={calendarMode === 'month' ? 'move' : 'icon'}
+        showPickerCancel={calendarMode !== 'month'}
+        pickerActionsLift={0}
       />
     </View>
   )
@@ -448,55 +431,120 @@ export default function Header() {
 
 /* 스타일 */
 const styles = StyleSheet.create({
-  root: { borderBottomWidth: 0.3, borderBottomColor: '#B3B3B3', height: 48 },
+  root: { height: 48, overflow: 'visible' },
   header: {
+    position: 'relative',
+    height: '100%',
+    overflow: 'visible',
+  },
+  leftButton: {
+    position: 'absolute',
+    left: 16,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  rightButton: {
+    position: 'absolute',
+    right: 20,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  todayButton: {
+    position: 'absolute',
+    right: 51,
+    width: 57,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.divider.divider1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+    top: 9,
+  },
+  todayText: {
+    ...ts('label4'),
+    color: colors.text.text2,
+  },
+  dateGroup: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingLeft: 75,
+    zIndex: 1,
+  },
+  titleContainer: {
+    height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 5,
-    marginLeft: 14,
-  },
-  dateGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  titleContainer: {
-    alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 10,
   },
   title: {
     textAlign: 'center',
+    ...ts('titleL'),
     fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 23,
-    letterSpacing: -0.4,
+    lineHeight: 30,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
-  popupContainer: { position: 'absolute', right: 10, top: 48, zIndex: 999 },
+  titleIconWrap: {
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  popupContainer: {
+    position: 'absolute',
+    right: 10,
+    top: 48,
+    zIndex: 999,
+    overflow: 'visible',
+  },
   popupBox: {
     width: 158,
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 20,
     paddingTop: 16,
     paddingBottom: 10,
-    shadowColor: '#000',
+    shadowColor: colors.icon.default,
     shadowOpacity: 0.5,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 24,
+    shadowRadius: 7.5,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
   },
-  popupTitle: { fontSize: 14, fontWeight: 'bold', marginLeft: 16 },
+  popupTitle: {
+    ...ts('titleS'),
+    marginLeft: 16,
+  },
   sliderTrack: {
     width: 38,
     height: 2,
-    backgroundColor: 'rgba(0.2,0.2,0.2,1)',
+    backgroundColor: colors.icon.default,
     borderRadius: 1,
+  },
+  sliderHitArea: {
+    width: 38,
     position: 'absolute',
     right: 25,
-    top: 22,
+    top: 13,
+    height: 20,
+    justifyContent: 'center',
   },
   sliderThumb: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#B4B4B4',
+    backgroundColor: colors.icon.selected,
     position: 'absolute',
     top: -5,
   },
@@ -506,8 +554,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 9,
   },
-  allText: { fontSize: 14, marginLeft: 16 },
+  allText: {
+    ...ts('label3'),
+    marginLeft: 16,
+  },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 16 },
-  labelText: { fontSize: 14 },
-  divider: { width: 126, height: 1, backgroundColor: '#e1e1e1', alignSelf: 'center' },
+  labelText: {
+    ...ts('body1'),
+  },
+  divider: { width: 126, height: 1, backgroundColor: colors.icon.default, alignSelf: 'center' },
 })

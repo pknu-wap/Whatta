@@ -5,9 +5,10 @@ import Xbutton from '@/assets/icons/x.svg'
 type Props = {
   title: string
   onRemove?: () => void
+  removeIconSize?: number
 }
 
-export default function LabelChip({ title, onRemove }: Props) {
+export default function LabelChip({ title, onRemove, removeIconSize = 10 }: Props) {
   return (
     <View style={styles.wrap}>
       <Text numberOfLines={1} ellipsizeMode="clip" style={styles.txt}>
@@ -15,8 +16,12 @@ export default function LabelChip({ title, onRemove }: Props) {
       </Text>
 
       {!!onRemove && (
-        <Pressable hitSlop={8} onPress={onRemove} style={styles.xBtn}>
-          <Xbutton width={10} height={10} color="#808080" />
+        <Pressable
+          hitSlop={8}
+          onPress={onRemove}
+          style={[styles.xBtn, { transform: [{ translateY: -(removeIconSize / 2) }] }]}
+        >
+          <Xbutton width={removeIconSize} height={removeIconSize} color="#808080" />
         </Pressable>
       )}
     </View>
@@ -50,6 +55,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 5,
     top: '50%',
-    transform: [{ translateY: -5 }],
   },
 })
