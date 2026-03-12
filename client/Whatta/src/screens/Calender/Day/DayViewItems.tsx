@@ -120,7 +120,7 @@ export function DraggableTaskBox({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
   }))
 
-  const LEFT_OFFSET = 50 + 20
+  const LEFT_OFFSET = 50 + 18
 
 const startMin = startHour * 60
 const endMin = startMin + 60 
