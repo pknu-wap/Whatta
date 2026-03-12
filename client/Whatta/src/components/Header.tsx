@@ -367,10 +367,13 @@ export default function Header() {
         currentDate={anchorDate}
         onSelectDate={(iso) => bus.emit('calendar:set-date', iso)}
         onPressToday={() => bus.emit('calendar:set-date', today())}
+        autoConfirmOnDayPress
+        showCalendarActions={false}
+        pickerContentHeight={250}
         initialOpenMode={calendarMode === 'month' ? 'picker' : 'calendar'}
         pickerConfirmVariant={calendarMode === 'month' ? 'move' : 'icon'}
         showPickerCancel={calendarMode !== 'month'}
-        pickerActionsLift={calendarMode === 'month' ? 8 : 0}
+        pickerActionsLift={0}
       />
     </View>
   )

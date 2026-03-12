@@ -38,6 +38,8 @@ type TypeStyle = {
   letterSpacing: number
 }
 
+const FONT_SIZE_IOS_FIGMA_SCALE = 1.06
+
 // Latest typography spec (SF Pro)
 export const typographyScale: Record<TypographyToken, TypeStyle> = {
   titleL: { size: 20, lineHeight: 20, fontWeight: '700', letterSpacing: 0 },
@@ -89,7 +91,7 @@ export const typeScale: Record<TypeVariant, TypeStyle> = {
 export const ts = (v: TypeVariant) => {
   const t = typeScale[v]
   return {
-    fontSize: t.size,
+    fontSize: t.size * FONT_SIZE_IOS_FIGMA_SCALE,
     lineHeight: t.lineHeight,
     fontWeight: t.fontWeight,
     letterSpacing: t.letterSpacing,

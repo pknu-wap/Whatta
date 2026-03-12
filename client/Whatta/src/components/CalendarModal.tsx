@@ -18,12 +18,14 @@ import { ts } from '@/styles/typography'
 
 const { width } = Dimensions.get('window')
 const CALENDAR_WIDTH = Math.round(width * 0.9 - 20)
-const CALENDAR_HEIGHT = 300
+const CALENDAR_HEIGHT = 290
 const ACTIONS_BOTTOM_OFFSET = 19
-const MODAL_MIN_HEIGHT = 313
-const MODAL_CALENDAR_HEIGHT = 410
-const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 446
-const DAY_CELL_SIZE = 32
+const MODAL_MIN_HEIGHT = 290
+const MODAL_CALENDAR_HEIGHT = 340
+const MODAL_CALENDAR_HEIGHT_SIX_WEEKS = 356
+const MODAL_CALENDAR_ACTIONS_RESERVED = 20
+const MODAL_ACTIONS_HEIGHT = 56
+const DAY_CELL_SIZE = 26
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -57,6 +59,9 @@ type Props = {
   pickerConfirmVariant?: 'icon' | 'move'
   showPickerCancel?: boolean
   pickerActionsLift?: number
+  autoConfirmOnDayPress?: boolean
+  showCalendarActions?: boolean
+  pickerContentHeight?: number
 }
 
 const getMonthName = (month: number) => {
@@ -84,6 +89,9 @@ export default function CalendarModal({
   pickerConfirmVariant = 'icon',
   showPickerCancel = true,
   pickerActionsLift = 0,
+  autoConfirmOnDayPress = false,
+  showCalendarActions = true,
+  pickerContentHeight = CALENDAR_HEIGHT,
 }: Props) {
   const safeCurrentDate =
     typeof currentDate === 'string' && currentDate.length >= 10 ? currentDate : todayISO()
@@ -151,7 +159,10 @@ export default function CalendarModal({
 
   const handleDayPress = useCallback((day: DateData) => {
     setSelectedDate(day.dateString)
-  }, [])
+    if (!autoConfirmOnDayPress) return
+    onSelectDate(day.dateString)
+    onClose()
+  }, [autoConfirmOnDayPress, onSelectDate, onClose])
 
   // 마킹 로직: 오늘 + 현재 선택된 날짜
   const markedDates = useMemo(() => {
@@ -211,6 +222,15 @@ export default function CalendarModal({
   const modalCalendarHeight = isSixWeekMonth
     ? MODAL_CALENDAR_HEIGHT_SIX_WEEKS
     : MODAL_CALENDAR_HEIGHT
+  const isCompactHeaderModal = !showCalendarActions
+  const compactCalendarHeight = Math.max(
+    MODAL_MIN_HEIGHT,
+    modalCalendarHeight - MODAL_CALENDAR_ACTIONS_RESERVED,
+  )
+  const fullCalendarHeight = modalCalendarHeight + MODAL_ACTIONS_HEIGHT
+  const appliedCalendarHeight = showCalendarActions
+    ? fullCalendarHeight
+    : compactCalendarHeight
   const isMonthPickerMode = ymVisible && pickerConfirmVariant === 'move'
 
   const renderExternalHeader = () => {
@@ -218,7 +238,12 @@ export default function CalendarModal({
     const iconColor = ymVisible ? colors.icon.selected : colors.icon.default
 
     return (
-      <View style={HeaderStyles.headerContainer}>
+      <View
+        style={[
+          HeaderStyles.headerContainer,
+          isCompactHeaderModal ? HeaderStyles.headerContainerCompact : null,
+        ]}
+      >
         <TouchableOpacity onPress={openYM} hitSlop={8}>
           <View style={HeaderStyles.titleGroup}>
             <Text style={HeaderStyles.headerTitle}>
@@ -244,7 +269,7 @@ export default function CalendarModal({
           <View
             style={[
               S.modalView,
-              !ymVisible && { height: modalCalendarHeight },
+              !ymVisible && { height: appliedCalendarHeight },
             ]}
             onStartShouldSetResponder={() => true}
             onTouchEnd={(e) => e.stopPropagation()}
@@ -253,13 +278,25 @@ export default function CalendarModal({
               {!isMonthPickerMode && renderExternalHeader()}
 
               {ymVisible ? (
-                <View style={[YMStayle.ymContainer, isMonthPickerMode && YMStayle.ymContainerCompact]}>
-                  <View style={YMStayle.ymContent}>
+                <View
+                  style={[
+                    YMStayle.ymContainer,
+                    isMonthPickerMode && YMStayle.ymContainerCompact,
+                    isCompactHeaderModal ? YMStayle.ymContainerCompactHeader : null,
+                  ]}
+                >
+                  <View
+                    style={[
+                      YMStayle.ymContent,
+                      { height: pickerContentHeight },
+                      isCompactHeaderModal ? YMStayle.ymContentCompactHeader : null,
+                    ]}
+                  >
                     <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
                       <Picker
                         selectedValue={pickYear}
                         onValueChange={setPickYear}
-                        style={YMStayle.pickerWrapper}
+                        style={[YMStayle.pickerWrapper, { height: Math.max(160, pickerContentHeight - 70) }]}
                         itemStyle={{ fontSize: 20, color: '#000' }}
                       >
                         {years.map((y) => (
@@ -269,7 +306,7 @@ export default function CalendarModal({
                       <Picker
                         selectedValue={pickMonth}
                         onValueChange={setPickMonth}
-                        style={YMStayle.pickerWrapper}
+                        style={[YMStayle.pickerWrapper, { height: Math.max(160, pickerContentHeight - 70) }]}
                         itemStyle={{ fontSize: 20, color: '#000' }}
                       >
                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -284,12 +321,6 @@ export default function CalendarModal({
                           pickerActionsLift > 0 && { marginTop: -pickerActionsLift },
                         ]}
                       >
-                        <TouchableOpacity
-                          style={[TodayButtonStyles.todayButton, YMStayle.pickerTodayButton]}
-                          onPress={goToToday}
-                        >
-                          <Text style={TodayButtonStyles.todayText}>오늘로 이동</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity style={YMStayle.moveBtn} onPress={confirmYM}>
                           <Text style={YMStayle.moveActionText}>이동</Text>
                         </TouchableOpacity>
@@ -320,7 +351,7 @@ export default function CalendarModal({
                   </View>
                 </View>
               ) : (
-                <View style={S.calendarWrap}>
+                <View style={[S.calendarWrap, { height: CALENDAR_HEIGHT }]}>
                   <CalendarList
                     key={`calendar-list-${calendarKey}`}
                     horizontal={true}
@@ -375,7 +406,7 @@ export default function CalendarModal({
                             alignItems: 'center',
                           },
                           selectedText: {
-                            fontWeight: '700',
+                            fontWeight: '500',
                             color: colors.text.text1,
                             zIndex: 2,
                           },
@@ -401,7 +432,7 @@ export default function CalendarModal({
               )}
             </View>
 
-            {!ymVisible && (
+            {!ymVisible && showCalendarActions && (
               <View style={TodayButtonStyles.bottomActions}>
                 <TouchableOpacity
                   style={[TodayButtonStyles.todayButton, TodayButtonStyles.calendarTodayButton]}
@@ -450,6 +481,8 @@ const S = StyleSheet.create({
   },
   contentColumn: {
     width: '100%',
+    borderRadius: 20,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -472,7 +505,11 @@ const HeaderStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 8,
-    marginTop: 13,
+    marginTop: 10,
+  },
+  headerContainerCompact: {
+    paddingVertical: 4,
+    marginTop: 4,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: {
@@ -488,20 +525,26 @@ const YMStayle = StyleSheet.create({
     width: '100%',
     backgroundColor: '#FFF',
     borderRadius: 10,
-    paddingTop: 10,
+    paddingTop: 0,
     paddingBottom: 0,
   },
   ymContainerCompact: {
     paddingTop: 0,
+  },
+  ymContainerCompactHeader: {
+    paddingTop: 2,
   },
   ymContent: {
     flexDirection: 'column',
     justifyContent: 'center',
     height: CALENDAR_HEIGHT,
   },
+  ymContentCompactHeader: {
+    justifyContent: 'flex-start',
+  },
   pickerWrapper: {
     width: CALENDAR_WIDTH - 200,
-    height: CALENDAR_HEIGHT - 70,
+    height: CALENDAR_HEIGHT - 30,
   },
   buttonGroup: {
     flexDirection: 'row',

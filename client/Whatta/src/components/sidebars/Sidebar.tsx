@@ -446,6 +446,7 @@ const S = StyleSheet.create({
   },
   sectionTitle: {
     ...ts('titleS'),
+    lineHeight: 20,
     marginBottom: 8,
     color: colors.text.text1,
   },
