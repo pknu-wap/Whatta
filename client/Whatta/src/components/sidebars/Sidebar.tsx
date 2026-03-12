@@ -443,6 +443,7 @@ const S = StyleSheet.create({
     backgroundColor: colors.background.bg2,
     borderTopRightRadius: 22,
     padding: 16,
+    paddingTop: 24,
   },
   sectionTitle: {
     ...ts('titleS'),
