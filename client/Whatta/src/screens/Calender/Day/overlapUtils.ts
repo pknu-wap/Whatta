@@ -97,16 +97,16 @@ export function groupTasksByOverlap(tasks: DayViewTask[]) {
     cur = []
   }
 
-  for (const t of sorted) {
-    if (t.startMin! > curEnd) {
-      flush()
-      cur = [t]
-      curEnd = t.endMin!
-    } else {
-      cur.push(t)
-      curEnd = Math.max(curEnd, t.endMin!)
-    }
+for (const t of sorted) {
+  if (t.startMin! >= curEnd) {
+    flush()
+    cur = [t]
+    curEnd = t.endMin!
+  } else {
+    cur.push(t)
+    curEnd = Math.max(curEnd, t.endMin!)
   }
+}
 
   flush()
   return groups
@@ -124,45 +124,55 @@ export function computeEventOverlap(events: any[]) {
   let groupEnd = -1
   const result: any[] = []
 
-  const flush = () => {
-    if (!group.length) return
-    const columns: any[][] = []
+const flush = () => {
+  if (!group.length) return
 
-    group.forEach((ev) => {
-      let placed = false
-      for (let i = 0; i < columns.length; i++) {
-        const last = columns[i][columns[i].length - 1]
-        if (last.endMin <= ev.startMin) {
-          columns[i].push(ev)
-          ev._column = i
-          placed = true
-          break
-        }
+  const columns: any[][] = []
+
+  group.forEach((ev) => {
+    let placed = false
+
+    for (let i = 0; i < columns.length; i++) {
+      const last = columns[i][columns[i].length - 1]
+
+      if (last.endMin <= ev.startMin) {
+        columns[i].push(ev)
+        ev._column = i
+        placed = true
+        break
       }
-      if (!placed) {
-        columns.push([ev])
-        ev._column = columns.length - 1
-      }
-    })
-
-    group.forEach((ev) => {
-      ev._totalColumns = columns.length
-      result.push(ev)
-    })
-
-    group = []
-  }
-
-  for (const ev of sorted) {
-    if (ev.startMin > groupEnd) {
-      flush()
-      group = [ev]
-      groupEnd = ev.endMin
-    } else {
-      group.push(ev)
-      groupEnd = Math.max(groupEnd, ev.endMin)
     }
+
+    if (!placed) {
+      columns.push([ev])
+      ev._column = columns.length - 1
+    }
+  })
+
+  group.forEach((ev) => {
+    ev._totalColumns = columns.length
+    result.push(ev)
+  })
+
+  group = []
+}
+
+for (const ev of sorted) {
+
+  const overlaps = group.some(
+    g => ev.startMin < g.endMin && ev.endMin > g.startMin
+  )
+
+  if (!overlaps) {
+    flush()
+    group = [ev]
+    groupEnd = ev.endMin
+  } else {
+    group.push(ev)
+    groupEnd = Math.max(groupEnd, ev.endMin)
   }
+
+}
 
   flush()
   return result

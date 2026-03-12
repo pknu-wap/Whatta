@@ -36,13 +36,14 @@ import OcrSplash from '@/screens/More/OcrSplash'
 import { DraggableTaskBox } from './DayViewItems'
 import { DraggableTaskGroupBox } from './DayViewItems'
 import { DraggableFixedEvent } from './DayViewItems'
-import { DraggableFlexalbeEvent } from './DayViewItems'
+import { DraggableFlexibleEvent } from './DayViewItems'
 import { PIXELS_PER_MIN } from './constants'
 import S from './S'
 import { useDayData } from './eventUtils'
 import { useDaySwipe } from './swipeUtils'
 import { useOCR } from '@/hooks/useOCR'
 import { useDayDrag } from './dragUtils'
+import { computeEventOverlap } from './overlapUtils'
 import {
   createEvent,
   getEvent,
@@ -484,6 +485,28 @@ useEffect(() => {
   fetchDailyEvents,
 } = useDayData(anchorDate, enabledLabelIds)
 
+const overlappedEvents = useMemo(() => {
+  const normalized = events.map(ev => {
+    const [sh, sm] = ev.clippedStartTime.split(':').map(Number)
+    const [eh, em] = ev.clippedEndTime.split(':').map(Number)
+
+    return {
+      ...ev,
+      startMin: sh * 60 + sm,
+      endMin: eh * 60 + em,
+    }
+  })
+
+  // ⭐ 고정 일정 먼저 오도록 정렬
+  normalized.sort((a, b) => {
+    if (a.isRepeat && !b.isRepeat) return -1
+    if (!a.isRepeat && b.isRepeat) return 1
+    return a.startMin - b.startMin
+  })
+
+  return computeEventOverlap(normalized)
+}, [events])
+
 useDayDrag({
   anchorDateRef,
   fetchDailyEvents,
@@ -859,7 +882,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                   <View style={[S.liveDot, { top: nowTop - 3 }]} />
                 </>
               )}
-              {events.map((evt) => {
+              {overlappedEvents.map((evt) => {
                 const [sh, sm] = evt.clippedStartTime.split(':').map(Number)
                 const [eh, em] = evt.clippedEndTime.split(':').map(Number)
                 const startMin = sh * 60 + sm
@@ -868,23 +891,25 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                 // 반복 일정이면 DraggableFixedEvent 사용
                 if (evt.isRepeat) {
                   return (
-                    <DraggableFixedEvent
-                      key={evt.id}
-                      id={evt.id}
-                      title={evt.title}
-                      place={getLabelName(evt.labels?.[0])}
-                      startMin={startMin}
-                      endMin={endMin}
-                      color={resolveScheduleColor(evt.colorKey)}
-                      anchorDate={anchorDate}
-                      onPress={() => openEventDetail(evt)}
-                    />
+<DraggableFixedEvent
+  key={evt.id}
+  id={evt.id}
+  title={evt.title}
+  place={getLabelName(evt.labels?.[0])}
+  startMin={startMin}
+  endMin={endMin}
+  color={resolveScheduleColor(evt.colorKey)}
+  anchorDate={anchorDate}
+  _column={evt._column}
+  _totalColumns={evt._totalColumns}
+  onPress={() => openEventDetail(evt)}
+/>
                   )
                 }
 
                 // 일반 일정
                 return (
-<DraggableFlexalbeEvent
+<DraggableFlexibleEvent
   key={evt.id}
   id={evt.id}
   title={evt.title}
@@ -897,6 +922,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
   _column={evt._column}        
   _totalColumns={evt._totalColumns} 
   onPress={() => openEventDetail(evt)}
+  events={events}
 />
                 )
               })}
