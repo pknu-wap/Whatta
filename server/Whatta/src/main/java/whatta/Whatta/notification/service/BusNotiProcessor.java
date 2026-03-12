@@ -107,7 +107,7 @@ public class BusNotiProcessor {
 
         if (sanitizedIds.isEmpty()) return List.of();
 
-        return busFavoriteRepository.findAllById(sanitizedIds);
+        return busFavoriteRepository.findByIdInAndUserId(sanitizedIds, alarm.getUserId());
     }
 
     //반복 안 함 설정이면 알림 비활성화 처리
