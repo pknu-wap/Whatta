@@ -1052,6 +1052,13 @@ const {
   const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
 
   const { items: filterLabels } = useLabelFilter()
+  const labelTitleById = useMemo(() => {
+    const map: Record<string, string> = {}
+    ;(filterLabels ?? []).forEach((label) => {
+      map[String(label.id)] = label.title
+    })
+    return map
+  }, [filterLabels])
 
   const todoLabelId = useMemo(() => {
     const found = (filterLabels ?? []).find((l) => l.title === '할 일')
@@ -1694,6 +1701,7 @@ const {
               todayISO={today}
               nowTop={nowTop}
               dayColWidth={dayColWidth}
+              labelTitleById={labelTitleById}
               getTaskTime={getTaskTime}
               openEventDetail={openEventDetail}
               openTaskPopupFromApi={openTaskPopupFromApi}

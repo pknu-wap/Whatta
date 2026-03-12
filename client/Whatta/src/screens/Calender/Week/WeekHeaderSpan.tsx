@@ -116,7 +116,7 @@ function WeekHeaderSpan({
             }}
           >
             <Text style={styles.weekHeaderBigDate}>{todayDate.getDate()}일</Text>
-            <Text style={styles.weekHeaderWeekday}>{weekOfMonth}주차</Text>
+            <Text style={styles.weekHeaderWeekday}>({weekOfMonth}주차)</Text>
           </View>
           {weekDates.map((d) => {
             const dt = parseDate(d)
