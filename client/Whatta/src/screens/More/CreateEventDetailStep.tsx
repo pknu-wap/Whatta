@@ -1373,8 +1373,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    borderWidth: 0.5,
-    borderColor: colors.divider.divider1,
   },
   colorPaletteBox: {
     width: 320,
