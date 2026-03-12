@@ -33,9 +33,8 @@ public class BusFavoriteService {
 
         if (existingFavorite.isPresent()) {
             BusFavorite favorite = existingFavorite.get();
-            log.info("즐겨찾기 중복데이터 감지: 기존 ID({})를 반환합니다.", favorite.getId());
-
-            return BusFavoriteResponse.fromEntity(favorite);
+            log.info("즐겨찾기 중복데이터 감지: 기존 ID({})", favorite.getId());
+            throw new RestApiException(ErrorCode.TRAFFIC_ITEM_ALREADY_EXISTS);
         }
 
         BusFavorite favorite = BusFavorite.builder()
@@ -49,13 +48,8 @@ public class BusFavoriteService {
             BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
             return BusFavoriteResponse.fromEntity(savedFavorite);
         } catch (DuplicateKeyException e) {
-            BusFavorite duplicatedFavorite = busFavoriteRepository.findByUserIdAndBusStationIdAndBusRouteId(
-                    userId,
-                    request.busStationId(),
-                    request.busRouteId()
-            ).orElseThrow(() -> e);
-            log.info("즐겨찾기 중복 삽입 레이스 감지: 기존 ID({})를 반환합니다.", duplicatedFavorite.getId());
-            return BusFavoriteResponse.fromEntity(duplicatedFavorite);
+            log.info("즐겨찾기 중복 삽입 레이스 감지");
+            throw new RestApiException(ErrorCode.TRAFFIC_ITEM_ALREADY_EXISTS);
         }
     }
 
