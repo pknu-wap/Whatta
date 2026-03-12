@@ -36,6 +36,14 @@ const today = () => {
   ).padStart(2, '0')}`
 }
 
+const startOfWeekISO = (iso: string) => {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  const day = dt.getDay()
+  dt.setDate(dt.getDate() - day)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
 /* Custom Toggle 컴포넌트 정의 */
 const CustomToggle = ({
   value,
@@ -120,6 +128,8 @@ export default function Header() {
 
   // 앵커/모드는 방송으로 동기화
   const [anchorDate, setAnchorDate] = useState<string>(today())
+  const [rangeStart, setRangeStart] = useState<string | null>(null)
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null)
 
   const closeFilterPopup = () => {
     setPopup(false)
@@ -128,11 +138,18 @@ export default function Header() {
 
   // 헤더는 상태 방송만 구독: 모드/기준일 동기화
   useEffect(() => {
-    const onState = (st: { date: string; mode?: 'day' | 'week' | 'month' }) => {
+    const onState = (st: {
+      date: string
+      mode?: 'day' | 'week' | 'month'
+      rangeStart?: string
+      rangeEnd?: string
+    }) => {
       if (typeof st?.date === 'string' && st.date.length >= 10) {
         setAnchorDate(st.date)
       }
       if (st.mode) setCalendarMode(st.mode)
+      setRangeStart(typeof st?.rangeStart === 'string' ? st.rangeStart : null)
+      setRangeEnd(typeof st?.rangeEnd === 'string' ? st.rangeEnd : null)
     }
 
     bus.on('calendar:state', onState)
@@ -145,6 +162,24 @@ export default function Header() {
     const [y, m] = anchorDate.split('-')
     return `${y}년 ${m}월`
   }, [anchorDate])
+  const todayISO = today()
+  const isTodayButtonVisible = (() => {
+    if (typeof anchorDate !== 'string' || anchorDate.length < 10) return true
+    const selectedISO = anchorDate.slice(0, 10)
+
+    if (calendarMode === 'week') {
+      if (rangeStart && rangeEnd) {
+        return !(todayISO >= rangeStart.slice(0, 10) && todayISO <= rangeEnd.slice(0, 10))
+      }
+      return startOfWeekISO(selectedISO) !== startOfWeekISO(todayISO)
+    }
+
+    if (calendarMode === 'month') {
+      return selectedISO.slice(0, 7) !== todayISO.slice(0, 7)
+    }
+
+    return selectedISO !== todayISO
+  })()
 
   const { items: filterLabels, toggleLabel, toggleAll } = useLabelFilter()
 
@@ -221,18 +256,20 @@ export default function Header() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.todayButton}
-          onPress={() => {
-            if (popup) {
-              closeFilterPopup()
-              bus.emit('filter:popup', false)
-            }
-            bus.emit('calendar:set-date', today())
-          }}
-        >
-          <Text style={styles.todayText}>Today</Text>
-        </TouchableOpacity>
+        {isTodayButtonVisible && (
+          <TouchableOpacity
+            style={styles.todayButton}
+            onPress={() => {
+              if (popup) {
+                closeFilterPopup()
+                bus.emit('filter:popup', false)
+              }
+              bus.emit('calendar:set-date', today())
+            }}
+          >
+            <Text style={styles.todayText}>Today</Text>
+          </TouchableOpacity>
+        )}
 
         {/* 필터 버튼 */}
         <TouchableOpacity
