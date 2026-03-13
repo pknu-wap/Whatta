@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
 import whatta.Whatta.ai.payload.response.OpenAIScheduleResponse;
+import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
 import whatta.Whatta.event.enums.RepeatUnit;
 import whatta.Whatta.event.payload.response.RepeatResponse;
 import whatta.Whatta.global.exception.ErrorCode;
@@ -49,7 +50,7 @@ public class AIService {
         String title = (raw.title().isBlank()) ? "새로운 일정" : raw.title();
         LocalDate startDate = LocalDateTimeUtil.stringToLocalDate(raw.start_date());
         if (startDate == null) {
-            startDate = LocalDate.now();
+            startDate = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
         }
         LocalDate endDate = LocalDateTimeUtil.stringToLocalDate(raw.end_date());
         if (endDate == null) {

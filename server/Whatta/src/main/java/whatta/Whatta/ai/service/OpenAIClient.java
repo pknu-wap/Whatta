@@ -17,6 +17,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
@@ -34,12 +35,13 @@ public class OpenAIClient {
     private long timeoutSeconds;
 
     public OpenAIScheduleResponse callOpenApi(String input) {
+        LocalDateTime nowKst = LocalDateTime.now(ScheduleExtractionSpec.KST_ZONE_ID);
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
                 .maxOutputTokens(MAX_OUTPUT_TOKENS)
                 .reasoning(new OpenAIRequest.Reasoning(OpenAIRequest.Reasoning.Effort.low))
-                .instructions(ScheduleExtractionSpec.INSTRUCTIONS)
+                .instructions(ScheduleExtractionSpec.instructions(nowKst))
                 .text(new OpenAIRequest.Text(
                         new OpenAIRequest.Format(
                                 "json_schema",
