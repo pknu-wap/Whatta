@@ -1604,11 +1604,10 @@ export default function EventDetailPopup({
                     >
                       <CreateModeTypeStep
                         title={scheduleTitle}
-                        onChangeTitle={(value) => {
-                          setScheduleTitle(value)
-                          if (!createIntroExpanded && value.trim().length > 0) {
-                            setCreateIntroExpanded(true)
-                          }
+                        onChangeTitle={setScheduleTitle}
+                        onSubmitTitle={() => {
+                          if (scheduleTitle.trim().length === 0) return
+                          setCreateIntroExpanded(true)
                         }}
                         autoFocusTitle
                         showOptions
@@ -1624,9 +1623,6 @@ export default function EventDetailPopup({
                           setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
                           if (value === 'task' && !taskDate) {
                             setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
-                          }
-                          if (value === 'task') {
-                            setCreateStep('detail')
                           }
                         }}
                       />

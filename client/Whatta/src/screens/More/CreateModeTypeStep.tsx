@@ -10,6 +10,7 @@ type CreateModeTypeStepProps = {
   title: string
   onChangeTitle: (value: string) => void
   onFocusTitle?: () => void
+  onSubmitTitle?: () => void
   autoFocusTitle?: boolean
   showOptions?: boolean
   colors: readonly string[]
@@ -23,6 +24,7 @@ export default function CreateModeTypeStep({
   title,
   onChangeTitle,
   onFocusTitle,
+  onSubmitTitle,
   autoFocusTitle = false,
   showOptions = true,
   colors: paletteColors,
@@ -44,7 +46,9 @@ export default function CreateModeTypeStep({
           value={title}
           onChangeText={onChangeTitle}
           onFocus={onFocusTitle}
+          onSubmitEditing={onSubmitTitle}
           autoFocus={autoFocusTitle}
+          returnKeyType="done"
           placeholder="제목을 입력하세요..."
           placeholderTextColor={colors.text.text4}
           style={styles.titleInput}
