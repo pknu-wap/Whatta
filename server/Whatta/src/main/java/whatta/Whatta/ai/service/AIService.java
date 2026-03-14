@@ -1,6 +1,7 @@
 package whatta.Whatta.ai.service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
 import whatta.Whatta.ai.payload.response.OpenAIScheduleResponse;
@@ -14,27 +15,43 @@ import whatta.Whatta.global.util.LocalDateTimeUtil;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class AIService {
 
     private final OpenAIClient openAIClient;
 
     public List<NormalizedSchedule> requestInput(String userId, String input) {
+        long totalStartNanos = System.nanoTime();
         if (input == null || input.isBlank()) {
             throw new RestApiException(ErrorCode.INVALID_REQUEST_TEXT);
         }
 
+        long openAiStartNanos = System.nanoTime();
         OpenAIScheduleResponse rawResponse = openAIClient.callOpenApi(input);
+        log.info("[OPENAI][TIMING] stage=service_openai_call duration_ms={} user_id={} item_count={}",
+                elapsedMillis(openAiStartNanos),
+                userId,
+                rawResponse.items() == null ? 0 : rawResponse.items().size());
 
         //TODO: 프론트와 api 기획 회의 후 수정
-        return rawResponse.items().stream()
+        long normalizeStartNanos = System.nanoTime();
+        List<NormalizedSchedule> normalized = rawResponse.items().stream()
                 .filter(Objects::nonNull)
                 .map(this::normalize)
                 .toList();
+        log.info("[OPENAI][TIMING] stage=service_normalize duration_ms={} normalized_count={}",
+                elapsedMillis(normalizeStartNanos),
+                normalized.size());
+        log.info("[OPENAI][TIMING] stage=service_total duration_ms={} user_id={}",
+                elapsedMillis(totalStartNanos),
+                userId);
+        return normalized;
     }
 
     private NormalizedSchedule normalize(OpenAIScheduleResponse.ScheduleItem raw) {
@@ -150,6 +167,8 @@ public class AIService {
                 .build();
     }
 
-
+    private long elapsedMillis(long startNanos) {
+        return Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+    }
 
 }

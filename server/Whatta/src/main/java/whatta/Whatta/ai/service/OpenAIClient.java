@@ -35,7 +35,10 @@ public class OpenAIClient {
     private long timeoutSeconds;
 
     public OpenAIScheduleResponse callOpenApi(String input) {
+        long totalStartNanos = System.nanoTime();
         LocalDateTime nowKst = LocalDateTime.now(ScheduleExtractionSpec.KST_ZONE_ID);
+
+        long buildRequestStartNanos = System.nanoTime();
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
@@ -52,19 +55,40 @@ public class OpenAIClient {
                 ))
                 .store(false)
                 .build();
+        log.info("[OPENAI][TIMING] stage=build_request duration_ms={} input_chars={} model={}",
+                elapsedMillis(buildRequestStartNanos),
+                input == null ? 0 : input.length(),
+                model);
 
-        JsonNode root = parseResponse(requestResponse(req));
+        long requestStartNanos = System.nanoTime();
+        String rawResponse = requestResponse(req);
+        log.info("[OPENAI][TIMING] stage=request_response duration_ms={} response_chars={}",
+                elapsedMillis(requestStartNanos),
+                rawResponse == null ? 0 : rawResponse.length());
+
+        long parseStartNanos = System.nanoTime();
+        JsonNode root = parseResponse(rawResponse);
+        log.info("[OPENAI][TIMING] stage=parse_response duration_ms={}", elapsedMillis(parseStartNanos));
+
+        long extractStartNanos = System.nanoTime();
         OpenAIScheduleResponse extracted = extractOutput(root);
+        log.info("[OPENAI][TIMING] stage=extract_output duration_ms={}", elapsedMillis(extractStartNanos));
         if (extracted == null) {
             log.error("[OPENAI][PARSE_ERROR] text output missing. responseId={}, status={}",
                     root.path("id").asText("-"),
                     root.path("status").asText("-"));
             throw new IllegalStateException("OpenAI response does not contain text output");
         }
+
+        log.info("[OPENAI][TIMING] stage=call_openapi_total duration_ms={} response_id={} status={}",
+                elapsedMillis(totalStartNanos),
+                root.path("id").asText("-"),
+                root.path("status").asText("-"));
         return extracted;
     }
 
     private String requestResponse(OpenAIRequest req) {
+        long httpStartNanos = System.nanoTime();
         try {
             String rawResponse = openAiWebClient.post()
                     .uri("/responses")
@@ -73,24 +97,46 @@ public class OpenAIClient {
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(timeoutSeconds))
                     .block();
+            log.info("[OPENAI][TIMING] stage=http_post duration_ms={} timeout_seconds={}",
+                    elapsedMillis(httpStartNanos),
+                    timeoutSeconds);
+
+            long usageStartNanos = System.nanoTime();
             printUsageToStdOut(rawResponse, req);
+            log.info("[OPENAI][TIMING] stage=print_usage duration_ms={}", elapsedMillis(usageStartNanos));
             return rawResponse;
         } catch (WebClientResponseException e) {
-            log.error("[OPENAI][ERROR] type=http status={} body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            log.error("[OPENAI][ERROR] type=http status={} duration_ms={} body={}",
+                    e.getStatusCode(),
+                    elapsedMillis(httpStartNanos),
+                    e.getResponseBodyAsString(),
+                    e);
             throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         } catch (WebClientRequestException e) {
             if (isTimeout(e)) {
-                log.error("[OPENAI][ERROR] type=timeout message={}", rootMessage(e), e);
+                log.error("[OPENAI][ERROR] type=timeout duration_ms={} message={}",
+                        elapsedMillis(httpStartNanos),
+                        rootMessage(e),
+                        e);
                 throw new RestApiException(ErrorCode.OPENAI_API_TIMEOUT);
             }
-            log.error("[OPENAI][ERROR] type=network message={}", rootMessage(e), e);
+            log.error("[OPENAI][ERROR] type=network duration_ms={} message={}",
+                    elapsedMillis(httpStartNanos),
+                    rootMessage(e),
+                    e);
             throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         } catch (Exception e) {
             if (isTimeout(e)) {
-                log.error("[OPENAI][ERROR] type=timeout message={}", rootMessage(e), e);
+                log.error("[OPENAI][ERROR] type=timeout duration_ms={} message={}",
+                        elapsedMillis(httpStartNanos),
+                        rootMessage(e),
+                        e);
                 throw new RestApiException(ErrorCode.OPENAI_API_TIMEOUT);
             }
-            log.error("[OPENAI][ERROR] type=unexpected message={}", rootMessage(e), e);
+            log.error("[OPENAI][ERROR] type=unexpected duration_ms={} message={}",
+                    elapsedMillis(httpStartNanos),
+                    rootMessage(e),
+                    e);
             throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         }
     }
@@ -175,13 +221,18 @@ public class OpenAIClient {
         JsonNode outputParsed = root.path("output_parsed");
         if (!outputParsed.isMissingNode() && !outputParsed.isNull()) {
             try {
+                log.info("[OPENAI][TIMING] stage=extract_output_parsed source=output_parsed");
                 return objectMapper.treeToValue(outputParsed, OpenAIScheduleResponse.class);
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize output_parsed", e);
             }
         }
 
+        long extractTextStartNanos = System.nanoTime();
         String outputText = extractOutputText(root);
+        log.info("[OPENAI][TIMING] stage=extract_output_text duration_ms={} output_text_chars={}",
+                elapsedMillis(extractTextStartNanos),
+                outputText == null ? 0 : outputText.length());
         if (outputText == null || outputText.isBlank()) {
             return null;
         }
@@ -221,5 +272,9 @@ public class OpenAIClient {
             }
         }
         return null;
+    }
+
+    private long elapsedMillis(long startNanos) {
+        return Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
     }
 }
