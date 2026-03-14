@@ -27,6 +27,7 @@ type Props = {
   onPressDateBox: () => void
   onChangeStartTime: (next: Date) => void
   onChangeEndTime: (next: Date) => void
+  invalidEndTime?: boolean
   timeOn: boolean
   onToggleTime: (next: boolean) => void
   repeatOn: boolean
@@ -153,6 +154,7 @@ export default function CreateEventDetailStep({
   onPressDateBox,
   onChangeStartTime,
   onChangeEndTime,
+  invalidEndTime = false,
   timeOn,
   onToggleTime,
   repeatOn,
@@ -578,7 +580,9 @@ export default function CreateEventDetailStep({
               <Text
                 style={[
                   styles.timeBoxText,
-                  openTimeTarget === 'end' && styles.timeBoxTextSelected,
+                  invalidEndTime
+                    ? styles.timeBoxTextInvalid
+                    : openTimeTarget === 'end' && styles.timeBoxTextSelected,
                 ]}
               >
                 {formatKTime12(end)}
@@ -1709,6 +1713,9 @@ const styles = StyleSheet.create({
   },
   timeBoxTextSelected: {
     color: colors.brand.primary,
+  },
+  timeBoxTextInvalid: {
+    color: colors.text.monday,
   },
   endDatePlaceholder: {
     color: colors.text.text4,

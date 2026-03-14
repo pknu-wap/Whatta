@@ -610,6 +610,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       }
                     }}
                     onChangeEndTime={setDetailEnd}
+                    invalidEndTime={false}
                     timeOn={hasTime}
                     onToggleTime={(next) => {
                       setHasTime(next)

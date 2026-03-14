@@ -587,6 +587,7 @@ export default function EventDetailPopup({
 
   /** 날짜 & 시간 */
   const [end, setEnd] = useState(new Date())
+  const [invalidEndTime, setInvalidEndTime] = useState(false)
 
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
@@ -878,6 +879,13 @@ export default function EventDetailPopup({
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
+    if (timeOn && end.getTime() < start.getTime()) {
+      setInvalidEndTime(true)
+      Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이를 수 없습니다.')
+      setSaving(false)
+      return
+    }
+
     if (mode === 'create' && createTypeSelected === 'task') {
       await saveTask()
       return
@@ -1334,6 +1342,7 @@ export default function EventDetailPopup({
       setStart(today)
       setEnd(today)
       setTimeOn(false)
+      setInvalidEndTime(false)
       setRepeatOn(false)
       setRemindOn(false)
       setRemindValue(null)
@@ -1413,6 +1422,7 @@ export default function EventDetailPopup({
     setTaskDueOn(false)
     setTaskDueDate(null)
     setRepeatWeekdays([])
+    setInvalidEndTime(false)
   }, [visible, mode, initial, initialCreateType])
 
   useEffect(() => {
@@ -1658,16 +1668,26 @@ export default function EventDetailPopup({
                       }}
                       onChangeStartTime={(next) => {
                         setStart(next)
+                        setInvalidEndTime(false)
                         if (end.getTime() < next.getTime()) {
                           const autoEnd = new Date(next)
                           autoEnd.setHours(next.getHours() + 1)
                           setEnd(autoEnd)
                         }
                       }}
-                      onChangeEndTime={setEnd}
+                      onChangeEndTime={(next) => {
+                        if (next.getTime() < start.getTime()) {
+                          setInvalidEndTime(true)
+                          return
+                        }
+                        setInvalidEndTime(false)
+                        setEnd(next)
+                      }}
+                      invalidEndTime={invalidEndTime}
                       timeOn={timeOn}
                       onToggleTime={(next) => {
                         setTimeOn(next)
+                        setInvalidEndTime(false)
                         if (next) {
                           const now = new Date()
                           const snapMin = now.getMinutes() - (now.getMinutes() % 5)
