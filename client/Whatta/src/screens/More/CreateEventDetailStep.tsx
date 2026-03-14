@@ -1165,7 +1165,13 @@ export default function CreateEventDetailStep({
         <View style={styles.repeatDetail}>
           <Pressable
             style={styles.repeatBox}
-            onPress={() => onSetRemindOpen(!remindOpen)}
+            onPress={() => {
+              const nextOpen = !remindOpen
+              onSetRemindOpen(nextOpen)
+              if (!nextOpen) {
+                onSetCustomOpen(false)
+              }
+            }}
           >
             <Text
               style={[
