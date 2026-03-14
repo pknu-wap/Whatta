@@ -30,7 +30,7 @@ public class ScheduleCandidateResolver {
     }
 
     private boolean isEvent(RuleBasedExtractionResult result) {
-        return result.hasSingleDate() && !result.hasRepeatExpression(); //일정이 하나가 아니거나 반복이 있다면 llm으로 넘김
+        return (result.hasSingleDate() || result.hasSingleTime()) && !result.hasRepeatExpression();
     }
 
     private ScheduleCandidate resolveTaskCandidate(RuleBasedExtractionResult extractionResult) {
