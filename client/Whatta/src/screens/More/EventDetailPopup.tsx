@@ -108,6 +108,7 @@ export default function EventDetailPopup({
   const isCreateFlow = mode === 'create' && !initial
   const [createStep, setCreateStep] = useState<CreateStep>(isCreateFlow ? 'intro' : 'detail')
   const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
+  const [createIntroExpanded, setCreateIntroExpanded] = useState(false)
   const [editDatePicking, setEditDatePicking] = useState(false)
   // ── 컬러 팝오버 배치 옵션 ──
   const POPOVER_W = 105 // 팝오버 너비
@@ -1415,8 +1416,9 @@ export default function EventDetailPopup({
     if (!visible) return
     const inCreate = mode === 'create' && !initial
     const createType = inCreate ? initialCreateType : null
-    setCreateStep(inCreate ? (createType === 'task' ? 'detail' : 'intro') : 'detail')
+    setCreateStep(inCreate ? 'intro' : 'detail')
     setCreateTypeSelected(mode === 'edit' ? 'event' : createType)
+    setCreateIntroExpanded(false)
     setEditDatePicking(false)
     setTaskDate(null)
     setTaskDueOn(false)
@@ -1424,6 +1426,14 @@ export default function EventDetailPopup({
     setRepeatWeekdays([])
     setInvalidEndTime(false)
   }, [visible, mode, initial, initialCreateType])
+
+  useEffect(() => {
+    if (!isCreateFlow) return
+    if (!createIntroExpanded) return
+    if (createTypeSelected !== 'task') return
+    if (createStep !== 'intro') return
+    setCreateStep('detail')
+  }, [isCreateFlow, createIntroExpanded, createTypeSelected, createStep])
 
   useEffect(() => {
     if (repeatMode !== 'weekly') {
@@ -1594,7 +1604,14 @@ export default function EventDetailPopup({
                     >
                       <CreateModeTypeStep
                         title={scheduleTitle}
-                        onChangeTitle={setScheduleTitle}
+                        onChangeTitle={(value) => {
+                          setScheduleTitle(value)
+                          if (!createIntroExpanded && value.trim().length > 0) {
+                            setCreateIntroExpanded(true)
+                          }
+                        }}
+                        autoFocusTitle
+                        showOptions
                         colors={COLORS}
                         selectedColorIndex={selectedSlot}
                         onSelectColorIndex={setSelectedSlot}
@@ -1613,7 +1630,7 @@ export default function EventDetailPopup({
                           }
                         }}
                       />
-                      {createTypeSelected === 'event' && (
+                      {createIntroExpanded && createTypeSelected === 'event' && (
                         <CreateEventDateStep
                           start={start}
                           end={end}

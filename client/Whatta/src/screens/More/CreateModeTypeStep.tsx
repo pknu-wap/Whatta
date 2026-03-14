@@ -9,6 +9,9 @@ type CreateType = 'event' | 'task'
 type CreateModeTypeStepProps = {
   title: string
   onChangeTitle: (value: string) => void
+  onFocusTitle?: () => void
+  autoFocusTitle?: boolean
+  showOptions?: boolean
   colors: readonly string[]
   selectedColorIndex: number
   onSelectColorIndex: (index: number) => void
@@ -19,6 +22,9 @@ type CreateModeTypeStepProps = {
 export default function CreateModeTypeStep({
   title,
   onChangeTitle,
+  onFocusTitle,
+  autoFocusTitle = false,
+  showOptions = true,
   colors: paletteColors,
   selectedColorIndex,
   onSelectColorIndex,
@@ -37,11 +43,13 @@ export default function CreateModeTypeStep({
         <TextInput
           value={title}
           onChangeText={onChangeTitle}
+          onFocus={onFocusTitle}
+          autoFocus={autoFocusTitle}
           placeholder="제목을 입력하세요..."
           placeholderTextColor={colors.text.text4}
           style={styles.titleInput}
         />
-        {selectedType === 'event' && (
+        {showOptions && selectedType === 'event' && (
           <Pressable
             style={[
               styles.titleColorChip,
@@ -52,7 +60,7 @@ export default function CreateModeTypeStep({
         )}
       </View>
 
-      {selectedType === 'event' && colorPaletteOpen && (
+      {showOptions && selectedType === 'event' && colorPaletteOpen && (
         <View style={styles.colorPaletteBox}>
           <View style={styles.colorPaletteGrid}>
             {paletteColors.slice(0, 12).map((c, idx) => (
@@ -68,27 +76,31 @@ export default function CreateModeTypeStep({
         </View>
       )}
 
-      <View style={styles.divider} />
+      {showOptions && (
+        <>
+          <View style={styles.divider} />
 
-      <View style={styles.typeRow}>
-        <Pressable
-          style={[styles.typeButton, selectedType === 'event' && styles.typeButtonSelected]}
-          onPress={() => onSelectType('event')}
-        >
-          <Text style={[styles.typeText, selectedType === 'event' && styles.typeTextSelected]}>
-            일정
-          </Text>
-        </Pressable>
+          <View style={styles.typeRow}>
+            <Pressable
+              style={[styles.typeButton, selectedType === 'event' && styles.typeButtonSelected]}
+              onPress={() => onSelectType('event')}
+            >
+              <Text style={[styles.typeText, selectedType === 'event' && styles.typeTextSelected]}>
+                일정
+              </Text>
+            </Pressable>
 
-        <Pressable
-          style={[styles.typeButton, selectedType === 'task' && styles.typeButtonSelected]}
-          onPress={() => onSelectType('task')}
-        >
-          <Text style={[styles.typeText, selectedType === 'task' && styles.typeTextSelected]}>
-            할 일
-          </Text>
-        </Pressable>
-      </View>
+            <Pressable
+              style={[styles.typeButton, selectedType === 'task' && styles.typeButtonSelected]}
+              onPress={() => onSelectType('task')}
+            >
+              <Text style={[styles.typeText, selectedType === 'task' && styles.typeTextSelected]}>
+                할 일
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      )}
     </View>
   )
 }
