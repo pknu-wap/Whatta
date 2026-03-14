@@ -737,7 +737,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 <Pressable
                   style={styles.row}
                   onPress={() => {
-                    if (!hasDate) setHasDate(true)
+                    if (!hasDate) {
+                      Alert.alert('시간 설정 불가', '날짜를 먼저 설정해주세요.')
+                      return
+                    }
                     setTimeOpen((prev) => !prev)
                   }}
                 >
@@ -749,7 +752,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     <CustomToggle
                       value={hasTime}
                       onChange={(v) => {
-                        if (v && !hasDate) setHasDate(true)
+                        if (v && !hasDate) {
+                          Alert.alert('시간 설정 불가', '날짜를 먼저 설정해주세요.')
+                          return
+                        }
                         setHasTime(v)
                         if (!v) setTimeOpen(false)
                         if (v) {

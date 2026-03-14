@@ -1755,7 +1755,15 @@ export default function EventDetailPopup({
                         setRepeatEndDate(next)
                       }}
                       remindOn={remindOn}
+                      remindDisabled={!timeOn}
                       onToggleRemind={(next) => {
+                        if (next && !timeOn) {
+                          setRemindOn(false)
+                          setRemindOpen(false)
+                          setCustomOpen(false)
+                          Alert.alert('알림 설정 불가', '시간을 먼저 설정해주세요.')
+                          return
+                        }
                         if (!next) {
                           setRemindOn(false)
                           setRemindOpen(false)

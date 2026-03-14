@@ -45,6 +45,7 @@ type Props = {
   repeatEndDate: Date | null
   onChangeRepeatEndDate: (next: Date | null) => void
   remindOn: boolean
+  remindDisabled?: boolean
   onToggleRemind: (next: boolean) => void
   remindOpen: boolean
   onSetRemindOpen: (next: boolean) => void
@@ -87,12 +88,24 @@ type ReminderCustomOption = {
 
 type ReminderOption = ReminderPresetOption | ReminderCustomOption
 
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
   return (
     <Pressable
-      onPress={() => onChange(!value)}
+      onPress={() => !disabled && onChange(!value)}
       hitSlop={10}
-      style={[styles.toggleRoot, value ? styles.toggleOn : styles.toggleOff]}
+      style={[
+        styles.toggleRoot,
+        value ? styles.toggleOn : styles.toggleOff,
+        disabled && styles.toggleDisabled,
+      ]}
     >
       <View style={[styles.toggleThumb, value ? styles.thumbOn : styles.thumbOff]} />
     </Pressable>
@@ -172,6 +185,7 @@ export default function CreateEventDetailStep({
   repeatEndDate,
   onChangeRepeatEndDate,
   remindOn,
+  remindDisabled = false,
   onToggleRemind,
   remindOpen,
   onSetRemindOpen,
@@ -1150,6 +1164,7 @@ export default function CreateEventDetailStep({
         <Text style={styles.sectionLabel}>알림</Text>
         <Toggle
           value={remindOn}
+          disabled={remindDisabled}
           onChange={(next) => {
             onToggleRemind(next)
             if (!next) {
@@ -1965,6 +1980,9 @@ const styles = StyleSheet.create({
   },
   toggleOff: {
     backgroundColor: '#D9D9D9',
+  },
+  toggleDisabled: {
+    opacity: 0.4,
   },
   toggleThumb: {
     width: 25,
