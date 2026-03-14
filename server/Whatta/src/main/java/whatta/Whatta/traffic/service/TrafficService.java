@@ -23,7 +23,6 @@ public class TrafficService {
     private final BusApiClient busApiClient;
     private static final String FIXED_CITY_CODE = "21";//시티코드 구현 전까지 부산으로 가정하고 구현
 
-    //좌표기반근접 정류장 검색
     public List<BusStationResponse> searchStationsByGps(Double latitude, Double longitude) {
 
         BusApiResponse rawResponse = busApiClient.getStationListByGps(latitude, longitude);
@@ -36,7 +35,6 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
-    //정류장명으로 정류장 검색
     public List<BusStationResponse> searchStationsByName(String keyword) {
         
         BusApiResponse rawResponse = busApiClient.getStationList(keyword, FIXED_CITY_CODE);
@@ -49,7 +47,6 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
-    //정류장별 경유노선 목록을 조회
     public List<BusRouteResponse> searchRouteByStation(String busStationId) {
 
         BusApiResponse rawResponse = busApiClient.getRouteListByStation(busStationId, FIXED_CITY_CODE);
@@ -61,7 +58,6 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
-    //정류장별로 실시간 도착예정정보 및 운행정보 목록을 조회
     public List<BusArrivalResponse> searchArrivalsByStation(String busStationId) {
 
         BusApiResponse rawResponse = busApiClient.getArrivalInfoByStation(busStationId, FIXED_CITY_CODE);
@@ -74,7 +70,6 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
-    //특정노선의 실시간 도착예정정보 및 운행정보 목록을 조회
     public List<BusArrivalResponse> searchArrivalsByRoute(String busStationId, String busRouteId) {
 
         BusApiResponse rawResponse = busApiClient.getArrivalInfoByRoute(busStationId, FIXED_CITY_CODE, busRouteId);
@@ -89,7 +84,6 @@ public class TrafficService {
 
 
 
-    //정류장 목록 조회 파싱 메서드
     private BusStationResponse parseToStationResponse(BusArrivalItem item) {
         try {
             Double lat = (item.getGpslati() != null) ? Double.parseDouble(item.getGpslati()) : null;
@@ -108,7 +102,7 @@ public class TrafficService {
             return null;
         }
     }
-    //정류장별버스노선 조회 파싱 메서드
+
     private BusRouteResponse parseToRouteResponse(BusArrivalItem item) {
         return new BusRouteResponse(
                 item.getRouteid(),
@@ -118,7 +112,7 @@ public class TrafficService {
         );
     }
 
-    //정류장별 혹은 특정노선 도착예정 조회 파싱 메서드
+
     private BusArrivalResponse parseToArrivalResponse(BusArrivalItem item) {
         try {
             int remainingBusStops = Integer.parseInt(item.getArrprevstationcnt());
@@ -138,7 +132,6 @@ public class TrafficService {
         }
     }
 
-    //response 유효성 검사
     private boolean isInvalidResponse(BusApiResponse response) {
         return response == null ||
                 response.getBody() == null ||

@@ -1,6 +1,8 @@
 package whatta.Whatta.traffic.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
@@ -10,27 +12,52 @@ import whatta.Whatta.traffic.payload.request.TrafficNotiCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficNotiUpdateRequest;
 import whatta.Whatta.traffic.payload.response.TrafficNotiResponse;
 import whatta.Whatta.traffic.repository.TrafficNotiRepository;
-import whatta.Whatta.traffic.repository.BusItemRepository;
+import whatta.Whatta.traffic.repository.BusFavoriteRepository;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class TrafficNotiService {
 
-    private final BusItemRepository itemRepository;
+    private final BusFavoriteRepository busFavoriteRepository;
     private final TrafficNotiRepository trafficNotiRepository;
 
-    //교통알림 생성
+    @PostConstruct
+    void backfillAlarmMinuteOfDay() {
+        List<TrafficNotification> legacyAlarms = trafficNotiRepository.findByAlarmMinuteOfDayIsNull();
+        if (legacyAlarms.isEmpty()) {
+            return;
+        }
+
+        List<TrafficNotification> toUpdate = legacyAlarms.stream()
+                .filter(alarm -> alarm.getAlarmTime() != null)
+                .map(alarm -> alarm.toBuilder()
+                        .alarmMinuteOfDay(toMinuteOfDay(alarm.getAlarmTime()))
+                        .build())
+                .toList();
+
+        if (toUpdate.isEmpty()) {
+            return;
+        }
+
+        trafficNotiRepository.saveAll(toUpdate);
+        log.info("Traffic alarmMinuteOfDay backfill completed. updated={}", toUpdate.size());
+    }
+
     public TrafficNotiResponse createTrafficNoti(String userId, TrafficNotiCreateRequest request) {
-        validateTrafficItems(userId, request.targetItemIds( ));
+        List<String> targetItemIds = sanitizeTargetItemIds(request.targetItemIds());
+        validateTrafficItems(userId, targetItemIds);
 
         LocalTime cleanTime = request.alarmTime().truncatedTo(ChronoUnit.MINUTES);
 
@@ -40,8 +67,9 @@ public class TrafficNotiService {
         TrafficNotification alarm = TrafficNotification.builder()
                 .userId(userId)
                 .alarmTime(cleanTime)
+                .alarmMinuteOfDay(toMinuteOfDay(cleanTime))
                 .days(request.days() != null ? request.days() : new HashSet<>())
-                .targetItemIds(request.targetItemIds())
+                .targetItemIds(targetItemIds)
                 .isEnabled(true)
                 .isRepeatEnabled(shouldRepeat)
                 .build();
@@ -50,26 +78,32 @@ public class TrafficNotiService {
         return TrafficNotiResponse.fromEntity(savedAlarm);
     }
 
-    //교통알림 수정
     public TrafficNotiResponse updateTrafficNoti(String userId, String alarmId, TrafficNotiUpdateRequest request) {
         TrafficNotification originalAlarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        if (request.getTargetItemIds() != null) {
-            validateTrafficItems(userId, request.getTargetItemIds());
+        List<String> sanitizedTargetItemIds = null;
+        if (request.targetItemIds() != null) {
+            sanitizedTargetItemIds = sanitizeTargetItemIds(request.targetItemIds());
+            validateTrafficItems(userId, sanitizedTargetItemIds);
         }
 
         TrafficNotification.TrafficNotificationBuilder builder = originalAlarm.toBuilder();
 
-        if (request.getAlarmTime() != null) builder.alarmTime(request.getAlarmTime()
-                .truncatedTo(ChronoUnit.MINUTES));
-        if (request.getDays() != null) {
-            builder.days(request.getDays());
-            boolean shouldRepeat = !request.getDays().isEmpty();
+        if (request.alarmTime() != null) {
+            LocalTime cleanTime = request.alarmTime().truncatedTo(ChronoUnit.MINUTES);
+            builder.alarmTime(cleanTime);
+            builder.alarmMinuteOfDay(toMinuteOfDay(cleanTime));
+        } else if (originalAlarm.getAlarmMinuteOfDay() == null && originalAlarm.getAlarmTime() != null) {
+            builder.alarmMinuteOfDay(toMinuteOfDay(originalAlarm.getAlarmTime()));
+        }
+        if (request.days() != null) {
+            builder.days(request.days());
+            boolean shouldRepeat = !request.days().isEmpty();
             builder.isRepeatEnabled(shouldRepeat);
         }
-        if (request.getIsEnabled() != null) builder.isEnabled(request.getIsEnabled());
-        if (request.getTargetItemIds() != null) builder.targetItemIds(request.getTargetItemIds());
+        if (request.isEnabled() != null) builder.isEnabled(request.isEnabled());
+        if (sanitizedTargetItemIds != null) builder.targetItemIds(sanitizedTargetItemIds);
 
         //요일값이 없을경우 반복 off
         TrafficNotification temp = builder.build();
@@ -83,7 +117,6 @@ public class TrafficNotiService {
         return TrafficNotiResponse.fromEntity(savedAlarm);
     }
 
-    //교통알림 삭제
     public void deleteTrafficNoti(String userId, String alarmId) {
         TrafficNotification alarm = trafficNotiRepository.findByIdAndUserId(alarmId, userId)
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -91,7 +124,6 @@ public class TrafficNotiService {
         trafficNotiRepository.delete(alarm);
     }
 
-    //교통알림 목록 조회
     @Transactional(readOnly = true)
     public List<TrafficNotiResponse> getTrafficNotis(String userId){
         return trafficNotiRepository.findByUserId(userId).stream()
@@ -99,16 +131,34 @@ public class TrafficNotiService {
                 .collect(Collectors.toList());
     }
 
-    //유효성 검증
     private void validateTrafficItems(String userId, List<String> itemIds) {
-        if(itemIds == null || itemIds.isEmpty()) return;
-
-        long validCount = itemRepository.countByIdInAndUserId(itemIds, userId);
+        long validCount = busFavoriteRepository.countByIdInAndUserId(itemIds, userId);
 
         if(validCount != itemIds.size()) {
             throw new RestApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
     }
+
+    private List<String> sanitizeTargetItemIds(List<String> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            throw new RestApiException(ErrorCode.INVALID_TRAFFIC_ALARM_REQUEST);
+        }
+
+        List<String> sanitized = itemIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .toList();
+
+        if (sanitized.size() != itemIds.size()) {
+            throw new RestApiException(ErrorCode.INVALID_TRAFFIC_ALARM_REQUEST);
+        }
+
+        return new ArrayList<>(sanitized);
+    }
+
+    private int toMinuteOfDay(LocalTime time) {
+        return time.getHour() * 60 + time.getMinute();
+    }
 }
-
-

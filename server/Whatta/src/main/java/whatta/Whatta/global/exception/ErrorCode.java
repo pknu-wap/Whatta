@@ -31,6 +31,8 @@ public enum ErrorCode {
     //800-xx : 교통 api 관련 오류
     PUBLIC_BUS_API_FAILED(HttpStatus.BAD_GATEWAY, "800-1", "공공데이터 API 호출에 실패했습니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "800-2", "해당 노선은 존재하지 않습니다."),
+    TRAFFIC_ITEM_ALREADY_EXISTS(HttpStatus.CONFLICT, "800-3", "이미 즐겨찾기에 추가된 노선입니다."),
+    INVALID_TRAFFIC_ALARM_REQUEST(HttpStatus.BAD_REQUEST, "800-4", "교통 알림 요청값이 유효하지 않습니다."),
 
     //900-xx : 요청/AI 관련 오류
     INVALID_REQUEST_TEXT(HttpStatus.BAD_REQUEST, "900-1", "유효하지 않은 요청 본문입니다."),
