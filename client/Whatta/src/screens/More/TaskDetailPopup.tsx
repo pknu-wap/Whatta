@@ -630,6 +630,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     onChangeRepeatEvery={setRepeatEvery}
                     onChangeRepeatUnit={setRepeatUnit}
                     onChangeMonthlyOpt={setMonthlyOpt}
+                    repeatWeekdays={[]}
+                    onChangeRepeatWeekdays={() => {}}
                     repeatEndDate={repeatEndDate}
                     onChangeRepeatEndDate={setRepeatEndDate}
                     remindOn={remindOn}

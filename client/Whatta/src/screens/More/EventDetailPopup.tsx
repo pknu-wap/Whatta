@@ -232,6 +232,7 @@ export default function EventDetailPopup({
   const [repeatEvery, setRepeatEvery] = useState(1) // 왼쪽 숫자(1~6)
   type RepeatUnit = 'day' | 'week' | 'month'
   const [repeatUnit, setRepeatUnit] = useState<RepeatUnit>('week') // 오른쪽 단위
+  const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([])
   const REPEAT_NUMS = [1, 2, 3, 4, 5, 6]
   const REPEAT_UNITS: { k: RepeatUnit; label: string }[] = [
     { k: 'day', label: '일' },
@@ -333,9 +334,12 @@ export default function EventDetailPopup({
     let on: string[] | null = null
 
     if (unit === 'WEEK') {
-      // 매주 / n주마다 요일
-      const wd = WEEKDAY_ENUM[start.getDay()] // 시작 날짜 기준 요일
-      on = [wd]
+      // 추가 요일 선택은 "매주"에서만 허용
+      const weekdays =
+        repeatMode === 'weekly'
+          ? Array.from(new Set([start.getDay(), ...repeatWeekdays])).sort((a, b) => a - b)
+          : [start.getDay()]
+      on = weekdays.map((day) => WEEKDAY_ENUM[day])
     } else if (unit === 'MONTH') {
       const wd = WEEKDAY_ENUM[start.getDay()]
       const { nth } = getWeekIndexOfMonth(start)
@@ -382,6 +386,7 @@ export default function EventDetailPopup({
     let nextRepeatEvery = 1
     let nextRepeatUnit: RepeatUnit = 'day'
     let nextMonthlyOpt: MonthlyOpt = 'byDate'
+    let nextRepeatWeekdays: number[] = []
 
     // 1) DAY
     if (r.unit === 'DAY') {
@@ -399,15 +404,26 @@ export default function EventDetailPopup({
       const wd = WEEKDAY_ENUM[start.getDay()]
       const isSimpleWeekly =
         r.interval === 1 && Array.isArray(r.on) && r.on.length === 1 && r.on[0] === wd
+      nextRepeatWeekdays = Array.isArray(r.on)
+        ? r.on
+            .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
+            .filter((day): day is number => day >= 0 && day !== start.getDay())
+        : []
 
       if (isSimpleWeekly) {
         // "매주" 패턴
         nextRepeatMode = 'weekly'
+        nextRepeatWeekdays = Array.isArray(r.on)
+          ? r.on
+              .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
+              .filter((day): day is number => day >= 0 && day !== start.getDay())
+          : []
       } else {
         // 그 외는 "맞춤 설정 - 주"로 처리
         nextRepeatMode = 'custom'
         nextRepeatEvery = r.interval
         nextRepeatUnit = 'week'
+        nextRepeatWeekdays = []
       }
     }
 
@@ -445,6 +461,7 @@ export default function EventDetailPopup({
     setRepeatEvery(nextRepeatEvery)
     setRepeatUnit(nextRepeatUnit)
     setMonthlyOpt(nextMonthlyOpt)
+    setRepeatWeekdays(nextRepeatWeekdays)
 
     // 종료일
     if (r.endDate) {
@@ -1323,6 +1340,7 @@ export default function EventDetailPopup({
       setRepeatMode('daily')
       setRepeatEvery(1)
       setRepeatUnit('week')
+      setRepeatWeekdays([])
       setMonthlyOpt('byDate')
       setEndMode('none')
       setRepeatEndDate(null)
@@ -1394,7 +1412,14 @@ export default function EventDetailPopup({
     setTaskDate(null)
     setTaskDueOn(false)
     setTaskDueDate(null)
+    setRepeatWeekdays([])
   }, [visible, mode, initial, initialCreateType])
+
+  useEffect(() => {
+    if (repeatMode !== 'weekly') {
+      setRepeatWeekdays([])
+    }
+  }, [repeatMode])
 
   const deleteNormal = async () => {
     try {
@@ -1669,6 +1694,7 @@ export default function EventDetailPopup({
                         if (!next) {
                           setEndMode('none')
                           setRepeatEndDate(null)
+                          setRepeatWeekdays([])
                         }
                       }}
                       repeatMode={repeatMode}
@@ -1679,6 +1705,8 @@ export default function EventDetailPopup({
                       onChangeRepeatEvery={setRepeatEvery}
                       onChangeRepeatUnit={setRepeatUnit}
                       onChangeMonthlyOpt={setMonthlyOpt}
+                      repeatWeekdays={repeatWeekdays}
+                      onChangeRepeatWeekdays={setRepeatWeekdays}
                       repeatEndDate={endMode === 'date' ? repeatEndDate : null}
                       onChangeRepeatEndDate={(next) => {
                         if (!next) {

@@ -39,6 +39,8 @@ type Props = {
   onChangeRepeatEvery: (next: number) => void
   onChangeRepeatUnit: (next: 'day' | 'week' | 'month') => void
   onChangeMonthlyOpt: (next: 'byDate' | 'byNthWeekday' | 'byLastWeekday') => void
+  repeatWeekdays: number[]
+  onChangeRepeatWeekdays: (next: number[]) => void
   repeatEndDate: Date | null
   onChangeRepeatEndDate: (next: Date | null) => void
   remindOn: boolean
@@ -163,6 +165,8 @@ export default function CreateEventDetailStep({
   onChangeRepeatEvery,
   onChangeRepeatUnit,
   onChangeMonthlyOpt,
+  repeatWeekdays,
+  onChangeRepeatWeekdays,
   repeatEndDate,
   onChangeRepeatEndDate,
   remindOn,
@@ -197,7 +201,6 @@ export default function CreateEventDetailStep({
   const [repeatCustomOpen, setRepeatCustomOpen] = React.useState(false)
   const [openRepeatEndDate, setOpenRepeatEndDate] = React.useState(false)
   const [weekdayOpen, setWeekdayOpen] = React.useState(false)
-  const [selectedWeekdays, setSelectedWeekdays] = React.useState<number[]>([])
   const [repeatEndMonthCursor, setRepeatEndMonthCursor] = React.useState(
     () => new Date(start.getFullYear(), start.getMonth(), 1),
   )
@@ -245,10 +248,18 @@ export default function CreateEventDetailStep({
       setRepeatCustomOpen(false)
       setOpenRepeatEndDate(false)
       setWeekdayOpen(false)
-      setSelectedWeekdays([])
     }
   }, [repeatOn])
-  const K_DAY = [ '월', '화', '수', '목', '금', '토', '일'] as const
+  const WEEKDAY_OPTIONS = [
+    { label: '일', value: 0 },
+    { label: '월', value: 1 },
+    { label: '화', value: 2 },
+    { label: '수', value: 3 },
+    { label: '목', value: 4 },
+    { label: '금', value: 5 },
+    { label: '토', value: 6 },
+  ] as const
+  const K_DAY = ['일', '월', '화', '수', '목', '금', '토'] as const
   const disabledWeekday = start.getDay()
   const repeatEndSelected = repeatEndDate ?? start
   const repeatEndHeader = `${repeatEndMonthCursor.getFullYear()}년 ${repeatEndMonthCursor.getMonth() + 1}월`
@@ -275,14 +286,16 @@ export default function CreateEventDetailStep({
     return Array.from({ length: 101 }, (_, i) => now - 50 + i)
   }, [])
   const weekdayLabel = (() => {
-    const s = [...selectedWeekdays].sort((a, b) => a - b)
-    const hasOrDisabled = (d: number) => s.includes(d) || disabledWeekday === d
-    const isWeekendEvery = hasOrDisabled(0) && hasOrDisabled(6)
-    const isWeekdayEvery = [1, 2, 3, 4, 5].every((d) => hasOrDisabled(d))
-    if (s.length === 0) return '요일 추가 없음'
+    const appliedDays = Array.from(new Set([disabledWeekday, ...repeatWeekdays])).sort(
+      (a, b) => a - b,
+    )
+    const hasDay = (d: number) => appliedDays.includes(d)
+    const isWeekendEvery = hasDay(0) && hasDay(6)
+    const isWeekdayEvery = [1, 2, 3, 4, 5].every((d) => hasDay(d))
+    if (appliedDays.length === 1) return `${K_DAY[disabledWeekday]}요일마다`
     if (isWeekendEvery) return '주말마다'
     if (isWeekdayEvery) return '평일마다'
-    return s.map((d) => K_DAY[d]).join(', ')
+    return appliedDays.map((d) => K_DAY[d]).join(', ')
   })()
   React.useEffect(() => {
     if (selectedType === 'task') setColorPaletteOpen(false)
@@ -771,7 +784,7 @@ export default function CreateEventDetailStep({
         </>
       )}
 
-      {selectedType === 'event' && repeatOn && (
+      {selectedType === 'event' && repeatOn && repeatMode === 'weekly' && (
         <>
           <View style={styles.weekdaySection}>
             <Pressable
@@ -792,19 +805,19 @@ export default function CreateEventDetailStep({
             </Pressable>
             {weekdayOpen && (
               <View style={styles.weekdayWrap}>
-                {K_DAY.map((d, idx) => {
-                  const disabled = idx === disabledWeekday
-                  const selected = selectedWeekdays.includes(idx)
+                {WEEKDAY_OPTIONS.map(({ label, value }) => {
+                  const disabled = value === disabledWeekday
+                  const selected = repeatWeekdays.includes(value)
                   return (
                     <Pressable
-                      key={`${d}-${idx}`}
+                      key={`${label}-${value}`}
                       style={[styles.weekdayItem, selected && styles.weekdayItemSelected]}
                       disabled={disabled}
                       onPress={() => {
-                        setSelectedWeekdays((prev) =>
-                          prev.includes(idx)
-                            ? prev.filter((x) => x !== idx)
-                            : [...prev, idx],
+                        onChangeRepeatWeekdays(
+                          selected
+                            ? repeatWeekdays.filter((day) => day !== value)
+                            : [...repeatWeekdays, value].sort((a, b) => a - b),
                         )
                       }}
                     >
@@ -815,7 +828,7 @@ export default function CreateEventDetailStep({
                           disabled && styles.weekdayTextDisabled,
                         ]}
                       >
-                        {d}
+                        {label}
                       </Text>
                     </Pressable>
                   )
@@ -823,7 +836,15 @@ export default function CreateEventDetailStep({
               </View>
             )}
           </View>
+        </>
+      )}
 
+      {selectedType === 'event' && repeatOn && repeatMode !== 'weekly' && (
+        <View style={styles.weekdaySectionSpacer} />
+      )}
+
+      {selectedType === 'event' && repeatOn && (
+        <>
           <View style={styles.timeRow}>
             <Text style={styles.timeRowLabel}>종료일</Text>
             <Pressable
@@ -1529,6 +1550,9 @@ const styles = StyleSheet.create({
   weekdaySection: {
     marginTop: 8,
     marginBottom: 8,
+  },
+  weekdaySectionSpacer: {
+    height: 8,
   },
   weekdayWrap: {
     width: 302,
