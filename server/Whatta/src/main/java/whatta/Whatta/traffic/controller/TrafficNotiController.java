@@ -40,7 +40,7 @@ public class TrafficNotiController {
             @RequestBody @Validated BusFavoriteCreateRequest request
     ){
         BusFavoriteResponse response = busFavoriteService.createBusFavorite(userId, request);
-        return Response.ok("즐겨찾기 추가 성공", response);
+        return Response.ok("즐겨찾기 추가 성공(중복 포함)", response);
     }
 
     @DeleteMapping("/items/{itemId}")
