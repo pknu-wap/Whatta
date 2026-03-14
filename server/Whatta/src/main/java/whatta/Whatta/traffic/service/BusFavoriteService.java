@@ -48,8 +48,15 @@ public class BusFavoriteService {
             BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
             return BusFavoriteResponse.fromEntity(savedFavorite);
         } catch (DuplicateKeyException e) {
-            log.info("즐겨찾기 중복 삽입 레이스 감지");
-            return BusFavoriteResponse.fromEntity(favorite);
+            log.info("즐겨찾기 중복 삽입 레이스 감지, 기존 데이터 재조회");
+
+            return busFavoriteRepository.findByUserIdAndBusStationIdAndBusRouteId(
+                            userId,
+                            request.busStationId(),
+                            request.busRouteId()
+                    )
+                    .map(BusFavoriteResponse::fromEntity)
+                    .orElseThrow(() -> new RestApiException(ErrorCode.TRAFFIC_ITEM_ALREADY_EXISTS));
         }
     }
 
