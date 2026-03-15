@@ -27,6 +27,7 @@ public class RuleBasedExtractor {
     private static final Pattern MERIDIEM_TIME_PATTERN = Pattern.compile("(오전|오후)\\s*(\\d{1,2})(?:시)?(?:\\s*(\\d{1,2})분)?(?:에)?");
     private static final Pattern CLOCK_TIME_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2}):(\\d{2})(?:에)?(?!\\d)");
     private static final Pattern HOUR_TIME_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*시(?:\\s*(\\d{1,2})분)?(?:에)?");
+    private static final Pattern LIST_ITEM_PATTERN = Pattern.compile("^\\s*(?:[-*•]|\\d+[.)])\\s+");
     private static final Pattern EDGE_PARTICLE_PATTERN = Pattern.compile("^(에|에게|을|를|은|는|이|가|와|과|도|만|로|으로)\\s+|\\s+(에|에게|을|를|은|는|이|가|와|과|도|만|로|으로)$");
     private static final Pattern COMMAND_SUFFIX_PATTERN = Pattern.compile("\\s*(추가|생성|등록|저장|만들기|만들어줘|넣어줘|넣기|작성해줘|추가해줘)$");
 
@@ -202,10 +203,68 @@ public class RuleBasedExtractor {
     }
 
     private boolean hasMultipleItems(String text, List<LocalDate> dateCandidates, List<LocalTime> timeCandidates) {
-        if (text.contains("\n") || text.contains(",") || text.contains(" 그리고 ") || text.contains(" 및 ")) {
+        if (text.contains(",") || text.contains(" 그리고 ") || text.contains(" 및 ")) {
+            return true;
+        }
+        if (looksLikeMultiLineList(text)) {
             return true;
         }
         return dateCandidates.size() > 1 || timeCandidates.size() > 1;
+    }
+
+    private boolean looksLikeMultiLineList(String text) {
+        if (!text.contains("\n")) {
+            return false;
+        }
+
+        List<String> nonBlankLines = text.lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .toList();
+
+        if (nonBlankLines.size() < 2) {
+            return false;
+        }
+
+        long listedLineCount = nonBlankLines.stream()
+                .filter(this::hasListMarker)
+                .count();
+        if (listedLineCount >= 2) {
+            return true;
+        }
+
+        long standaloneScheduleLineCount = nonBlankLines.stream()
+                .map(this::stripListMarker)
+                .filter(this::looksLikeStandaloneScheduleLine)
+                .count();
+
+        return standaloneScheduleLineCount >= 2;
+    }
+
+    private boolean looksLikeStandaloneScheduleLine(String line) {
+        return hasScheduleSignal(line) && !extractTitleHint(line).isBlank();
+    }
+
+    private boolean hasScheduleSignal(String line) {
+        return line.contains("오늘")
+                || line.contains("내일")
+                || line.contains("모레")
+                || DEADLINE_PATTERN.matcher(line).find()
+                || WEEKDAY_PATTERN.matcher(line).find()
+                || ISO_DATE_PATTERN.matcher(line).find()
+                || KOREAN_MONTH_DAY_PATTERN.matcher(line).find()
+                || SLASH_MONTH_DAY_PATTERN.matcher(line).find()
+                || MERIDIEM_TIME_PATTERN.matcher(line).find()
+                || CLOCK_TIME_PATTERN.matcher(line).find()
+                || HOUR_TIME_PATTERN.matcher(line).find();
+    }
+
+    private boolean hasListMarker(String line) {
+        return LIST_ITEM_PATTERN.matcher(line).find();
+    }
+
+    private String stripListMarker(String line) {
+        return LIST_ITEM_PATTERN.matcher(line).replaceFirst("").trim();
     }
 
     private String extractTitleHint(String text) {

@@ -30,7 +30,16 @@ public class AIPreNormalizer {
             return "";
         }
 
-        String normalized = input.replaceAll("\\s+", " ").trim();
+        String normalized = input
+                .replace("\r\n", "\n")
+                .replace('\r', '\n');
+
+        String[] lines = normalized.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            lines[i] = lines[i].replaceAll("[\\t\\x0B\\f ]+", " ").trim();
+        }
+
+        normalized = String.join("\n", lines).strip();
         normalized = stripWrappingQuotes(normalized);
         for (Map.Entry<String, String> entry : REPLACEMENTS.entrySet()) {
             normalized = normalized.replace(entry.getKey(), entry.getValue());

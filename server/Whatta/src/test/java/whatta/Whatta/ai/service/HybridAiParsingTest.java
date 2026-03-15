@@ -45,6 +45,13 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 전처리기는_줄바꿈을_보존하고_줄내_공백만_정리한다() {
+        String normalized = aiPreNormalizer.normalize("내일 12시에  \n   캡디 회의   추가해줘");
+
+        assertEquals("내일 12시에\n캡디 회의 추가해줘", normalized);
+    }
+
+    @Test
     void 룰기반추출기는_단순한_일정_입력에서_날짜와_시간을_추출한다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 7시 캡디 회의", "내일 7시 캡디 회의");
 
@@ -52,6 +59,27 @@ class HybridAiParsingTest {
         assertTrue(parsed.hasSingleTime());
         assertEquals(LocalTime.of(7, 0), parsed.timeCandidates().get(0));
         assertEquals("캡디 회의", parsed.titleHint());
+    }
+
+    @Test
+    void 줄바꿈이_있어도_한_일정_문맥이면_멀티일정으로_보지_않는다() {
+        String normalized = aiPreNormalizer.normalize("내일 12시에\n캡디 회의 추가해줘");
+
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 12시에\n캡디 회의 추가해줘", normalized);
+
+        assertFalse(parsed.hasMultipleItems());
+        assertTrue(parsed.hasSingleDate());
+        assertTrue(parsed.hasSingleTime());
+        assertEquals("캡디 회의", parsed.titleHint());
+    }
+
+    @Test
+    void 각_줄이_독립적인_일정이면_멀티일정으로_감지한다() {
+        String normalized = aiPreNormalizer.normalize("내일 7시 회의\n금요일 과제 제출");
+
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 7시 회의\n금요일 과제 제출", normalized);
+
+        assertTrue(parsed.hasMultipleItems());
     }
 
     @Test
