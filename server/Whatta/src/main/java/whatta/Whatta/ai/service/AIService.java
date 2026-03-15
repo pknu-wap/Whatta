@@ -63,7 +63,7 @@ public class AIService {
         }
 
         boolean hasSimpleTaskSignal = extractionResult.deadlineCandidate() != null;
-        boolean hasSimpleEventSignal = extractionResult.hasSingleDate() || extractionResult.hasSingleTime();
+        boolean hasSimpleEventSignal = extractionResult.hasSingleDate();
         boolean hasRecoverableInputWarning = extractionResult.warnings() != null && !extractionResult.warnings().isEmpty();
         return hasSimpleTaskSignal || hasSimpleEventSignal || hasRecoverableInputWarning;
     }

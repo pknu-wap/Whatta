@@ -19,6 +19,9 @@ public class ScheduleCandidateResolver {
         if (isTask(extractionResult)) {
             return resolveTaskCandidate(extractionResult);
         }
+        if (hasInvalidStartDateWarningWithoutDateCandidate(extractionResult)) {
+            return resolveEventCandidateWithInvalidDate(extractionResult);
+        }
         if (isEvent(extractionResult)) {
             return resolveEventCandidate(extractionResult);
         }
@@ -37,7 +40,7 @@ public class ScheduleCandidateResolver {
     }
 
     private boolean isEvent(RuleBasedExtractionResult result) {
-        return (result.hasSingleDate() || result.hasSingleTime()) && !result.hasRepeatExpression();
+        return result.hasSingleDate() && !result.hasRepeatExpression();
     }
 
     private ScheduleCandidate resolveTaskCandidate(RuleBasedExtractionResult extractionResult) {
@@ -62,11 +65,6 @@ public class ScheduleCandidateResolver {
     }
 
     private ScheduleCandidate resolveEventCandidate(RuleBasedExtractionResult extractionResult) {
-        //날짜가 없는 것과 날짜를 잘 못 쓴 것을 구분
-        if (hasInvalidStartDateWarningWithoutDateCandidate(extractionResult)) {
-            return resolveEventCandidateWithInvalidDate(extractionResult);
-        }
-
         LocalDate startDate = extractionResult.hasSingleDate() ? extractionResult.dateCandidates().get(0) : extractionResult.referenceDate();
         LocalTime startTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
 
@@ -134,6 +132,7 @@ public class ScheduleCandidateResolver {
                 || title.contains("리기")
                 || title.contains("보기")
                 || title.contains("가기")
+                || title.contains("내기")
                 || title.contains("공부")
                 || title.contains("과제");
     }

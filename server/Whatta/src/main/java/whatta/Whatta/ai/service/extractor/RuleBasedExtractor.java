@@ -23,8 +23,10 @@ public class RuleBasedExtractor {
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
     private static final Pattern KOREAN_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*월\\s*(\\d{1,2})\\s*일(?!\\d)");
     private static final Pattern SLASH_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})/(\\d{1,2})(?!\\d)");
+    private static final Pattern RELATIVE_WEEK_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(일주일)|([1-9]\\d*)\\s*주(?:일)?)\\s*뒤(?:에)?");
+    private static final Pattern RELATIVE_DAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(하루|이틀|사흘)|([1-9]\\d*)\\s*일)\\s*뒤(?:에)?");
     private static final Pattern WEEKDAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?(?:에)?(?=\\s|$|까지|전까지)");
-    private static final Pattern DEADLINE_PATTERN = Pattern.compile("(오늘|내일|모레|(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?)(까지|전까지|전에)");
+    private static final Pattern DEADLINE_PATTERN = Pattern.compile("(오늘|내일|모레|(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?)(까지|전까지)");
     private static final Pattern MERIDIEM_TIME_PATTERN = Pattern.compile("(오전|오후)\\s*(\\d{1,2})(?:시)?(?:\\s*(\\d{1,2})분)?(?:에)?");
     private static final Pattern CLOCK_TIME_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2}):(\\d{2})(?:에)?(?!\\d)");
     private static final Pattern HOUR_TIME_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*시(?:\\s*(\\d{1,2})분)?(?:에)?");
@@ -107,6 +109,16 @@ public class RuleBasedExtractor {
                     slashMonthDayMatcher.group(),
                     warnings
             );
+        }
+
+        Matcher relativeWeekMatcher = RELATIVE_WEEK_PATTERN.matcher(text);
+        while (relativeWeekMatcher.find()) {
+            dates.add(referenceDate.plusWeeks(parseRelativeWeekOffset(relativeWeekMatcher)));
+        }
+
+        Matcher relativeDayMatcher = RELATIVE_DAY_PATTERN.matcher(text);
+        while (relativeDayMatcher.find()) {
+            dates.add(referenceDate.plusDays(parseRelativeDayOffset(relativeDayMatcher)));
         }
 
         if (text.contains("오늘")) {
@@ -259,6 +271,8 @@ public class RuleBasedExtractor {
         return line.contains("오늘")
                 || line.contains("내일")
                 || line.contains("모레")
+                || RELATIVE_WEEK_PATTERN.matcher(line).find()
+                || RELATIVE_DAY_PATTERN.matcher(line).find()
                 || DEADLINE_PATTERN.matcher(line).find()
                 || WEEKDAY_PATTERN.matcher(line).find()
                 || ISO_DATE_PATTERN.matcher(line).find()
@@ -284,6 +298,8 @@ public class RuleBasedExtractor {
         title = ISO_DATE_PATTERN.matcher(title).replaceAll(" ");
         title = KOREAN_MONTH_DAY_PATTERN.matcher(title).replaceAll(" ");
         title = SLASH_MONTH_DAY_PATTERN.matcher(title).replaceAll(" ");
+        title = RELATIVE_WEEK_PATTERN.matcher(title).replaceAll(" ");
+        title = RELATIVE_DAY_PATTERN.matcher(title).replaceAll(" ");
         title = title.replace("오늘", " ")
                 .replace("내일", " ")
                 .replace("모레", " ")
@@ -346,6 +362,27 @@ public class RuleBasedExtractor {
         if (!values.contains(rawValue)) {
             values.add(rawValue);
         }
+    }
+
+    private long parseRelativeWeekOffset(Matcher matcher) {
+        if (matcher.group(1) != null) {
+            return 1;
+        }
+        return Long.parseLong(matcher.group(2));
+    }
+
+    private long parseRelativeDayOffset(Matcher matcher) {
+        if (matcher.group(1) == null) {
+            return Long.parseLong(matcher.group(2));
+        }
+
+        return switch (matcher.group(1)) {
+            case "하루" -> 1;
+            case "이틀" -> 2;
+            case "사흘" -> 3;
+            case "나흘" -> 4;
+            default -> throw new IllegalArgumentException("Unsupported relative day token: " + matcher.group(1));
+        };
     }
 
     private LocalDate resolveMonthDayDate(int month, int day, LocalDate referenceDate) {

@@ -128,6 +128,35 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 룰기반추출기는_일주일뒤_표현을_절대날짜로_계산한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("일주일뒤에 7시에 캡디 과제 제출", "일주일뒤에 7시에 캡디 과제 제출");
+
+        assertTrue(parsed.hasSingleDate());
+        assertTrue(parsed.hasSingleTime());
+        assertEquals(LocalDate.of(2026, 3, 22), parsed.dateCandidates().get(0));
+        assertEquals(LocalTime.of(7, 0), parsed.timeCandidates().get(0));
+        assertEquals("캡디 과제 제출", parsed.titleHint());
+    }
+
+    @Test
+    void 룰기반추출기는_이틀뒤와_사흘뒤_표현을_절대날짜로_계산한다() {
+        RuleBasedExtractionResult twoDaysLater = ruleBasedExtractor.extract("이틀뒤 회의", "이틀뒤 회의");
+        RuleBasedExtractionResult threeDaysLater = ruleBasedExtractor.extract("사흘뒤 회의", "사흘뒤 회의");
+
+        assertEquals(LocalDate.of(2026, 3, 17), twoDaysLater.dateCandidates().get(0));
+        assertEquals(LocalDate.of(2026, 3, 18), threeDaysLater.dateCandidates().get(0));
+    }
+
+    @Test
+    void 룰기반추출기는_n일뒤와_n주뒤_표현을_절대날짜로_계산한다() {
+        RuleBasedExtractionResult daysLater = ruleBasedExtractor.extract("5일뒤 일정", "5일뒤 일정");
+        RuleBasedExtractionResult weeksLater = ruleBasedExtractor.extract("2주뒤 일정", "2주뒤 일정");
+
+        assertEquals(LocalDate.of(2026, 3, 20), daysLater.dateCandidates().get(0));
+        assertEquals(LocalDate.of(2026, 3, 29), weeksLater.dateCandidates().get(0));
+    }
+
+    @Test
     void 룰기반추출기는_이번주_요일을_현재_주기준으로_계산한다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("이번주 월요일 회의", "이번주 월요일 회의");
 
@@ -158,6 +187,15 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 룰기반추출기는_다음주_단독표현만으로는_date_candidate를_만들지_않는다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("다음주에 7시 캡디 회의 추가", "다음주에 7시 캡디 회의 추가");
+
+        assertTrue(parsed.dateCandidates().isEmpty());
+        assertTrue(parsed.hasSingleTime());
+        assertEquals("캡디 회의", parsed.titleHint());
+    }
+
+    @Test
     void 룰기반추출기는_반복표현을_감지만_한다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("매주 수요일마다 회의", "매주 수요일마다 회의");
 
@@ -165,17 +203,12 @@ class HybridAiParsingTest {
     }
 
     @Test
-    void 날짜_언급이_없고_시간만_있으면_오늘_일정으로_처리한다() {
+    void 날짜_언급이_없고_시간만_있으면_event를_rule_path로_확정하지_않는다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("오후 1시에 프론트랑 회의", "오후 1시에 프론트랑 회의");
 
         ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
 
-        assertNotNull(candidate);
-        assertEquals(ScheduleCandidate.CandidateType.EVENT, candidate.type());
-        assertEquals(LocalDate.of(2026, 3, 15), candidate.startDate());
-        assertEquals(LocalTime.of(13, 0), candidate.startTime());
-        assertEquals(LocalTime.of(14, 0), candidate.endTime());
-        assertEquals("프론트랑 회의", candidate.title());
+        assertNull(candidate);
     }
 
     @Test
