@@ -5,22 +5,16 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  TextInput,
   ScrollView,
   Dimensions,
   KeyboardAvoidingView,
   TouchableOpacity,
-  Switch,
   Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import InlineCalendar from '@/components/lnlineCalendar'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
-import Down from '@/assets/icons/down.svg'
-import LabelChip from '@/components/LabelChip'
-import LabelPickerModal, { UiLabel } from '@/components/LabelPicker'
-import { Picker } from '@react-native-picker/picker'
+import { UiLabel } from '@/components/LabelPicker'
 import { useLabels } from '@/providers/LabelProvider'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
@@ -31,11 +25,6 @@ import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 
 const H_PAD = 18
-
-type ToggleProps = {
-  value: boolean
-  onChange: (v: boolean) => void
-}
 
 type TaskFormValue = {
   title: string
@@ -64,69 +53,6 @@ type TaskDetailPopupProps = {
   onDelete?: () => void
   taskId?: string
   initialTask?: any
-}
-
-const CustomToggle = ({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) => {
-  return (
-    <Pressable
-      onPress={() => !disabled && onChange(!value)}
-      hitSlop={20}
-      style={{
-        width: 51,
-        height: 31,
-        borderRadius: 26,
-        padding: 3,
-        justifyContent: 'center',
-        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
-        opacity: disabled ? 0.4 : 1,
-      }}
-    >
-      <View
-        style={{
-          width: 25,
-          height: 25,
-          borderRadius: 25,
-          backgroundColor: '#fff',
-          transform: [{ translateX: value ? 20 : 0 }],
-        }}
-      />
-    </Pressable>
-  )
-}
-
-// 요일 텍스트 + 날짜 표현용
-const WEEKDAY = [
-  '일요일',
-  '월요일',
-  '화요일',
-  '수요일',
-  '목요일',
-  '금요일',
-  '토요일',
-] as const
-const kDateText = (d: Date) => {
-  const month = d.getMonth() + 1
-  const day = d.getDate()
-  const weekday = WEEKDAY[d.getDay()]
-  return `${month}월 ${day}일 ${weekday}`
-}
-
-// 선택된 시간 표시용 (AM/PM)
-const formatTimeLabel = (date: Date) => {
-  let h = date.getHours()
-  const m = String(date.getMinutes()).padStart(2, '0')
-  const ampm = h < 12 ? 'AM' : 'PM'
-  h = h % 12
-  if (h === 0) h = 12
-  return `${h}:${m} ${ampm}`
 }
 
 const withSameDay = (base: Date, source: Date) => {
@@ -158,7 +84,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     onClose,
     onSave,
     onDelete,
-    taskId,
     initialTask,
   } = props
 
@@ -173,9 +98,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [showCreateIntro, setShowCreateIntro] = useState(mode === 'create')
   const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-
-  const scrollRef = useRef<ScrollView>(null)
-  const titleRef = useRef<TextInput>(null)
 
   // 폼 상태
   const [title, setTitle] = useState(initialTitle)
@@ -227,44 +149,11 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     return `${dayText} ${timeText}`
   }
 
-  // 라벨 피커 모달용
-  type Anchor = { x: number; y: number; w: number; h: number }
-  const [labelModalOpen, setLabelModalOpen] = useState(false)
-  const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
-  const labelBtnRef = useRef<View>(null)
   const { labels: globalLabels } = useLabels()
   const labels = globalLabels ?? []
   const MAX_SELECTED_LABELS = 10
-  const MAX_LABELS = 10
-  const isFull = labels.length >= MAX_LABELS
-
-  // 피커 열림 상태
-  const [dateOpen, setDateOpen] = useState(false)
-  const [timeOpen, setTimeOpen] = useState(false)
-  const [isPickerTouching, setIsPickerTouching] = useState(false)
   const reminderPresetLoadedRef = useRef(false)
   const [reminderPresetVersion, setReminderPresetVersion] = useState(0)
-  const pickerTouchHandlers = {
-    onTouchStart: () => setIsPickerTouching(true),
-    onTouchEnd: () => setIsPickerTouching(false),
-    onTouchCancel: () => setIsPickerTouching(false),
-  }
-
-  // 피커가 터치 중 닫히면 스크롤 잠금이 남을 수 있음
-  // 1. 팝업 전체 visible 꺼질 때
-  useEffect(() => {
-    if (!visible) setIsPickerTouching(false)
-  }, [visible])
-
-  // 2. 시간 피커 timeOpen 닫힐 때
-  useEffect(() => {
-    if (!timeOpen) setIsPickerTouching(false)
-  }, [timeOpen])
-
-  // 3. 알림 맞춤 피커 customOpen 닫히거나 remindOn 꺼질 때
-  useEffect(() => {
-    if (!customOpen || !remindOn) setIsPickerTouching(false)
-  }, [customOpen, remindOn])
 
   // 알림 preset 서버에서 불러오기
   useEffect(() => {
@@ -500,11 +389,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
   // 팝업 열고 닫을 때 펼침 UI는 항상 닫힌 상태로 초기화
   useEffect(() => {
-    setDateOpen(false)
-    setTimeOpen(false)
     setRemindOpen(false)
     setCustomOpen(false)
-    setLabelModalOpen(false)
   }, [visible])
 
   useEffect(() => {
@@ -568,9 +454,33 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setRemindOpen(false)
   }
 
-  const hasLabels = labelIds.length > 0
-  const btnBaseColor = hasLabels ? '#333333' : '#B3B3B3'
-  const btnText = hasLabels ? undefined : '없음'
+  const clearInvalidEndState = () => {
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+  }
+
+  const applyTaskTimeWindow = (nextStart: Date) => {
+    const nextEnd = new Date(nextStart)
+    nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
+    const wrappedPastMidnight = nextEnd.getTime() < nextStart.getTime()
+
+    setDetailStart(nextStart)
+    setDetailEnd(nextEnd)
+    setInvalidEndTime(wrappedPastMidnight)
+    setInvalidEndPreview(wrappedPastMidnight ? nextEnd : null)
+    setTime(nextStart)
+  }
+
+  const clearTaskDateSelection = () => {
+    setHasDate(false)
+    setHasTime(false)
+    clearInvalidEndState()
+    setRemindOn(false)
+    setRemindOpen(false)
+    setCustomOpen(false)
+    setTaskDueOn(false)
+    setTaskDueDate(null)
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -647,15 +557,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     onPressDateBox={() => {}}
                     onChangeStartTime={(next) => {
                       const nextStart = withSameDay(hasDate ? date : detailStart, next)
-                      const nextEnd = new Date(nextStart)
-                      nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
-                      const wrappedPastMidnight = nextEnd.getTime() < nextStart.getTime()
-                      setDetailStart(nextStart)
-                      setDetailEnd(nextEnd)
-                      setInvalidEndTime(wrappedPastMidnight)
-                      setInvalidEndPreview(wrappedPastMidnight ? nextEnd : null)
                       setHasTime(true)
-                      setTime(nextStart)
+                      applyTaskTimeWindow(nextStart)
                     }}
                     onChangeEndTime={(next) => {
                       const nextEnd = withSameDay(hasDate ? date : detailStart, next)
@@ -680,17 +583,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       if (next) {
                         const t = new Date(detailStart)
                         t.setSeconds(0, 0)
-                        const nextEnd = new Date(t)
-                        nextEnd.setHours((t.getHours() + 1) % 24, t.getMinutes(), 0, 0)
-                        const wrappedPastMidnight = nextEnd.getTime() < t.getTime()
-                        setDetailStart(t)
-                        setDetailEnd(nextEnd)
-                        setTime(t)
-                        setInvalidEndTime(wrappedPastMidnight)
-                        setInvalidEndPreview(wrappedPastMidnight ? nextEnd : null)
+                        applyTaskTimeWindow(t)
                       } else {
-                        setInvalidEndTime(false)
-                        setInvalidEndPreview(null)
+                        clearInvalidEndState()
                       }
                     }}
                     repeatOn={repeatOn}
@@ -751,22 +646,13 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                         if (hasTime) {
                           setTime(nextStart)
                         }
-                        setInvalidEndTime(false)
-                        setInvalidEndPreview(null)
+                        clearInvalidEndState()
                         if (taskDueDate && taskDueDate.getTime() < next.getTime()) {
                           setTaskDueDate(next)
                         }
                         return
                       }
-                      setHasDate(false)
-                      setHasTime(false)
-                      setInvalidEndTime(false)
-                      setInvalidEndPreview(null)
-                      setRemindOn(false)
-                      setRemindOpen(false)
-                      setCustomOpen(false)
-                      setTaskDueOn(false)
-                      setTaskDueDate(null)
+                      clearTaskDateSelection()
                     }}
                     taskDueOn={taskDueOn}
                     onChangeTaskDueOn={setTaskDueOn}

@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   TouchableOpacity,
+  Keyboard,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -39,12 +40,6 @@ import {
 } from '@/styles/scheduleColorSets'
 import { ts } from '@/styles/typography'
 
-/** Toggle Props 타입 */
-type ToggleProps = {
-  value: boolean
-  onChange: (v: boolean) => void
-}
-
 type Panel = 'calendar' | 'start' | 'end' | null
 
 const areSameDate = (a: Date, b: Date) => a.getTime() === b.getTime()
@@ -55,15 +50,8 @@ const MemoCalendar = memo(
 )
 
 const H_PAD = 18
-const FILELD_ROW_H = 44
 
 type Anchor = { x: number; y: number; w: number; h: number }
-
-type RouteParams = {
-  mode?: 'create' | 'edit'
-  eventId?: string
-  initial?: Partial<EventItem>
-}
 
 type CreateStep = 'intro' | 'detail'
 
@@ -1468,10 +1456,27 @@ export default function EventDetailPopup({
   }, [isCreateFlow, createIntroExpanded, createTypeSelected, createStep])
 
   useEffect(() => {
+    if (!visible) return
+    if (isCreateFlow && createStep === 'detail') {
+      Keyboard.dismiss()
+    }
+  }, [visible, isCreateFlow, createStep])
+
+  useEffect(() => {
     if (repeatMode !== 'weekly') {
       setRepeatWeekdays([])
     }
   }, [repeatMode])
+
+  const applyCreateTypeSelection = (value: 'event' | 'task') => {
+    setCreateTypeSelected(value)
+    const defaultLabel = labels.find((l) => l.title === (value === 'task' ? '할 일' : '일정'))
+    setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
+    if (value === 'task' && !taskDate) {
+      setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
+      initialTaskDateSeededRef.current = true
+    }
+  }
 
   const deleteNormal = async () => {
     try {
@@ -1631,7 +1636,7 @@ export default function EventDetailPopup({
                     <ScrollView
                       style={{ flex: 1 }}
                       contentContainerStyle={{ paddingBottom: 0 }}
-                      keyboardShouldPersistTaps="handled"
+                      keyboardShouldPersistTaps="always"
                       showsVerticalScrollIndicator={false}
                     >
                       <CreateModeTypeStep
@@ -1649,15 +1654,7 @@ export default function EventDetailPopup({
                         onSelectColorIndex={setSelectedSlot}
                         selectedType={createTypeSelected}
                         onSelectType={(value) => {
-                          setCreateTypeSelected(value)
-                          const defaultLabel = labels.find((l) =>
-                            l.title === (value === 'task' ? '할 일' : '일정'),
-                          )
-                          setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
-                          if (value === 'task' && !taskDate) {
-                            setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
-                            initialTaskDateSeededRef.current = true
-                          }
+                          applyCreateTypeSelection(value)
                           setSuppressIntroAutoFocus(false)
                         }}
                       />
@@ -1669,7 +1666,11 @@ export default function EventDetailPopup({
                             setStart(nextStart)
                             setEnd(nextEnd)
                           }}
-                          onNext={() => setCreateStep('detail')}
+                          onNext={() => {
+                            Keyboard.dismiss()
+                            setSuppressIntroAutoFocus(true)
+                            setCreateStep('detail')
+                          }}
                         />
                       )}
                     </ScrollView>
@@ -1695,15 +1696,7 @@ export default function EventDetailPopup({
                       selectedType={mode === 'edit' ? 'event' : createTypeSelected}
                       onSelectType={(value) => {
                         if (mode === 'edit') return
-                        setCreateTypeSelected(value)
-                        const defaultLabel = labels.find((l) =>
-                          l.title === (value === 'task' ? '할 일' : '일정'),
-                        )
-                        setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
-                        if (value === 'task' && !taskDate) {
-                          setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
-                          initialTaskDateSeededRef.current = true
-                        }
+                        applyCreateTypeSelection(value)
                       }}
                       start={start}
                       end={end}
