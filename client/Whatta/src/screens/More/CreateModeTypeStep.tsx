@@ -73,6 +73,7 @@ export default function CreateModeTypeStep({
                 style={[styles.colorPaletteChip, { backgroundColor: c }]}
                 onPress={() => {
                   onSelectColorIndex(idx)
+                  setColorPaletteOpen(false)
                 }}
               />
             ))}
