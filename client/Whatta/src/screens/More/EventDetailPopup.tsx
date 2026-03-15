@@ -81,6 +81,7 @@ export default function EventDetailPopup({
   const titleRef = useRef<TextInput>(null)
   const [saving, setSaving] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [labelRequiredOpen, setLabelRequiredOpen] = useState(false)
 
   const insets = useSafeAreaInsets()
   const MARGIN = 10
@@ -887,6 +888,12 @@ export default function EventDetailPopup({
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
+    if (selectedLabelIds.length === 0) {
+      setLabelRequiredOpen(true)
+      setSaving(false)
+      return
+    }
+
     if (timeOn && end.getTime() < start.getTime()) {
       setInvalidEndTime(true)
       Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이를 수 없습니다.')
@@ -2947,6 +2954,28 @@ export default function EventDetailPopup({
                 </View>
               </View>
             )}
+            {labelRequiredOpen && (
+              <View style={styles.deleteOverlay}>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={() => setLabelRequiredOpen(false)}
+                />
+                <View style={styles.deleteCard}>
+                  <Text style={styles.deleteTitle}>라벨을 선택해주세요</Text>
+                  <Text style={styles.deleteDesc}>
+                    라벨이 없으면 저장할 수 없어요.
+                  </Text>
+                  <View style={styles.deleteRow}>
+                    <Pressable
+                      style={[styles.deleteActionBtn, styles.deleteConfirmBtn]}
+                      onPress={() => setLabelRequiredOpen(false)}
+                    >
+                      <Text style={styles.deleteConfirmTxt}>확인</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            )}
       </Modal>
     </>
   )
@@ -3034,6 +3063,13 @@ const styles = StyleSheet.create({
     ...ts('label1'),
     fontWeight: '700',
     color: colors.text.text1,
+  },
+  deleteDesc: {
+    ...ts('body3'),
+    color: colors.text.text2,
+    textAlign: 'center',
+    marginTop: -12,
+    marginBottom: 4,
   },
   deleteRow: {
     width: 302,

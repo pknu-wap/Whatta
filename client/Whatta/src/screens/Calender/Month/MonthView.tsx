@@ -290,6 +290,13 @@ const {
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
   const { items: filterLabels } = useLabelFilter()
+  const labelTitleById = useMemo(() => {
+    const map = new Map<string, string>()
+    ;(filterLabels ?? []).forEach((label) => {
+      map.set(String(label.id), label.title)
+    })
+    return map
+  }, [filterLabels])
 
   // "할 일" 라벨 id 찾기 (없으면 null)
   const todoLabelId = useMemo(() => {
@@ -466,14 +473,23 @@ const holidayIsoByWeek = useMemo(() => {
     const rawTasks: any[] = rawDay?.tasks ?? []
     const pickLabelText = (raw: any): string => {
       const labels = Array.isArray(raw?.labels) ? raw.labels : []
-      if (labels.length === 0) return ''
+      if (labels.length === 0) return '라벨 없음'
       const first = labels[0]
-      if (typeof first === 'string') return first
-      if (typeof first === 'number') return String(first)
-      if (first && typeof first === 'object') {
-        return String(first.title ?? first.name ?? first.labelName ?? '')
+      if (typeof first === 'string') {
+        return labelTitleById.get(first) ?? first
       }
-      return ''
+      if (typeof first === 'number') {
+        return labelTitleById.get(String(first)) ?? String(first)
+      }
+      if (first && typeof first === 'object') {
+        const directTitle = String(first.title ?? first.name ?? first.labelName ?? '')
+        if (directTitle) return directTitle
+        const fallbackId = first.id ?? first.labelId
+        return fallbackId != null
+          ? labelTitleById.get(String(fallbackId)) ?? '라벨 없음'
+          : '라벨 없음'
+      }
+      return '라벨 없음'
     }
 
     return {
@@ -590,14 +606,23 @@ const holidayIsoByWeek = useMemo(() => {
     const rawTaskById = new Map(rawTasks.map((t) => [String(t.id), t]))
     const pickLabelText = (raw: any): string => {
       const labels = Array.isArray(raw?.labels) ? raw.labels : []
-      if (labels.length === 0) return ''
+      if (labels.length === 0) return '라벨 없음'
       const first = labels[0]
-      if (typeof first === 'string') return first
-      if (typeof first === 'number') return String(first)
-      if (first && typeof first === 'object') {
-        return String(first.title ?? first.name ?? first.labelName ?? '')
+      if (typeof first === 'string') {
+        return labelTitleById.get(first) ?? first
       }
-      return ''
+      if (typeof first === 'number') {
+        return labelTitleById.get(String(first)) ?? String(first)
+      }
+      if (first && typeof first === 'object') {
+        const directTitle = String(first.title ?? first.name ?? first.labelName ?? '')
+        if (directTitle) return directTitle
+        const fallbackId = first.id ?? first.labelId
+        return fallbackId != null
+          ? labelTitleById.get(String(fallbackId)) ?? '라벨 없음'
+          : '라벨 없음'
+      }
+      return '라벨 없음'
     }
 
 

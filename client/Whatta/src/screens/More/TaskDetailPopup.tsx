@@ -32,7 +32,7 @@ type TaskFormValue = {
   date?: Date
   hasTime: boolean
   time?: Date
-  labels: number[]
+  labels: number[] | null
   memo: string
   reminderNoti: { day: number; hour: number; minute: number } | null
 }
@@ -98,6 +98,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [showCreateIntro, setShowCreateIntro] = useState(mode === 'create')
   const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [labelRequiredOpen, setLabelRequiredOpen] = useState(false)
 
   // 폼 상태
   const [title, setTitle] = useState(initialTitle)
@@ -413,6 +414,11 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }, [remindEligible])
 
   const handleSave = () => {
+    if (labelIds.length === 0) {
+      setLabelRequiredOpen(true)
+      return
+    }
+
     if (hasTime && (invalidEndTime || detailEnd.getTime() < detailStart.getTime())) {
       Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이후여야 합니다.')
       return
@@ -425,7 +431,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       date: hasDate ? date : undefined,
       hasTime,
       time: hasTime ? detailStart : undefined,
-      labels: labelIds.slice(0, MAX_SELECTED_LABELS),
+      labels: labelIds.length ? labelIds.slice(0, MAX_SELECTED_LABELS) : null,
       reminderNoti: buildReminderNoti(), // 추가
     }
 
@@ -693,6 +699,26 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
           </View>
         </View>
       )}
+      {labelRequiredOpen && (
+        <View style={styles.deleteOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setLabelRequiredOpen(false)}
+          />
+          <View style={styles.deleteCard}>
+            <Text style={styles.deleteTitle}>라벨을 선택해주세요</Text>
+            <Text style={styles.deleteDesc}>라벨이 없으면 저장할 수 없어요.</Text>
+            <View style={styles.deleteRow}>
+              <Pressable
+                style={[styles.deleteActionBtn, styles.deleteConfirmBtn]}
+                onPress={() => setLabelRequiredOpen(false)}
+              >
+                <Text style={styles.deleteConfirmTxt}>확인</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </Modal>
   )
 }
@@ -767,6 +793,13 @@ const styles = StyleSheet.create({
     ...ts('label1'),
     fontWeight: '700',
     color: colors.text.text1,
+  },
+  deleteDesc: {
+    ...ts('body3'),
+    color: colors.text.text2,
+    textAlign: 'center',
+    marginTop: -12,
+    marginBottom: 4,
   },
   deleteRow: {
     width: 302,
