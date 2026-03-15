@@ -59,7 +59,7 @@ public class AIPostNormalizer {
     }
 
     private NormalizedSchedule postProcessLlmEvent(OpenAIScheduleResponse.ScheduleItem raw) {
-        String title = raw.title().isBlank() ? "새로운 일정" : raw.title();
+        String title = (raw.title() == null || raw.title().isBlank()) ? "새로운 일정" : raw.title();
         LocalDate startDate = LocalDateTimeUtil.stringToLocalDate(raw.start_date());
         if (startDate == null) {
             startDate = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
@@ -93,7 +93,7 @@ public class AIPostNormalizer {
     }
 
     private NormalizedSchedule postProcessLlmTask(OpenAIScheduleResponse.ScheduleItem raw) {
-        String title = raw.title().isBlank() ? "새로운 작업" : raw.title();
+        String title = (raw.title() == null || raw.title().isBlank()) ? "새로운 작업" : raw.title();
         LocalDateTime dueDateTime = LocalDateTimeUtil.stringToLocalDateTime(raw.due_date_time());
         LocalDate startDate = LocalDateTimeUtil.stringToLocalDate(raw.start_date());
         if (startDate == null && dueDateTime != null) {

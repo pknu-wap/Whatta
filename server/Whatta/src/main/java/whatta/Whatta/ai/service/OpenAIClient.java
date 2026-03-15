@@ -41,7 +41,7 @@ public class OpenAIClient {
                 .input(input)
                 .maxOutputTokens(MAX_OUTPUT_TOKENS)
                 .reasoning(new OpenAIRequest.Reasoning(OpenAIRequest.Reasoning.Effort.low))
-                .instructions(ScheduleExtractionSpec.instructions(nowKst))
+                .instructions(ScheduleExtractionSpec.instructions())
                 .text(new OpenAIRequest.Text(
                         new OpenAIRequest.Format(
                                 "json_schema",
