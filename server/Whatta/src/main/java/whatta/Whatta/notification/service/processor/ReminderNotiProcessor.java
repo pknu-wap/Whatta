@@ -1,4 +1,4 @@
-package whatta.Whatta.notification.service;
+package whatta.Whatta.notification.service.processor;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -6,6 +6,8 @@ import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotificationTargetType;
+import whatta.Whatta.notification.service.NotificationSendService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.repository.TaskRepository;
 

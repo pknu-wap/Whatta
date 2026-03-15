@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 import whatta.Whatta.global.label.Label;
 import whatta.Whatta.user.enums.DefaultMainView;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Document("user_settings")
+@CompoundIndex(name = "idx_summary_enabled_minute", def = "{'scheduleSummaryNoti.enabled': 1, 'scheduleSummaryNoti.minuteOfDay': 1}")
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter

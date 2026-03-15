@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.notification.entity.ReminderNotification;
-import whatta.Whatta.notification.service.ReminderNotiProcessor;
+import whatta.Whatta.notification.service.processor.ReminderNotiProcessor;
 import whatta.Whatta.notification.service.ReminderNotiService;
 
 import java.time.LocalDateTime;
@@ -22,7 +22,6 @@ public class ReminderNotiScheduler {
     @Scheduled(cron = "0 * * * * *") //1분마다
     public void sendReminder() {
         LocalDateTime now = LocalDateTime.now();
-        //log.info("localDateTime: {}", now);
 
         List<ReminderNotification> notificationsDueNow =
                 reminderNotiService.getActiveRemindersToSend(now);

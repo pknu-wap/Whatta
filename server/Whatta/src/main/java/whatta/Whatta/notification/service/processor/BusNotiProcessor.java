@@ -1,9 +1,10 @@
-package whatta.Whatta.notification.service;
+package whatta.Whatta.notification.service.processor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import whatta.Whatta.notification.service.NotificationSendService;
 import whatta.Whatta.traffic.entity.BusFavorite;
 import whatta.Whatta.traffic.entity.TrafficNotification;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;

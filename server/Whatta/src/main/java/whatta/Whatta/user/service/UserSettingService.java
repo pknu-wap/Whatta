@@ -15,6 +15,8 @@ import whatta.Whatta.user.payload.response.ReminderNotiResponse;
 import whatta.Whatta.user.payload.response.ScheduleSummaryNotiResponse;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -135,7 +137,7 @@ public class UserSettingService {
 
         //TODO: 운영 서버에서는 지워도 됨(개발 서버에는 안들어가 있는 값들이 있어서)
         if (userSetting.getScheduleSummaryNoti() == null) {
-            userSetting.toBuilder()
+            userSetting = userSetting.toBuilder()
                     .scheduleSummaryNoti(ScheduleSummaryNoti.builder().build())
                     .build();
         }
@@ -143,7 +145,14 @@ public class UserSettingService {
         ScheduleSummaryNoti.ScheduleSummaryNotiBuilder builder = userSetting.getScheduleSummaryNoti().toBuilder();
         if(request.enabled() != null) builder.enabled(request.enabled());
         if(request.notifyDay() != null) builder.notifyDay(request.notifyDay());
-        if(request.time() != null) builder.time(LocalDateTimeUtil.stringToLocalTime(request.time()));
+        if(request.time() != null) {
+            LocalTime cleanTime = LocalDateTimeUtil.stringToLocalTime(request.time()).truncatedTo(ChronoUnit.MINUTES);
+            builder.time(cleanTime);
+            builder.minuteOfDay(toMinuteOfDay(cleanTime));
+        } else if (userSetting.getScheduleSummaryNoti().getMinuteOfDay() == null
+                && userSetting.getScheduleSummaryNoti().getTime() != null) {
+            builder.minuteOfDay(toMinuteOfDay(userSetting.getScheduleSummaryNoti().getTime()));
+        }
 
         userSettingRepository.save(userSetting.toBuilder()
                 .scheduleSummaryNoti(builder.build())
@@ -159,5 +168,9 @@ public class UserSettingService {
                 .notifyDay(userSetting.getScheduleSummaryNoti().getNotifyDay())
                 .time(LocalDateTimeUtil.localTimeToString(userSetting.getScheduleSummaryNoti().getTime()))
                 .build();
+    }
+
+    private int toMinuteOfDay(LocalTime time) {
+        return time.getHour() * 60 + time.getMinute();
     }
 }

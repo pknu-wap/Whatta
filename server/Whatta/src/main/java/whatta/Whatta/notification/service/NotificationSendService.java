@@ -19,14 +19,14 @@ public class NotificationSendService {
     private final FcmTokenRepository fcmTokenRepository;
     private final FirebaseMessaging firebaseMessaging;
 
-    public void sendSummary(String userId, String title, String body) {
+    public boolean sendSummary(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
         if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
             log.warn("FCM token not found. userId={}", userId);
-            return;
+            return false;
         }
 
-        send(token.getFcmToken(), title, body, Map.of(
+        return send(token.getFcmToken(), title, body, Map.of(
                 "type", "SUMMARY",
                 "userId", userId)
         );
