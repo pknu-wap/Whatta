@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Animated,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { Easing } from 'react-native'
 import colors from '@/styles/colors'
@@ -384,10 +386,16 @@ export default function MonthlyDetailPopup({
     <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-      <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
-        <Pressable onPress={(e) => e.stopPropagation()}>
-          <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
-            <View style={S.container}>
+      <KeyboardAvoidingView
+        style={S.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={24}
+        pointerEvents="box-none"
+      >
+        <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
+              <View style={S.container}>
               <View style={S.headerRow}>
                 <Pressable style={S.headerLeft} onPress={() => setCalendarVisible(true)}>
                   <Text style={S.headerText}>{headerTitle}</Text>
@@ -472,10 +480,11 @@ export default function MonthlyDetailPopup({
                   />
                 </View>
               </View>
-            </View>
-          </Animated.View>
-        </Pressable>
-      </Animated.View>
+              </View>
+            </Animated.View>
+          </Pressable>
+        </Animated.View>
+      </KeyboardAvoidingView>
       <CalendarModal
         visible={calendarVisible}
         onClose={() => setCalendarVisible(false)}
@@ -496,6 +505,9 @@ export default function MonthlyDetailPopup({
 }
 
 const S = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: 'center',
