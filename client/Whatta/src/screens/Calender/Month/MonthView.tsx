@@ -1004,6 +1004,19 @@ const holidayIsoByWeek = useMemo(() => {
       if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
     }
 
+    const needsHolidayReserveForDate = !dateItem.holidayName && scheduleItems.some((it) => {
+      const schedule = it as UISchedule
+      if (!schedule.multiDayStart || !schedule.multiDayEnd) return false
+
+      return Array.from(holidayIsoByWeek[weekIndex] ?? []).some(
+        (holidayISO) =>
+          schedule.multiDayStart! <= holidayISO &&
+          holidayISO <= schedule.multiDayEnd! &&
+          currentDateISO >= schedule.multiDayStart! &&
+          currentDateISO <= schedule.multiDayEnd!,
+      )
+    })
+
     const normalizeColor = (colorKey?: string, fallback = '#B04FFF') => {
       if (!colorKey) return fallback
       return resolveScheduleColor(colorKey)
@@ -1184,13 +1197,11 @@ const holidayIsoByWeek = useMemo(() => {
 
           {/* 일정 및 할 일 영역 */}
           <View style={S.eventArea}>
-            {(holidayIsoByWeek[weekIndex]?.size ?? 0) > 0 ? (
+            {needsHolidayReserveForDate ? (
               <View
                 style={{
                   width: MONTH_ITEM_WIDTH,
-                  height: dateItem.holidayName
-                    ? HOLIDAY_EVENT_OFFSET
-                    : MONTH_ITEM_SLOT_HEIGHT,
+                  height: HOLIDAY_HEADER_BASE_OFFSET,
                 }}
               />
             ) : null}
