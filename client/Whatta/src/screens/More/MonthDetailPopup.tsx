@@ -120,7 +120,6 @@ export default function MonthlyDetailPopup({
 }: MonthlyDetailPopupProps) {
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current
-  const [isVisible, setIsVisible] = React.useState(visible)
   const [taskDoneMap, setTaskDoneMap] = React.useState<Record<string, boolean>>({})
   const [quickTitle, setQuickTitle] = React.useState('')
   const [quickSaving, setQuickSaving] = React.useState(false)
@@ -131,7 +130,6 @@ export default function MonthlyDetailPopup({
 
   React.useEffect(() => {
     if (visible) {
-      setIsVisible(true)
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -149,20 +147,8 @@ export default function MonthlyDetailPopup({
       return
     }
 
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIM_DURATION,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.96,
-        duration: ANIM_DURATION,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start(() => setIsVisible(false))
+    fadeAnim.setValue(0)
+    scaleAnim.setValue(0.96)
   }, [visible, fadeAnim, scaleAnim])
 
   const spanEvents = dayData.spanEvents ?? []
@@ -383,14 +369,16 @@ export default function MonthlyDetailPopup({
 
   const selectCalendarDate = React.useCallback(
     (iso: string) => {
-      bus.emit('calendar:set-date', iso)
       setCalendarVisible(false)
-      onClose()
+      requestAnimationFrame(() => {
+        onClose()
+        requestAnimationFrame(() => {
+          bus.emit('month:detail:navigate', iso)
+        })
+      })
     },
     [onClose],
   )
-
-  if (!isVisible) return null
 
   return (
     <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
