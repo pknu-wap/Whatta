@@ -13,12 +13,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Component
 public class AIPostNormalizer {
 
-    public NormalizedSchedule normalizeRuleBasedCandidate(ScheduleCandidate candidate) {
+    public NormalizedSchedule normalizeRuleBasedCandidate(ScheduleCandidate candidate, Map<String, List<String>> warnings) {
         if (candidate == null) {
             return null;
         }
@@ -33,6 +34,7 @@ public class AIPostNormalizer {
                 .endTime(candidate.endTime())
                 .dueDateTime(candidate.dueDateTime())
                 .repeat(null)
+                .warnings(warnings == null ? Map.of() : warnings)
                 .build();
     }
 
@@ -86,6 +88,7 @@ public class AIPostNormalizer {
                 .endTime(endTime)
                 .dueDateTime(null)
                 .repeat(repeat)
+                .warnings(Map.of())
                 .build();
     }
 
@@ -119,6 +122,7 @@ public class AIPostNormalizer {
                 .endTime(endTime)
                 .dueDateTime(dueDateTime)
                 .repeat(null)
+                .warnings(Map.of())
                 .build();
     }
 
@@ -161,6 +165,7 @@ public class AIPostNormalizer {
                 .endTime(null)
                 .dueDateTime(null)
                 .repeat(null)
+                .warnings(Map.of())
                 .build();
     }
 }

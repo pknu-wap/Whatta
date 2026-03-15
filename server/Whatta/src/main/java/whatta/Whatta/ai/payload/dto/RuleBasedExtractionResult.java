@@ -5,6 +5,7 @@ import lombok.Builder;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 @Builder
 public record RuleBasedExtractionResult(
@@ -16,6 +17,7 @@ public record RuleBasedExtractionResult(
         LocalDate deadlineCandidate,
         boolean hasRepeatExpression,
         String titleHint,
+        Map<String, List<String>> warnings,
         boolean ambiguousDate,
         boolean ambiguousTime,
         boolean hasMultipleItems
@@ -26,5 +28,9 @@ public record RuleBasedExtractionResult(
 
     public boolean hasSingleTime() {
         return timeCandidates != null && timeCandidates.size() == 1;
+    }
+
+    public boolean isAllDay() {
+        return hasSingleDate() && (timeCandidates == null || timeCandidates.isEmpty());
     }
 }

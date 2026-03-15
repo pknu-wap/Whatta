@@ -6,6 +6,8 @@ import whatta.Whatta.event.payload.response.RepeatResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.Map;
 
 @Builder
 public record NormalizedSchedule(
@@ -17,7 +19,7 @@ public record NormalizedSchedule(
         LocalTime startTime,
         LocalTime endTime,
         LocalDateTime dueDateTime,
-        RepeatResponse repeat
-
+        RepeatResponse repeat,
+        Map<String, List<String>> warnings
 ) {
 }

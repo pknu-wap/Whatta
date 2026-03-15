@@ -4,12 +4,15 @@ import org.springframework.stereotype.Component;
 import whatta.Whatta.ai.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,8 +22,8 @@ public class RuleBasedExtractor {
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
     private static final Pattern KOREAN_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*월\\s*(\\d{1,2})\\s*일(?!\\d)");
     private static final Pattern SLASH_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})/(\\d{1,2})(?!\\d)");
-    private static final Pattern WEEKDAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?(?=\\s|$|까지|전까지)");
-    private static final Pattern DEADLINE_PATTERN = Pattern.compile("(오늘|내일|모레|(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?)(까지|전까지)");
+    private static final Pattern WEEKDAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?(?:에)?(?=\\s|$|까지|전까지)");
+    private static final Pattern DEADLINE_PATTERN = Pattern.compile("(오늘|내일|모레|(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?)(까지|전까지|전에)");
     private static final Pattern MERIDIEM_TIME_PATTERN = Pattern.compile("(오전|오후)\\s*(\\d{1,2})(?:시)?(?:\\s*(\\d{1,2})분)?(?:에)?");
     private static final Pattern CLOCK_TIME_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2}):(\\d{2})(?:에)?(?!\\d)");
     private static final Pattern HOUR_TIME_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*시(?:\\s*(\\d{1,2})분)?(?:에)?");
@@ -31,13 +34,14 @@ public class RuleBasedExtractor {
         LocalDate referenceDate = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
         List<LocalDate> dateCandidates = new ArrayList<>();
         List<LocalTime> timeCandidates = new ArrayList<>();
+        Map<String, List<String>> warnings = new LinkedHashMap<>();
 
-        LocalDate deadlineCandidate = extractDeadline(normalizedText, referenceDate);
+        LocalDate deadlineCandidate = extractDeadline(normalizedText, referenceDate, warnings);
         if (deadlineCandidate == null) {
-            dateCandidates.addAll(extractDates(normalizedText, referenceDate));
+            dateCandidates.addAll(extractDates(normalizedText, referenceDate, warnings));
         }
 
-        timeCandidates.addAll(extractTimes(normalizedText));
+        timeCandidates.addAll(extractTimes(normalizedText, warnings));
 
         return RuleBasedExtractionResult.builder()
                 .originalText(originalText)
@@ -48,40 +52,50 @@ public class RuleBasedExtractor {
                 .deadlineCandidate(deadlineCandidate)
                 .hasRepeatExpression(hasRepeatExpression(normalizedText))
                 .titleHint(extractTitleHint(normalizedText))
+                .warnings(warnings)
                 .ambiguousDate(hasAmbiguousDate(normalizedText))
                 .ambiguousTime(hasAmbiguousTime(normalizedText))
                 .hasMultipleItems(hasMultipleItems(normalizedText, dateCandidates, timeCandidates))
                 .build();
     }
 
-    private List<LocalDate> extractDates(String text, LocalDate referenceDate) {
+    private List<LocalDate> extractDates(String text, LocalDate referenceDate, Map<String, List<String>> warnings) {
         List<LocalDate> dates = new ArrayList<>();
 
         Matcher isoMatcher = ISO_DATE_PATTERN.matcher(text);
         while (isoMatcher.find()) {
-            dates.add(LocalDate.of(
+            tryAddDate(
+                    dates,
                     Integer.parseInt(isoMatcher.group(1)),
                     Integer.parseInt(isoMatcher.group(2)),
-                    Integer.parseInt(isoMatcher.group(3))
-            ));
+                    Integer.parseInt(isoMatcher.group(3)),
+                    isoMatcher.group(),
+                    warnings
+            );
         }
 
         Matcher koreanMonthDayMatcher = KOREAN_MONTH_DAY_PATTERN.matcher(text);
         while (koreanMonthDayMatcher.find()) {
-            dates.add(resolveMonthDayDate(
+            tryAddMonthDayDate(
+                    dates,
                     Integer.parseInt(koreanMonthDayMatcher.group(1)),
                     Integer.parseInt(koreanMonthDayMatcher.group(2)),
-                    referenceDate
-            ));
+                    referenceDate,
+                    koreanMonthDayMatcher.group(),
+                    warnings
+            );
         }
 
         Matcher slashMonthDayMatcher = SLASH_MONTH_DAY_PATTERN.matcher(text);
         while (slashMonthDayMatcher.find()) {
-            dates.add(resolveMonthDayDate(
+            tryAddMonthDayDate(
+                    dates,
                     Integer.parseInt(slashMonthDayMatcher.group(1)),
                     Integer.parseInt(slashMonthDayMatcher.group(2)),
-                    referenceDate
-            ));
+                    referenceDate,
+                    slashMonthDayMatcher.group(),
+                    warnings
+            );
         }
 
         if (text.contains("오늘")) {
@@ -102,22 +116,22 @@ public class RuleBasedExtractor {
         return dates.stream().distinct().toList();
     }
 
-    private LocalDate extractDeadline(String text, LocalDate referenceDate) {
+    private LocalDate extractDeadline(String text, LocalDate referenceDate, Map<String, List<String>> warnings) {
         int markerIndex = findDeadlineMarkerIndex(text);
         if (markerIndex < 0) {
             return null;
         }
 
         String prefix = text.substring(0, markerIndex).trim();
-        List<LocalDate> deadlineDates = extractDates(prefix, referenceDate);
+        List<LocalDate> deadlineDates = extractDates(prefix, referenceDate, warnings);
         if (!deadlineDates.isEmpty()) {
             return deadlineDates.get(0);
         }
 
-        return extractTimes(prefix).isEmpty() ? null : referenceDate;
+        return extractTimes(prefix, warnings).isEmpty() ? null : referenceDate;
     }
 
-    private List<LocalTime> extractTimes(String text) {
+    private List<LocalTime> extractTimes(String text, Map<String, List<String>> warnings) {
         List<LocalTime> times = new ArrayList<>();
 
         Matcher meridiemMatcher = MERIDIEM_TIME_PATTERN.matcher(text);
@@ -130,7 +144,7 @@ public class RuleBasedExtractor {
             if ("오전".equals(meridiemMatcher.group(1)) && hour == 12) {
                 hour = 0;
             }
-            times.add(LocalTime.of(hour, minute));
+            tryAddTime(times, hour, minute, meridiemMatcher.group(), warnings);
         }
         if (!times.isEmpty()) {
             return times.stream().distinct().toList();
@@ -138,10 +152,13 @@ public class RuleBasedExtractor {
 
         Matcher clockMatcher = CLOCK_TIME_PATTERN.matcher(text);
         while (clockMatcher.find()) {
-            times.add(LocalTime.of(
+            tryAddTime(
+                    times,
                     Integer.parseInt(clockMatcher.group(1)),
-                    Integer.parseInt(clockMatcher.group(2))
-            ));
+                    Integer.parseInt(clockMatcher.group(2)),
+                    clockMatcher.group(),
+                    warnings
+            );
         }
         if (!times.isEmpty()) {
             return times.stream().distinct().toList();
@@ -151,7 +168,7 @@ public class RuleBasedExtractor {
         while (hourMatcher.find()) {
             int hour = Integer.parseInt(hourMatcher.group(1));
             int minute = hourMatcher.group(2) == null ? 0 : Integer.parseInt(hourMatcher.group(2));
-            times.add(LocalTime.of(hour, minute));
+            tryAddTime(times, hour, minute, hourMatcher.group(), warnings);
         }
 
         return times.stream().distinct().toList();
@@ -231,6 +248,37 @@ public class RuleBasedExtractor {
         return sanitized;
     }
 
+    private void tryAddDate(List<LocalDate> dates, int year, int month, int day, String token, Map<String, List<String>> warnings) {
+        try {
+            dates.add(LocalDate.of(year, month, day));
+        } catch (DateTimeException e) {
+            addWarning(warnings, "startDate", token);
+        }
+    }
+
+    private void tryAddMonthDayDate(List<LocalDate> dates, int month, int day, LocalDate referenceDate, String token, Map<String, List<String>> warnings) {
+        try {
+            dates.add(resolveMonthDayDate(month, day, referenceDate));
+        } catch (DateTimeException e) {
+            addWarning(warnings, "startDate", token);
+        }
+    }
+
+    private void tryAddTime(List<LocalTime> times, int hour, int minute, String token, Map<String, List<String>> warnings) {
+        try {
+            times.add(LocalTime.of(hour, minute));
+        } catch (DateTimeException e) {
+            addWarning(warnings, "startTime", token);
+        }
+    }
+
+    private void addWarning(Map<String, List<String>> warnings, String fieldName, String rawValue) {
+        List<String> values = warnings.computeIfAbsent(fieldName, ignored -> new ArrayList<>());
+        if (!values.contains(rawValue)) {
+            values.add(rawValue);
+        }
+    }
+
     private LocalDate resolveMonthDayDate(int month, int day, LocalDate referenceDate) {
         LocalDate candidate = LocalDate.of(referenceDate.getYear(), month, day);
         if (candidate.isBefore(referenceDate)) {
@@ -249,11 +297,16 @@ public class RuleBasedExtractor {
 
     private LocalDate resolveWeekdayDate(String weekModifier, String dayKor, LocalDate referenceDate) {
         DayOfWeek dayOfWeek = toDayOfWeek(dayKor);
-        LocalDate nextOrSame = referenceDate.with(TemporalAdjusters.nextOrSame(dayOfWeek));
-        if ("다음주".equals(weekModifier)) {
-            return nextOrSame.plusWeeks(1);
+        if (weekModifier == null || weekModifier.isBlank()) {
+            return referenceDate.with(TemporalAdjusters.nextOrSame(dayOfWeek));
         }
-        return nextOrSame;
+
+        LocalDate weekStart = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        if ("다음주".equals(weekModifier)) {
+            weekStart = weekStart.plusWeeks(1);
+        }
+
+        return weekStart.with(TemporalAdjusters.nextOrSame(dayOfWeek));
     }
 
     private DayOfWeek toDayOfWeek(String dayKor) {

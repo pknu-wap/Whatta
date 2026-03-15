@@ -37,7 +37,7 @@ public class AIService {
         if (shouldUseRuleBasedExtraction(extractionResult)) { //llm으로 넘길지
             ScheduleCandidate candidate = scheduleCandidateResolver.resolve(extractionResult);
             if (candidate != null) {
-                return List.of(aiPostNormalizer.normalizeRuleBasedCandidate(candidate));
+                return List.of(aiPostNormalizer.normalizeRuleBasedCandidate(candidate, extractionResult.warnings()));
             }
         }
 
@@ -64,6 +64,7 @@ public class AIService {
 
         boolean hasSimpleTaskSignal = extractionResult.deadlineCandidate() != null;
         boolean hasSimpleEventSignal = extractionResult.hasSingleDate() || extractionResult.hasSingleTime();
-        return hasSimpleTaskSignal || hasSimpleEventSignal;
+        boolean hasRecoverableInputWarning = extractionResult.warnings() != null && !extractionResult.warnings().isEmpty();
+        return hasSimpleTaskSignal || hasSimpleEventSignal || hasRecoverableInputWarning;
     }
 }

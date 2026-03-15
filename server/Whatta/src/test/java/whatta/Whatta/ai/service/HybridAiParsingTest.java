@@ -5,11 +5,13 @@ import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
 import whatta.Whatta.ai.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.ai.payload.dto.ScheduleCandidate;
 import whatta.Whatta.ai.service.extracor.RuleBasedExtractor;
+import whatta.Whatta.ai.service.normalizer.AIPostNormalizer;
 import whatta.Whatta.ai.service.normalizer.AIPreNormalizer;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -19,6 +21,7 @@ class HybridAiParsingTest {
     private final RuleBasedExtractor ruleBasedExtractor = new RuleBasedExtractor();
     private final ScheduleCandidateResolver scheduleCandidateResolver = new ScheduleCandidateResolver();
     private final ScheduleValidationService scheduleValidationService = new ScheduleValidationService();
+    private final AIPostNormalizer aiPostNormalizer = new AIPostNormalizer();
 
     @Test
     void 전처리기는_자주_쓰는_한국어_축약어를_정규화한다() {
@@ -84,9 +87,26 @@ class HybridAiParsingTest {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("11월 12일에 언니생일 추가", "11월 12일에 언니생일 추가");
 
         assertTrue(parsed.hasSingleDate());
+        assertTrue(parsed.isAllDay());
         assertEquals(LocalDate.of(2026, 11, 12), parsed.dateCandidates().get(0));
         assertEquals("언니생일", parsed.titleHint());
         assertFalse(parsed.hasRepeatExpression());
+    }
+
+    @Test
+    void 룰기반추출기는_이번주_요일을_현재_주기준으로_계산한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("이번주 월요일 회의", "이번주 월요일 회의");
+
+        assertTrue(parsed.hasSingleDate());
+        assertEquals(LocalDate.of(2026, 3, 9), parsed.dateCandidates().get(0));
+    }
+
+    @Test
+    void 룰기반추출기는_다음주_요일을_다음_주기준으로_계산한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("다음주 월요일 회의", "다음주 월요일 회의");
+
+        assertTrue(parsed.hasSingleDate());
+        assertEquals(LocalDate.of(2026, 3, 16), parsed.dateCandidates().get(0));
     }
 
     @Test
@@ -122,6 +142,61 @@ class HybridAiParsingTest {
         assertEquals(LocalTime.of(13, 0), candidate.startTime());
         assertEquals(LocalTime.of(14, 0), candidate.endTime());
         assertEquals("프론트랑 회의", candidate.title());
+    }
+
+    @Test
+    void 룰기반추출기는_잘못된_날짜와_시간을_건너뛰고_warning을_남긴다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("2026-13-40 25시 회의", "2026-13-40 25시 회의");
+
+        assertTrue(parsed.dateCandidates().isEmpty());
+        assertTrue(parsed.timeCandidates().isEmpty());
+        assertEquals(List.of("2026-13-40"), parsed.warnings().get("startDate"));
+        assertEquals(List.of("25시"), parsed.warnings().get("startTime"));
+    }
+
+    @Test
+    void 잘못된_날짜_warning이_있어도_title이_있으면_미확정_rule_응답을_생성한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("3/33 캡디 회의 추가", "3/33 캡디 회의 추가");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.EVENT, candidate.type());
+        assertFalse(candidate.scheduled());
+        assertEquals("캡디 회의", candidate.title());
+        assertEquals(List.of("3/33"), parsed.warnings().get("startDate"));
+    }
+
+    @Test
+    void 잘못된_날짜와_유효한_시간이_함께_있으면_오늘_날짜를_채우지_않고_미확정으로_둔다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("3/33 7시 캡디 회의 추가", "3/33 7시 캡디 회의 추가");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertNotNull(candidate);
+        assertFalse(candidate.scheduled());
+        assertNull(candidate.startDate());
+        assertNull(candidate.endDate());
+        assertEquals(LocalTime.of(7, 0), candidate.startTime());
+        assertEquals(LocalTime.of(8, 0), candidate.endTime());
+        assertEquals(List.of("3/33"), parsed.warnings().get("startDate"));
+    }
+
+    @Test
+    void 잘못된_startDate_warning이_있고_유효한_날짜_후보가_없으면_최종응답에도_오늘날짜를_채우지_않는다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("3/33 7시 캡디 회의 추가", "3/33 7시 캡디 회의 추가");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+        NormalizedSchedule normalizedSchedule = aiPostNormalizer.normalizeRuleBasedCandidate(candidate, parsed.warnings());
+
+        assertNotNull(normalizedSchedule);
+        assertFalse(normalizedSchedule.isScheduled());
+        assertTrue(normalizedSchedule.isEvent());
+        assertNull(normalizedSchedule.startDate());
+        assertNull(normalizedSchedule.endDate());
+        assertEquals(LocalTime.of(7, 0), normalizedSchedule.startTime());
+        assertEquals(LocalTime.of(8, 0), normalizedSchedule.endTime());
+        assertEquals(List.of("3/33"), normalizedSchedule.warnings().get("startDate"));
     }
 
     @Test

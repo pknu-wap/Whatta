@@ -24,17 +24,17 @@ public final class ScheduleExtractionSpec {
 
                 규칙:
                 1) 하나의 입력에 일정/할일이 여러 개면 items 배열에 각각 분리해서 넣고, 입력에 나온 순서를 유지한다.
-                2) intent는 각 항목의 요청 의도에 해당하는 enum을 사용히며, 행동이 title 이면 creat_task를 사용한다.
+                2) intent는 각 항목의 요청 의도에 해당하는 enum을 사용히며, 행동이 title 이면 create_task를 사용한다.
                 3) 값이 없으면 문자열은 "", 배열은 [], 객체 내부 숫자는 0, boolean은 false를 사용한다.
                 4) 모든 필드는 title 을 보고 유추하여 값을 넣는다.
-                5) 일정(event)은 due_date_time을 빈문자열("")로 두며, 할일(task)는 end_Time을 빈문자열("")로 둔다.
+                5) 일정(event)은 due_date_time을 빈문자열("")로 두며, 할일(task)는 end_time을 빈문자열("")로 둔다.
                 """
                 + "6) 상대 날짜 및 시간은(오늘/내일/모레/다음 주/오전/오후/저녁 등) Asia/Seoul (KST, UTC+09:00) 기준 "
                 + now
                 + " 를 기준으로 해석하여 계산한다.\n"
                 + """
                 7) 절대적 날짜 또는 시간이 명시된 경우 start/end 또는 due_date_time에 넣는다.
-                8) 날짜와 시간 모두에 대한 언급이 없다면 위 기준 시각의 날짜를 start_date/end_date에 넣는다.
+                8) 날짜와 시간 모두에 대한 언급이 없다면, event는 위 기준 시각의 날짜를 start_date/end_date에 넣는다.
                 9) start_time에 값이 있을 경우, title을 보고 유추하여 end_time을 계산한다.
                 """;
     }

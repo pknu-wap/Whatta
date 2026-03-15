@@ -22,6 +22,13 @@ public class ScheduleCandidateResolver {
         if (isEvent(extractionResult)) {
             return resolveEventCandidate(extractionResult);
         }
+        /*
+        비정상적인 date & time & deadline 로 일정 확정이 안 되지만,
+        입력 안에 복구 가능한 정보가 남아 있으면 완전히 버리지 말고 미확정 후보라도 만듦 ex) 3/33 캡디 회의 추가
+        */
+        if (hasRecoverableInputWarning(extractionResult)) {
+            return resolveUnscheduledCandidate(extractionResult);
+        }
         return null;
     }
 
@@ -35,25 +42,31 @@ public class ScheduleCandidateResolver {
 
     private ScheduleCandidate resolveTaskCandidate(RuleBasedExtractionResult extractionResult) {
         LocalDate deadline = extractionResult.deadlineCandidate();
-        LocalTime time = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
+        LocalDate placementDate = extractionResult.hasSingleDate() ? extractionResult.dateCandidates().get(0) : deadline;
+        LocalTime placementTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
         LocalDateTime dueDateTime = deadline == null
                 ? null
-                : deadline.atTime(time == null ? LocalTime.of(23, 59, 59) : time);
+                : deadline.atTime(placementTime == null ? LocalTime.of(23, 59, 59) : placementTime);
 
         return ScheduleCandidate.builder()
                 .type(ScheduleCandidate.CandidateType.TASK)
                 .title(extractionResult.titleHint())
-                .startDate(deadline)
-                .endDate(deadline)
-                .startTime(time)
-                .endTime(time == null ? null : time.plusHours(1))
+                .startDate(placementDate)
+                .endDate(placementDate)
+                .startTime(placementTime)
+                .endTime(placementTime == null ? null : placementTime.plusHours(1))
                 .dueDateTime(dueDateTime)
-                .allDay(time == null)
-                .scheduled(deadline != null)
+                .allDay(extractionResult.isAllDay())
+                .scheduled(true)
                 .build();
     }
 
     private ScheduleCandidate resolveEventCandidate(RuleBasedExtractionResult extractionResult) {
+        //날짜가 없는 것과 날짜를 잘 못 쓴 것을 구분
+        if (hasInvalidStartDateWarningWithoutDateCandidate(extractionResult)) {
+            return resolveEventCandidateWithInvalidDate(extractionResult);
+        }
+
         LocalDate startDate = extractionResult.hasSingleDate() ? extractionResult.dateCandidates().get(0) : extractionResult.referenceDate();
         LocalTime startTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
 
@@ -65,9 +78,51 @@ public class ScheduleCandidateResolver {
                 .startTime(startTime)
                 .endTime(startTime == null ? null : startTime.plusHours(1))
                 .dueDateTime(null)
-                .allDay(startTime == null)
+                .allDay(extractionResult.isAllDay())
                 .scheduled(true)
                 .build();
+    }
+
+    private ScheduleCandidate resolveEventCandidateWithInvalidDate(RuleBasedExtractionResult extractionResult) {
+        LocalTime startTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
+
+        return ScheduleCandidate.builder()
+                .type(ScheduleCandidate.CandidateType.EVENT)
+                .title(extractionResult.titleHint())
+                .startDate(null)
+                .endDate(null)
+                .startTime(startTime)
+                .endTime(startTime == null ? null : startTime.plusHours(1))
+                .dueDateTime(null)
+                .allDay(startTime == null)
+                .scheduled(false)
+                .build();
+    }
+
+    private ScheduleCandidate resolveUnscheduledCandidate(RuleBasedExtractionResult extractionResult) {
+        boolean taskLike = looksLikeTaskTitle(extractionResult.titleHint()) || extractionResult.deadlineCandidate() != null;
+
+        return ScheduleCandidate.builder()
+                .type(taskLike ? ScheduleCandidate.CandidateType.TASK : ScheduleCandidate.CandidateType.EVENT)
+                .title(extractionResult.titleHint())
+                .startDate(null)
+                .endDate(null)
+                .startTime(null)
+                .endTime(null)
+                .dueDateTime(null)
+                .allDay(false)
+                .scheduled(false)
+                .build();
+    }
+
+    private boolean hasInvalidStartDateWarningWithoutDateCandidate(RuleBasedExtractionResult extractionResult) {
+        return !extractionResult.hasSingleDate()
+                && extractionResult.warnings() != null
+                && extractionResult.warnings().containsKey("startDate");
+    }
+
+    private boolean hasRecoverableInputWarning(RuleBasedExtractionResult extractionResult) {
+        return extractionResult.warnings() != null && !extractionResult.warnings().isEmpty();
     }
 
     private boolean looksLikeTaskTitle(String title) {
@@ -76,6 +131,9 @@ public class ScheduleCandidateResolver {
                 || title.contains("작성")
                 || title.contains("정리")
                 || title.contains("하기")
+                || title.contains("리기")
+                || title.contains("보기")
+                || title.contains("가기")
                 || title.contains("공부")
                 || title.contains("과제");
     }
