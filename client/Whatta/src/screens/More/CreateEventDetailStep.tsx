@@ -24,11 +24,13 @@ type Props = {
   onSelectType: (value: 'event' | 'task') => void
   start: Date
   end: Date
+  endDisplay?: Date | null
   onPressDateBox: () => void
   onChangeStartTime: (next: Date) => void
   onChangeEndTime: (next: Date) => void
   invalidEndTime?: boolean
   timeOn: boolean
+  timeDisabled?: boolean
   onToggleTime: (next: boolean) => void
   repeatOn: boolean
   onToggleRepeat: (next: boolean) => void
@@ -164,11 +166,13 @@ export default function CreateEventDetailStep({
   onSelectType,
   start,
   end,
+  endDisplay = null,
   onPressDateBox,
   onChangeStartTime,
   onChangeEndTime,
   invalidEndTime = false,
   timeOn,
+  timeDisabled = false,
   onToggleTime,
   repeatOn,
   onToggleRepeat,
@@ -211,6 +215,7 @@ export default function CreateEventDetailStep({
   taskDueDate,
   onChangeTaskDueDate,
 }: Props) {
+  const displayedEnd = endDisplay ?? end
   const [openTimeTarget, setOpenTimeTarget] = React.useState<'start' | 'end' | null>(null)
   const [repeatOpen, setRepeatOpen] = React.useState(false)
   const [monthlyOpen, setMonthlyOpen] = React.useState(false)
@@ -509,9 +514,21 @@ export default function CreateEventDetailStep({
                             key={cell.toISOString()}
                             style={styles.repeatEndCell}
                             onPress={() => {
-                              onChangeTaskDate(startOfDay(cell))
-                              if (taskDueDate && startOfDay(taskDueDate).getTime() < startOfDay(cell).getTime()) {
-                                onChangeTaskDueDate(startOfDay(cell))
+                              const picked = startOfDay(cell)
+                              const sameDate = taskDate
+                                ? picked.getTime() === startOfDay(taskDate).getTime()
+                                : false
+
+                              if (sameDate) {
+                                onChangeTaskDate(null)
+                                onChangeTaskDueDate(null)
+                                setOpenTaskCalendar(null)
+                                return
+                              }
+
+                              onChangeTaskDate(picked)
+                              if (taskDueDate && startOfDay(taskDueDate).getTime() < picked.getTime()) {
+                                onChangeTaskDueDate(picked)
                               }
                               setOpenTaskCalendar(null)
                             }}
@@ -548,7 +565,7 @@ export default function CreateEventDetailStep({
 
       <View style={styles.toggleRow}>
         <Text style={styles.sectionLabel}>시간</Text>
-        <Toggle value={timeOn} onChange={onToggleTime} />
+        <Toggle value={timeOn} disabled={timeDisabled} onChange={onToggleTime} />
       </View>
       {timeOn && (
         <View style={styles.timeDetail}>
@@ -599,14 +616,14 @@ export default function CreateEventDetailStep({
                     : openTimeTarget === 'end' && styles.timeBoxTextSelected,
                 ]}
               >
-                {formatKTime12(end)}
+                {formatKTime12(displayedEnd)}
               </Text>
             </Pressable>
           </View>
           {openTimeTarget === 'end' && (
             <View style={styles.timePickerWrap}>
               <TimeWheel
-                value={end}
+                value={displayedEnd}
                 onChange={onChangeEndTime}
               />
             </View>

@@ -105,10 +105,12 @@ export default function EventDetailPopup({
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
   const sheetRef = useRef<View>(null)
+  const initialTaskDateSeededRef = useRef(false)
   const isCreateFlow = mode === 'create' && !initial
   const [createStep, setCreateStep] = useState<CreateStep>(isCreateFlow ? 'intro' : 'detail')
   const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
   const [createIntroExpanded, setCreateIntroExpanded] = useState(false)
+  const [suppressIntroAutoFocus, setSuppressIntroAutoFocus] = useState(false)
   const [editDatePicking, setEditDatePicking] = useState(false)
   // ── 컬러 팝오버 배치 옵션 ──
   const POPOVER_W = 105 // 팝오버 너비
@@ -290,6 +292,22 @@ export default function EventDetailPopup({
     ) as T
 
   const [start, setStart] = useState(new Date())
+
+  const buildAutoEndForEvent = (baseStart: Date, allowNextDay: boolean) => {
+    const nextEnd = new Date(baseStart)
+    if (allowNextDay) {
+      nextEnd.setHours(baseStart.getHours() + 1, baseStart.getMinutes(), 0, 0)
+      return nextEnd
+    }
+    const capped = new Date(baseStart)
+    const nextHour = baseStart.getHours() + 1
+    if (nextHour >= 24) {
+      capped.setHours(23, 59, 0, 0)
+      return capped
+    }
+    capped.setHours(nextHour, baseStart.getMinutes(), 0, 0)
+    return capped
+  }
 
   const buildBasePayload = () => {
     const key = slotKey(selectedSlot)
@@ -589,6 +607,7 @@ export default function EventDetailPopup({
   /** 날짜 & 시간 */
   const [end, setEnd] = useState(new Date())
   const [invalidEndTime, setInvalidEndTime] = useState(false)
+  const [invalidEndPreview, setInvalidEndPreview] = useState<Date | null>(null)
 
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
@@ -1312,6 +1331,8 @@ export default function EventDetailPopup({
         setSelectedSlot(idx)
         setRepeatOn(!!ev.repeat)
         setEventData(ev)
+        setInvalidEndTime(false)
+        setInvalidEndPreview(null)
       } catch (err) {
         if (cancelled) return
         console.error('❌ 일정 상세 불러오기 실패:', err)
@@ -1327,6 +1348,7 @@ export default function EventDetailPopup({
 
   useEffect(() => {
     if (visible && mode === 'create' && !initial) {
+      initialTaskDateSeededRef.current = false
       setEventData(null)
       setSaving(false)
 
@@ -1342,8 +1364,10 @@ export default function EventDetailPopup({
       const today = new Date()
       setStart(today)
       setEnd(today)
+      setTaskDate(null)
       setTimeOn(false)
       setInvalidEndTime(false)
+      setInvalidEndPreview(null)
       setRepeatOn(false)
       setRemindOn(false)
       setRemindValue(null)
@@ -1372,6 +1396,13 @@ export default function EventDetailPopup({
       setEnd(anchor)
       setRangeStart(anchor)
       setRangePhase('start')
+      if (
+        !initialTaskDateSeededRef.current &&
+        (initialCreateType === 'task' || createTypeSelected === 'task')
+      ) {
+        setTaskDate(anchor)
+        initialTaskDateSeededRef.current = true
+      }
     }
 
     // DayView가 calendar:state 를 보낼 때만 동작
@@ -1385,7 +1416,7 @@ export default function EventDetailPopup({
     bus.emit('calendar:request-sync', null) // DayView에게 현재 날짜 요청
 
     return () => bus.off('calendar:state', onState)
-  }, [visible, mode, initial])
+  }, [visible, mode, initial, initialCreateType, createTypeSelected])
 
   useEffect(() => {
     if (!visible) return
@@ -1420,11 +1451,12 @@ export default function EventDetailPopup({
     setCreateTypeSelected(mode === 'edit' ? 'event' : createType)
     setCreateIntroExpanded(false)
     setEditDatePicking(false)
-    setTaskDate(null)
     setTaskDueOn(false)
     setTaskDueDate(null)
     setRepeatWeekdays([])
     setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+    setSuppressIntroAutoFocus(false)
   }, [visible, mode, initial, initialCreateType])
 
   useEffect(() => {
@@ -1607,9 +1639,10 @@ export default function EventDetailPopup({
                         onChangeTitle={setScheduleTitle}
                         onSubmitTitle={() => {
                           if (scheduleTitle.trim().length === 0) return
+                          setSuppressIntroAutoFocus(false)
                           setCreateIntroExpanded(true)
                         }}
-                        autoFocusTitle
+                        autoFocusTitle={!suppressIntroAutoFocus}
                         showOptions
                         colors={COLORS}
                         selectedColorIndex={selectedSlot}
@@ -1623,7 +1656,9 @@ export default function EventDetailPopup({
                           setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
                           if (value === 'task' && !taskDate) {
                             setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
+                            initialTaskDateSeededRef.current = true
                           }
+                          setSuppressIntroAutoFocus(false)
                         }}
                       />
                       {createIntroExpanded && createTypeSelected === 'event' && (
@@ -1667,40 +1702,72 @@ export default function EventDetailPopup({
                         setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
                         if (value === 'task' && !taskDate) {
                           setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
+                          initialTaskDateSeededRef.current = true
                         }
                       }}
                       start={start}
                       end={end}
+                      endDisplay={invalidEndPreview}
                       onPressDateBox={() => {
                         if (mode === 'edit') {
                           setEditDatePicking(true)
                           return
                         }
                         setCreateTypeSelected('event')
+                        setSuppressIntroAutoFocus(true)
+                        setCreateIntroExpanded(true)
                         setCreateStep('intro')
                       }}
                       onChangeStartTime={(next) => {
+                        const isTask = createTypeSelected === 'task'
+                        if (isTask) {
+                          const baseDate = taskDate ?? start
+                          const nextStart = new Date(baseDate)
+                          nextStart.setHours(next.getHours(), next.getMinutes(), 0, 0)
+                          const nextEnd = new Date(nextStart)
+                          nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
+                          setStart(nextStart)
+                          setEnd(nextEnd)
+                          setInvalidEndTime(nextEnd.getTime() < nextStart.getTime())
+                          setInvalidEndPreview(nextEnd.getTime() < nextStart.getTime() ? nextEnd : null)
+                          return
+                        }
                         setStart(next)
                         setInvalidEndTime(false)
+                        setInvalidEndPreview(null)
                         if (end.getTime() < next.getTime()) {
-                          const autoEnd = new Date(next)
-                          autoEnd.setHours(next.getHours() + 1)
+                          const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                          const autoEnd = buildAutoEndForEvent(next, allowNextDay)
                           setEnd(autoEnd)
                         }
                       }}
                       onChangeEndTime={(next) => {
-                        if (next.getTime() < start.getTime()) {
+                        const isTask = createTypeSelected === 'task'
+                        const nextEnd = isTask
+                          ? (() => {
+                              const aligned = new Date(taskDate ?? start)
+                              aligned.setHours(next.getHours(), next.getMinutes(), 0, 0)
+                              return aligned
+                            })()
+                          : next
+                        if (nextEnd.getTime() < start.getTime()) {
                           setInvalidEndTime(true)
+                          setInvalidEndPreview(nextEnd)
                           return
                         }
                         setInvalidEndTime(false)
-                        setEnd(next)
+                        setInvalidEndPreview(null)
+                        setEnd(nextEnd)
                       }}
                       invalidEndTime={invalidEndTime}
                       timeOn={timeOn}
+                      timeDisabled={createTypeSelected === 'task' && !taskDate}
                       onToggleTime={(next) => {
+                        if (createTypeSelected === 'task' && !taskDate && next) {
+                          Alert.alert('시간 설정 불가', '날짜를 먼저 설정해주세요.')
+                          return
+                        }
                         setTimeOn(next)
-                        setInvalidEndTime(false)
                         if (next) {
                           const now = new Date()
                           const snapMin = now.getMinutes() - (now.getMinutes() % 5)
@@ -1713,9 +1780,22 @@ export default function EventDetailPopup({
                           setStart(newStart)
 
                           const newEnd = new Date(newStart)
-                          newEnd.setHours(newStart.getHours() + 1)
+                          if (createTypeSelected === 'task') {
+                            newEnd.setHours((newStart.getHours() + 1) % 24, newStart.getMinutes(), 0, 0)
+                            const wrappedPastMidnight = newEnd.getTime() < newStart.getTime()
+                            setInvalidEndTime(wrappedPastMidnight)
+                            setInvalidEndPreview(wrappedPastMidnight ? newEnd : null)
+                          } else {
+                            const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                            const autoEnd = buildAutoEndForEvent(newStart, allowNextDay)
+                            newEnd.setTime(autoEnd.getTime())
+                            setInvalidEndTime(false)
+                            setInvalidEndPreview(null)
+                          }
                           setEnd(newEnd)
                         } else {
+                          setInvalidEndTime(false)
+                          setInvalidEndPreview(null)
                           setRemindOn(false)
                           setRemindOpen(false)
                           setCustomOpen(false)
@@ -1812,7 +1892,18 @@ export default function EventDetailPopup({
                       onChangeSelectedLabelIds={setSelectedLabelIds}
                       onCreateLabel={handleCreateLabel}
                       taskDate={taskDate}
-                      onChangeTaskDate={setTaskDate}
+                      onChangeTaskDate={(next) => {
+                        setTaskDate(next)
+                        if (next) return
+                        setTimeOn(false)
+                        setInvalidEndTime(false)
+                        setInvalidEndPreview(null)
+                        setRemindOn(false)
+                        setRemindOpen(false)
+                        setCustomOpen(false)
+                        setTaskDueOn(false)
+                        setTaskDueDate(null)
+                      }}
                       taskDueOn={taskDueOn}
                       onChangeTaskDueOn={setTaskDueOn}
                       taskDueDate={taskDueDate}
@@ -2159,9 +2250,8 @@ export default function EventDetailPopup({
                           newStart.setMinutes(snapMin)
                           setStart(newStart)
 
-                          const newEnd = new Date(end)
-                          newEnd.setHours(newStart.getHours() + 1)
-                          newEnd.setMinutes(newStart.getMinutes())
+                          const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                          const newEnd = buildAutoEndForEvent(newStart, allowNextDay)
                           setEnd(newEnd)
                         } else {
                           setOpenTime(false)
