@@ -1,4 +1,4 @@
-package whatta.Whatta.ai.service.extracor;
+package whatta.Whatta.ai.service.extractor;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

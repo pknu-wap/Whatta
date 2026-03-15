@@ -4,10 +4,13 @@ import org.junit.jupiter.api.Test;
 import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
 import whatta.Whatta.ai.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.ai.payload.dto.ScheduleCandidate;
-import whatta.Whatta.ai.service.extracor.RuleBasedExtractor;
+import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
+import whatta.Whatta.ai.service.extractor.RuleBasedExtractor;
 import whatta.Whatta.ai.service.normalizer.AIPostNormalizer;
 import whatta.Whatta.ai.service.normalizer.AIPreNormalizer;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -17,8 +20,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class HybridAiParsingTest {
 
+    private static final Clock FIXED_CLOCK =
+            Clock.fixed(Instant.parse("2026-03-14T15:00:00Z"), ScheduleExtractionSpec.KST_ZONE_ID);
+
     private final AIPreNormalizer aiPreNormalizer = new AIPreNormalizer();
-    private final RuleBasedExtractor ruleBasedExtractor = new RuleBasedExtractor();
+    private final RuleBasedExtractor ruleBasedExtractor = new RuleBasedExtractor(FIXED_CLOCK);
     private final ScheduleCandidateResolver scheduleCandidateResolver = new ScheduleCandidateResolver();
     private final ScheduleValidationService scheduleValidationService = new ScheduleValidationService();
     private final AIPostNormalizer aiPostNormalizer = new AIPostNormalizer();

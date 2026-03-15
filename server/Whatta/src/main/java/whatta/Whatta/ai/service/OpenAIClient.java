@@ -24,6 +24,7 @@ import java.util.concurrent.TimeoutException;
 @Component
 @RequiredArgsConstructor
 public class OpenAIClient {
+    private static final int MAX_LOG_VALUE_LENGTH = 200;
     private final WebClient openAiWebClient;
     private final ObjectMapper objectMapper;
     private static final int MAX_OUTPUT_TOKENS = 1500;
@@ -35,7 +36,6 @@ public class OpenAIClient {
     private long timeoutSeconds;
 
     public OpenAIScheduleResponse callOpenApi(String input) {
-        LocalDateTime nowKst = LocalDateTime.now(ScheduleExtractionSpec.KST_ZONE_ID);
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
@@ -77,9 +77,13 @@ public class OpenAIClient {
             printUsageToStdOut(rawResponse, req);
             return rawResponse;
         } catch (WebClientResponseException e) {
-            log.error("[OPENAI][ERROR] type=http status={} body={}",
-                    e.getStatusCode(),
-                    e.getResponseBodyAsString(),
+            String responseBody = e.getResponseBodyAsString();
+            log.error("[OPENAI][ERROR] type=http status={} requestId={} errorType={} errorCode={} errorMessage={}",
+                    e.getStatusCode().value(),
+                    sanitizeLogValue(e.getHeaders().getFirst("x-request-id")),
+                    extractErrorField(responseBody, "type"),
+                    extractErrorField(responseBody, "code"),
+                    extractErrorField(responseBody, "message"),
                     e);
             throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         } catch (WebClientRequestException e) {
@@ -117,7 +121,7 @@ public class OpenAIClient {
             root = cursor;
             cursor = cursor.getCause();
         }
-        return root == null ? "" : root.getMessage();
+        return root == null ? "" : sanitizeLogValue(root.getMessage());
     }
 
     private void printUsageToStdOut(String rawResponse, OpenAIRequest req) {
@@ -225,5 +229,30 @@ public class OpenAIClient {
             }
         }
         return null;
+    }
+
+    private String extractErrorField(String responseBody, String fieldName) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "-";
+        }
+
+        try {
+            JsonNode errorNode = objectMapper.readTree(responseBody).path("error");
+            return sanitizeLogValue(errorNode.path(fieldName).asText("-"));
+        } catch (JsonProcessingException e) {
+            return "-";
+        }
+    }
+
+    private String sanitizeLogValue(String value) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+
+        String sanitized = value.replaceAll("\\s+", " ").trim();
+        if (sanitized.length() <= MAX_LOG_VALUE_LENGTH) {
+            return sanitized;
+        }
+        return sanitized.substring(0, MAX_LOG_VALUE_LENGTH) + "...";
     }
 }

@@ -1,9 +1,10 @@
-package whatta.Whatta.ai.service.extracor;
+package whatta.Whatta.ai.service.extractor;
 
 import org.springframework.stereotype.Component;
 import whatta.Whatta.ai.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
 
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -30,9 +31,18 @@ public class RuleBasedExtractor {
     private static final Pattern LIST_ITEM_PATTERN = Pattern.compile("^\\s*(?:[-*•]|\\d+[.)])\\s+");
     private static final Pattern EDGE_PARTICLE_PATTERN = Pattern.compile("^(에|에게|을|를|은|는|이|가|와|과|도|만|로|으로)\\s+|\\s+(에|에게|을|를|은|는|이|가|와|과|도|만|로|으로)$");
     private static final Pattern COMMAND_SUFFIX_PATTERN = Pattern.compile("\\s*(추가|생성|등록|저장|만들기|만들어줘|넣어줘|넣기|작성해줘|추가해줘)$");
+    private final Clock clock;
+
+    public RuleBasedExtractor() {
+        this(Clock.system(ScheduleExtractionSpec.KST_ZONE_ID));
+    }
+
+    public RuleBasedExtractor(Clock clock) {
+        this.clock = clock;
+    }
 
     public RuleBasedExtractionResult extract(String originalText, String normalizedText) {
-        LocalDate referenceDate = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
+        LocalDate referenceDate = LocalDate.now(clock);
         List<LocalDate> dateCandidates = new ArrayList<>();
         List<LocalTime> timeCandidates = new ArrayList<>();
         Map<String, List<String>> warnings = new LinkedHashMap<>();
