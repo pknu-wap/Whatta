@@ -17,6 +17,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
@@ -34,12 +35,13 @@ public class OpenAIClient {
     private long timeoutSeconds;
 
     public OpenAIScheduleResponse callOpenApi(String input) {
+        LocalDateTime nowKst = LocalDateTime.now(ScheduleExtractionSpec.KST_ZONE_ID);
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
                 .maxOutputTokens(MAX_OUTPUT_TOKENS)
                 .reasoning(new OpenAIRequest.Reasoning(OpenAIRequest.Reasoning.Effort.low))
-                .instructions(ScheduleExtractionSpec.INSTRUCTIONS)
+                .instructions(ScheduleExtractionSpec.instructions())
                 .text(new OpenAIRequest.Text(
                         new OpenAIRequest.Format(
                                 "json_schema",
@@ -51,7 +53,8 @@ public class OpenAIClient {
                 .store(false)
                 .build();
 
-        JsonNode root = parseResponse(requestResponse(req));
+        String rawResponse = requestResponse(req);
+        JsonNode root = parseResponse(rawResponse);
         OpenAIScheduleResponse extracted = extractOutput(root);
         if (extracted == null) {
             log.error("[OPENAI][PARSE_ERROR] text output missing. responseId={}, status={}",
@@ -74,7 +77,10 @@ public class OpenAIClient {
             printUsageToStdOut(rawResponse, req);
             return rawResponse;
         } catch (WebClientResponseException e) {
-            log.error("[OPENAI][ERROR] type=http status={} body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            log.error("[OPENAI][ERROR] type=http status={} body={}",
+                    e.getStatusCode(),
+                    e.getResponseBodyAsString(),
+                    e);
             throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         } catch (WebClientRequestException e) {
             if (isTimeout(e)) {
