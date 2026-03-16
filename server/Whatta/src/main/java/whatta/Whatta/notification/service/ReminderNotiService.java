@@ -33,7 +33,7 @@ public class ReminderNotiService {
 
     public void updateReminderNotification(Event event) {
         if(event.getStartTime() == null || event.getReminderNotiAt() == null) {
-            cancelReminderNotification(event.getId()); //기존 스케줄 있으면 취소
+            cancelReminderNotification(event.getId());
             return;
         }
 
@@ -41,8 +41,8 @@ public class ReminderNotiService {
     }
 
     public void updateReminderNotification(Task task) {
-        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) {
-            cancelReminderNotification(task.getId()); //기존 스케줄 있으면 취소
+        if(task.getPlacementTime() == null || task.getReminderNotiAt() == null) {
+            cancelReminderNotification(task.getId());
             return;
         }
 

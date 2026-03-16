@@ -13,7 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ReminderNotiRepository extends MongoRepository<ReminderNotification, String> {
 
-    Optional<ReminderNotification> findByTargetIdAndStatus(String targetId, NotiStatus status);
+    Optional<ReminderNotification>  findByTargetIdAndStatus(String targetId, NotiStatus status);
 
     Optional<ReminderNotification> findByTargetTypeAndTargetIdAndStatusAndTriggerAtAfter(NotificationTargetType targetType, String targetId, NotiStatus status, LocalDateTime now);
 
