@@ -6,8 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
-import whatta.Whatta.global.exception.ErrorCode;
-import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
@@ -127,10 +125,8 @@ public class ReminderNotiService {
         reminderNotiRepository.save(updated);
 
         if (noti.getTargetType() == NotificationTargetType.EVENT) {
-            Event target = eventRepository.findById(noti.getTargetId())
-                    .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
-
-            upsertActiveReminderNotification(target);
+            eventRepository.findById(noti.getTargetId())
+                    .ifPresent(this::upsertActiveReminderNotification);
         }
     }
 

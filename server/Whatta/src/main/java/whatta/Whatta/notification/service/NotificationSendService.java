@@ -46,6 +46,20 @@ public class NotificationSendService {
         ));
     }
 
+    public boolean sendTaskDue(String userId, String title, String body, String targetId) {
+        FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return false;
+        }
+
+        return send(token.getFcmToken(), title, body, Map.of(
+                "type", "TASK_DUE",
+                "userId", userId,
+                "targetId", targetId
+        ));
+    }
+
     public boolean sendTrafficAlarm(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
         if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {

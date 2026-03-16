@@ -8,6 +8,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.notification.service.ReminderNotiService;
+import whatta.Whatta.notification.service.TaskDueNotiService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.mapper.TaskMapper;
 import whatta.Whatta.task.payload.request.TaskCreateRequest;
@@ -34,6 +35,7 @@ public class TaskService {
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
     private final ReminderNotiService reminderNotiService;
+    private final TaskDueNotiService taskDueNotiService;
 
     private static final long SORT_GAP = 10000L;
 
@@ -94,6 +96,7 @@ public class TaskService {
 
         Task savedTask = taskRepository.save(newTask);
         reminderNotiService.updateReminderNotification(savedTask);
+        taskDueNotiService.updateDueNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -162,6 +165,7 @@ public class TaskService {
         Task updatedTask = builder.build();
         Task savedTask = taskRepository.save(updatedTask);
         reminderNotiService.updateReminderNotification(savedTask);
+        taskDueNotiService.updateDueNotification(savedTask);
 
         return taskMapper.toResponse(savedTask);
     }
@@ -172,6 +176,7 @@ public class TaskService {
         }
 
         reminderNotiService.cancelReminderNotification(taskId);
+        taskDueNotiService.cancelDueNotification(taskId);
         taskRepository.deleteById(taskId);
     }
 

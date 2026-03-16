@@ -3,15 +3,15 @@ package whatta.Whatta.notification.service;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.entity.TaskDueNotification;
 import whatta.Whatta.notification.enums.DueNotificationType;
 import whatta.Whatta.notification.enums.NotiStatus;
-import whatta.Whatta.notification.enums.NotificationTargetType;
 import whatta.Whatta.notification.repository.TaskDueNotiRepository;
 import whatta.Whatta.task.entity.Task;
+import whatta.Whatta.task.repository.TaskRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -19,8 +19,11 @@ import java.time.LocalDateTime;
 public class TaskDueNotiService {
 
     private final TaskDueNotiRepository taskDueNotiRepository;
+    private final TaskRepository taskRepository;
 
-    public void updateReminderNotification(Task task) {
+    private static final int COMPLETED_RETENTION_DAYS = 7;
+
+    public void updateDueNotification(Task task) {
         if(task.getDueDateTime() == null || task.getCompleted()) {
             cancelDueNotification(task.getId());
             return;
@@ -49,7 +52,7 @@ public class TaskDueNotiService {
                 .build());
     }
 
-    private void cancelDueNotification(String targetId) {
+    public void cancelDueNotification(String targetId) {
         taskDueNotiRepository.findByTargetIdAndStatus(targetId, NotiStatus.ACTIVE)
                 .ifPresent(schedule -> {
                     TaskDueNotification canceled = schedule.toBuilder()
@@ -81,6 +84,37 @@ public class TaskDueNotiService {
             case DUE_ONE_DAY_BEFORE -> dueDateTime.minusDays(1);
             case DUE_ONE_HOUR_BEFORE -> dueDateTime.minusHours(1);
         };
+    }
+
+    public List<TaskDueNotification> getActiveDueNotisToSend(LocalDateTime now) {
+        return taskDueNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
+    }
+
+    public void completeAndScheduleNextDueNoti(TaskDueNotification noti) {
+        TaskDueNotification updated = noti.toBuilder()
+                .status(NotiStatus.COMPLETED)
+                .build();
+
+        taskDueNotiRepository.save(updated);
+
+        if (noti.getDueNotiType() == DueNotificationType.DUE_ONE_DAY_BEFORE) {
+            taskRepository.findById(noti.getTargetId())
+                    .ifPresent(this::updateDueNotification);
+        }
+    }
+
+    public long deleteExpiredCompletedDueNotis() {
+        LocalDateTime expiredBefore = LocalDateTime.now().minusDays(COMPLETED_RETENTION_DAYS);
+        return taskDueNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.COMPLETED, expiredBefore)
+                + taskDueNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
+    }
+
+    public void cancelInvalidDueNoti(TaskDueNotification noti, String reason) {
+        TaskDueNotification canceled = noti.toBuilder()
+                .status(NotiStatus.CANCELED)
+                .build();
+        taskDueNotiRepository.save(canceled);
+        log.warn("[TASK_DUE_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
     }
 
 }
