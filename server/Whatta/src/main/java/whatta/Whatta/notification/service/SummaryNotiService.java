@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.calendar.payload.response.DailyResponse;
 import whatta.Whatta.calendar.service.CalendarViewService;
-import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.user.enums.NotifyDay;
 import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
 
@@ -123,7 +123,7 @@ public class SummaryNotiService {
         if (timeStr == null || timeStr.isBlank()) {
             return "";
         }
-        LocalTime time = LocalTimeUtil.stringToLocalTime(timeStr);
+        LocalTime time = LocalDateTimeUtil.stringToLocalTime(timeStr);
         return formatTime(time);
     }
 }

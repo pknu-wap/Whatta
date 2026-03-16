@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.global.util.LocalTimeUtil;
+import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.user.entity.ReminderNotiPreset;
 import whatta.Whatta.user.entity.ScheduleSummaryNoti;
 import whatta.Whatta.user.entity.UserSetting;
@@ -143,7 +143,7 @@ public class UserSettingService {
         ScheduleSummaryNoti.ScheduleSummaryNotiBuilder builder = userSetting.getScheduleSummaryNoti().toBuilder();
         if(request.enabled() != null) builder.enabled(request.enabled());
         if(request.notifyDay() != null) builder.notifyDay(request.notifyDay());
-        if(request.time() != null) builder.time(LocalTimeUtil.stringToLocalTime(request.time()));
+        if(request.time() != null) builder.time(LocalDateTimeUtil.stringToLocalTime(request.time()));
 
         userSettingRepository.save(userSetting.toBuilder()
                 .scheduleSummaryNoti(builder.build())
@@ -157,7 +157,7 @@ public class UserSettingService {
         return ScheduleSummaryNotiResponse.builder()
                 .enabled(userSetting.getScheduleSummaryNoti().isEnabled())
                 .notifyDay(userSetting.getScheduleSummaryNoti().getNotifyDay())
-                .time(LocalTimeUtil.localTimeToString(userSetting.getScheduleSummaryNoti().getTime()))
+                .time(LocalDateTimeUtil.localTimeToString(userSetting.getScheduleSummaryNoti().getTime()))
                 .build();
     }
 }

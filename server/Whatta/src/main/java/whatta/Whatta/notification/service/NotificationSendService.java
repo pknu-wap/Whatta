@@ -21,6 +21,10 @@ public class NotificationSendService {
 
     public void sendSummary(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return;
+        }
 
         send(token.getFcmToken(), title, body, Map.of(
                 "type", "SUMMARY",
@@ -28,27 +32,34 @@ public class NotificationSendService {
         );
     }
 
-    public void sendReminder(String userId, String title, String body, String targetId) {
+    public boolean sendReminder(String userId, String title, String body, String targetId) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
-        if(token == null) { return; }
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return false;
+        }
 
-        send(token.getFcmToken(), title, body, Map.of(
+        return send(token.getFcmToken(), title, body, Map.of(
                 "type", "REMINDER",
                 "userId", userId,
                 "targetId", targetId
         ));
     }
 
-    public void sendTrafficAlarm(String userId, String title, String body) {
+    public boolean sendTrafficAlarm(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return false;
+        }
 
-        send(token.getFcmToken(), title, body, Map.of(
+        return send(token.getFcmToken(), title, body, Map.of(
                 "type", "TRAFFIC",
                 "userId", userId
         ));
     }
 
-    private void send(String token, String title, String body, Map<String, String> data) {
+    private boolean send(String token, String title, String body, Map<String, String> data) {
         Notification notification = Notification.builder()
                 .setTitle(title)
                 .setBody(body)
@@ -66,8 +77,10 @@ public class NotificationSendService {
 
         try {
             firebaseMessaging.send(message);
+            return true;
         } catch (Exception e) {
             log.warn("FCM send failed", e);
+            return false;
         }
     }
 }

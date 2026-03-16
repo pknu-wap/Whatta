@@ -13,7 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @NoArgsConstructor
 @Getter
 @Builder(toBuilder = true)
-public class BusItem {
+public class BusFavorite {
 
     @Id
     private String id;

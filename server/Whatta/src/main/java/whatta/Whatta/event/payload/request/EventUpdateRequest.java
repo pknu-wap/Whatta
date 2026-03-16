@@ -2,6 +2,7 @@ package whatta.Whatta.event.payload.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import whatta.Whatta.user.payload.dto.ReminderNoti;
 
@@ -25,7 +26,11 @@ public record EventUpdateRequest(
 
         @Valid
         RepeatRequest repeat,
-        @Schema(example = "#FFD966")
+        @Pattern(
+                regexp = "^C(0[0-9]|1[0-1])$",
+                message = "일정 타임 박스의 컬러 값은 C00~C11 중 하나여야 합니다."
+        )
+        @Schema(example = "C00")
         String colorKey,
 
         ReminderNoti reminderNoti,

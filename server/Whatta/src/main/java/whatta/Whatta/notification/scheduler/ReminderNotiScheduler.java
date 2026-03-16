@@ -31,8 +31,10 @@ public class ReminderNotiScheduler {
 
         for(ReminderNotification noti : notificationsDueNow) {
             try {
-                reminderNotiProcessor.processReminder(noti);
-                reminderNotiService.completeAndScheduleNextReminder(noti);
+                boolean sent = reminderNotiProcessor.processReminder(noti);
+                if (sent) {
+                    reminderNotiService.completeAndScheduleNextReminder(noti);
+                }
             } catch (Exception e) {
                 log.error("[REMINDER] Failed to send reminder. notiId={}", noti.getId(), e);
             }

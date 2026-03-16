@@ -21,7 +21,7 @@ public class ReminderNotiProcessor {
     private final EventRepository eventRepository;
     private final TaskRepository taskRepository;
 
-    public void processReminder(ReminderNotification noti) {
+    public boolean processReminder(ReminderNotification noti) {
         String userId = noti.getUserId();
         String targetId = noti.getTargetId();
 
@@ -33,7 +33,7 @@ public class ReminderNotiProcessor {
             Event event = eventRepository.findById(targetId).orElse(null);
             if (event == null) {
                 reminderNotiService.cancelInvalidReminder(noti, "event not found: " + targetId);
-                return;
+                return false;
             }
 
             notiTitle = "일정 리마인드";
@@ -44,7 +44,7 @@ public class ReminderNotiProcessor {
             Task task = taskRepository.findById(targetId).orElse(null);
             if (task == null) {
                 reminderNotiService.cancelInvalidReminder(noti, "task not found: " + targetId);
-                return;
+                return false;
             }
 
             notiTitle = "할 일 리마인드";
@@ -53,7 +53,7 @@ public class ReminderNotiProcessor {
             targetStartAt = LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime());
         } else {
             reminderNotiService.cancelInvalidReminder(noti, "unsupported targetType: " + noti.getTargetType());
-            return;
+            return false;
         }
         LocalDateTime triggerAt = noti.getTriggerAt();
 
@@ -63,7 +63,7 @@ public class ReminderNotiProcessor {
                 "%s '%s' %s이 있어요.", offsetText, targetTitle, targetType
         );
 
-        notificationSendService.sendReminder(userId, notiTitle, body, targetId);
+        return notificationSendService.sendReminder(userId, notiTitle, body, targetId);
     }
 
     private String formatOffsetText(long minutesUntilStart) {
