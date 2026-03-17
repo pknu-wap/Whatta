@@ -22,15 +22,16 @@ public class TaskDueNotiService {
     private final TaskRepository taskRepository;
 
     private static final int COMPLETED_RETENTION_DAYS = 7;
+    private static final int PROCESSING_TIMEOUT_MINUTES = 30;
 
     public void updateDueNotification(Task task) {
-        if(task.getDueDateTime() == null || task.getCompleted()) {
+        if (task.getDueDateTime() == null || task.getCompleted()) {
             cancelDueNotification(task.getId());
             return;
         }
 
         DueNotificationType dueNotiType = resolveDueNotiType(task.getDueDateTime());
-        if(dueNotiType == null) {
+        if (dueNotiType == null) {
             cancelDueNotification(task.getId());
             return;
         }
@@ -39,7 +40,7 @@ public class TaskDueNotiService {
 
         //해당 task의 아직 안보낸 ACTIVE 알림이 있으면 update, 없으면 새로 생성
         TaskDueNotification base = taskDueNotiRepository.findByTargetIdAndStatusAndTriggerAtAfter(
-                task.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
+                        task.getId(), NotiStatus.ACTIVE, LocalDateTime.now())
                 .orElseGet(() -> TaskDueNotification.builder()
                         .userId(task.getUserId())
                         .status(NotiStatus.ACTIVE)
@@ -90,12 +91,24 @@ public class TaskDueNotiService {
         return taskDueNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
     }
 
-    public void completeAndScheduleNextDueNoti(TaskDueNotification noti) {
-        TaskDueNotification updated = noti.toBuilder()
-                .status(NotiStatus.COMPLETED)
-                .build();
+    public boolean tryMarkProcessing(String dueNotiId) {
+        return transitionStatus(dueNotiId, NotiStatus.ACTIVE, NotiStatus.PROCESSING);
+    }
 
-        taskDueNotiRepository.save(updated);
+    public void restoreActiveIfProcessing(String dueNotiId) {
+        transitionStatus(dueNotiId, NotiStatus.PROCESSING, NotiStatus.ACTIVE);
+    }
+
+    public void cancelIfProcessing(String dueNotiId) {
+        transitionStatus(dueNotiId, NotiStatus.PROCESSING, NotiStatus.CANCELED);
+    }
+
+    public void completeAndScheduleNextDueNoti(TaskDueNotification noti) {
+        boolean completed = transitionStatus(noti.getId(), NotiStatus.PROCESSING, NotiStatus.COMPLETED);
+        if (!completed) {
+            log.warn("[TASK_DUE_COMPLETE_SKIPPED] id={}, reason=status transition failed", noti.getId());
+            return;
+        }
 
         if (noti.getDueNotiType() == DueNotificationType.DUE_ONE_DAY_BEFORE) {
             taskRepository.findById(noti.getTargetId())
@@ -109,12 +122,33 @@ public class TaskDueNotiService {
                 + taskDueNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
     }
 
+    public long cancelStaleProcessingDueNotis() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime staleBefore = now.minusMinutes(PROCESSING_TIMEOUT_MINUTES);
+        return taskDueNotiRepository.updateStatusByStatusAndUpdatedAtBefore(
+                NotiStatus.PROCESSING,
+                staleBefore,
+                NotiStatus.CANCELED,
+                now
+        );
+    }
+
     public void cancelInvalidDueNoti(TaskDueNotification noti, String reason) {
-        TaskDueNotification canceled = noti.toBuilder()
-                .status(NotiStatus.CANCELED)
-                .build();
-        taskDueNotiRepository.save(canceled);
+        boolean canceled = transitionStatus(noti.getId(), NotiStatus.PROCESSING, NotiStatus.CANCELED);
+        if (!canceled) {
+            log.warn("[TASK_DUE_INVALID_CANCEL_SKIPPED] id={}, reason=status transition failed", noti.getId());
+        }
         log.warn("[TASK_DUE_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
     }
 
+    private boolean transitionStatus(String dueNotiId, NotiStatus currentStatus, NotiStatus nextStatus) {
+        return taskDueNotiRepository.findByIdAndStatus(dueNotiId, currentStatus)
+                .map(schedule -> {
+                    TaskDueNotification canceled = schedule.toBuilder()
+                            .status(nextStatus)
+                            .build();
+                    taskDueNotiRepository.save(canceled);
+                    return true;
+                }).orElse(false);
+    }
 }

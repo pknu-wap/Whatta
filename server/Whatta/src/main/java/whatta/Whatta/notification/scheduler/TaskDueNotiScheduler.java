@@ -2,9 +2,12 @@ package whatta.Whatta.notification.scheduler;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.RecoverableDataAccessException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.notification.entity.TaskDueNotification;
+import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.service.TaskDueNotiService;
 import whatta.Whatta.notification.service.processor.TaskDueNotiProcessor;
 
@@ -28,13 +31,23 @@ public class TaskDueNotiScheduler {
         if(notificationsDueNow.isEmpty()) return;
 
         for(TaskDueNotification noti : notificationsDueNow) {
+            if (!taskDueNotiService.tryMarkProcessing(noti.getId())) {
+                continue;
+            }
+
             try {
-                boolean sent = taskDueNotiProcessor.processDueNoti(noti);
-                if (sent) {
-                    taskDueNotiService.completeAndScheduleNextDueNoti(noti);
+                NotificationSendResult sendResult = taskDueNotiProcessor.processDueNoti(noti);
+                switch (sendResult) {
+                    case SUCCESS -> taskDueNotiService.completeAndScheduleNextDueNoti(noti);
+                    case RETRYABLE_FAILURE -> taskDueNotiService.restoreActiveIfProcessing(noti.getId());
+                    case TERMINAL_FAILURE -> taskDueNotiService.cancelIfProcessing(noti.getId());
                 }
+            } catch (TransientDataAccessException | RecoverableDataAccessException e) {
+                taskDueNotiService.restoreActiveIfProcessing(noti.getId());
+                log.error("[DUENOTIFICATION] Retryable infra/db failure. notiId={}", noti.getId(), e);
             } catch (Exception e) {
-                log.error("[DUENOTIFICATION] Failed to send task DueNoti. notiId={}", noti.getId(), e);
+                taskDueNotiService.cancelIfProcessing(noti.getId());
+                log.error("[DUENOTIFICATION] Non-retryable processing failure. notiId={}", noti.getId(), e);
             }
         }
     }
@@ -46,6 +59,16 @@ public class TaskDueNotiScheduler {
             log.info("[DUENOTIFICATION] [CLEANUP] deletedCount={}", deletedCount);
         } catch (Exception e) {
             log.error("[DUENOTIFICATION] [CLEANUP] Failed to cleanup completed DueNotis", e);
+        }
+    }
+
+    @Scheduled(cron = "0 */10 * * * *", zone = "Asia/Seoul")
+    public void cleanupStaleProcessingDueNotis() {
+        try {
+            long canceledProcessingCount = taskDueNotiService.cancelStaleProcessingDueNotis();
+            log.info("[DUENOTIFICATION] [PROCESSING_CLEANUP] canceledProcessingCount={}", canceledProcessingCount);
+        } catch (Exception e) {
+            log.error("[DUENOTIFICATION] [PROCESSING_CLEANUP] Failed to cleanup stale processing due notifications", e);
         }
     }
 }

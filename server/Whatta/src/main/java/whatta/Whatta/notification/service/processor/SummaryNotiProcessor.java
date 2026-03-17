@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import whatta.Whatta.calendar.payload.response.DailyResponse;
 import whatta.Whatta.calendar.service.CalendarViewService;
 import whatta.Whatta.global.util.LocalDateTimeUtil;
+import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.service.NotificationSendService;
 import whatta.Whatta.user.enums.NotifyDay;
 import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
@@ -23,7 +24,7 @@ public class SummaryNotiProcessor {
     private final CalendarViewService calendarViewService;
     private final NotificationSendService notificationSendService;
 
-    public boolean processSummary(ScheduleSummaryNotiSlim notiSlim, LocalDateTime nowUser) {
+    public NotificationSendResult processSummary(ScheduleSummaryNotiSlim notiSlim, LocalDateTime nowUser) {
         LocalDate targetDate = resolveTargetDate(nowUser.toLocalDate(), notiSlim.getScheduleSummaryNoti().getNotifyDay());
 
         DailyResponse daily = calendarViewService.getDaily(notiSlim.getUserId(), targetDate);

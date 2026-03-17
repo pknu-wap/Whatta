@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.notification.entity.TaskDueNotification;
 import whatta.Whatta.notification.enums.DueNotificationType;
+import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.service.NotificationSendService;
 import whatta.Whatta.notification.service.TaskDueNotiService;
 import whatta.Whatta.task.entity.Task;
@@ -17,18 +18,18 @@ public class TaskDueNotiProcessor {
     private final TaskDueNotiService taskDueNotiService;
     private final TaskRepository taskRepository;
 
-    public boolean processDueNoti(TaskDueNotification noti) {
+    public NotificationSendResult processDueNoti(TaskDueNotification noti) {
         String targetId = noti.getTargetId();
         Task task = taskRepository.findById(targetId).orElse(null);
         if (task == null) {
             taskDueNotiService.cancelInvalidDueNoti(noti, "task not found: " + targetId);
-            return false;
+            return NotificationSendResult.TERMINAL_FAILURE;
         }
 
         DueNotificationType dueNotiType = noti.getDueNotiType();
         if (dueNotiType == null) {
             taskDueNotiService.cancelInvalidDueNoti(noti, "dueNotiType is null: " + noti.getId());
-            return false;
+            return NotificationSendResult.TERMINAL_FAILURE;
         }
 
         String title = task.getTitle();
