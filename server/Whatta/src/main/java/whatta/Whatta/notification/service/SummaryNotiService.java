@@ -54,14 +54,6 @@ public class SummaryNotiService {
     }
 
     public void disableSummary (ScheduleSummaryNotiSlim notiSlim) {
-        userSettingRepository.findByUserId(notiSlim.getUserId())
-                .filter(setting -> setting.getScheduleSummaryNoti() != null)
-                .ifPresent(setting -> userSettingRepository.save(
-                        setting.toBuilder()
-                                .scheduleSummaryNoti(setting.getScheduleSummaryNoti().toBuilder()
-                                        .enabled(false)
-                                        .build())
-                                .build()
-                ));
+        userSettingRepository.disableScheduleSummaryNotificationByUserId(notiSlim.getUserId());
     }
 }

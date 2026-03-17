@@ -13,7 +13,6 @@ import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

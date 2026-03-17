@@ -18,7 +18,7 @@ import java.util.List;
 @RequestMapping("/api/user/setting/")
 @PreAuthorize("isAuthenticated()")
 @SecurityRequirement(name = "BearerAuth")
-@Tag(name = "Notification", description = "알림 설정 API")
+@Tag(name = "User Setting Notification", description = "유저의 알림 관련 설정 API")
 public class UserSettingController {
 
     private final UserSettingService userSettingService;
