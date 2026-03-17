@@ -20,7 +20,9 @@ public interface TaskDueNotiRepository extends MongoRepository<TaskDueNotificati
 
     List<TaskDueNotification> findByStatusAndTriggerAtLessThanEqual(NotiStatus status, LocalDateTime now);
 
-    Optional<TaskDueNotification> findByIdAndStatus(String id, NotiStatus status);
+    @Query("{ '_id': ?0, 'status': ?1 }")
+    @Update("{ '$set': { 'status': ?2, 'updatedAt': ?3 } }")
+    long updateStatusByIdAndStatus(String id, NotiStatus currentStatus, NotiStatus nextStatus, LocalDateTime updatedAt);
 
     @Query("{ 'status': ?0, 'updatedAt': { '$lt': ?1 } }")
     @Update("{ '$set': { 'status': ?2, 'updatedAt': ?3 } }")

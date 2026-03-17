@@ -29,18 +29,8 @@ public class SummaryNotiProcessor {
 
         DailyResponse daily = calendarViewService.getDaily(notiSlim.getUserId(), targetDate);
 
-
-        int eventCount =
-                daily.allDaySpanEvents().size()
-                        + daily.allDayEvents().size()
-                        + daily.timedEvents().size();
-
-        int taskCount =
-                daily.allDayTasks().size()
-                        + daily.timedTasks().size();
-
-        String title = buildTitle(targetDate, eventCount, taskCount);
-        String body = buildBody(targetDate, daily, eventCount, taskCount);
+        String title = buildTitle(targetDate);
+        String body = buildBody(daily);
 
         return notificationSendService.sendSummary(
                 notiSlim.getUserId(),
@@ -56,7 +46,7 @@ public class SummaryNotiProcessor {
         };
     }
 
-    private String buildTitle(LocalDate date, int eventCount, int taskCount) {
+    private String buildTitle(LocalDate date) {
         //예: 11월 20일 일정
         String title = String.format("%d월 %d일", date.getMonthValue(), date.getDayOfMonth());
         return String.format(
@@ -65,10 +55,7 @@ public class SummaryNotiProcessor {
         );
     }
 
-    private String buildBody(LocalDate targetDate,
-                             DailyResponse daily,
-                             int eventCount,
-                             int taskCount) {
+    private String buildBody(DailyResponse daily) {
         StringBuilder sb = new StringBuilder();
 
         // ---- 시간지정 있는 일정 + task만 사용 ---- //

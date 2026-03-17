@@ -186,18 +186,17 @@ public class ReminderNotiService {
         boolean canceled = transitionStatus(noti.getId(), NotiStatus.PROCESSING, NotiStatus.CANCELED);
         if (!canceled) {
             log.warn("[REMINDER_INVALID_CANCEL_SKIPPED] id={}, reason=status transition failed", noti.getId());
+            return;
         }
         log.warn("[REMINDER_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
     }
 
     private boolean transitionStatus(String reminderId, NotiStatus currentStatus, NotiStatus nextStatus) {
-        return reminderNotiRepository.findByIdAndStatus(reminderId, currentStatus)
-                .map(schedule -> {
-                    ReminderNotification canceled = schedule.toBuilder()
-                            .status(nextStatus)
-                            .build();
-                    reminderNotiRepository.save(canceled);
-                    return true;
-                }).orElse(false);
+        return reminderNotiRepository.updateStatusByIdAndStatus(
+                reminderId,
+                currentStatus,
+                nextStatus,
+                LocalDateTime.now()
+        ) > 0;
     }
 }

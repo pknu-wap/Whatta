@@ -137,18 +137,17 @@ public class TaskDueNotiService {
         boolean canceled = transitionStatus(noti.getId(), NotiStatus.PROCESSING, NotiStatus.CANCELED);
         if (!canceled) {
             log.warn("[TASK_DUE_INVALID_CANCEL_SKIPPED] id={}, reason=status transition failed", noti.getId());
+            return;
         }
         log.warn("[TASK_DUE_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
     }
 
     private boolean transitionStatus(String dueNotiId, NotiStatus currentStatus, NotiStatus nextStatus) {
-        return taskDueNotiRepository.findByIdAndStatus(dueNotiId, currentStatus)
-                .map(schedule -> {
-                    TaskDueNotification canceled = schedule.toBuilder()
-                            .status(nextStatus)
-                            .build();
-                    taskDueNotiRepository.save(canceled);
-                    return true;
-                }).orElse(false);
+        return taskDueNotiRepository.updateStatusByIdAndStatus(
+                dueNotiId,
+                currentStatus,
+                nextStatus,
+                LocalDateTime.now()
+        ) > 0;
     }
 }
