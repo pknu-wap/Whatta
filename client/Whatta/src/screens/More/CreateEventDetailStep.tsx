@@ -24,10 +24,13 @@ type Props = {
   onSelectType: (value: 'event' | 'task') => void
   start: Date
   end: Date
+  endDisplay?: Date | null
   onPressDateBox: () => void
   onChangeStartTime: (next: Date) => void
   onChangeEndTime: (next: Date) => void
+  invalidEndTime?: boolean
   timeOn: boolean
+  timeDisabled?: boolean
   onToggleTime: (next: boolean) => void
   repeatOn: boolean
   onToggleRepeat: (next: boolean) => void
@@ -39,9 +42,12 @@ type Props = {
   onChangeRepeatEvery: (next: number) => void
   onChangeRepeatUnit: (next: 'day' | 'week' | 'month') => void
   onChangeMonthlyOpt: (next: 'byDate' | 'byNthWeekday' | 'byLastWeekday') => void
+  repeatWeekdays: number[]
+  onChangeRepeatWeekdays: (next: number[]) => void
   repeatEndDate: Date | null
   onChangeRepeatEndDate: (next: Date | null) => void
   remindOn: boolean
+  remindDisabled?: boolean
   onToggleRemind: (next: boolean) => void
   remindOpen: boolean
   onSetRemindOpen: (next: boolean) => void
@@ -84,12 +90,24 @@ type ReminderCustomOption = {
 
 type ReminderOption = ReminderPresetOption | ReminderCustomOption
 
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
   return (
     <Pressable
-      onPress={() => onChange(!value)}
+      onPress={() => !disabled && onChange(!value)}
       hitSlop={10}
-      style={[styles.toggleRoot, value ? styles.toggleOn : styles.toggleOff]}
+      style={[
+        styles.toggleRoot,
+        value ? styles.toggleOn : styles.toggleOff,
+        disabled && styles.toggleDisabled,
+      ]}
     >
       <View style={[styles.toggleThumb, value ? styles.thumbOn : styles.thumbOff]} />
     </Pressable>
@@ -148,10 +166,13 @@ export default function CreateEventDetailStep({
   onSelectType,
   start,
   end,
+  endDisplay = null,
   onPressDateBox,
   onChangeStartTime,
   onChangeEndTime,
+  invalidEndTime = false,
   timeOn,
+  timeDisabled = false,
   onToggleTime,
   repeatOn,
   onToggleRepeat,
@@ -163,9 +184,12 @@ export default function CreateEventDetailStep({
   onChangeRepeatEvery,
   onChangeRepeatUnit,
   onChangeMonthlyOpt,
+  repeatWeekdays,
+  onChangeRepeatWeekdays,
   repeatEndDate,
   onChangeRepeatEndDate,
   remindOn,
+  remindDisabled = false,
   onToggleRemind,
   remindOpen,
   onSetRemindOpen,
@@ -191,13 +215,13 @@ export default function CreateEventDetailStep({
   taskDueDate,
   onChangeTaskDueDate,
 }: Props) {
+  const displayedEnd = endDisplay ?? end
   const [openTimeTarget, setOpenTimeTarget] = React.useState<'start' | 'end' | null>(null)
   const [repeatOpen, setRepeatOpen] = React.useState(false)
   const [monthlyOpen, setMonthlyOpen] = React.useState(false)
   const [repeatCustomOpen, setRepeatCustomOpen] = React.useState(false)
   const [openRepeatEndDate, setOpenRepeatEndDate] = React.useState(false)
   const [weekdayOpen, setWeekdayOpen] = React.useState(false)
-  const [selectedWeekdays, setSelectedWeekdays] = React.useState<number[]>([])
   const [repeatEndMonthCursor, setRepeatEndMonthCursor] = React.useState(
     () => new Date(start.getFullYear(), start.getMonth(), 1),
   )
@@ -245,10 +269,18 @@ export default function CreateEventDetailStep({
       setRepeatCustomOpen(false)
       setOpenRepeatEndDate(false)
       setWeekdayOpen(false)
-      setSelectedWeekdays([])
     }
   }, [repeatOn])
-  const K_DAY = [ '월', '화', '수', '목', '금', '토', '일'] as const
+  const WEEKDAY_OPTIONS = [
+    { label: '일', value: 0 },
+    { label: '월', value: 1 },
+    { label: '화', value: 2 },
+    { label: '수', value: 3 },
+    { label: '목', value: 4 },
+    { label: '금', value: 5 },
+    { label: '토', value: 6 },
+  ] as const
+  const K_DAY = ['일', '월', '화', '수', '목', '금', '토'] as const
   const disabledWeekday = start.getDay()
   const repeatEndSelected = repeatEndDate ?? start
   const repeatEndHeader = `${repeatEndMonthCursor.getFullYear()}년 ${repeatEndMonthCursor.getMonth() + 1}월`
@@ -275,14 +307,16 @@ export default function CreateEventDetailStep({
     return Array.from({ length: 101 }, (_, i) => now - 50 + i)
   }, [])
   const weekdayLabel = (() => {
-    const s = [...selectedWeekdays].sort((a, b) => a - b)
-    const hasOrDisabled = (d: number) => s.includes(d) || disabledWeekday === d
-    const isWeekendEvery = hasOrDisabled(0) && hasOrDisabled(6)
-    const isWeekdayEvery = [1, 2, 3, 4, 5].every((d) => hasOrDisabled(d))
-    if (s.length === 0) return '요일 추가 없음'
+    const appliedDays = Array.from(new Set([disabledWeekday, ...repeatWeekdays])).sort(
+      (a, b) => a - b,
+    )
+    const hasDay = (d: number) => appliedDays.includes(d)
+    const isWeekendEvery = hasDay(0) && hasDay(6)
+    const isWeekdayEvery = [1, 2, 3, 4, 5].every((d) => hasDay(d))
+    if (appliedDays.length === 1) return `${K_DAY[disabledWeekday]}요일마다`
     if (isWeekendEvery) return '주말마다'
     if (isWeekdayEvery) return '평일마다'
-    return s.map((d) => K_DAY[d]).join(', ')
+    return appliedDays.map((d) => K_DAY[d]).join(', ')
   })()
   React.useEffect(() => {
     if (selectedType === 'task') setColorPaletteOpen(false)
@@ -480,9 +514,21 @@ export default function CreateEventDetailStep({
                             key={cell.toISOString()}
                             style={styles.repeatEndCell}
                             onPress={() => {
-                              onChangeTaskDate(startOfDay(cell))
-                              if (taskDueDate && startOfDay(taskDueDate).getTime() < startOfDay(cell).getTime()) {
-                                onChangeTaskDueDate(startOfDay(cell))
+                              const picked = startOfDay(cell)
+                              const sameDate = taskDate
+                                ? picked.getTime() === startOfDay(taskDate).getTime()
+                                : false
+
+                              if (sameDate) {
+                                onChangeTaskDate(null)
+                                onChangeTaskDueDate(null)
+                                setOpenTaskCalendar(null)
+                                return
+                              }
+
+                              onChangeTaskDate(picked)
+                              if (taskDueDate && startOfDay(taskDueDate).getTime() < picked.getTime()) {
+                                onChangeTaskDueDate(picked)
                               }
                               setOpenTaskCalendar(null)
                             }}
@@ -519,7 +565,7 @@ export default function CreateEventDetailStep({
 
       <View style={styles.toggleRow}>
         <Text style={styles.sectionLabel}>시간</Text>
-        <Toggle value={timeOn} onChange={onToggleTime} />
+        <Toggle value={timeOn} disabled={timeDisabled} onChange={onToggleTime} />
       </View>
       {timeOn && (
         <View style={styles.timeDetail}>
@@ -565,17 +611,19 @@ export default function CreateEventDetailStep({
               <Text
                 style={[
                   styles.timeBoxText,
-                  openTimeTarget === 'end' && styles.timeBoxTextSelected,
+                  invalidEndTime
+                    ? styles.timeBoxTextInvalid
+                    : openTimeTarget === 'end' && styles.timeBoxTextSelected,
                 ]}
               >
-                {formatKTime12(end)}
+                {formatKTime12(displayedEnd)}
               </Text>
             </Pressable>
           </View>
           {openTimeTarget === 'end' && (
             <View style={styles.timePickerWrap}>
               <TimeWheel
-                value={end}
+                value={displayedEnd}
                 onChange={onChangeEndTime}
               />
             </View>
@@ -771,7 +819,7 @@ export default function CreateEventDetailStep({
         </>
       )}
 
-      {selectedType === 'event' && repeatOn && (
+      {selectedType === 'event' && repeatOn && repeatMode === 'weekly' && (
         <>
           <View style={styles.weekdaySection}>
             <Pressable
@@ -792,19 +840,19 @@ export default function CreateEventDetailStep({
             </Pressable>
             {weekdayOpen && (
               <View style={styles.weekdayWrap}>
-                {K_DAY.map((d, idx) => {
-                  const disabled = idx === disabledWeekday
-                  const selected = selectedWeekdays.includes(idx)
+                {WEEKDAY_OPTIONS.map(({ label, value }) => {
+                  const disabled = value === disabledWeekday
+                  const selected = repeatWeekdays.includes(value)
                   return (
                     <Pressable
-                      key={`${d}-${idx}`}
+                      key={`${label}-${value}`}
                       style={[styles.weekdayItem, selected && styles.weekdayItemSelected]}
                       disabled={disabled}
                       onPress={() => {
-                        setSelectedWeekdays((prev) =>
-                          prev.includes(idx)
-                            ? prev.filter((x) => x !== idx)
-                            : [...prev, idx],
+                        onChangeRepeatWeekdays(
+                          selected
+                            ? repeatWeekdays.filter((day) => day !== value)
+                            : [...repeatWeekdays, value].sort((a, b) => a - b),
                         )
                       }}
                     >
@@ -815,7 +863,7 @@ export default function CreateEventDetailStep({
                           disabled && styles.weekdayTextDisabled,
                         ]}
                       >
-                        {d}
+                        {label}
                       </Text>
                     </Pressable>
                   )
@@ -823,7 +871,15 @@ export default function CreateEventDetailStep({
               </View>
             )}
           </View>
+        </>
+      )}
 
+      {selectedType === 'event' && repeatOn && repeatMode !== 'weekly' && (
+        <View style={styles.weekdaySectionSpacer} />
+      )}
+
+      {selectedType === 'event' && repeatOn && (
+        <>
           <View style={styles.timeRow}>
             <Text style={styles.timeRowLabel}>종료일</Text>
             <Pressable
@@ -1125,6 +1181,7 @@ export default function CreateEventDetailStep({
         <Text style={styles.sectionLabel}>알림</Text>
         <Toggle
           value={remindOn}
+          disabled={remindDisabled}
           onChange={(next) => {
             onToggleRemind(next)
             if (!next) {
@@ -1140,7 +1197,13 @@ export default function CreateEventDetailStep({
         <View style={styles.repeatDetail}>
           <Pressable
             style={styles.repeatBox}
-            onPress={() => onSetRemindOpen(!remindOpen)}
+            onPress={() => {
+              const nextOpen = !remindOpen
+              onSetRemindOpen(nextOpen)
+              if (!nextOpen) {
+                onSetCustomOpen(false)
+              }
+            }}
           >
             <Text
               style={[
@@ -1530,6 +1593,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
+  weekdaySectionSpacer: {
+    height: 8,
+  },
   weekdayWrap: {
     width: 302,
     marginTop: 6,
@@ -1685,6 +1751,9 @@ const styles = StyleSheet.create({
   },
   timeBoxTextSelected: {
     color: colors.brand.primary,
+  },
+  timeBoxTextInvalid: {
+    color: colors.text.monday,
   },
   endDatePlaceholder: {
     color: colors.text.text4,
@@ -1928,6 +1997,9 @@ const styles = StyleSheet.create({
   },
   toggleOff: {
     backgroundColor: '#D9D9D9',
+  },
+  toggleDisabled: {
+    opacity: 0.4,
   },
   toggleThumb: {
     width: 25,

@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   TouchableOpacity,
+  Keyboard,
 } from 'react-native'
 import InlineCalendar from '@/components/lnlineCalendar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -39,12 +40,6 @@ import {
 } from '@/styles/scheduleColorSets'
 import { ts } from '@/styles/typography'
 
-/** Toggle Props 타입 */
-type ToggleProps = {
-  value: boolean
-  onChange: (v: boolean) => void
-}
-
 type Panel = 'calendar' | 'start' | 'end' | null
 
 const areSameDate = (a: Date, b: Date) => a.getTime() === b.getTime()
@@ -55,15 +50,8 @@ const MemoCalendar = memo(
 )
 
 const H_PAD = 18
-const FILELD_ROW_H = 44
 
 type Anchor = { x: number; y: number; w: number; h: number }
-
-type RouteParams = {
-  mode?: 'create' | 'edit'
-  eventId?: string
-  initial?: Partial<EventItem>
-}
 
 type CreateStep = 'intro' | 'detail'
 
@@ -93,6 +81,7 @@ export default function EventDetailPopup({
   const titleRef = useRef<TextInput>(null)
   const [saving, setSaving] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [labelRequiredOpen, setLabelRequiredOpen] = useState(false)
 
   const insets = useSafeAreaInsets()
   const MARGIN = 10
@@ -105,9 +94,12 @@ export default function EventDetailPopup({
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
   const sheetRef = useRef<View>(null)
+  const initialTaskDateSeededRef = useRef(false)
   const isCreateFlow = mode === 'create' && !initial
   const [createStep, setCreateStep] = useState<CreateStep>(isCreateFlow ? 'intro' : 'detail')
   const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
+  const [createIntroExpanded, setCreateIntroExpanded] = useState(false)
+  const [suppressIntroAutoFocus, setSuppressIntroAutoFocus] = useState(false)
   const [editDatePicking, setEditDatePicking] = useState(false)
   // ── 컬러 팝오버 배치 옵션 ──
   const POPOVER_W = 105 // 팝오버 너비
@@ -232,6 +224,7 @@ export default function EventDetailPopup({
   const [repeatEvery, setRepeatEvery] = useState(1) // 왼쪽 숫자(1~6)
   type RepeatUnit = 'day' | 'week' | 'month'
   const [repeatUnit, setRepeatUnit] = useState<RepeatUnit>('week') // 오른쪽 단위
+  const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([])
   const REPEAT_NUMS = [1, 2, 3, 4, 5, 6]
   const REPEAT_UNITS: { k: RepeatUnit; label: string }[] = [
     { k: 'day', label: '일' },
@@ -289,6 +282,22 @@ export default function EventDetailPopup({
 
   const [start, setStart] = useState(new Date())
 
+  const buildAutoEndForEvent = (baseStart: Date, allowNextDay: boolean) => {
+    const nextEnd = new Date(baseStart)
+    if (allowNextDay) {
+      nextEnd.setHours(baseStart.getHours() + 1, baseStart.getMinutes(), 0, 0)
+      return nextEnd
+    }
+    const capped = new Date(baseStart)
+    const nextHour = baseStart.getHours() + 1
+    if (nextHour >= 24) {
+      capped.setHours(23, 59, 0, 0)
+      return capped
+    }
+    capped.setHours(nextHour, baseStart.getMinutes(), 0, 0)
+    return capped
+  }
+
   const buildBasePayload = () => {
     const key = slotKey(selectedSlot)
     const reminderNoti = buildReminderNoti() // 최신 알림 값 계산
@@ -333,9 +342,12 @@ export default function EventDetailPopup({
     let on: string[] | null = null
 
     if (unit === 'WEEK') {
-      // 매주 / n주마다 요일
-      const wd = WEEKDAY_ENUM[start.getDay()] // 시작 날짜 기준 요일
-      on = [wd]
+      // 추가 요일 선택은 "매주"에서만 허용
+      const weekdays =
+        repeatMode === 'weekly'
+          ? Array.from(new Set([start.getDay(), ...repeatWeekdays])).sort((a, b) => a - b)
+          : [start.getDay()]
+      on = weekdays.map((day) => WEEKDAY_ENUM[day])
     } else if (unit === 'MONTH') {
       const wd = WEEKDAY_ENUM[start.getDay()]
       const { nth } = getWeekIndexOfMonth(start)
@@ -382,6 +394,7 @@ export default function EventDetailPopup({
     let nextRepeatEvery = 1
     let nextRepeatUnit: RepeatUnit = 'day'
     let nextMonthlyOpt: MonthlyOpt = 'byDate'
+    let nextRepeatWeekdays: number[] = []
 
     // 1) DAY
     if (r.unit === 'DAY') {
@@ -399,15 +412,26 @@ export default function EventDetailPopup({
       const wd = WEEKDAY_ENUM[start.getDay()]
       const isSimpleWeekly =
         r.interval === 1 && Array.isArray(r.on) && r.on.length === 1 && r.on[0] === wd
+      nextRepeatWeekdays = Array.isArray(r.on)
+        ? r.on
+            .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
+            .filter((day): day is number => day >= 0 && day !== start.getDay())
+        : []
 
       if (isSimpleWeekly) {
         // "매주" 패턴
         nextRepeatMode = 'weekly'
+        nextRepeatWeekdays = Array.isArray(r.on)
+          ? r.on
+              .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
+              .filter((day): day is number => day >= 0 && day !== start.getDay())
+          : []
       } else {
         // 그 외는 "맞춤 설정 - 주"로 처리
         nextRepeatMode = 'custom'
         nextRepeatEvery = r.interval
         nextRepeatUnit = 'week'
+        nextRepeatWeekdays = []
       }
     }
 
@@ -445,6 +469,7 @@ export default function EventDetailPopup({
     setRepeatEvery(nextRepeatEvery)
     setRepeatUnit(nextRepeatUnit)
     setMonthlyOpt(nextMonthlyOpt)
+    setRepeatWeekdays(nextRepeatWeekdays)
 
     // 종료일
     if (r.endDate) {
@@ -570,6 +595,8 @@ export default function EventDetailPopup({
 
   /** 날짜 & 시간 */
   const [end, setEnd] = useState(new Date())
+  const [invalidEndTime, setInvalidEndTime] = useState(false)
+  const [invalidEndPreview, setInvalidEndPreview] = useState<Date | null>(null)
 
   /** 토글 상태 */
   const [timeOn, setTimeOn] = useState(false)
@@ -861,6 +888,19 @@ export default function EventDetailPopup({
 
   // 저장 버튼 핸들러 – 반복 여부에 따라 분기
   const handleSave = async () => {
+    if (selectedLabelIds.length === 0) {
+      setLabelRequiredOpen(true)
+      setSaving(false)
+      return
+    }
+
+    if (timeOn && end.getTime() < start.getTime()) {
+      setInvalidEndTime(true)
+      Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이를 수 없습니다.')
+      setSaving(false)
+      return
+    }
+
     if (mode === 'create' && createTypeSelected === 'task') {
       await saveTask()
       return
@@ -1286,6 +1326,8 @@ export default function EventDetailPopup({
         setSelectedSlot(idx)
         setRepeatOn(!!ev.repeat)
         setEventData(ev)
+        setInvalidEndTime(false)
+        setInvalidEndPreview(null)
       } catch (err) {
         if (cancelled) return
         console.error('❌ 일정 상세 불러오기 실패:', err)
@@ -1301,6 +1343,7 @@ export default function EventDetailPopup({
 
   useEffect(() => {
     if (visible && mode === 'create' && !initial) {
+      initialTaskDateSeededRef.current = false
       setEventData(null)
       setSaving(false)
 
@@ -1316,13 +1359,17 @@ export default function EventDetailPopup({
       const today = new Date()
       setStart(today)
       setEnd(today)
+      setTaskDate(null)
       setTimeOn(false)
+      setInvalidEndTime(false)
+      setInvalidEndPreview(null)
       setRepeatOn(false)
       setRemindOn(false)
       setRemindValue(null)
       setRepeatMode('daily')
       setRepeatEvery(1)
       setRepeatUnit('week')
+      setRepeatWeekdays([])
       setMonthlyOpt('byDate')
       setEndMode('none')
       setRepeatEndDate(null)
@@ -1344,6 +1391,13 @@ export default function EventDetailPopup({
       setEnd(anchor)
       setRangeStart(anchor)
       setRangePhase('start')
+      if (
+        !initialTaskDateSeededRef.current &&
+        (initialCreateType === 'task' || createTypeSelected === 'task')
+      ) {
+        setTaskDate(anchor)
+        initialTaskDateSeededRef.current = true
+      }
     }
 
     // DayView가 calendar:state 를 보낼 때만 동작
@@ -1357,7 +1411,7 @@ export default function EventDetailPopup({
     bus.emit('calendar:request-sync', null) // DayView에게 현재 날짜 요청
 
     return () => bus.off('calendar:state', onState)
-  }, [visible, mode, initial])
+  }, [visible, mode, initial, initialCreateType, createTypeSelected])
 
   useEffect(() => {
     if (!visible) return
@@ -1388,13 +1442,48 @@ export default function EventDetailPopup({
     if (!visible) return
     const inCreate = mode === 'create' && !initial
     const createType = inCreate ? initialCreateType : null
-    setCreateStep(inCreate ? (createType === 'task' ? 'detail' : 'intro') : 'detail')
+    setCreateStep(inCreate ? 'intro' : 'detail')
     setCreateTypeSelected(mode === 'edit' ? 'event' : createType)
+    setCreateIntroExpanded(false)
     setEditDatePicking(false)
-    setTaskDate(null)
     setTaskDueOn(false)
     setTaskDueDate(null)
+    setRepeatWeekdays([])
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+    setSuppressIntroAutoFocus(false)
   }, [visible, mode, initial, initialCreateType])
+
+  useEffect(() => {
+    if (!isCreateFlow) return
+    if (!createIntroExpanded) return
+    if (createTypeSelected !== 'task') return
+    if (createStep !== 'intro') return
+    setCreateStep('detail')
+  }, [isCreateFlow, createIntroExpanded, createTypeSelected, createStep])
+
+  useEffect(() => {
+    if (!visible) return
+    if (isCreateFlow && createStep === 'detail') {
+      Keyboard.dismiss()
+    }
+  }, [visible, isCreateFlow, createStep])
+
+  useEffect(() => {
+    if (repeatMode !== 'weekly') {
+      setRepeatWeekdays([])
+    }
+  }, [repeatMode])
+
+  const applyCreateTypeSelection = (value: 'event' | 'task') => {
+    setCreateTypeSelected(value)
+    const defaultLabel = labels.find((l) => l.title === (value === 'task' ? '할 일' : '일정'))
+    setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
+    if (value === 'task' && !taskDate) {
+      setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
+      initialTaskDateSeededRef.current = true
+    }
+  }
 
   const deleteNormal = async () => {
     try {
@@ -1554,31 +1643,29 @@ export default function EventDetailPopup({
                     <ScrollView
                       style={{ flex: 1 }}
                       contentContainerStyle={{ paddingBottom: 0 }}
-                      keyboardShouldPersistTaps="handled"
+                      keyboardShouldPersistTaps="always"
                       showsVerticalScrollIndicator={false}
                     >
                       <CreateModeTypeStep
                         title={scheduleTitle}
                         onChangeTitle={setScheduleTitle}
+                        onSubmitTitle={() => {
+                          if (scheduleTitle.trim().length === 0) return
+                          setSuppressIntroAutoFocus(false)
+                          setCreateIntroExpanded(true)
+                        }}
+                        autoFocusTitle={!suppressIntroAutoFocus}
+                        showOptions
                         colors={COLORS}
                         selectedColorIndex={selectedSlot}
                         onSelectColorIndex={setSelectedSlot}
                         selectedType={createTypeSelected}
                         onSelectType={(value) => {
-                          setCreateTypeSelected(value)
-                          const defaultLabel = labels.find((l) =>
-                            l.title === (value === 'task' ? '할 일' : '일정'),
-                          )
-                          setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
-                          if (value === 'task' && !taskDate) {
-                            setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
-                          }
-                          if (value === 'task') {
-                            setCreateStep('detail')
-                          }
+                          applyCreateTypeSelection(value)
+                          setSuppressIntroAutoFocus(false)
                         }}
                       />
-                      {createTypeSelected === 'event' && (
+                      {createIntroExpanded && createTypeSelected === 'event' && (
                         <CreateEventDateStep
                           start={start}
                           end={end}
@@ -1586,7 +1673,11 @@ export default function EventDetailPopup({
                             setStart(nextStart)
                             setEnd(nextEnd)
                           }}
-                          onNext={() => setCreateStep('detail')}
+                          onNext={() => {
+                            Keyboard.dismiss()
+                            setSuppressIntroAutoFocus(true)
+                            setCreateStep('detail')
+                          }}
                         />
                       )}
                     </ScrollView>
@@ -1612,36 +1703,70 @@ export default function EventDetailPopup({
                       selectedType={mode === 'edit' ? 'event' : createTypeSelected}
                       onSelectType={(value) => {
                         if (mode === 'edit') return
-                        setCreateTypeSelected(value)
-                        const defaultLabel = labels.find((l) =>
-                          l.title === (value === 'task' ? '할 일' : '일정'),
-                        )
-                        setSelectedLabelIds(defaultLabel ? [defaultLabel.id] : [])
-                        if (value === 'task' && !taskDate) {
-                          setTaskDate(new Date(start.getFullYear(), start.getMonth(), start.getDate()))
-                        }
+                        applyCreateTypeSelection(value)
                       }}
                       start={start}
                       end={end}
+                      endDisplay={invalidEndPreview}
                       onPressDateBox={() => {
                         if (mode === 'edit') {
                           setEditDatePicking(true)
                           return
                         }
                         setCreateTypeSelected('event')
+                        setSuppressIntroAutoFocus(true)
+                        setCreateIntroExpanded(true)
                         setCreateStep('intro')
                       }}
                       onChangeStartTime={(next) => {
+                        const isTask = createTypeSelected === 'task'
+                        if (isTask) {
+                          const baseDate = taskDate ?? start
+                          const nextStart = new Date(baseDate)
+                          nextStart.setHours(next.getHours(), next.getMinutes(), 0, 0)
+                          const nextEnd = new Date(nextStart)
+                          nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
+                          setStart(nextStart)
+                          setEnd(nextEnd)
+                          setInvalidEndTime(nextEnd.getTime() < nextStart.getTime())
+                          setInvalidEndPreview(nextEnd.getTime() < nextStart.getTime() ? nextEnd : null)
+                          return
+                        }
                         setStart(next)
+                        setInvalidEndTime(false)
+                        setInvalidEndPreview(null)
                         if (end.getTime() < next.getTime()) {
-                          const autoEnd = new Date(next)
-                          autoEnd.setHours(next.getHours() + 1)
+                          const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                          const autoEnd = buildAutoEndForEvent(next, allowNextDay)
                           setEnd(autoEnd)
                         }
                       }}
-                      onChangeEndTime={setEnd}
+                      onChangeEndTime={(next) => {
+                        const isTask = createTypeSelected === 'task'
+                        const nextEnd = isTask
+                          ? (() => {
+                              const aligned = new Date(taskDate ?? start)
+                              aligned.setHours(next.getHours(), next.getMinutes(), 0, 0)
+                              return aligned
+                            })()
+                          : next
+                        if (nextEnd.getTime() < start.getTime()) {
+                          setInvalidEndTime(true)
+                          setInvalidEndPreview(nextEnd)
+                          return
+                        }
+                        setInvalidEndTime(false)
+                        setInvalidEndPreview(null)
+                        setEnd(nextEnd)
+                      }}
+                      invalidEndTime={invalidEndTime}
                       timeOn={timeOn}
+                      timeDisabled={createTypeSelected === 'task' && !taskDate}
                       onToggleTime={(next) => {
+                        if (createTypeSelected === 'task' && !taskDate && next) {
+                          Alert.alert('시간 설정 불가', '날짜를 먼저 설정해주세요.')
+                          return
+                        }
                         setTimeOn(next)
                         if (next) {
                           const now = new Date()
@@ -1655,9 +1780,22 @@ export default function EventDetailPopup({
                           setStart(newStart)
 
                           const newEnd = new Date(newStart)
-                          newEnd.setHours(newStart.getHours() + 1)
+                          if (createTypeSelected === 'task') {
+                            newEnd.setHours((newStart.getHours() + 1) % 24, newStart.getMinutes(), 0, 0)
+                            const wrappedPastMidnight = newEnd.getTime() < newStart.getTime()
+                            setInvalidEndTime(wrappedPastMidnight)
+                            setInvalidEndPreview(wrappedPastMidnight ? newEnd : null)
+                          } else {
+                            const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                            const autoEnd = buildAutoEndForEvent(newStart, allowNextDay)
+                            newEnd.setTime(autoEnd.getTime())
+                            setInvalidEndTime(false)
+                            setInvalidEndPreview(null)
+                          }
                           setEnd(newEnd)
                         } else {
+                          setInvalidEndTime(false)
+                          setInvalidEndPreview(null)
                           setRemindOn(false)
                           setRemindOpen(false)
                           setCustomOpen(false)
@@ -1669,6 +1807,7 @@ export default function EventDetailPopup({
                         if (!next) {
                           setEndMode('none')
                           setRepeatEndDate(null)
+                          setRepeatWeekdays([])
                         }
                       }}
                       repeatMode={repeatMode}
@@ -1679,6 +1818,8 @@ export default function EventDetailPopup({
                       onChangeRepeatEvery={setRepeatEvery}
                       onChangeRepeatUnit={setRepeatUnit}
                       onChangeMonthlyOpt={setMonthlyOpt}
+                      repeatWeekdays={repeatWeekdays}
+                      onChangeRepeatWeekdays={setRepeatWeekdays}
                       repeatEndDate={endMode === 'date' ? repeatEndDate : null}
                       onChangeRepeatEndDate={(next) => {
                         if (!next) {
@@ -1690,7 +1831,15 @@ export default function EventDetailPopup({
                         setRepeatEndDate(next)
                       }}
                       remindOn={remindOn}
+                      remindDisabled={!timeOn}
                       onToggleRemind={(next) => {
+                        if (next && !timeOn) {
+                          setRemindOn(false)
+                          setRemindOpen(false)
+                          setCustomOpen(false)
+                          Alert.alert('알림 설정 불가', '시간을 먼저 설정해주세요.')
+                          return
+                        }
                         if (!next) {
                           setRemindOn(false)
                           setRemindOpen(false)
@@ -1743,7 +1892,18 @@ export default function EventDetailPopup({
                       onChangeSelectedLabelIds={setSelectedLabelIds}
                       onCreateLabel={handleCreateLabel}
                       taskDate={taskDate}
-                      onChangeTaskDate={setTaskDate}
+                      onChangeTaskDate={(next) => {
+                        setTaskDate(next)
+                        if (next) return
+                        setTimeOn(false)
+                        setInvalidEndTime(false)
+                        setInvalidEndPreview(null)
+                        setRemindOn(false)
+                        setRemindOpen(false)
+                        setCustomOpen(false)
+                        setTaskDueOn(false)
+                        setTaskDueDate(null)
+                      }}
                       taskDueOn={taskDueOn}
                       onChangeTaskDueOn={setTaskDueOn}
                       taskDueDate={taskDueDate}
@@ -2090,9 +2250,8 @@ export default function EventDetailPopup({
                           newStart.setMinutes(snapMin)
                           setStart(newStart)
 
-                          const newEnd = new Date(end)
-                          newEnd.setHours(newStart.getHours() + 1)
-                          newEnd.setMinutes(newStart.getMinutes())
+                          const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                          const newEnd = buildAutoEndForEvent(newStart, allowNextDay)
                           setEnd(newEnd)
                         } else {
                           setOpenTime(false)
@@ -2795,6 +2954,28 @@ export default function EventDetailPopup({
                 </View>
               </View>
             )}
+            {labelRequiredOpen && (
+              <View style={styles.deleteOverlay}>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={() => setLabelRequiredOpen(false)}
+                />
+                <View style={styles.deleteCard}>
+                  <Text style={styles.deleteTitle}>라벨을 선택해주세요</Text>
+                  <Text style={styles.deleteDesc}>
+                    라벨이 없으면 저장할 수 없어요.
+                  </Text>
+                  <View style={styles.deleteRow}>
+                    <Pressable
+                      style={[styles.deleteActionBtn, styles.deleteConfirmBtn]}
+                      onPress={() => setLabelRequiredOpen(false)}
+                    >
+                      <Text style={styles.deleteConfirmTxt}>확인</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            )}
       </Modal>
     </>
   )
@@ -2882,6 +3063,13 @@ const styles = StyleSheet.create({
     ...ts('label1'),
     fontWeight: '700',
     color: colors.text.text1,
+  },
+  deleteDesc: {
+    ...ts('body3'),
+    color: colors.text.text2,
+    textAlign: 'center',
+    marginTop: -12,
+    marginBottom: 4,
   },
   deleteRow: {
     width: 302,

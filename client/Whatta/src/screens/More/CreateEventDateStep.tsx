@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { View, Text, Pressable, StyleSheet, Keyboard } from 'react-native'
 import PagerView from 'react-native-pager-view'
 import { Picker } from '@react-native-picker/picker'
 
@@ -58,6 +58,7 @@ export default function CreateEventDateStep({
   const [pickMonth, setPickMonth] = useState(start.getMonth() + 1)
 
   const onSelectDate = (picked: Date) => {
+    Keyboard.dismiss()
     const d = startOfDay(picked)
     const s0 = startOfDay(start)
     const e0 = startOfDay(end)

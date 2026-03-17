@@ -4,8 +4,8 @@ import {
   Text,
   Modal,
   StyleSheet,
+  Pressable,
   TouchableOpacity,
-  TouchableWithoutFeedback,
 } from 'react-native'
 import { CalendarList, LocaleConfig, DateData } from 'react-native-calendars'
 import { Picker } from '@react-native-picker/picker'
@@ -16,12 +16,19 @@ import X from '@/assets/icons/x.svg'
 import { ts } from '@/styles/typography'
 
 const CALENDAR_WIDTH = 358
-const CALENDAR_HEIGHT = 286
-const CALENDAR_HEIGHT_SIX_WEEKS = 312
+const CALENDAR_HEIGHT_FOUR_WEEKS = 214
+const CALENDAR_HEIGHT_FIVE_WEEKS = 256
+const CALENDAR_HEIGHT_SIX_WEEKS = 305
 const MODAL_MAX_HEIGHT = 390
 const ACTIONS_BOTTOM_OFFSET = 19
 const MODAL_ACTIONS_HEIGHT = 56
 const DAY_CELL_SIZE = 36
+const DAY_TEXT_STYLE = {
+  width: DAY_CELL_SIZE,
+  textAlign: 'center' as const,
+  textAlignVertical: 'center' as const,
+  includeFontPadding: false as const,
+}
 
 LocaleConfig.locales.ko = {
   monthNames: [
@@ -87,7 +94,7 @@ export default function CalendarModal({
   pickerActionsLift = 0,
   autoConfirmOnDayPress = false,
   showCalendarActions = true,
-  pickerContentHeight = CALENDAR_HEIGHT,
+  pickerContentHeight = CALENDAR_HEIGHT_FIVE_WEEKS,
   modalTopOffset = 110,
 }: Props) {
   const safeCurrentDate =
@@ -161,6 +168,61 @@ export default function CalendarModal({
     onClose()
   }, [autoConfirmOnDayPress, onSelectDate, onClose])
 
+  const renderDayComponent = useCallback(
+    ({ date, state, marking }: any) => {
+      const iso = date?.dateString
+      const label = date?.day != null ? String(date.day) : ''
+      const isSelected = !!marking?.selected
+      const isToday = !!marking?.today
+      const isDisabled = state === 'disabled'
+      const isInactive = state === 'inactive'
+      const textColor = isSelected
+        ? marking?.selectedTextColor ?? colors.text.text1
+        : isToday
+        ? colors.brand.primary
+        : isInactive || isDisabled
+        ? '#C4C7CC'
+        : colors.text.text1
+
+      return (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={CalendarDayStyles.touch}
+          onPress={() => {
+            if (!iso) return
+            handleDayPress({
+              dateString: iso,
+              day: date?.day ?? 1,
+              month: date?.month ?? pickMonth,
+              year: date?.year ?? pickYear,
+              timestamp: date?.timestamp ?? 0,
+            })
+          }}
+        >
+          <View
+            style={[
+              CalendarDayStyles.cell,
+              isSelected ? CalendarDayStyles.cellSelected : null,
+            ]}
+          >
+            <Text
+              allowFontScaling={false}
+              style={[
+                CalendarDayStyles.text,
+                { color: textColor },
+                isToday ? CalendarDayStyles.textToday : null,
+                isSelected ? CalendarDayStyles.textSelected : null,
+              ]}
+            >
+              {label}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )
+    },
+    [handleDayPress, pickMonth, pickYear],
+  )
+
   // 마킹 로직: 오늘 + 현재 선택된 날짜
   const markedDates = useMemo(() => {
     const todayStr = todayISO()
@@ -212,13 +274,15 @@ export default function CalendarModal({
   }, [selectedDate, onSelectDate, onClose])
 
   const openYM = () => setYmVisible(true)
-  const isSixWeekMonth = useMemo(
-    () => getWeeksInMonth(pickYear, pickMonth) >= 6,
+  const weekCount = useMemo(
+    () => getWeeksInMonth(pickYear, pickMonth),
     [pickYear, pickMonth],
   )
-  const displayedCalendarHeight = isSixWeekMonth
-    ? CALENDAR_HEIGHT_SIX_WEEKS
-    : CALENDAR_HEIGHT
+  const displayedCalendarHeight = useMemo(() => {
+    if (weekCount >= 6) return CALENDAR_HEIGHT_SIX_WEEKS
+    if (weekCount === 4) return CALENDAR_HEIGHT_FOUR_WEEKS
+    return CALENDAR_HEIGHT_FIVE_WEEKS
+  }, [weekCount])
   const isCompactHeaderModal = !showCalendarActions
   const appliedCalendarHeight = showCalendarActions
     ? Math.min(MODAL_MAX_HEIGHT, displayedCalendarHeight + MODAL_ACTIONS_HEIGHT + 32)
@@ -256,16 +320,14 @@ export default function CalendarModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={[S.centeredView, { marginTop: modalTopOffset }]}>
-          <View
-            style={[
-              S.modalView,
-              !ymVisible && { height: appliedCalendarHeight },
-            ]}
-            onStartShouldSetResponder={() => true}
-            onTouchEnd={(e) => e.stopPropagation()}
-          >
+      <View style={[S.centeredView, { marginTop: modalTopOffset }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View
+          style={[
+            S.modalView,
+            !ymVisible && { height: appliedCalendarHeight },
+          ]}
+        >
             <View style={[S.contentColumn, !ymVisible && S.contentColumnCalendar]}>
               {!isMonthPickerMode && renderExternalHeader()}
 
@@ -375,6 +437,7 @@ export default function CalendarModal({
                     renderHeader={() => null}
                     markedDates={markedDates}
                     onDayPress={handleDayPress}
+                    dayComponent={renderDayComponent}
                     onVisibleMonthsChange={handleVisibleMonthsChange}
                     showScrollIndicator={false}
                     viewabilityConfig={{
@@ -390,6 +453,8 @@ export default function CalendarModal({
                             color: colors.text.text1,
                             marginBottom: 1,
                             textAlign: 'center',
+                            textAlignVertical: 'center',
+                            includeFontPadding: false,
                           },
                           dayTextAtIndex0: { color: colors.text.monday },
                         },
@@ -411,16 +476,20 @@ export default function CalendarModal({
                             height: DAY_CELL_SIZE,
                             justifyContent: 'center',
                             alignItems: 'center',
+                            alignSelf: 'center',
+                            paddingVertical: 0,
                           },
                           selectedText: {
                             fontWeight: '500',
                             color: colors.text.text1,
                             zIndex: 2,
+                            ...DAY_TEXT_STYLE,
                           },
                           todayText: {
                             fontWeight: '700',
                             color: colors.brand.primary,
                             zIndex: 2,
+                            ...DAY_TEXT_STYLE,
                           },
                           selected: {
                             borderRadius: 12,
@@ -430,7 +499,11 @@ export default function CalendarModal({
                             alignItems: 'center',
                             zIndex: 1,
                           },
-                          dayText: { color: colors.text.text1, zIndex: 2 },
+                          dayText: {
+                            color: colors.text.text1,
+                            zIndex: 2,
+                            ...DAY_TEXT_STYLE,
+                          },
                         },
                       } as any
                     }
@@ -455,10 +528,8 @@ export default function CalendarModal({
                 </TouchableOpacity>
               </View>
             )}
-
-          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   )
 }
@@ -500,7 +571,44 @@ const S = StyleSheet.create({
     width: CALENDAR_WIDTH,
     alignSelf: 'center',
     overflow: 'hidden',
-    height: CALENDAR_HEIGHT,
+    height: CALENDAR_HEIGHT_FIVE_WEEKS,
+    justifyContent: 'center',
+  },
+})
+
+const CalendarDayStyles = StyleSheet.create({
+  touch: {
+    width: DAY_CELL_SIZE,
+    height: DAY_CELL_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cell: {
+    width: DAY_CELL_SIZE,
+    height: DAY_CELL_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  cellSelected: {
+    backgroundColor: '#B04FFF1A',
+  },
+  text: {
+    width: DAY_CELL_SIZE,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    lineHeight: DAY_CELL_SIZE,
+    fontSize: ts('date1').fontSize,
+    fontWeight: ts('date1').fontWeight,
+    fontFamily: 'SF Pro',
+    letterSpacing: ts('date1').letterSpacing,
+  },
+  textToday: {
+    fontWeight: '700',
+  },
+  textSelected: {
+    fontWeight: '500',
   },
 })
 

@@ -4,7 +4,7 @@ export interface TaskDTO {
   id: string
   title: string
   content?: string
-  labels?: number[]
+  labels?: number[] | null
   completed?: boolean
 
   placementDate?: string | null
@@ -15,7 +15,7 @@ export interface TaskDTO {
 export interface CreateTaskPayload {
   title: string
   content?: string
-  labels?: number[]
+  labels?: number[] | null
   placementDate?: string | null
   placementTime?: string | null
   reminderNoti?: any | null
@@ -25,7 +25,7 @@ export interface CreateTaskPayload {
 export interface UpdateTaskPayload {
   title?: string
   content?: string
-  labels?: number[]
+  labels?: number[] | null
   completed?: boolean
 
   placementDate?: string | null
