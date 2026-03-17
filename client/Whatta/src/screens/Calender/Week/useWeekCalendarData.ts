@@ -120,47 +120,7 @@ export function useWeekCalendarData(http: HttpClient) {
           }
         })
 
-        setWeekData((prev: WeekData) => {
-          const merged: WeekData = {}
-
-          for (const [d, bucket] of Object.entries(next)) {
-            const prevBucket = prev[d]
-            const nextBucket = bucket as DayBucket
-
-            if (!prevBucket) {
-              merged[d] = nextBucket
-              continue
-            }
-
-            const mergedChecks = nextBucket.checks.map((c) => {
-              const old = prevBucket.checks.find((p) => p.id === c.id)
-              return old ? { ...c, done: old.done } : c
-            })
-
-            const mergedSpans = nextBucket.spanEvents.map((s: any) => {
-              const old = prevBucket.spanEvents.find(
-                (p: any) => String(p.id) === String(s.id),
-              )
-              return old ? { ...s, done: old.done } : s
-            })
-
-            const mergedTimedTasks = nextBucket.timedTasks.map((t: any) => {
-              const old = prevBucket.timedTasks.find(
-                (p: any) => String(p.id) === String(t.id),
-              )
-              return old ? { ...t, completed: old.completed } : t
-            })
-
-            merged[d] = {
-              ...nextBucket,
-              checks: mergedChecks,
-              spanEvents: mergedSpans,
-              timedTasks: mergedTimedTasks,
-            }
-          }
-
-          return merged
-        })
+        setWeekData(next)
       } catch (err) {
         console.error('❌ 주간 일정 불러오기 실패:', err)
       } finally {

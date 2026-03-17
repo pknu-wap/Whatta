@@ -91,6 +91,8 @@ const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 // 겹침(반분할) 카드 폭 튜닝: + 넓어지고, - 좁아진다
 const OVERLAP_WIDTH_TUNE = 1.4
 const OVERLAP_TEXT_VISIBLE_MAX = 4
+// 최소 너비 - 할일 상세 팝업 여는 
+const TASK_DETAIL_SPLIT_MIN_WIDTH = 56
 const BOTTOM_ITEM_SIDE_INSET = 2 - OVERLAP_WIDTH_TUNE
 const TASK_GROUP_WIDTH_OFFSET = 4 - OVERLAP_WIDTH_TUNE * 2
 const EVENT_OVERLAP_GAP = 1.5 - OVERLAP_WIDTH_TUNE
@@ -519,6 +521,8 @@ function DraggableTaskBox({
   const taskLeft = slotWidth * column + BOTTOM_ITEM_SIDE_INSET
   // 슬롯 밖으로 넘치지 않도록 좌우 inset 기준으로 폭을 고정
   const taskWidth = Math.max(4, slotWidth - BOTTOM_ITEM_SIDE_INSET * 2)
+  const canSplitTaskPress =
+    taskWidth >= TASK_DETAIL_SPLIT_MIN_WIDTH && columnsTotal <= OVERLAP_TEXT_VISIBLE_MAX
 
   // 이 Task 박스의 기본 글로벌 left (시간열 기준)
   const baseGlobalLeft = TIME_COL_W + dayIndex * dayColWidth + taskLeft
@@ -659,6 +663,7 @@ function DraggableTaskBox({
           density="week"
           hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={taskWidth}
+          disableContainerPress={canSplitTaskPress}
           style={{ flex: 1, minHeight: 0, height: '100%' }}
           onPress={() => {
             if (!isActiveDrag.value) openDetail(id)
@@ -1794,7 +1799,7 @@ const S = StyleSheet.create({
   },
   weekHeaderWeekday: {
     ...ts('date3'),
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 500,
     color: colors.text.text2,
     marginBottom: 4,
@@ -1981,7 +1986,7 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: colors.primary.main,
+    backgroundColor: colors.icon.selected,
     borderRadius: 1,
     zIndex: 50,
   },
@@ -1991,7 +1996,7 @@ const S = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: colors.primary.main,
+    backgroundColor: colors.icon.selected,
     zIndex: 31,
   },
 

@@ -202,6 +202,7 @@ export default function MonthlyDetailPopup({
     if (task.id == null) return
     const id = String(task.id)
     const nextDone = !(taskDoneMap[id] ?? !!task.done)
+    const targetDateISO = String(dayData.dateISO ?? '').slice(0, 10)
 
     setTaskDoneMap((prev) => ({ ...prev, [id]: nextDone }))
 
@@ -209,7 +210,14 @@ export default function MonthlyDetailPopup({
       await http.patch(`/task/${id}`, { completed: nextDone })
       bus.emit('calendar:mutated', {
         op: 'update',
-        item: { id, isTask: true, isCompleted: nextDone },
+        item: {
+          id,
+          isTask: true,
+          isCompleted: nextDone,
+          date: targetDateISO,
+          startDate: targetDateISO,
+          placementDate: targetDateISO,
+        },
       })
     } catch (e) {
       console.error('Task toggle failed:', e)
