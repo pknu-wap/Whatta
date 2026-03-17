@@ -59,6 +59,7 @@ function WeekHeaderSpan({
   spanScrollRef,
   weekDates,
   todayISO,
+  selectedDateISO,
   dayColWidth,
   timeColWidth,
   singleHeight,
@@ -78,8 +79,9 @@ function WeekHeaderSpan({
   onHeaderTimeColLayout,
 }: WeekHeaderSpanProps) {
   const todayDate = parseDate(todayISO)
-  const firstDateOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
-  const weekOfMonth = Math.ceil((firstDateOfMonth.getDay() + todayDate.getDate()) / 7)
+  const visibleDate = parseDate(selectedDateISO)
+  const firstDateOfMonth = new Date(visibleDate.getFullYear(), visibleDate.getMonth(), 1)
+  const weekOfMonth = Math.ceil((firstDateOfMonth.getDay() + visibleDate.getDate()) / 7)
   const targetPillWidth = weekDates.length === 5 ? 61.6 : weekDates.length === 7 ? 44 : 44
   const datePillWidth = Math.min(targetPillWidth, dayColWidth)
 
@@ -116,7 +118,9 @@ function WeekHeaderSpan({
             }}
           >
             <Text style={styles.weekHeaderBigDate}>{todayDate.getDate()}일</Text>
-            <Text style={styles.weekHeaderWeekday}>({weekOfMonth}주차)</Text>
+            <Text style={styles.weekHeaderWeekday}>
+              {visibleDate.getMonth() + 1}월 {weekOfMonth}주차
+            </Text>
           </View>
           {weekDates.map((d) => {
             const dt = parseDate(d)

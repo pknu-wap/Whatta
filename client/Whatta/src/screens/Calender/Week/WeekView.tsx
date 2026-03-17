@@ -659,7 +659,7 @@ function DraggableTaskBox({
           density="week"
           hideText={columnsTotal > OVERLAP_TEXT_VISIBLE_MAX}
           layoutWidthHint={taskWidth}
-          style={{ flex: 1, minHeight: 0, height: '100%', marginVertical: 1 }}
+          style={{ flex: 1, minHeight: 0, height: '100%' }}
           onPress={() => {
             if (!isActiveDrag.value) openDetail(id)
           }}
@@ -714,7 +714,7 @@ type DraggableFlexalbeEventProps = {
   weekDates: string[]
   dayIndex: number
   rowH: number
-  openEventDetail: (id: string) => void
+  openEventDetail: (id: string, occDate?: string) => void
   isRepeat?: boolean
 }
 
@@ -770,6 +770,11 @@ function DraggableFlexalbeEvent({
     prevRowHRef.current = rowH
   }, [startMin, endMin, rowH])
 
+  const resetDragPosition = useCallback(() => {
+    translateY.value = withSpring(0)
+    translateX.value = withTiming(0, { duration: 140 })
+  }, [translateX, translateY])
+
   const handleDrop = useCallback(
     async (movedY: number, dayOffset: number) => {
       try {
@@ -814,7 +819,10 @@ function DraggableFlexalbeEvent({
         // 이벤트가 반복일 경우에만 선택창 띄우기
         if (isRepeatEvent(eventData)) {
           const choice = await askRepeatAction()
-          if (choice === 'cancel') return // 취소 시 아무것도 안 함
+          if (choice === 'cancel') {
+            resetDragPosition()
+            return
+          }
           applyMode = choice
         }
 
@@ -835,10 +843,11 @@ function DraggableFlexalbeEvent({
           },
         })
       } catch (err: any) {
+        resetDragPosition()
         console.error('❌ 이벤트 이동 실패:', err.message)
       }
     },
-    [id, startMin, endMin, dateISO, durationMin, pixelsPerMin, rowH, translateY],
+    [id, startMin, endMin, dateISO, durationMin, pixelsPerMin, rowH, translateY, resetDragPosition],
   )
 
   const longPress = Gesture.LongPress()
@@ -972,7 +981,7 @@ function DraggableFlexalbeEvent({
           layoutWidthHint={width}
           style={{ minHeight: 0, height: '100%' }}
           onPress={() => {
-            if (!isActiveDrag.value) openEventDetail(id)
+            if (!isActiveDrag.value) openEventDetail(id, dateISO)
           }}
         />
       </Animated.View>

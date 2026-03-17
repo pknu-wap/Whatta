@@ -41,7 +41,13 @@ function TaskItemCard({
   const isWeekVertical = isWeekTimed && resolvedWidth > 0 && resolvedWidth <= WEEK_VERTICAL_WIDTH_THRESHOLD
   const displayTitle = isWeekVertical ? title.replace(/\s+/g, '').split('').join('\n') : title
   const fixedHeight = isMonth ? d.minHeight : density === 'week' && isUntimed ? 26 : isUntimed ? 30 : undefined
-  const titleLines = isWeekVertical ? 6 : isMonth || isUntimed ? 1 : isWeekTimedNarrow || isNarrow ? 2 : 1
+  const titleLines = isWeekVertical
+    ? undefined
+    : isMonth || isUntimed
+      ? 1
+      : isWeekTimedNarrow || isNarrow
+        ? 2
+        : 1
   const minCardHeight = fixedHeight ?? d.minHeight
   const canToggle = !!onToggle
   const canPress = !!onPress
@@ -83,11 +89,11 @@ function TaskItemCard({
           height: fixedHeight,
           paddingLeft: leadingPad,
           paddingRight: trailingPad,
-          paddingVertical: fixedHeight ? 0 : d.padY,
+          paddingVertical: isWeekVertical || fixedHeight ? 0 : d.padY,
           borderRadius: isMonth || isUntimed ? 8 : isWeekVertical ? WEEK_VERTICAL_RADIUS : 10,
           flexDirection: isWeekVertical ? 'column' : 'row',
           alignItems: 'center',
-          justifyContent: isWeekVertical ? 'center' : 'flex-start',
+          justifyContent: 'flex-start',
         },
         style,
       ]}
@@ -105,7 +111,7 @@ function TaskItemCard({
                 width: iconSize,
                 height: iconSize,
                 marginRight: isWeekVertical ? 0 : checkboxGap,
-                marginBottom: isWeekVertical ? 2 : 0,
+                marginBottom: isWeekVertical ? 0 : 0,
               },
             ]}
           >
@@ -208,12 +214,14 @@ const S = StyleSheet.create({
     justifyContent: 'center',
   },
   titleWrapVertical: {
-    flex: 0,
+    flex: 1,
     minWidth: undefined,
     alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   titleVertical: {
-    lineHeight: 14,
+    lineHeight: 16,
+    includeFontPadding: true,
   },
   titleDone: {
     color: colors.text.text1,
