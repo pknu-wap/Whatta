@@ -22,6 +22,7 @@ function TaskItemCard({
   style,
   onPress,
   onToggle,
+  disableContainerPress = false,
 }: TaskItemCardProps) {
   // 부모가 준 실제 width를 읽어서 tiny(<=30) 여부를 판단한다.
   const [layoutWidth, setLayoutWidth] = React.useState(0)
@@ -77,9 +78,9 @@ function TaskItemCard({
 
   return (
     <Pressable
-      disabled={!onPress}
+      disabled={!onPress || disableContainerPress}
       onLayout={layoutWidthHint == null ? handleLayout : undefined}
-      onPress={onPress}
+      onPress={disableContainerPress ? undefined : onPress}
       style={[
         S.wrap,
         {

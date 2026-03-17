@@ -10,7 +10,7 @@ import Animated, {
 import { TouchableWithoutFeedback } from 'react-native'
 import { ts } from '@/styles/typography'
 
-import Plus from '@/assets/icons/plus.svg'
+import Plus from '@/assets/icons/fab-main.svg'
 import PlusShedule from '@/assets/icons/plusSchedule.svg'
 import PlusImage from '@/assets/icons/plusScan.svg'
 import PlusTask from '@/assets/icons/plusTask.svg'

@@ -59,6 +59,7 @@ export type TaskItemCardProps = {
   style?: any
   onPress?: CalendarItemPressHandler
   onToggle?: (id: string, nextDone: boolean) => void
+  disableContainerPress?: boolean
 }
 
 export type TaskGroupCardProps = {

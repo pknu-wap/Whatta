@@ -22,7 +22,6 @@ import PillMonthIcon from '@/assets/icons/pill_month.svg'
 import PiliWeekIcon from '@/assets/icons/pili_week.svg'
 import PillDayIcon from '@/assets/icons/pill_day.svg'
 import PillMypageIcon from '@/assets/icons/pill_mypage.svg'
-import TaskIcon from '@/assets/icons/task.svg'
 import colors from '@/styles/colors'
 
 const TAB_BAR_H = 83

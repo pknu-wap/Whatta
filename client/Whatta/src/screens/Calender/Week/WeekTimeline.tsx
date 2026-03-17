@@ -233,14 +233,17 @@ function WeekTimeline({
               }
 
               const dayVisualBlocks: DayVisualBlock[] = [
-                ...layoutEvents.map((ev, i) => ({
-                  kind: 'event' as const,
-                  key: `event-${ev.id}-${i}`,
-                  startMin: ev.startMin,
-                  endMin: ev.endMin,
-                  event: ev,
-                })),
-                ...taskBlocks,
+                ...layoutEvents.map(
+                  (ev, i) =>
+                    ({
+                      kind: 'event',
+                      key: `event-${ev.id}-${i}`,
+                      startMin: ev.startMin,
+                      endMin: ev.endMin,
+                      event: ev,
+                    }) as DayVisualBlock,
+                ),
+                ...taskBlocks.map((block) => block as DayVisualBlock),
               ]
               const layoutedDayBlocks = layoutDayVisualBlocks(dayVisualBlocks)
 
