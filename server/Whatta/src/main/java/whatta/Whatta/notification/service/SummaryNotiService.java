@@ -25,22 +25,15 @@ public class SummaryNotiService {
             return;
         }
 
-        List<UserSetting> toUpdate = legacySettings.stream()
+        long updatedCount = legacySettings.stream()
                 .filter(setting -> setting.getScheduleSummaryNoti() != null)
                 .filter(setting -> setting.getScheduleSummaryNoti().getTime() != null)
-                .map(setting -> setting.toBuilder()
-                        .scheduleSummaryNoti(setting.getScheduleSummaryNoti().toBuilder()
-                                .minuteOfDay(toMinuteOfDay(setting.getScheduleSummaryNoti().getTime()))
-                                .build())
-                        .build())
-                .toList();
+                .mapToLong(setting -> userSettingRepository.updateSummaryMinuteOfDayIfMissing(
+                        setting.getId(), toMinuteOfDay(setting.getScheduleSummaryNoti().getTime()
+                )))
+                .sum();
 
-        if (toUpdate.isEmpty()) {
-            return;
-        }
-
-        userSettingRepository.saveAll(toUpdate);
-        log.info("Summary minuteOfDay backfill completed. updated={}", toUpdate.size());
+        log.info("Summary minuteOfDay backfill completed. updated={}", updatedCount);
     }
 
     public List<ScheduleSummaryNotiSlim> getActiveSummaryToSend(LocalTime localTime) {

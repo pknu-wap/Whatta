@@ -20,4 +20,8 @@ public interface UserSettingRepository extends MongoRepository<UserSetting, Stri
     @Update("{ '$set':  {'scheduleSummaryNoti.enabled':  false}}")
     void disableScheduleSummaryNotificationByUserId(String userId);
 
+    @Query("{'_id':  ?0, 'scheduleSummaryNoti.minuteOfDay':  null, 'scheduleSummaryNoti.time': { '$ne': null }}")
+    @Update("{'$set':  {'scheduleSummaryNoti.minuteOfDay':  ?1}}")
+    long updateSummaryMinuteOfDayIfMissing(String id, int minuteOfDay);
+
 }
