@@ -35,7 +35,7 @@ public class ScheduleBlockDetector {
         Mat workBgr = new Mat();
         if (darkMode) {
             bitwise_not(bgrImage, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
-            System.out.println("darkMode");
+            //System.out.println("darkMode");
         } else {
             workBgr = bgrImage.clone();
         }
@@ -58,7 +58,7 @@ public class ScheduleBlockDetector {
         Mat sMask = new Mat();
         threshold(S, sMask, 0, 255, THRESH_BINARY | THRESH_OTSU);
 
-        //V 채널 하한
+        //V채널 하한
         Mat vMask = new Mat();
         double vOtsu = threshold(V, new Mat(), 0, 255, THRESH_BINARY | THRESH_OTSU);
         threshold(V, vMask, Math.max(80, vOtsu * 0.7), 255, THRESH_BINARY);
