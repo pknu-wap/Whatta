@@ -244,7 +244,7 @@ const S = StyleSheet.create({
     height: 1,
     backgroundColor: colors.primary.main,
     borderRadius: 1,
-    zIndex: 10,
+    zIndex: 9999,
   },
 
   liveDot: {
@@ -254,7 +254,7 @@ const S = StyleSheet.create({
     height: 7,
     borderRadius: 5,
     backgroundColor: colors.primary.main,
-    zIndex: 11,
+    zIndex: 9999,
   },
 })
 
