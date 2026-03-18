@@ -19,22 +19,20 @@ public class ScheduleMatcher {
 
         //x, y축 앵커 수집
         Map<String, Integer> weekDayX = extractWeekdayAnchors(ocrTexts);
-        NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY);
-        System.out.println("[hourAnchors] " + hourY);
-
-        int minHour = 0;
-        if (!hourY.isEmpty()) {
-            minHour = hourY.firstKey();
-        }
-        System.out.println("[minHour] " + minHour);
-
+        NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY, weekDayX);
+        //System.out.println("[hourAnchors] " + hourY);
 
         final int headerBandMaxY = computeHeaderBandMaxY(ocrTexts, 80);
+        final int verticalTolerance = computeVerticalTolerance(hourY);
 
         //블록 내부 text 묶기 + 요일/시간 채우기
         List<MatchedScheduleBlock> matches = new ArrayList<>();
         for (DetectedBlock.Block b : blocks.blocks()) {
             Rect r = Rect.fromBlock(b);
+
+            if (isOutsideScheduleBand(r, gridTopY, gridBottomY, headerBandMaxY, verticalTolerance)) {
+                continue;
+            }
 
             List<OcrText> inside = ocrTexts.stream()
                     .filter(f -> r.contains(f.centerX(), f.centerY()))
@@ -46,15 +44,6 @@ public class ScheduleMatcher {
             TimeConverter tConv = TimeConverter.fromAnchors(hourY, 10); //10분 단위로 반올림
             String start = tConv.formatHHmm(tConv.minutesAtY(r.top()));
             String end = tConv.formatHHmm(tConv.minutesAtY(r.bottom()));
-
-            try {
-                int startHour = Integer.parseInt(start.substring(0, 2));
-                if (!hourY.isEmpty() && startHour < minHour) {
-                    continue;
-                }
-            } catch (NumberFormatException ignored) {
-                //포맷이 이상하면 그냥 통과시켜서 기존 로직 유지
-            }
 
             //텍스트만 추출
             List<String> texts = inside.stream()
@@ -136,9 +125,9 @@ public class ScheduleMatcher {
     }
 
     private static Map<String, Integer> extractWeekdayAnchors(List<OcrText> texts) {
-        record Cand(String day, int x, int y) {}
+        record Candidate(String day, int x, int y) {}
 
-        Map<String, Cand> candidate = new HashMap<>();
+        Map<String, Candidate> candidate = new HashMap<>();
         for (OcrText text : texts) {
             String raw = text.text().trim();
             if (!WEEKDAY.matcher(raw).matches()) continue;
@@ -147,9 +136,9 @@ public class ScheduleMatcher {
             int y = text.topY();
             int x = text.centerX();
 
-            Cand c = candidate.get(weekDay);
+            Candidate c = candidate.get(weekDay);
             if ( c == null || y < c.y) { //더  위에 있는 y를 가진 text
-                candidate.put(weekDay, new Cand(weekDay, x, y));
+                candidate.put(weekDay, new Candidate(weekDay, x, y));
             }
         }
 
@@ -157,21 +146,26 @@ public class ScheduleMatcher {
         for (var e : candidate.entrySet()) {
             anchors.put(e.getKey(), e.getValue().x());
         }
-        System.out.println("[weekdayAnchors] " + anchors);  // ex) {월=123, 화=240, 수=360, ...}
+        //System.out.println("[weekdayAnchors] " + anchors);  // ex) {월=123, 화=240, 수=360, ...}
         return anchors;
     }
 
-    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts, int gridTopY, int gridBottomY) {
+    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts, int gridTopY, int gridBottomY, Map<String, Integer> weekDayX) {
+        int leftBoundaryX = firstWeekdayAnchorX(weekDayX);
 
         List<int[]> candidates = new ArrayList<>();
         for (OcrText text : texts) {
             String t = text.text().trim();
             int y = text.topY();
+            int x = text.centerX();
 
             if (y < gridTopY) {
                 continue;
             }
             if (y > gridBottomY) {
+                continue;
+            }
+            if (leftBoundaryX != Integer.MAX_VALUE && leftBoundaryX <= x) {
                 continue;
             }
 
@@ -249,6 +243,53 @@ public class ScheduleMatcher {
             anchors.put(e.getKey(), avg);
         }
         return anchors;
+    }
+
+    private static int firstWeekdayAnchorX(Map<String, Integer> weekDayX) {
+        if (weekDayX == null || weekDayX.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        return weekDayX.values().stream()
+                .mapToInt(Integer::intValue)
+                .min()
+                .orElse(Integer.MAX_VALUE);
+    }
+
+    private static int computeVerticalTolerance(NavigableMap<Integer, Integer> hourY) {
+        if (hourY == null || hourY.size() < 2) {
+            return 20;
+        }
+        Iterator<Integer> it = hourY.values().iterator();
+        int prev = it.next();
+        int minGap = Integer.MAX_VALUE;
+        while (it.hasNext()) {
+            int cur = it.next();
+            int gap = cur - prev;
+            if (gap > 0) {
+                minGap = Math.min(minGap, gap);
+            }
+            prev = cur;
+        }
+        if (minGap == Integer.MAX_VALUE) {
+            return 20;
+        }
+        return Math.max(20, minGap / 3);
+    }
+
+    private static boolean isOutsideScheduleBand(
+            Rect r,
+            int gridTopY,
+            int gridBottomY,
+            int headerBandMaxY,
+            int verticalTolerance
+    ) {
+        if (headerBandMaxY != Integer.MIN_VALUE && r.bottom() <= headerBandMaxY) {
+            return true;
+        }
+        if (r.bottom() < gridTopY - verticalTolerance) {
+            return true;
+        }
+        return r.top() > gridBottomY + verticalTolerance;
     }
 
     private static class Rect {

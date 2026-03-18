@@ -15,10 +15,13 @@ import whatta.Whatta.ocr.util.ScheduleMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 @AllArgsConstructor
 public class OcrService {
+
+    private static final Pattern NUMERIC_ONLY_TITLE = Pattern.compile("^[0-9\\s./%|+\\-]+$");
 
     private final ClovaOcrClient ocrClient;
     private final ScheduleBlockDetector scheduleBlockDetector;
@@ -47,6 +50,9 @@ public class OcrService {
         List<ImageToEventResponse.ImageToEvent> response = new ArrayList<>();
         for(MatchedScheduleBlock block : matches) {
             String[] result = ScheduleBlockMapper.splitTitleAndContent(block.texts());
+            if (isNumericOnlyNoise(result[0], result[1])) {
+                continue;
+            }
             response.add(ImageToEventResponse.ImageToEvent.builder()
                             .title(result[0])
                             .content(result[1])
@@ -58,6 +64,18 @@ public class OcrService {
         return ImageToEventResponse.builder()
                 .events(response)
                 .build();
+    }
+
+    private static boolean isNumericOnlyNoise(String title, String content) {
+        String normalizedTitle = title == null ? "" : title.trim();
+        String normalizedContent = content == null ? "" : content.trim();
+        if (normalizedTitle.isEmpty()) {
+            return false;
+        }
+        if (!normalizedContent.isEmpty()) {
+            return false;
+        }
+        return NUMERIC_ONLY_TITLE.matcher(normalizedTitle).matches();
     }
 
     private static int weekdayIndex(String day) {
