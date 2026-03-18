@@ -286,7 +286,7 @@ public class ScheduleMatcher {
                 minY = Math.min(minY, t.topY());
             }
         }
-        if (minY == Integer.MAX_VALUE) return Integer.MIN_VALUE; //요일 없는 경ㅇ
+        if (minY == Integer.MAX_VALUE) return Integer.MIN_VALUE; //요일 없는 경우
         return minY + Math.max(margin, 0);
     }
 
