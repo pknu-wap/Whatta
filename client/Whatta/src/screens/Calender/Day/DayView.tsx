@@ -1033,6 +1033,8 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
           source="Day"
           mode={taskPopupMode}
           taskId={taskPopupId ?? undefined}
+          initialDate={new Date(`${anchorDate}T00:00:00`)}
+          initialHasDate
           initialTask={taskPopupTask}
           onClose={() => {
             setTaskPopupVisible(false)

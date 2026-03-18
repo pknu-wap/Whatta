@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Animated,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { Easing } from 'react-native'
 import colors from '@/styles/colors'
@@ -120,7 +122,6 @@ export default function MonthlyDetailPopup({
 }: MonthlyDetailPopupProps) {
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current
-  const [isVisible, setIsVisible] = React.useState(visible)
   const [taskDoneMap, setTaskDoneMap] = React.useState<Record<string, boolean>>({})
   const [quickTitle, setQuickTitle] = React.useState('')
   const [quickSaving, setQuickSaving] = React.useState(false)
@@ -131,7 +132,6 @@ export default function MonthlyDetailPopup({
 
   React.useEffect(() => {
     if (visible) {
-      setIsVisible(true)
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -149,20 +149,8 @@ export default function MonthlyDetailPopup({
       return
     }
 
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: ANIM_DURATION,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.96,
-        duration: ANIM_DURATION,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start(() => setIsVisible(false))
+    fadeAnim.setValue(0)
+    scaleAnim.setValue(0.96)
   }, [visible, fadeAnim, scaleAnim])
 
   const spanEvents = dayData.spanEvents ?? []
@@ -214,6 +202,7 @@ export default function MonthlyDetailPopup({
     if (task.id == null) return
     const id = String(task.id)
     const nextDone = !(taskDoneMap[id] ?? !!task.done)
+    const targetDateISO = String(dayData.dateISO ?? '').slice(0, 10)
 
     setTaskDoneMap((prev) => ({ ...prev, [id]: nextDone }))
 
@@ -221,7 +210,14 @@ export default function MonthlyDetailPopup({
       await http.patch(`/task/${id}`, { completed: nextDone })
       bus.emit('calendar:mutated', {
         op: 'update',
-        item: { id, isTask: true, isCompleted: nextDone },
+        item: {
+          id,
+          isTask: true,
+          isCompleted: nextDone,
+          date: targetDateISO,
+          startDate: targetDateISO,
+          placementDate: targetDateISO,
+        },
       })
     } catch (e) {
       console.error('Task toggle failed:', e)
@@ -383,23 +379,31 @@ export default function MonthlyDetailPopup({
 
   const selectCalendarDate = React.useCallback(
     (iso: string) => {
-      bus.emit('calendar:set-date', iso)
       setCalendarVisible(false)
-      onClose()
+      requestAnimationFrame(() => {
+        onClose()
+        requestAnimationFrame(() => {
+          bus.emit('month:detail:navigate', iso)
+        })
+      })
     },
     [onClose],
   )
-
-  if (!isVisible) return null
 
   return (
     <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-      <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
-        <Pressable onPress={(e) => e.stopPropagation()}>
-          <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
-            <View style={S.container}>
+      <KeyboardAvoidingView
+        style={S.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={24}
+        pointerEvents="box-none"
+      >
+        <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
+              <View style={S.container}>
               <View style={S.headerRow}>
                 <Pressable style={S.headerLeft} onPress={() => setCalendarVisible(true)}>
                   <Text style={S.headerText}>{headerTitle}</Text>
@@ -484,10 +488,11 @@ export default function MonthlyDetailPopup({
                   />
                 </View>
               </View>
-            </View>
-          </Animated.View>
-        </Pressable>
-      </Animated.View>
+              </View>
+            </Animated.View>
+          </Pressable>
+        </Animated.View>
+      </KeyboardAvoidingView>
       <CalendarModal
         visible={calendarVisible}
         onClose={() => setCalendarVisible(false)}
@@ -508,6 +513,9 @@ export default function MonthlyDetailPopup({
 }
 
 const S = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: 'center',

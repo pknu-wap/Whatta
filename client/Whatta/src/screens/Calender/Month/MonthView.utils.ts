@@ -145,7 +145,12 @@ export function getEventsForDate(
   const byName = (a: ScheduleData, b: ScheduleData) =>
     (a.name || '').localeCompare(b.name || '')
 
-  singles.sort((a, b) => toMinutes(a) - toMinutes(b) || byName(a, b))
+  singles.sort(
+    (a, b) =>
+      Number(Boolean(b.isRecurring)) - Number(Boolean(a.isRecurring)) ||
+      toMinutes(a) - toMinutes(b) ||
+      byName(a, b),
+  )
   singles.forEach((ev, i) => {
     ev.__lane = firstFreeLane + i
   })

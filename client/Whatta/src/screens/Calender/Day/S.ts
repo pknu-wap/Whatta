@@ -241,20 +241,20 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 50 + 16,
     right: 16,
-    height: 1,
-    backgroundColor: colors.primary.main,
+    height: 2,
+    backgroundColor: colors.icon.selected,
     borderRadius: 1,
-    zIndex: 10,
+    zIndex: 9999,
   },
 
   liveDot: {
     position: 'absolute',
     left: 50 + 16 - 3,
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
     borderRadius: 5,
-    backgroundColor: colors.primary.main,
-    zIndex: 11,
+    backgroundColor: colors.icon.selected,
+    zIndex: 9999,
   },
 })
 

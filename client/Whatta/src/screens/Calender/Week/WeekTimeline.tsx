@@ -46,25 +46,50 @@ type TaskVisualBlock = {
   tasks?: any[]
 }
 
-type LayoutedTaskVisualBlock = TaskVisualBlock & {
+type DayVisualBlock =
+  | {
+      kind: 'event'
+      key: string
+      startMin: number
+      endMin: number
+      event: any
+    }
+  | ({
+      kind: 'single' | 'group'
+      key: string
+      startMin: number
+      endMin: number
+    } & (
+      | {
+          kind: 'single'
+          task: any
+        }
+      | {
+          kind: 'group'
+          tasks: any[]
+        }
+    ))
+
+type LayoutedDayVisualBlock = DayVisualBlock & {
   column: number
   columnsTotal: number
 }
 
-function layoutTaskBlocks(blocks: TaskVisualBlock[]): LayoutedTaskVisualBlock[] {
+function layoutDayVisualBlocks(blocks: DayVisualBlock[]): LayoutedDayVisualBlock[] {
   if (!blocks.length) return []
 
   const sorted = [...blocks].sort((a, b) => {
     if (a.startMin !== b.startMin) return a.startMin - b.startMin
     if (a.endMin !== b.endMin) return a.endMin - b.endMin
+    if (a.kind !== b.kind) return a.kind === 'event' ? -1 : 1
     return a.key.localeCompare(b.key)
   })
 
-  const out: LayoutedTaskVisualBlock[] = []
+  const out: LayoutedDayVisualBlock[] = []
   let i = 0
 
   while (i < sorted.length) {
-    const cluster: TaskVisualBlock[] = [sorted[i]]
+    const cluster: DayVisualBlock[] = [sorted[i]]
     let clusterEnd = sorted[i].endMin
     let j = i + 1
 
@@ -207,7 +232,20 @@ function WeekTimeline({
                 })
               }
 
-              const layoutedTaskBlocks = layoutTaskBlocks(taskBlocks)
+              const dayVisualBlocks: DayVisualBlock[] = [
+                ...layoutEvents.map(
+                  (ev, i) =>
+                    ({
+                      kind: 'event',
+                      key: `event-${ev.id}-${i}`,
+                      startMin: ev.startMin,
+                      endMin: ev.endMin,
+                      event: ev,
+                    }) as DayVisualBlock,
+                ),
+                ...taskBlocks.map((block) => block as DayVisualBlock),
+              ]
+              const layoutedDayBlocks = layoutDayVisualBlocks(dayVisualBlocks)
 
               return (
                 <View
@@ -225,31 +263,34 @@ function WeekTimeline({
                     </>
                   )}
 
-                  {layoutEvents.map((ev, i) => (
-                    <DraggableFlexibleEventComponent
-                      key={`ev-${ev.id}-${i}`}
-                      id={ev.id}
-                      title={ev.title}
-                      labelText={getEventSubText(ev)}
-                      startMin={ev.startMin}
-                      endMin={ev.endMin}
-                      color={ev.color}
-                      dateISO={d}
-                      column={ev.column}
-                      columnsTotal={ev.columnsTotal}
-                      dayColWidth={dayColWidth}
-                      weekDates={weekDates}
-                      dayIndex={colIdx}
-                      rowH={rowH}
-                      openEventDetail={openEventDetail}
-                      isRepeat={ev.isRepeat}
-                    />
-                  ))}
+                  {layoutedDayBlocks.map((block) => {
+                    if (block.kind === 'event') {
+                      const ev = block.event
+                      return (
+                        <DraggableFlexibleEventComponent
+                          key={block.key}
+                          id={ev.id}
+                          title={ev.title}
+                          labelText={getEventSubText(ev)}
+                          startMin={ev.startMin}
+                          endMin={ev.endMin}
+                          color={ev.color}
+                          dateISO={d}
+                          column={block.column}
+                          columnsTotal={block.columnsTotal}
+                          dayColWidth={dayColWidth}
+                          weekDates={weekDates}
+                          dayIndex={colIdx}
+                          rowH={rowH}
+                          openEventDetail={openEventDetail}
+                          isRepeat={ev.isRepeat}
+                        />
+                      )
+                    }
 
-                  {layoutedTaskBlocks.map((block) => {
                     const start = block.startMin / 60
 
-                    if (block.kind === 'group' && block.tasks) {
+                    if (block.kind === 'group') {
                       return (
                         <TaskGroupBoxComponent
                           key={block.key}
@@ -275,7 +316,7 @@ function WeekTimeline({
                       )
                     }
 
-                    if (block.kind === 'single' && block.task) {
+                    if (block.kind === 'single') {
                       return (
                         <DraggableTaskBoxComponent
                           key={block.key}

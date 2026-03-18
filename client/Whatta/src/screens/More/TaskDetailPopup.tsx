@@ -5,22 +5,16 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  TextInput,
   ScrollView,
   Dimensions,
   KeyboardAvoidingView,
   TouchableOpacity,
-  Switch,
   Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import InlineCalendar from '@/components/lnlineCalendar'
 import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
-import Down from '@/assets/icons/down.svg'
-import LabelChip from '@/components/LabelChip'
-import LabelPickerModal, { UiLabel } from '@/components/LabelPicker'
-import { Picker } from '@react-native-picker/picker'
+import { UiLabel } from '@/components/LabelPicker'
 import { useLabels } from '@/providers/LabelProvider'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
@@ -32,18 +26,13 @@ import { ts } from '@/styles/typography'
 
 const H_PAD = 18
 
-type ToggleProps = {
-  value: boolean
-  onChange: (v: boolean) => void
-}
-
 type TaskFormValue = {
   title: string
   hasDate: boolean
   date?: Date
   hasTime: boolean
   time?: Date
-  labels: number[]
+  labels: number[] | null
   memo: string
   reminderNoti: { day: number; hour: number; minute: number } | null
 }
@@ -66,67 +55,10 @@ type TaskDetailPopupProps = {
   initialTask?: any
 }
 
-const CustomToggle = ({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: boolean
-  onChange: (v: boolean) => void
-  disabled?: boolean
-}) => {
-  return (
-    <Pressable
-      onPress={() => !disabled && onChange(!value)}
-      hitSlop={20}
-      style={{
-        width: 51,
-        height: 31,
-        borderRadius: 26,
-        padding: 3,
-        justifyContent: 'center',
-        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
-        opacity: disabled ? 0.4 : 1,
-      }}
-    >
-      <View
-        style={{
-          width: 25,
-          height: 25,
-          borderRadius: 25,
-          backgroundColor: '#fff',
-          transform: [{ translateX: value ? 20 : 0 }],
-        }}
-      />
-    </Pressable>
-  )
-}
-
-// 요일 텍스트 + 날짜 표현용
-const WEEKDAY = [
-  '일요일',
-  '월요일',
-  '화요일',
-  '수요일',
-  '목요일',
-  '금요일',
-  '토요일',
-] as const
-const kDateText = (d: Date) => {
-  const month = d.getMonth() + 1
-  const day = d.getDate()
-  const weekday = WEEKDAY[d.getDay()]
-  return `${month}월 ${day}일 ${weekday}`
-}
-
-// 선택된 시간 표시용 (AM/PM)
-const formatTimeLabel = (date: Date) => {
-  let h = date.getHours()
-  const m = String(date.getMinutes()).padStart(2, '0')
-  const ampm = h < 12 ? 'AM' : 'PM'
-  h = h % 12
-  if (h === 0) h = 12
-  return `${h}:${m} ${ampm}`
+const withSameDay = (base: Date, source: Date) => {
+  const next = new Date(base)
+  next.setHours(source.getHours(), source.getMinutes(), 0, 0)
+  return next
 }
 
 // 추가: 일정 상세 알림 preset 타입 그대로 가져옴
@@ -152,7 +84,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     onClose,
     onSave,
     onDelete,
-    taskId,
     initialTask,
   } = props
 
@@ -167,9 +98,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [showCreateIntro, setShowCreateIntro] = useState(mode === 'create')
   const [createTypeSelected, setCreateTypeSelected] = useState<'event' | 'task' | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-
-  const scrollRef = useRef<ScrollView>(null)
-  const titleRef = useRef<TextInput>(null)
+  const [labelRequiredOpen, setLabelRequiredOpen] = useState(false)
 
   // 폼 상태
   const [title, setTitle] = useState(initialTitle)
@@ -185,6 +114,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
   const [detailStart, setDetailStart] = useState<Date>(new Date())
   const [detailEnd, setDetailEnd] = useState<Date>(new Date(Date.now() + 60 * 60 * 1000))
+  const [invalidEndTime, setInvalidEndTime] = useState(false)
+  const [invalidEndPreview, setInvalidEndPreview] = useState<Date | null>(null)
   const [repeatOn, setRepeatOn] = useState(false)
   const [repeatMode, setRepeatMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>(
     'daily',
@@ -219,44 +150,11 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     return `${dayText} ${timeText}`
   }
 
-  // 라벨 피커 모달용
-  type Anchor = { x: number; y: number; w: number; h: number }
-  const [labelModalOpen, setLabelModalOpen] = useState(false)
-  const [labelAnchor, setLabelAnchor] = useState<Anchor | null>(null)
-  const labelBtnRef = useRef<View>(null)
   const { labels: globalLabels } = useLabels()
   const labels = globalLabels ?? []
   const MAX_SELECTED_LABELS = 10
-  const MAX_LABELS = 10
-  const isFull = labels.length >= MAX_LABELS
-
-  // 피커 열림 상태
-  const [dateOpen, setDateOpen] = useState(false)
-  const [timeOpen, setTimeOpen] = useState(false)
-  const [isPickerTouching, setIsPickerTouching] = useState(false)
   const reminderPresetLoadedRef = useRef(false)
   const [reminderPresetVersion, setReminderPresetVersion] = useState(0)
-  const pickerTouchHandlers = {
-    onTouchStart: () => setIsPickerTouching(true),
-    onTouchEnd: () => setIsPickerTouching(false),
-    onTouchCancel: () => setIsPickerTouching(false),
-  }
-
-  // 피커가 터치 중 닫히면 스크롤 잠금이 남을 수 있음
-  // 1. 팝업 전체 visible 꺼질 때
-  useEffect(() => {
-    if (!visible) setIsPickerTouching(false)
-  }, [visible])
-
-  // 2. 시간 피커 timeOpen 닫힐 때
-  useEffect(() => {
-    if (!timeOpen) setIsPickerTouching(false)
-  }, [timeOpen])
-
-  // 3. 알림 맞춤 피커 customOpen 닫히거나 remindOn 꺼질 때
-  useEffect(() => {
-    if (!customOpen || !remindOn) setIsPickerTouching(false)
-  }, [customOpen, remindOn])
 
   // 알림 preset 서버에서 불러오기
   useEffect(() => {
@@ -411,6 +309,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     const endAt = new Date(startAt.getTime() + 60 * 60 * 1000)
     setDetailStart(startAt)
     setDetailEnd(endAt)
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
   }, [visible, initialTask])
 
   // reminder preset 로딩/변경 시 리마인더 값만 동기화
@@ -451,6 +351,34 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   useEffect(() => {
     if (!visible) return
     if (mode !== 'create') return
+    if (initialTask) return
+
+    const baseDate = initialDate ?? new Date()
+    const baseTime = initialTime ?? new Date(baseDate)
+    const startAt = new Date(baseDate)
+    if (initialHasDate && initialHasTime && initialTime) {
+      startAt.setHours(baseTime.getHours(), baseTime.getMinutes(), 0, 0)
+    } else {
+      startAt.setHours(9, 0, 0, 0)
+    }
+
+    setDate(baseDate)
+    setHasDate(initialHasDate)
+    setHasTime(initialHasDate ? initialHasTime : false)
+    if (initialTime) {
+      setTime(initialTime)
+    } else {
+      setTime(startAt)
+    }
+    setDetailStart(startAt)
+    setDetailEnd(new Date(startAt.getTime() + 60 * 60 * 1000))
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+  }, [visible, mode, initialTask, initialDate, initialHasDate, initialHasTime, initialTime])
+
+  useEffect(() => {
+    if (!visible) return
+    if (mode !== 'create') return
     if (!labels.length) return // 라벨 목록이 아직 없으면 패스
 
     setLabelIds((prev) => {
@@ -462,11 +390,8 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
   // 팝업 열고 닫을 때 펼침 UI는 항상 닫힌 상태로 초기화
   useEffect(() => {
-    setDateOpen(false)
-    setTimeOpen(false)
     setRemindOpen(false)
     setCustomOpen(false)
-    setLabelModalOpen(false)
   }, [visible])
 
   useEffect(() => {
@@ -489,14 +414,24 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   }, [remindEligible])
 
   const handleSave = () => {
+    if (labelIds.length === 0) {
+      setLabelRequiredOpen(true)
+      return
+    }
+
+    if (hasTime && (invalidEndTime || detailEnd.getTime() < detailStart.getTime())) {
+      Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이후여야 합니다.')
+      return
+    }
+
     const value: TaskFormValue = {
       title,
       memo,
       hasDate,
       date: hasDate ? date : undefined,
       hasTime,
-      time: hasTime ? time : undefined,
-      labels: labelIds.slice(0, MAX_SELECTED_LABELS),
+      time: hasTime ? detailStart : undefined,
+      labels: labelIds.length ? labelIds.slice(0, MAX_SELECTED_LABELS) : null,
       reminderNoti: buildReminderNoti(), // 추가
     }
 
@@ -525,9 +460,33 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setRemindOpen(false)
   }
 
-  const hasLabels = labelIds.length > 0
-  const btnBaseColor = hasLabels ? '#333333' : '#B3B3B3'
-  const btnText = hasLabels ? undefined : '없음'
+  const clearInvalidEndState = () => {
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+  }
+
+  const applyTaskTimeWindow = (nextStart: Date) => {
+    const nextEnd = new Date(nextStart)
+    nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
+    const wrappedPastMidnight = nextEnd.getTime() < nextStart.getTime()
+
+    setDetailStart(nextStart)
+    setDetailEnd(nextEnd)
+    setInvalidEndTime(wrappedPastMidnight)
+    setInvalidEndPreview(wrappedPastMidnight ? nextEnd : null)
+    setTime(nextStart)
+  }
+
+  const clearTaskDateSelection = () => {
+    setHasDate(false)
+    setHasTime(false)
+    clearInvalidEndState()
+    setRemindOn(false)
+    setRemindOpen(false)
+    setCustomOpen(false)
+    setTaskDueOn(false)
+    setTaskDueDate(null)
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -576,18 +535,18 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
 
               <View style={styles.body}>
                 {showCreateIntro ? (
-                <CreateModeTypeStep
-                  title={title}
-                  onChangeTitle={setTitle}
-                  colors={['#B04FFF']}
-                  selectedColorIndex={0}
-                  onSelectColorIndex={() => {}}
-                  selectedType={createTypeSelected}
-                  onSelectType={(value) => {
-                    setCreateTypeSelected(value)
-                  }}
-                />
-                ) : mode === 'edit' ? (
+                  <CreateModeTypeStep
+                    title={title}
+                    onChangeTitle={setTitle}
+                    colors={['#B04FFF']}
+                    selectedColorIndex={0}
+                    onSelectColorIndex={() => {}}
+                    selectedType={createTypeSelected}
+                    onSelectType={(value) => {
+                      setCreateTypeSelected(value)
+                    }}
+                  />
+                ) : (
                   <CreateEventDetailStep
                     title={title}
                     onChangeTitle={setTitle}
@@ -600,24 +559,39 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     onSelectType={() => {}}
                     start={detailStart}
                     end={detailEnd}
+                    endDisplay={invalidEndPreview}
                     onPressDateBox={() => {}}
                     onChangeStartTime={(next) => {
-                      setDetailStart(next)
+                      const nextStart = withSameDay(hasDate ? date : detailStart, next)
                       setHasTime(true)
-                      setTime(next)
-                      if (detailEnd.getTime() <= next.getTime()) {
-                        setDetailEnd(new Date(next.getTime() + 60 * 60 * 1000))
-                      }
+                      applyTaskTimeWindow(nextStart)
                     }}
-                    onChangeEndTime={setDetailEnd}
+                    onChangeEndTime={(next) => {
+                      const nextEnd = withSameDay(hasDate ? date : detailStart, next)
+                      if (nextEnd.getTime() < detailStart.getTime()) {
+                        setInvalidEndTime(true)
+                        setInvalidEndPreview(nextEnd)
+                        return
+                      }
+                      setInvalidEndTime(false)
+                      setInvalidEndPreview(null)
+                      setDetailEnd(nextEnd)
+                    }}
+                    invalidEndTime={invalidEndTime}
                     timeOn={hasTime}
+                    timeDisabled={!hasDate}
                     onToggleTime={(next) => {
+                      if (next && !hasDate) {
+                        Alert.alert('시간 설정 불가', '날짜를 먼저 설정해주세요.')
+                        return
+                      }
                       setHasTime(next)
                       if (next) {
                         const t = new Date(detailStart)
                         t.setSeconds(0, 0)
-                        setDetailStart(t)
-                        setTime(t)
+                        applyTaskTimeWindow(t)
+                      } else {
+                        clearInvalidEndState()
                       }
                     }}
                     repeatOn={repeatOn}
@@ -630,10 +604,23 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     onChangeRepeatEvery={setRepeatEvery}
                     onChangeRepeatUnit={setRepeatUnit}
                     onChangeMonthlyOpt={setMonthlyOpt}
+                    repeatWeekdays={[]}
+                    onChangeRepeatWeekdays={() => {}}
                     repeatEndDate={repeatEndDate}
                     onChangeRepeatEndDate={setRepeatEndDate}
                     remindOn={remindOn}
-                    onToggleRemind={setRemindOn}
+                    remindDisabled={!remindEligible}
+                    onToggleRemind={async (next) => {
+                      if (next) {
+                        if (!remindEligible) {
+                          Alert.alert('알림 설정 불가', '날짜와 시간을 먼저 설정해주세요.')
+                          return
+                        }
+                        const granted = await ensureNotificationPermissionForToggle()
+                        if (!granted) return
+                      }
+                      setRemindOn(next)
+                    }}
                     remindOpen={remindOpen}
                     onSetRemindOpen={setRemindOpen}
                     remindDisplayText={displayRemind}
@@ -654,435 +641,30 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     taskDate={hasDate ? date : null}
                     onChangeTaskDate={(next) => {
                       if (next) {
+                        const nextStart = new Date(detailStart)
+                        nextStart.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
+                        const nextEnd = new Date(detailEnd)
+                        nextEnd.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
                         setHasDate(true)
                         setDate(next)
-                      } else {
-                        setHasDate(false)
+                        setDetailStart(nextStart)
+                        setDetailEnd(nextEnd)
+                        if (hasTime) {
+                          setTime(nextStart)
+                        }
+                        clearInvalidEndState()
+                        if (taskDueDate && taskDueDate.getTime() < next.getTime()) {
+                          setTaskDueDate(next)
+                        }
+                        return
                       }
+                      clearTaskDateSelection()
                     }}
                     taskDueOn={taskDueOn}
                     onChangeTaskDueOn={setTaskDueOn}
                     taskDueDate={taskDueDate}
                     onChangeTaskDueDate={setTaskDueDate}
                   />
-                ) : (
-                  <ScrollView
-                    ref={scrollRef}
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingHorizontal: H_PAD }}
-                    keyboardShouldPersistTaps="always"
-                    keyboardDismissMode="on-drag"
-                    scrollEnabled={!isPickerTouching}
-                    bounces={false}
-                    showsVerticalScrollIndicator={false}
-                    automaticallyAdjustKeyboardInsets
-                  >
-                  {/* 제목 */}
-                  <View style={[styles.row, styles.titleHeader]}>
-                    <Pressable
-                      style={{ flex: 1, justifyContent: 'center', minHeight: 42 }}
-                      onPress={() => titleRef.current?.focus()}
-                      hitSlop={10}
-                    >
-                      <TextInput
-                        ref={titleRef}
-                        placeholder="할 일을 입력하세요"
-                        placeholderTextColor="#808080"
-                        style={styles.titleInput}
-                        value={title}
-                        onChangeText={setTitle}
-                      />
-                    </Pressable>
-                  </View>
-
-                {/* 날짜 토글 */}
-                <Pressable
-                  style={[styles.row, { marginTop: 16 }]}
-                  onPress={() => {
-                    if (!hasDate) setHasDate(true)
-                    setDateOpen((prev) => !prev)
-                  }}
-                >
-                  <Text style={styles.label}>날짜</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {hasDate && <Text style={styles.dateBigText}>{kDateText(date)}</Text>}
-                    <CustomToggle
-                      value={hasDate}
-                      onChange={(v) => {
-                        setHasDate(v)
-                        if (!v) {
-                          setDateOpen(false)
-                          setTimeOpen(false)
-                          setHasTime(false)
-                        }
-                      }}
-                    />
-                  </View>
-                </Pressable>
-
-                {/* 날짜 선택 영역 */}
-                {hasDate && dateOpen && (
-                  <>
-                    <View style={{ marginLeft: -H_PAD, marginRight: -H_PAD }}>
-                      <InlineCalendar open value={date} onSelect={setDate} />
-                    </View>
-                    <View style={styles.sep} />
-                  </>
-                )}
-
-                {/* 시간 토글 */}
-                <Pressable
-                  style={styles.row}
-                  onPress={() => {
-                    if (!hasDate) setHasDate(true)
-                    setTimeOpen((prev) => !prev)
-                  }}
-                >
-                  <Text style={styles.label}>시간</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {hasTime && (
-                      <Text style={styles.dateBigText}>{formatTimeLabel(time)}</Text>
-                    )}
-                    <CustomToggle
-                      value={hasTime}
-                      onChange={(v) => {
-                        if (v && !hasDate) setHasDate(true)
-                        setHasTime(v)
-                        if (!v) setTimeOpen(false)
-                        if (v) {
-                          const t = new Date()
-                          t.setHours(9)
-                          t.setMinutes(0)
-                          setTime(t)
-                        }
-                      }}
-                    />
-                  </View>
-                </Pressable>
-
-                {/* 시간 인라인 피커 */}
-                {hasTime && timeOpen && (
-                  <View
-                    style={{ marginTop: 9, marginBottom: 17, alignItems: 'center' }}
-                    {...pickerTouchHandlers}
-                  >
-                    <View style={{ flexDirection: 'row', gap: 5 }}>
-                      {/* HOUR */}
-                      <Picker
-                        style={{ width: 90, height: 160 }}
-                        selectedValue={
-                          time.getHours() % 12 === 0 ? 12 : time.getHours() % 12
-                        }
-                        onValueChange={(v) => {
-                          const t = new Date(time)
-                          const isPM = t.getHours() >= 12
-
-                          if (isPM) t.setHours(v === 12 ? 12 : v + 12)
-                          else t.setHours(v === 12 ? 0 : v)
-
-                          setTime(t)
-                        }}
-                      >
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                          <Picker.Item key={h} label={String(h)} value={h} />
-                        ))}
-                      </Picker>
-
-                      {/* MINUTE */}
-                      <Picker
-                        style={{ width: 90, height: 160 }}
-                        selectedValue={time.getMinutes()}
-                        onValueChange={(v) => {
-                          const t = new Date(time)
-                          t.setMinutes(v)
-                          setTime(t)
-                        }}
-                      >
-                        {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                          <Picker.Item
-                            key={m}
-                            label={String(m).padStart(2, '0')}
-                            value={m}
-                          />
-                        ))}
-                      </Picker>
-
-                      {/* AM/PM */}
-                      <Picker
-                        style={{ width: 100, height: 160, fontSize: 13 }}
-                        selectedValue={time.getHours() < 12 ? 'AM' : 'PM'}
-                        onValueChange={(v) => {
-                          const t = new Date(time)
-                          const h = t.getHours()
-                          if (v === 'AM') t.setHours(h >= 12 ? h - 12 : h)
-                          else t.setHours(h < 12 ? h + 12 : h)
-                          setTime(t)
-                        }}
-                      >
-                        <Picker.Item label="AM" value="AM" />
-                        <Picker.Item label="PM" value="PM" />
-                      </Picker>
-                    </View>
-                  </View>
-                )}
-
-                <View style={styles.sep} />
-                {/* 알림 */}
-                <View style={styles.row}>
-                  <Text style={styles.label}>알림</Text>
-                  <View style={styles.rowRight}>
-                    <Pressable
-                      style={styles.alarmButton}
-                      disabled={!remindOn}
-                      onPress={() => {
-                        if (!remindOn) return
-                        setRemindOpen((v) => !v)
-                      }}
-                      hitSlop={8}
-                    >
-                      <Text
-                        style={[
-                          styles.remindTextBtn,
-                          { color: remindOn ? '#333333' : '#B3B3B3' },
-                        ]}
-                      >
-                        {displayRemind}
-                      </Text>
-                      <Down
-                        width={10}
-                        height={10}
-                        color={remindOpen ? '#B04FFF' : remindOn ? '#333333' : '#B3B3B3'}
-                      />
-                    </Pressable>
-
-                    <CustomToggle
-                      value={remindOn}
-                      disabled={!remindEligible}
-                      onChange={async (v) => {
-                        if (v && !remindEligible) {
-                          Alert.alert(
-                            '알림 설정 불가',
-                            '날짜와 시간을 먼저 설정해주세요.',
-                          )
-                          setRemindOn(false)
-                          return
-                        }
-
-                        if (!v) {
-                          setRemindOn(false)
-                          setRemindOpen(false)
-                          setRemindValue(null)
-                          setCustomOpen(false)
-                          return
-                        }
-
-                        const ok = await ensureNotificationPermissionForToggle()
-                        if (!ok) {
-                          setRemindOn(false)
-                          setRemindOpen(false)
-                          return
-                        }
-
-                        setRemindOn(true)
-                        setRemindOpen(true)
-                      }}
-                    />
-                  </View>
-                </View>
-                {/* 드롭다운 리스트 */}
-                {remindOn && remindOpen && (
-                  <View style={styles.remindDropdown}>
-                    {remindOptions.map((opt, idx) => {
-                      const isLast = idx === remindOptions.length - 1
-                      const selected =
-                        opt.type === 'preset'
-                          ? (remindValue as any)?.id === opt.id
-                          : remindValue === 'custom'
-
-                      return (
-                        <View key={opt.type === 'preset' ? opt.id : 'custom'}>
-                          <Pressable
-                            style={[
-                              styles.remindItem,
-                              !isLast && styles.remindItemDivider,
-                            ]}
-                            onPress={() => {
-                              if (opt.type === 'custom') {
-                                setRemindValue('custom')
-                                setCustomOpen((v) => !v)
-                                return
-                              }
-
-                              setRemindValue(opt as any)
-                              setCustomOpen(false)
-                              setRemindOpen(false)
-                            }}
-                          >
-                            {selected && (
-                              <View
-                                pointerEvents="none"
-                                style={styles.remindSelectedBg}
-                              />
-                            )}
-                            <Text
-                              style={[
-                                styles.remindItemText,
-                                selected && { color: '#A84FF0', fontWeight: '700' },
-                              ]}
-                            >
-                              {opt.label}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      )
-                    })}
-                  </View>
-                )}
-
-                {/* 맞춤 설정 인라인 피커 */}
-                {customOpen && remindOn && (
-                  <View style={styles.remindPickerWrap} {...pickerTouchHandlers}>
-                    <View style={styles.remindPickerInner}>
-                      {/* HOUR */}
-                      <View style={styles.remindPickerBox}>
-                        <Picker
-                          selectedValue={customHour}
-                          onValueChange={(v) => setCustomHour(v)}
-                          style={styles.remindPicker}
-                          itemStyle={styles.remindPickerItem}
-                        >
-                          {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                            <Picker.Item key={h} label={`${h}`} value={h} />
-                          ))}
-                        </Picker>
-                      </View>
-
-                      <Text style={styles.remindPickerColon}>:</Text>
-                      <View style={styles.remindPickerBox}>
-                        <Picker
-                          selectedValue={customMinute}
-                          onValueChange={(v) => setCustomMinute(v)}
-                          style={styles.remindPicker}
-                          itemStyle={styles.remindPickerItem}
-                        >
-                          {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                            <Picker.Item
-                              key={m}
-                              label={String(m).padStart(2, '0')}
-                              value={m}
-                            />
-                          ))}
-                        </Picker>
-                      </View>
-
-                      <Text style={styles.remindPickerSuffix}>전</Text>
-                    </View>
-                  </View>
-                )}
-
-                <View style={styles.sep} />
-
-                {/* 라벨 */}
-                <View style={[styles.row, { alignItems: 'center' }]}>
-                  <Text style={[styles.label, { marginTop: 4 }]}>라벨</Text>
-                  <View
-                    style={{
-                      flex: 1,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      gap: 8,
-                    }}
-                  >
-                    {/* 선택된 라벨 칩 */}
-                    <ScrollView
-                      horizontal
-                      nestedScrollEnabled
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ alignItems: 'center', paddingRight: 2 }}
-                      style={{ width: 210, maxWidth: 210, flexShrink: 1 }}
-                    >
-                      {labelIds.map((id, idx) => {
-                        const item = (labels ?? []).find((l) => l.id === id)
-                        if (!item) return null
-                        return (
-                          <View key={id} style={{ marginRight: idx === labelIds.length - 1 ? 0 : 6 }}>
-                            <LabelChip
-                              title={item.title}
-                              onRemove={() =>
-                                setLabelIds((prev) => prev.filter((x) => x !== id))
-                              }
-                            />
-                          </View>
-                        )
-                      })}
-                    </ScrollView>
-
-                    {/* 라벨 선택 버튼 */}
-                    <Pressable
-                      style={[styles.remindButton, { alignSelf: 'flex-end' }]}
-                      ref={labelBtnRef}
-                      onPress={() => {
-                        labelBtnRef.current?.measureInWindow?.((x, y, w, h) => {
-                          setLabelAnchor({ x, y, w, h })
-                          setLabelModalOpen(true)
-                        })
-                      }}
-                      hitSlop={8}
-                    >
-                      {btnText && (
-                        <Text style={[styles.dropdownText, { color: btnBaseColor }]}>
-                          {btnText}
-                        </Text>
-                      )}
-                      <Down width={10} height={10} color={btnBaseColor} />
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* 라벨 피커 모달 */}
-                {labelModalOpen && (
-                  <LabelPickerModal
-                    visible
-                    all={labels ?? []}
-                    selected={labelIds}
-                    maxSelected={MAX_SELECTED_LABELS}
-                    onChange={(ids) => setLabelIds(ids.slice(0, MAX_SELECTED_LABELS))}
-                    onRequestClose={() => setLabelModalOpen(false)}
-                    anchor={labelAnchor}
-                    canAdd={!isFull}
-                    onCreateLabel={async (title) => {
-                      const res = await http.post('/user/setting/label', { title })
-                      bus.emit('label:mutated')
-                      return { id: res.data.data.id, title }
-                    }}
-                  />
-                )}
-
-                <View style={styles.sep} />
-
-                {/* 메모 */}
-                <View style={styles.memoSection}>
-                  <View style={styles.memoLabelRow}>
-                    <Text style={styles.memoLabel}>메모</Text>
-                  </View>
-                  <TextInput
-                    placeholder="메모를 입력하세요"
-                    placeholderTextColor="#B7B7B7"
-                    value={memo}
-                    onChangeText={setMemo}
-                    multiline
-                    textAlignVertical="top"
-                    style={styles.memoBox}
-                    onFocus={() => {
-                      requestAnimationFrame(() =>
-                        scrollRef.current?.scrollToEnd({ animated: true }),
-                      )
-                    }}
-                  />
-                </View>
-
-                  </ScrollView>
                 )}
               </View>
             </View>
@@ -1112,6 +694,26 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                 }}
               >
                 <Text style={styles.deleteConfirmTxt}>삭제</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+      {labelRequiredOpen && (
+        <View style={styles.deleteOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setLabelRequiredOpen(false)}
+          />
+          <View style={styles.deleteCard}>
+            <Text style={styles.deleteTitle}>라벨을 선택해주세요</Text>
+            <Text style={styles.deleteDesc}>라벨이 없으면 저장할 수 없어요.</Text>
+            <View style={styles.deleteRow}>
+              <Pressable
+                style={[styles.deleteActionBtn, styles.deleteConfirmBtn]}
+                onPress={() => setLabelRequiredOpen(false)}
+              >
+                <Text style={styles.deleteConfirmTxt}>확인</Text>
               </Pressable>
             </View>
           </View>
@@ -1191,6 +793,13 @@ const styles = StyleSheet.create({
     ...ts('label1'),
     fontWeight: '700',
     color: colors.text.text1,
+  },
+  deleteDesc: {
+    ...ts('body3'),
+    color: colors.text.text2,
+    textAlign: 'center',
+    marginTop: -12,
+    marginBottom: 4,
   },
   deleteRow: {
     width: 302,

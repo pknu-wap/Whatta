@@ -145,6 +145,40 @@ export default function MonthView() {
     return () => bus.off('calendar:set-date', onSetDate)
   }, [])
 
+  useEffect(() => {
+    const onNavigate = (iso?: string) => {
+      if (typeof iso !== 'string' || iso.length < 10) return
+      const nextISO = iso.slice(0, 10)
+      setPopupVisible(false)
+      requestAnimationFrame(() => {
+        bus.emit('calendar:set-date', nextISO)
+      })
+
+      void (async () => {
+        try {
+          const nextYM = toYM(nextISO)
+          const fresh = await fetchMonthlyApi(nextYM)
+          const rawDay = (fresh.days ?? []).find((day) => {
+            const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
+            return dayISO === nextISO
+          })
+
+          if (!rawDay) return
+
+          setSelectedDayData(buildSelectedDayDataFromRawDay(nextISO, rawDay))
+          setTimeout(() => {
+            setPopupVisible(true)
+          }, 300)
+        } catch (err) {
+          console.warn('[MonthView] navigate detail reopen failed', err)
+        }
+      })()
+    }
+
+    bus.on('month:detail:navigate', onNavigate)
+    return () => bus.off('month:detail:navigate', onNavigate)
+  }, [buildSelectedDayDataFromRawDay])
+
   useFocusEffect(
     React.useCallback(() => {
       bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
@@ -256,6 +290,13 @@ const {
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
   const { items: filterLabels } = useLabelFilter()
+  const labelTitleById = useMemo(() => {
+    const map = new Map<string, string>()
+    ;(filterLabels ?? []).forEach((label) => {
+      map.set(String(label.id), label.title)
+    })
+    return map
+  }, [filterLabels])
 
   // "할 일" 라벨 id 찾기 (없으면 null)
   const todoLabelId = useMemo(() => {
@@ -425,14 +466,120 @@ const holidayIsoByWeek = useMemo(() => {
     colorKey?: string
   }
 
-  // 4. 상세 팝업 데이터 만듬
-  const handleDatePress = (dateItem: CalendarDateItem) => {
+  function buildSelectedDayDataFromRawDay(isoDate: string, rawDay: any) {
+    const [y, m, d] = isoDate.split('-').map(Number)
+    const dt = new Date(y, m - 1, d)
+    const rawEvents: any[] = rawDay?.events ?? []
+    const rawTasks: any[] = rawDay?.tasks ?? []
+    const pickLabelText = (raw: any): string => {
+      const labels = Array.isArray(raw?.labels) ? raw.labels : []
+      if (labels.length === 0) return '라벨 없음'
+      const first = labels[0]
+      if (typeof first === 'string') {
+        return labelTitleById.get(first) ?? first
+      }
+      if (typeof first === 'number') {
+        return labelTitleById.get(String(first)) ?? String(first)
+      }
+      if (first && typeof first === 'object') {
+        const directTitle = String(first.title ?? first.name ?? first.labelName ?? '')
+        if (directTitle) return directTitle
+        const fallbackId = first.id ?? first.labelId
+        return fallbackId != null
+          ? labelTitleById.get(String(fallbackId)) ?? '라벨 없음'
+          : '라벨 없음'
+      }
+      return '라벨 없음'
+    }
+
+    return {
+      date: `${m}월 ${d}일`,
+      dateISO: isoDate,
+      dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][dt.getDay()],
+      spanEvents: rawEvents
+        .filter((ev) => !!ev.startDate && !!ev.endDate && ev.startDate !== ev.endDate)
+        .map((ev) => ({
+          id: ev.id,
+          title: ev.title ?? ev.name ?? '',
+          period: `${ev.startDate}~${ev.endDate}`,
+          isRecurring: !!ev.isRepeat,
+          colorKey: ev.colorKey,
+          color: resolveScheduleColor(ev.colorKey),
+        })),
+      normalEvents: rawEvents
+        .filter(
+          (ev) =>
+            ev.startTime == null &&
+            ev.endTime == null &&
+            !(!!ev.startDate && !!ev.endDate && ev.startDate !== ev.endDate),
+        )
+        .map((ev) => ({
+          id: ev.id,
+          title: ev.title ?? ev.name ?? '',
+          labelText: pickLabelText(ev),
+          memo: ev.content ?? '',
+          time: '',
+          isRecurring: !!ev.isRepeat,
+          colorKey: ev.colorKey,
+          color: resolveScheduleColor(ev.colorKey),
+        })),
+      timedScheduleEvents: rawEvents
+        .filter((ev) => ev.startTime != null || ev.endTime != null)
+        .map((ev) => ({
+          id: ev.id,
+          title: ev.title ?? ev.name ?? '',
+          labelText: pickLabelText(ev),
+          memo: ev.content ?? '',
+          time:
+            ev.startTime && ev.endTime
+              ? `${String(ev.startTime).slice(0, 5)}~${String(ev.endTime).slice(0, 5)}`
+              : String(ev.startTime ?? '').slice(0, 5),
+          startAt: (ev as any).startAt,
+          endAt: (ev as any).endAt,
+          isRecurring: !!ev.isRepeat,
+          colorKey: ev.colorKey,
+          color: resolveScheduleColor(ev.colorKey),
+        })),
+      untimedTasks: rawTasks
+        .filter((task) => task.placementTime == null || String(task.placementTime).trim() === '')
+        .map((task) => ({
+          id: task.id,
+          done: !!task.completed,
+          title: task.title ?? task.name ?? '',
+          place: task.place ?? '',
+          time: '',
+          startAt: (task as any).startAt,
+          endAt: (task as any).endAt,
+          color: task.colorKey ? resolveScheduleColor(task.colorKey) : '#FFD966',
+          borderColor: task.colorKey ? resolveScheduleColor(task.colorKey) : '#FFD966',
+          isTask: true,
+        })),
+      timedTasks: rawTasks
+        .filter((task) => task.placementTime != null && String(task.placementTime).trim() !== '')
+        .map((task) => ({
+          id: task.id,
+          done: !!task.completed,
+          title: task.title ?? task.name ?? '',
+          place: task.place ?? '',
+          time: String(task.placementTime ?? '').slice(0, 5),
+          startAt: (task as any).startAt,
+          endAt: (task as any).endAt,
+          color: task.colorKey ? resolveScheduleColor(task.colorKey) : '#FFD966',
+          borderColor: task.colorKey ? resolveScheduleColor(task.colorKey) : '#FFD966',
+          isTask: true,
+        })),
+    }
+  }
+
+  const openDetailPopupForDateItem = (dateItem: CalendarDateItem, syncCalendar = true) => {
     if (!dateItem.isCurrentMonth) return
 
     const d = dateItem.fullDate
     const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    setFocusedDateISO(isoDate)
-    bus.emit('calendar:set-date', isoDate)
+    if (syncCalendar) {
+      setFocusedDateISO(isoDate)
+      bus.emit('calendar:set-date', isoDate)
+    }
 
     // 클릭한 날짜의 원본 day 데이터를 찾아서 all-day 단일 일정 구분
     const rawDay = days.find((day) => {
@@ -459,14 +606,23 @@ const holidayIsoByWeek = useMemo(() => {
     const rawTaskById = new Map(rawTasks.map((t) => [String(t.id), t]))
     const pickLabelText = (raw: any): string => {
       const labels = Array.isArray(raw?.labels) ? raw.labels : []
-      if (labels.length === 0) return ''
+      if (labels.length === 0) return '라벨 없음'
       const first = labels[0]
-      if (typeof first === 'string') return first
-      if (typeof first === 'number') return String(first)
-      if (first && typeof first === 'object') {
-        return String(first.title ?? first.name ?? first.labelName ?? '')
+      if (typeof first === 'string') {
+        return labelTitleById.get(first) ?? first
       }
-      return ''
+      if (typeof first === 'number') {
+        return labelTitleById.get(String(first)) ?? String(first)
+      }
+      if (first && typeof first === 'object') {
+        const directTitle = String(first.title ?? first.name ?? first.labelName ?? '')
+        if (directTitle) return directTitle
+        const fallbackId = first.id ?? first.labelId
+        return fallbackId != null
+          ? labelTitleById.get(String(fallbackId)) ?? '라벨 없음'
+          : '라벨 없음'
+      }
+      return '라벨 없음'
     }
 
 
@@ -602,6 +758,10 @@ const holidayIsoByWeek = useMemo(() => {
     })
 
     setPopupVisible(true)
+  }
+  // 4. 상세 팝업 데이터 만듬
+  const handleDatePress = (dateItem: CalendarDateItem) => {
+    openDetailPopupForDateItem(dateItem, true)
   }
 
   const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
@@ -844,6 +1004,19 @@ const holidayIsoByWeek = useMemo(() => {
       if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
     }
 
+    const needsHolidayReserveForDate = !dateItem.holidayName && scheduleItems.some((it) => {
+      const schedule = it as UISchedule
+      if (!schedule.multiDayStart || !schedule.multiDayEnd) return false
+
+      return Array.from(holidayIsoByWeek[weekIndex] ?? []).some(
+        (holidayISO) =>
+          schedule.multiDayStart! <= holidayISO &&
+          holidayISO <= schedule.multiDayEnd! &&
+          currentDateISO >= schedule.multiDayStart! &&
+          currentDateISO <= schedule.multiDayEnd!,
+      )
+    })
+
     const normalizeColor = (colorKey?: string, fallback = '#B04FFF') => {
       if (!colorKey) return fallback
       return resolveScheduleColor(colorKey)
@@ -1024,13 +1197,11 @@ const holidayIsoByWeek = useMemo(() => {
 
           {/* 일정 및 할 일 영역 */}
           <View style={S.eventArea}>
-            {(holidayIsoByWeek[weekIndex]?.size ?? 0) > 0 ? (
+            {needsHolidayReserveForDate ? (
               <View
                 style={{
                   width: MONTH_ITEM_WIDTH,
-                  height: dateItem.holidayName
-                    ? HOLIDAY_EVENT_OFFSET
-                    : MONTH_ITEM_SLOT_HEIGHT,
+                  height: HOLIDAY_HEADER_BASE_OFFSET,
                 }}
               />
             ) : null}
