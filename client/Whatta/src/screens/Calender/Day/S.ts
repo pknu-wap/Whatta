@@ -242,7 +242,7 @@ const S = StyleSheet.create({
     left: 50 + 16,
     right: 16,
     height: 2,
-    backgroundColor: '#000000',
+    backgroundColor: colors.icon.selected,
     borderRadius: 1,
     zIndex: 9999,
   },
@@ -253,7 +253,7 @@ const S = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 5,
-    backgroundColor: '#000000',
+    backgroundColor: colors.icon.selected,
     zIndex: 9999,
   },
 })
