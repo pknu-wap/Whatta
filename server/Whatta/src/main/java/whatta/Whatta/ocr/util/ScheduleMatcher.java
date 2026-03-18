@@ -19,22 +19,20 @@ public class ScheduleMatcher {
 
         //x, y축 앵커 수집
         Map<String, Integer> weekDayX = extractWeekdayAnchors(ocrTexts);
-        NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY);
-        System.out.println("[hourAnchors] " + hourY);
-
-        int minHour = 0;
-        if (!hourY.isEmpty()) {
-            minHour = hourY.firstKey();
-        }
-        System.out.println("[minHour] " + minHour);
-
+        NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY, weekDayX);
+        //System.out.println("[hourAnchors] " + hourY);
 
         final int headerBandMaxY = computeHeaderBandMaxY(ocrTexts, 80);
+        final int verticalTolerance = computeVerticalTolerance(hourY);
 
         //블록 내부 text 묶기 + 요일/시간 채우기
         List<MatchedScheduleBlock> matches = new ArrayList<>();
         for (DetectedBlock.Block b : blocks.blocks()) {
             Rect r = Rect.fromBlock(b);
+
+            if (isOutsideScheduleBand(r, gridTopY, gridBottomY, headerBandMaxY, verticalTolerance)) {
+                continue;
+            }
 
             List<OcrText> inside = ocrTexts.stream()
                     .filter(f -> r.contains(f.centerX(), f.centerY()))
@@ -46,15 +44,6 @@ public class ScheduleMatcher {
             TimeConverter tConv = TimeConverter.fromAnchors(hourY, 10); //10분 단위로 반올림
             String start = tConv.formatHHmm(tConv.minutesAtY(r.top()));
             String end = tConv.formatHHmm(tConv.minutesAtY(r.bottom()));
-
-            try {
-                int startHour = Integer.parseInt(start.substring(0, 2));
-                if (!hourY.isEmpty() && startHour < minHour) {
-                    continue;
-                }
-            } catch (NumberFormatException ignored) {
-                //포맷이 이상하면 그냥 통과시켜서 기존 로직 유지
-            }
 
             //텍스트만 추출
             List<String> texts = inside.stream()
@@ -105,6 +94,188 @@ public class ScheduleMatcher {
         return true;
     }
 
+    private static final Pattern WEEKDAY = Pattern.compile(
+            "^(월|화|수|목|금|토|일)(?:요일)?$|^(MON|TUE|WED|THU|FRI|SAT|SUN)(?:DAY)?$",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern HOUR = Pattern.compile("^([1-9]|1[0-2])$");
+
+    private static String koToEn(String ko1) {
+        return switch (ko1) {
+            case "월", "MON", "MONDAY" -> "MON";
+            case "화", "TUE", "TUESDAY" -> "TUE";
+            case "수", "WED", "WEDNESDAY" -> "WED";
+            case "목", "THU", "THURSDAY" -> "THU";
+            case "금", "FRI", "FRIDAY" -> "FRI";
+            case "토", "SAT", "SATURDAY" -> "SAT";
+            case "일", "SUN", "SUNDAY" -> "SUN";
+            default -> null;
+        };
+    }
+
+    private static String normalizeWeekday(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        return koToEn(raw.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private static Map<String, Integer> extractWeekdayAnchors(List<OcrText> ocrTexts) {
+        record Candidate(String day, int x, int y) {}
+
+        Map<String, Candidate> candidate = new HashMap<>();
+        for (OcrText text : ocrTexts) {
+            String raw = text.text().trim();
+            if (!WEEKDAY.matcher(raw).matches()) continue;
+            String weekDay = normalizeWeekday(raw);
+            if (weekDay == null) continue;
+
+            int y = text.topY();
+            int x = text.centerX();
+
+            Candidate c = candidate.get(weekDay);
+            if ( c == null || y < c.y) { //더  위에 있는 y를 가진 text
+                candidate.put(weekDay, new Candidate(weekDay, x, y));
+            }
+        }
+
+        Map<String, Integer> anchors = new HashMap<>();
+        for (var e : candidate.entrySet()) {
+            anchors.put(e.getKey(), e.getValue().x());
+        }
+        //System.out.println("[weekdayAnchors] " + anchors);  // ex) {월=123, 화=240, 수=360, ...}
+        return anchors;
+    }
+
+    private record HourAnchorCandidate (int hour, int y) {}
+
+    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> ocrTexts, int gridTopY, int gridBottomY, Map<String, Integer> weekDayX) {
+        int firstWeekdayX = firstWeekdayAnchorX(weekDayX);
+
+        List<HourAnchorCandidate> candidates = collectHourAnchorCandidate(ocrTexts, gridTopY, gridBottomY, firstWeekdayX);
+
+        removeVerticalOutliers(candidates); //y축 앵커 후보 중 격자 밖 제거
+
+        Map<Integer, List<Integer>> hourToAnchorYs = resolveHourSequence(candidates);
+
+        return averageAnchorY(hourToAnchorYs);
+    }
+
+    private static int firstWeekdayAnchorX(Map<String, Integer> weekDayX) {
+        if (weekDayX == null || weekDayX.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        return weekDayX.values().stream()
+                .mapToInt(Integer::intValue)
+                .min()
+                .orElse(Integer.MAX_VALUE);
+    }
+
+    private static List<HourAnchorCandidate> collectHourAnchorCandidate(List<OcrText> ocrTexts, int gridTopY, int gridBottomY, int firstWeekdayX) {
+        List<HourAnchorCandidate> candidates = new ArrayList<>();
+
+        for (OcrText text : ocrTexts) {
+            String raw = text.text().trim();
+            int topY = text.topY();
+            int centerX = text.centerX();
+
+            if (topY < gridTopY || topY > gridBottomY) {
+                continue;
+            }
+            if (firstWeekdayX != Integer.MAX_VALUE && centerX >= firstWeekdayX) {
+                continue;
+            }
+            if (!HOUR.matcher(raw).matches()) {
+                continue;
+            }
+
+            candidates.add(new HourAnchorCandidate(Integer.parseInt(raw), topY));
+        }
+
+        candidates.sort(Comparator.comparingInt(HourAnchorCandidate::y));
+        return candidates;
+    }
+
+    private static void removeVerticalOutliers(List<HourAnchorCandidate> candidates) {
+        if (candidates.size() < 3) {
+            return;
+        }
+
+        List<Integer> diffs = new ArrayList<>();
+        for (int i = 0; i < candidates.size() - 1; i++) {
+            int diff = candidates.get(i + 1).y() - candidates.get(i).y();
+            if (diff > 0) {
+                diffs.add(diff);
+            }
+        }
+
+        if (diffs.isEmpty()) {
+            return;
+        }
+
+        Collections.sort(diffs);
+        int medianGap = diffs.get(diffs.size() / 2);
+        double maxAllowedGap = medianGap * 1.4; //격자 간격보다 너무 큰 간격은 그리드 밖으로 간주
+
+        //상단 쪽 아웃라이어 제거
+        while (candidates.size() >= 3) {
+            int topGap = candidates.get(1).y() - candidates.get(0).y();
+            if (topGap <= maxAllowedGap) {
+                break;
+            }
+            candidates.remove(0); //최상단 쓸모없는 앵커 제거
+        }
+
+        //하단 쪽 아웃라이어 제거
+        while (candidates.size() >= 3) {
+            int last = candidates.size() - 1;
+            int bottomGap = candidates.get(last).y() - candidates.get(last - 1).y();
+            if (bottomGap <= maxAllowedGap) {
+                break;
+            }
+            candidates.remove(last); //최하단 쓸모없는 앵커 제거
+        }
+    }
+
+    private static Map<Integer, List<Integer>> resolveHourSequence(List<HourAnchorCandidate> candidates) {
+        int hourOffset = 0;
+        int previousHour = Integer.MIN_VALUE;
+        Map<Integer, List<Integer>> hourToAnchorYs = new HashMap<>();
+
+        for (HourAnchorCandidate candidate : candidates) {
+            int rawHour = candidate.hour();
+            int anchorY = candidate.y();
+
+            int normalizedHour = rawHour + hourOffset;
+            if (normalizedHour <= previousHour) {
+                int diff = previousHour - normalizedHour + 1;
+                int wrapCount = (diff + 11) / 12;
+                hourOffset += 12 * wrapCount;
+                normalizedHour = rawHour + hourOffset;
+            }
+
+            hourToAnchorYs
+                    .computeIfAbsent(normalizedHour, ignored -> new ArrayList<>())
+                    .add(anchorY);
+
+            previousHour = normalizedHour;
+        }
+        return hourToAnchorYs;
+    }
+
+    private static NavigableMap<Integer, Integer> averageAnchorY(Map<Integer, List<Integer>> hourToAnchorYs) {
+        TreeMap<Integer, Integer> result = new TreeMap<>();
+
+        for (var entry : hourToAnchorYs.entrySet()) {
+            int averageY = (int) Math.round(
+                    entry.getValue().stream().mapToInt(Integer::intValue).average().orElseThrow()
+            );
+            result.put(entry.getKey(), averageY);
+        }
+
+        return result;
+    }
+
     private static int computeHeaderBandMaxY(List<OcrText> texts, int margin) {
         int minY = Integer.MAX_VALUE;
         for (OcrText t : texts) {
@@ -115,140 +286,45 @@ public class ScheduleMatcher {
                 minY = Math.min(minY, t.topY());
             }
         }
-        if (minY == Integer.MAX_VALUE) return Integer.MIN_VALUE; //요일 없는 경ㅇ
+        if (minY == Integer.MAX_VALUE) return Integer.MIN_VALUE; //요일 없는 경우
         return minY + Math.max(margin, 0);
     }
 
-    private static final Pattern WEEKDAY = Pattern.compile("^(월|화|수|목|금|토|일)(?:요일)?$"); //월, 월요일, 월.*
-    private static final Pattern HOUR = Pattern.compile("^([1-9]|1[0-2])$");
-
-    private static String koToEn(String ko1) {
-        return switch (ko1) {
-            case "월" -> "MON";
-            case "화" -> "TUE";
-            case "수" -> "WED";
-            case "목" -> "THU";
-            case "금" -> "FRI";
-            case "토" -> "SAT";
-            case "일" -> "SUN";
-            default -> null;
-        };
+    private static int computeVerticalTolerance(NavigableMap<Integer, Integer> hourY) {
+        if (hourY == null || hourY.size() < 2) {
+            return 20;
+        }
+        Iterator<Integer> it = hourY.values().iterator();
+        int prev = it.next();
+        int minGap = Integer.MAX_VALUE;
+        while (it.hasNext()) {
+            int cur = it.next();
+            int gap = cur - prev;
+            if (gap > 0) {
+                minGap = Math.min(minGap, gap);
+            }
+            prev = cur;
+        }
+        if (minGap == Integer.MAX_VALUE) {
+            return 20;
+        }
+        return Math.max(20, minGap / 3);
     }
 
-    private static Map<String, Integer> extractWeekdayAnchors(List<OcrText> texts) {
-        record Cand(String day, int x, int y) {}
-
-        Map<String, Cand> candidate = new HashMap<>();
-        for (OcrText text : texts) {
-            String raw = text.text().trim();
-            if (!WEEKDAY.matcher(raw).matches()) continue;
-            String weekDay = raw.substring(0, 1);
-
-            int y = text.topY();
-            int x = text.centerX();
-
-            Cand c = candidate.get(weekDay);
-            if ( c == null || y < c.y) { //더  위에 있는 y를 가진 text
-                candidate.put(weekDay, new Cand(weekDay, x, y));
-            }
+    private static boolean isOutsideScheduleBand(
+            Rect r,
+            int gridTopY,
+            int gridBottomY,
+            int headerBandMaxY,
+            int verticalTolerance
+    ) {
+        if (headerBandMaxY != Integer.MIN_VALUE && r.bottom() <= headerBandMaxY) {
+            return true;
         }
-
-        Map<String, Integer> anchors = new HashMap<>();
-        for (var e : candidate.entrySet()) {
-            anchors.put(e.getKey(), e.getValue().x());
+        if (r.bottom() < gridTopY - verticalTolerance) {
+            return true;
         }
-        System.out.println("[weekdayAnchors] " + anchors);  // ex) {월=123, 화=240, 수=360, ...}
-        return anchors;
-    }
-
-    private static NavigableMap<Integer, Integer> extractHourAnchors(List<OcrText> texts, int gridTopY, int gridBottomY) {
-
-        List<int[]> candidates = new ArrayList<>();
-        for (OcrText text : texts) {
-            String t = text.text().trim();
-            int y = text.topY();
-
-            if (y < gridTopY) {
-                continue;
-            }
-            if (y > gridBottomY) {
-                continue;
-            }
-
-            if (HOUR.matcher(t).matches()) {
-                int hour = Integer.parseInt(t);
-                candidates.add(new int[]{hour, y});
-            }
-        }
-        candidates.sort(Comparator.comparingInt(o->o[1]));
-
-        if (candidates.size() >= 3) { //y축 앵커 후보 중 격자 밖 제거
-            List<Integer> ys = new ArrayList<>();
-            for (int[] c : candidates) ys.add(c[1]);
-
-            List<Integer> diffs = new ArrayList<>();
-            for (int i = 0; i < ys.size() - 1; i++) {
-                int d = ys.get(i + 1) - ys.get(i);
-                if (d > 0) diffs.add(d);
-            }
-
-            if (!diffs.isEmpty()) {
-                Collections.sort(diffs);
-                int median = diffs.get(diffs.size() / 2);
-                double maxGap = median * 1.4; //격자 간격보다 너무 큰 간격은 그리드 밖으로 간주
-
-                //상단 쪽 아웃라이어 제거
-                while (candidates.size() >= 3) {
-                    ys.clear();
-                    for (int[] c : candidates) ys.add(c[1]);
-                    int gapTop = ys.get(1) - ys.get(0);
-                    if (gapTop > maxGap) {
-                        candidates.remove(0); //최상단 쓸모없는 앵커 제거
-                    } else {
-                        break;
-                    }
-                }
-
-                //하단 쪽 아웃라이어 제거
-                while (candidates.size() >= 3) {
-                    ys.clear();
-                    for (int[] c : candidates) ys.add(c[1]);
-                    int n = ys.size();
-                    int gapBottom = ys.get(n - 1) - ys.get(n - 2);
-                    if (gapBottom > maxGap) {
-                        candidates.remove(candidates.size() - 1); //최하단 쓸모없는 앵커 제거
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
-        //y 순서대로 24시간으로 보정
-        int offset = 0;
-        int prev = Integer.MIN_VALUE;
-        Map<Integer, List<Integer>> bucket = new HashMap<>();
-        for (int[] c : candidates) {
-            int h = c[0];
-            int y = c[1];
-
-            int unwrapped = h + offset;
-            if (unwrapped <= prev) { //이전보다 작거나 같으면 12시간 추가
-                int diff = prev - unwrapped + 1;
-                int k = (diff + 11) / 12; //12의 배수로 올림
-                offset += 12 * k;
-                unwrapped = h + offset;
-            }
-            bucket.computeIfAbsent(unwrapped, k2 -> new ArrayList<>()).add(y);
-            prev = unwrapped;
-        }
-        TreeMap<Integer, Integer> anchors = new TreeMap<>();
-        for (var e : bucket.entrySet()) {
-            List<Integer> ys = e.getValue();
-            int avg = (int) Math.round(ys.stream().mapToInt(i -> i).average().orElseThrow());
-            anchors.put(e.getKey(), avg);
-        }
-        return anchors;
+        return r.top() > gridBottomY + verticalTolerance;
     }
 
     private static class Rect {
