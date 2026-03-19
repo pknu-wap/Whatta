@@ -4,6 +4,7 @@ import OCREventCard from './OcrEventCard'
 import colors from '@/styles/colors'
 import { createEvent, CreateEventPayload } from '@/api/event_api'
 import { getMyLabels, createLabel } from '@/api/label_api'
+import { resolveScheduleColor ,resolveSlotIndex, slotKey } from '@/styles/scheduleColorSets'
 
 import Animated, {
   useSharedValue,
@@ -20,6 +21,7 @@ export interface OCREventDisplay {
   date: string
   startTime?: string
   endTime?: string
+  colorKey?: string
 }
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
   onClose: () => void
   onAddEvent: (ev: any) => void
   onSaveAll?: () => void
+  colorKey?: string
 }
 
 export default function OCREventCardSlider({
@@ -36,7 +39,10 @@ export default function OCREventCardSlider({
   onClose,
   onAddEvent,
   onSaveAll,
+  colorKey,
 }: Props) {
+
+  const [selectedColor, setSelectedColor] = useState(resolveScheduleColor(colorKey))
 
   const { width } = Dimensions.get('window')
   const ITEM_WIDTH = width * 0.88
@@ -106,7 +112,7 @@ export default function OCREventCardSlider({
         startTime: ev.startTime ? `${ev.startTime}:00` : null,
         endTime: ev.endTime ? `${ev.endTime}:00` : null,
         repeat: mapWeekDayToRepeat(ev.weekDay),
-        colorKey: 'FFD966',
+        colorKey: slotKey(resolveSlotIndex(selectedColor)),
         reminderNoti: { day: 0, hour: 0, minute: 0 },
       }))
     )

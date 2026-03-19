@@ -21,6 +21,12 @@ import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import type { CreateEventPayload } from '@/api/event_api'
 import { getMyLabels } from '@/api/label_api'
+import {
+  getScheduleColorSet,
+  resolveScheduleColor,
+  resolveSlotIndex,
+  slotKey,
+} from '@/styles/scheduleColorSets'
 
 
 interface OCREventEditCardProps {
@@ -49,7 +55,14 @@ export default function OCREventEditCard({
 }: OCREventEditCardProps) {
 
   // ⭐ 색상 선택 state
-const [selectedColor, setSelectedColor] = useState(colorKey ? `#${colorKey}` : '#FFD966')
+
+const COLORS = getScheduleColorSet()
+
+const [selectedColor, setSelectedColor] = useState(resolveScheduleColor(colorKey))
+
+useEffect(() => {
+  setSelectedColor(resolveScheduleColor(colorKey))
+}, [colorKey])
 
 useEffect(() => {
   if (colorKey) {
@@ -73,17 +86,6 @@ const POP_GAP = 8
 const RIGHT_ALIGN = true
 const NUDGE_X = -5
 const NUDGE_Y = -10
-
-const COLORS = [
-  '#B04FFF',
-  '#FF4F4F',
-  '#FF8A66',
-  '#FFD966',
-  '#75FF66',
-  '#4FCAFF',
-  '#584FFF',
-  '#FF4FF0',
-]
 
   // 제목/메모
   const [titleInput, setTitleInput] = useState(title)
@@ -380,7 +382,7 @@ const buildEventPayload = () => {
     startTime: startHM,
     endTime: endHM,
     repeat,
-    colorKey: selectedColor.replace('#', '').toUpperCase(),
+    colorKey: slotKey(resolveSlotIndex(selectedColor)),
     reminderNoti,
   }
 }
