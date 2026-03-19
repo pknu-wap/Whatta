@@ -69,6 +69,7 @@ import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatSched
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
+import { SCREEN_H } from './constants'
 
 function FullBleed({
   children,
@@ -312,6 +313,7 @@ useEffect(() => {
   // ✅ 라이브바 위치 계산
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
+  const isToday = anchorDate === today()
 
   // 라벨
 
@@ -425,18 +427,18 @@ useEffect(() => {
   }, [openCreateTaskPopup])
 
   useEffect(() => {
-    const updateNowTop = (scrollToCenter = false) => {
+    const updateNowTop = (scrollToCenter: boolean) => {
       const now = new Date()
       const hour = now.getHours()
       const min = now.getMinutes()
       const topPos = (hour * 60 + min) * PIXELS_PER_MIN
       setNowTop(topPos)
 
-      if (scrollToCenter) {
+      if (scrollToCenter && !hasScrolledOnce) {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
-            y: Math.max(topPos - Dimensions.get('window').height * 0.4, 0),
-            animated: false,
+            y: Math.max(topPos - SCREEN_H * 0.35, 0),
+            animated: true,
           })
         })
         setHasScrolledOnce(true)
@@ -444,20 +446,27 @@ useEffect(() => {
     }
 
     updateNowTop(true)
-  }, [])
+    const id = setInterval(() => updateNowTop(false), 60000)
+    return () => clearInterval(id)
+  }, [hasScrolledOnce, PIXELS_PER_MIN])
 
   useFocusEffect(
     React.useCallback(() => {
-      if (nowTop != null) {
+      setHasScrolledOnce(false)
+    }, []),
+  )
+
+  useEffect(() => {
+      if (nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
-            y: Math.max(nowTop - Dimensions.get('window').height * 0.2, 0),
+            y: Math.max(nowTop - SCREEN_H * 0.35, 0),
             animated: true,
           })
+          setHasScrolledOnce(true)
         })
       }
-    }, [nowTop]),
-  )
+    }, [nowTop, hasScrolledOnce])
 
   // 라벨 필터링
   const enabledLabelIds = useMemo(
@@ -876,7 +885,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
               </View>
 
               {/* ✅ 현재시간 라이브바 */}
-              {nowTop !== null && (
+              {isToday && nowTop !== null && (
                 <>
                   <View style={[S.liveBar, { top: nowTop }]} />
                   <View style={[S.liveDot, { top: nowTop - 3 }]} />
