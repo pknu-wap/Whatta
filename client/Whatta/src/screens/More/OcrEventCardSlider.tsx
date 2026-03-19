@@ -224,10 +224,20 @@ renderItem={({ item, index }) => {
 
 onSubmit={async (finalPayload) => {
   try {
-    const savedPayload = {
-      ...finalPayload,
-      repeat: item.repeat,
-    }
+    
+const isValidRepeat = (repeat: any) => {
+  if (repeat == null) return true
+  if (typeof repeat !== 'object') return false
+  if (!repeat.type) return false
+  return true
+}
+
+const savedPayload = {
+  ...finalPayload,
+  repeat: isValidRepeat(finalPayload.repeat)
+    ? finalPayload.repeat
+    : item.repeat ?? null,
+}
 
     await createEvent(savedPayload)
 
