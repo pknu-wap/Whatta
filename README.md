@@ -109,12 +109,19 @@ Whatta는 이런 문제를 해결하기 위해,
         <br />
         <a href="https://github.com/k-dhyun" title="Code"><b>k-dhyun</b></a>
     </td>
+    <td align="center">
+        <img src="https://avatars.githubusercontent.com/u/235919472?v=4" width="120px;"/> 
+        <br />
+        <a href="https://github.com/JeonByeongUk04" title="Code"><b>JeonByeongUk04 · he/him</b></a>
+    </td>
   </tr>
   <tr>
     <td align="center"><b>김민아</b></td>
     <td align="center"><b>김도현</b></td>
+    <td align="center"><b>전병욱</b></td>
   </tr>
   <tr>
+    <td align="center"><b>Backend</b></td>
     <td align="center"><b>Backend</b></td>
     <td align="center"><b>Backend</b></td>
   </tr>
