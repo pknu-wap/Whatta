@@ -112,27 +112,26 @@ export default function OCREventCardSlider({
         startTime: ev.startTime ? `${ev.startTime}:00` : null,
         endTime: ev.endTime ? `${ev.endTime}:00` : null,
         repeat: mapWeekDayToRepeat(ev.weekDay),
-        colorKey: slotKey(resolveSlotIndex(selectedColor)),
-        reminderNoti: { day: 0, hour: 0, minute: 0 },
+        colorKey: slotKey(resolveSlotIndex(selectedColor))
       }))
     )
-  }, [events, timetableLabelId])
+  }, [events, timetableLabelId, selectedColor])
 
   /** ⭐ 모두 저장 */
-  const handleSaveAll = async () => {
-    try {
-      for (const payload of editedEvents) {
-        await createEvent(payload)
-      }
-
-      onSaveAll?.()
-      onClose()
-
-    } catch (err) {
-      console.error(err)
-      Alert.alert('오류', '일정 저장 중 오류가 발생했습니다.')
+const handleSaveAll = async () => {
+  try {
+    for (const item of editedEvents) {
+      const { id, ...payload } = item
+      await createEvent(payload)
     }
+
+    onSaveAll?.()
+    onClose()
+  } catch (err) {
+    console.error(err)
+    Alert.alert('오류', '일정 저장 중 오류가 발생했습니다.')
   }
+}
 
   const handleRemoveCard = (id: string) => {
   setEditedEvents(prev => prev.filter(ev => ev.id !== id))
@@ -225,16 +224,15 @@ renderItem={({ item, index }) => {
 
 onSubmit={async (finalPayload) => {
   try {
-
-    await createEvent({
+    const savedPayload = {
       ...finalPayload,
       repeat: item.repeat,
-    })
+    }
 
-    onAddEvent({ ...finalPayload, repeat: item.repeat })
+    await createEvent(savedPayload)
 
+    onAddEvent(savedPayload) // 부모에서는 상태 추가만
     animateRemove()
-
   } catch (e) {
     Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
   }

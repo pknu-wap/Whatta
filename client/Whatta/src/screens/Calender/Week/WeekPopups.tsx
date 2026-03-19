@@ -189,7 +189,6 @@ export default function WeekPopups({
         onClose={() => setOcrModalVisible(false)}
         onAddEvent={async (payload) => {
           try {
-            await createEvent(payload)
             await fetchWeek(weekDates)
             bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
           } catch (err) {
