@@ -38,9 +38,10 @@ interface OCREventEditCardProps {
   onClose: () => void
   isFromOCR?: boolean
   colorKey?: string
+  onSubmit: (data: CreateEventPayload) => void
 
-onSubmit: (data: CreateEventPayload) => void
-
+  registerPayloadGetter?: (getter: () => CreateEventPayload) => void
+  unregisterPayloadGetter?: () => void
 }
 
 export default function OCREventEditCard({
@@ -52,6 +53,8 @@ export default function OCREventEditCard({
   onSubmit,
   onClose,
   colorKey,
+  registerPayloadGetter,
+  unregisterPayloadGetter,
 }: OCREventEditCardProps) {
 
   // ⭐ 색상 선택 state
@@ -393,6 +396,32 @@ const buildEventPayload = () => {
     reminderNoti,
   }
 }
+
+useEffect(() => {
+  registerPayloadGetter?.(buildEventPayload)
+
+  return () => {
+    unregisterPayloadGetter?.()
+  }
+}, [
+  titleInput,
+  memo,
+  selectedLabelIds,
+  startDate,
+  endDate,
+  hasTime,
+  repeatMode,
+  monthlyOpt,
+  repeatEvery,
+  repeatUnit,
+  repeatEndDate,
+  remindOn,
+  remindValue,
+  customHour,
+  customMinute,
+  selectedColor,
+  tab,
+])
 
   // 🔥 OCR 카드 전용: '시간표' 라벨 자동 선택/자동 생성
 // 🔥 라벨 목록 불러오기

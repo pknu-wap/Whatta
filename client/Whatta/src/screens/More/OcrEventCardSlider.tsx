@@ -117,12 +117,31 @@ export default function OCREventCardSlider({
     )
   }, [events, timetableLabelId, selectedColor])
 
+  const payloadGettersRef = React.useRef<Record<string, () => CreateEventPayload>>({})
+
+const registerPayloadGetter = (id: string, getter: () => CreateEventPayload) => {
+  payloadGettersRef.current[id] = getter
+}
+
+const unregisterPayloadGetter = (id: string) => {
+  delete payloadGettersRef.current[id]
+}
+
   /** ⭐ 모두 저장 */
 const handleSaveAll = async () => {
   try {
     for (const item of editedEvents) {
-      const { id, ...payload } = item
+      const getter = payloadGettersRef.current[item.id]
+
+      const payload = getter
+        ? getter()
+        : (() => {
+            const { id, ...rest } = item
+            return rest
+          })()
+
       await createEvent(payload)
+      onAddEvent(payload)
     }
 
     onSaveAll?.()
@@ -221,6 +240,8 @@ renderItem={({ item, index }) => {
           date={item.startDate}
           startTime={item.startTime?.slice(0, 5)}
           endTime={item.endTime?.slice(0, 5)}
+          registerPayloadGetter={(getter) => registerPayloadGetter(item.id, getter)}
+          unregisterPayloadGetter={() => unregisterPayloadGetter(item.id)}
 
 onSubmit={async (finalPayload) => {
   try {
