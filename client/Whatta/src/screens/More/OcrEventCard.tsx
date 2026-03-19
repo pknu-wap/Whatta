@@ -161,6 +161,15 @@ const formatKoreanTime = (d: Date) => {
   return `${period} ${h12}:${m}`
 }
 
+const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
+
+const formatLocalDate = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 // 🔥 1) 일정이 멀티데이 span인지 여부 (지금은 false 고정)
 const isMultiDaySpan = false
 
@@ -302,19 +311,11 @@ const endLabel = (mode: 'none' | 'date', d: Date | null) => {
 
 // ⭐ 서버에 보낼 최종 payload 생성 함수
 const buildEventPayload = () => {
-  // 시간
   const startHM = hasTime ? formatHM(startDate) + ':00' : null
-  const endHM   = hasTime ? formatHM(endDate) + ':00' : null
+  const endHM = hasTime ? formatHM(endDate) + ':00' : null
 
-  const formatLocalDate = (d: Date) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-  // 반복 옵션
   let repeat: any = null
+  const wd = WEEKDAY_ENUM[startDate.getDay()]
 
   if (tab === '반복' && repeatMode !== 'none') {
     if (repeatMode === 'daily') {
@@ -329,7 +330,7 @@ const buildEventPayload = () => {
       repeat = {
         interval: 1,
         unit: 'WEEK',
-        on: [ WEEKDAY[startDate.getDay()] ],
+        on: [wd],
         endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
@@ -339,25 +340,24 @@ const buildEventPayload = () => {
         unit: 'MONTH',
         on:
           monthlyOpt === 'byDate'
-            ? [String(startDate.getDate())]
+            ? [`D${startDate.getDate()}`]
             : monthlyOpt === 'byNthWeekday'
-              ? [`${nth}-${startDate.getDay()}`]        // 예: "2-1"
-              : [`LAST-${startDate.getDay()}`],        // 예: "LAST-1"
+              ? [`${nth}${wd}`]
+              : [`LAST${wd}`],
         endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'custom') {
       repeat = {
         interval: repeatEvery,
-        unit: repeatUnit.toUpperCase(),  // DAY/WEEK/MONTH
-        on: [],
+        unit: repeatUnit.toUpperCase(),
+        on: repeatUnit === 'week' ? [wd] : [],
         endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     }
   }
 
-  // 알림 옵션
   let reminderNoti = { day: 0, hour: 0, minute: 0 }
 
   if (remindOn) {
