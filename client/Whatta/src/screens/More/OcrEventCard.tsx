@@ -306,6 +306,13 @@ const buildEventPayload = () => {
   const startHM = hasTime ? formatHM(startDate) + ':00' : null
   const endHM   = hasTime ? formatHM(endDate) + ':00' : null
 
+  const formatLocalDate = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
   // 반복 옵션
   let repeat: any = null
 
@@ -315,7 +322,7 @@ const buildEventPayload = () => {
         interval: 1,
         unit: 'DAY',
         on: [],
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'weekly') {
@@ -323,7 +330,7 @@ const buildEventPayload = () => {
         interval: 1,
         unit: 'WEEK',
         on: [ WEEKDAY[startDate.getDay()] ],
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'monthly') {
@@ -336,7 +343,7 @@ const buildEventPayload = () => {
             : monthlyOpt === 'byNthWeekday'
               ? [`${nth}-${startDate.getDay()}`]        // 예: "2-1"
               : [`LAST-${startDate.getDay()}`],        // 예: "LAST-1"
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'custom') {
@@ -344,7 +351,7 @@ const buildEventPayload = () => {
         interval: repeatEvery,
         unit: repeatUnit.toUpperCase(),  // DAY/WEEK/MONTH
         on: [],
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     }
@@ -377,8 +384,8 @@ const buildEventPayload = () => {
     title: titleInput,
     content: memo || '',
     labels: selectedLabelIds,
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
+    startDate: formatLocalDate(startDate),
+    endDate: formatLocalDate(endDate),
     startTime: startHM,
     endTime: endHM,
     repeat,
