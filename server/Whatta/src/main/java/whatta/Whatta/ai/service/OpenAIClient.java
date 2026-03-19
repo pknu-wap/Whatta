@@ -17,12 +17,14 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OpenAIClient {
+    private static final int MAX_LOG_VALUE_LENGTH = 200;
     private final WebClient openAiWebClient;
     private final ObjectMapper objectMapper;
     private static final int MAX_OUTPUT_TOKENS = 1500;
@@ -39,7 +41,7 @@ public class OpenAIClient {
                 .input(input)
                 .maxOutputTokens(MAX_OUTPUT_TOKENS)
                 .reasoning(new OpenAIRequest.Reasoning(OpenAIRequest.Reasoning.Effort.low))
-                .instructions(ScheduleExtractionSpec.INSTRUCTIONS)
+                .instructions(ScheduleExtractionSpec.instructions())
                 .text(new OpenAIRequest.Text(
                         new OpenAIRequest.Format(
                                 "json_schema",
@@ -51,7 +53,8 @@ public class OpenAIClient {
                 .store(false)
                 .build();
 
-        JsonNode root = parseResponse(requestResponse(req));
+        String rawResponse = requestResponse(req);
+        JsonNode root = parseResponse(rawResponse);
         OpenAIScheduleResponse extracted = extractOutput(root);
         if (extracted == null) {
             log.error("[OPENAI][PARSE_ERROR] text output missing. responseId={}, status={}",
@@ -74,7 +77,14 @@ public class OpenAIClient {
             printUsageToStdOut(rawResponse, req);
             return rawResponse;
         } catch (WebClientResponseException e) {
-            log.error("[OPENAI][ERROR] type=http status={} body={}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            String responseBody = e.getResponseBodyAsString();
+            log.error("[OPENAI][ERROR] type=http status={} requestId={} errorType={} errorCode={} errorMessage={}",
+                    e.getStatusCode().value(),
+                    sanitizeLogValue(e.getHeaders().getFirst("x-request-id")),
+                    extractErrorField(responseBody, "type"),
+                    extractErrorField(responseBody, "code"),
+                    extractErrorField(responseBody, "message"),
+                    e);
             throw new RestApiException(ErrorCode.OPENAI_API_FAILED);
         } catch (WebClientRequestException e) {
             if (isTimeout(e)) {
@@ -111,7 +121,7 @@ public class OpenAIClient {
             root = cursor;
             cursor = cursor.getCause();
         }
-        return root == null ? "" : root.getMessage();
+        return root == null ? "" : sanitizeLogValue(root.getMessage());
     }
 
     private void printUsageToStdOut(String rawResponse, OpenAIRequest req) {
@@ -219,5 +229,30 @@ public class OpenAIClient {
             }
         }
         return null;
+    }
+
+    private String extractErrorField(String responseBody, String fieldName) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return "-";
+        }
+
+        try {
+            JsonNode errorNode = objectMapper.readTree(responseBody).path("error");
+            return sanitizeLogValue(errorNode.path(fieldName).asText("-"));
+        } catch (JsonProcessingException e) {
+            return "-";
+        }
+    }
+
+    private String sanitizeLogValue(String value) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+
+        String sanitized = value.replaceAll("\\s+", " ").trim();
+        if (sanitized.length() <= MAX_LOG_VALUE_LENGTH) {
+            return sanitized;
+        }
+        return sanitized.substring(0, MAX_LOG_VALUE_LENGTH) + "...";
     }
 }
