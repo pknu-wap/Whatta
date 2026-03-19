@@ -19,6 +19,7 @@ export interface CreateTaskPayload {
   placementDate?: string | null
   placementTime?: string | null
   reminderNoti?: any | null
+  dueDateTime?: string | null
   date?: string
 }
 
@@ -31,6 +32,7 @@ export interface UpdateTaskPayload {
   placementDate?: string | null
   placementTime?: string | null
   reminderNoti?: any | null
+  dueDateTime?: string | null
 
   fieldsToClear?: string[]
 }

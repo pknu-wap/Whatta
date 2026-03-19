@@ -1420,6 +1420,8 @@ const handleTaskSave = useCallback(async (form:any) => {
   //reminderNoti
   const reminderNoti = form.reminderNoti ?? null
   if (!reminderNoti) fieldsToClear.push('reminderNoti')
+  const dueDateTime = form.dueDateTime ?? null
+  if (!dueDateTime) fieldsToClear.push('dueDateTime')
 
   const targetDate = placementDate ?? focusedDateISO
 
@@ -1430,11 +1432,12 @@ const handleTaskSave = useCallback(async (form:any) => {
       await http.patch(`/task/${taskPopupId}`, {
         title: form.title,
         content: form.memo,
-        labels: form.labels,
-        placementDate,
-        placementTime,
-        reminderNoti,
-        fieldsToClear,
+            labels: form.labels,
+            placementDate,
+            placementTime,
+            reminderNoti,
+            dueDateTime,
+            fieldsToClear,
       })
 
         bus.emit('calendar:mutated', {
@@ -1449,6 +1452,7 @@ const handleTaskSave = useCallback(async (form:any) => {
             placementDate,
             placementTime,
             reminderNoti,
+            dueDateTime,
             date: targetDate,
           })
 

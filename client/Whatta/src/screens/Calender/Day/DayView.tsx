@@ -1071,6 +1071,8 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
             const reminderNoti = form.reminderNoti ?? null
             if (!reminderNoti) fieldsToClear.push('reminderNoti')
+            const dueDateTime = form.dueDateTime ?? null
+            if (!dueDateTime) fieldsToClear.push('dueDateTime')
 
             const targetDate = placementDate ?? anchorDate
 
@@ -1085,6 +1087,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                   placementDate,
                   placementTime,
                   reminderNoti,
+                  dueDateTime,
                   fieldsToClear,
                 })
 
@@ -1101,6 +1104,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                   placementDate,
                   placementTime,
                   reminderNoti,
+                  dueDateTime,
                   date: targetDate,
                 })
 

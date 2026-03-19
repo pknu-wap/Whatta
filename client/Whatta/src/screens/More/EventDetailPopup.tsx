@@ -605,6 +605,8 @@ export default function EventDetailPopup({
   const [taskDate, setTaskDate] = useState<Date | null>(null)
   const [taskDueOn, setTaskDueOn] = useState(false)
   const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
+  const [taskDueTimeOn, setTaskDueTimeOn] = useState(false)
+  const [taskDueTime, setTaskDueTime] = useState<Date>(new Date())
 
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
   const saveNormal = async (opts?: { clearRepeat?: boolean }) => {
@@ -665,7 +667,7 @@ export default function EventDetailPopup({
     const placementTime = timeOn ? hms(start) : null
     const dueDateTime =
       taskDueOn && taskDueDate
-        ? `${ymdLocal(taskDueDate)}T23:59:59`
+        ? `${ymdLocal(taskDueDate)}T${taskDueTimeOn ? hms(taskDueTime) : '23:59:59'}`
         : null
     const targetDate = placementDate ?? ymdLocal(start)
 
@@ -1903,11 +1905,38 @@ export default function EventDetailPopup({
                         setCustomOpen(false)
                         setTaskDueOn(false)
                         setTaskDueDate(null)
+                        setTaskDueTimeOn(false)
+                        setTaskDueTime(new Date())
                       }}
                       taskDueOn={taskDueOn}
-                      onChangeTaskDueOn={setTaskDueOn}
+                      onChangeTaskDueOn={(next) => {
+                        if (!next) {
+                          setTaskDueOn(false)
+                          setTaskDueDate(null)
+                          setTaskDueTimeOn(false)
+                          setTaskDueTime(new Date())
+                          return
+                        }
+
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const minDueDate = taskDate ? new Date(taskDate) : today
+                        minDueDate.setHours(0, 0, 0, 0)
+                        const defaultDueDate =
+                          today.getTime() > minDueDate.getTime() ? today : minDueDate
+
+                        setTaskDueOn(true)
+                        setTaskDueDate((prev) => prev ?? defaultDueDate)
+                      }}
                       taskDueDate={taskDueDate}
                       onChangeTaskDueDate={setTaskDueDate}
+                      taskDueTimeOn={taskDueTimeOn}
+                      onChangeTaskDueTimeOn={setTaskDueTimeOn}
+                      taskDueTime={taskDueTime}
+                      onChangeTaskDueTime={(next) => {
+                        setTaskDueTimeOn(true)
+                        setTaskDueTime(next)
+                      }}
                     />
                   ) : (
                     <ScrollView
