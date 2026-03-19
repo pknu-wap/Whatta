@@ -13,6 +13,7 @@ const TASK_GROUP_HEADER_COLOR = colors.brand.primary
 const TASK_BORDER_COLOR = colors.divider.divider1
 const WEEK_VERTICAL_WIDTH_THRESHOLD = 36
 const WEEK_VERTICAL_RADIUS = 4
+const TASK_DETAIL_OPEN_MIN_WIDTH = 120
 
 type TaskGroupSpacing = {
   arrowMarginLeft: number
@@ -58,6 +59,7 @@ function TaskGroupCard({
   hideText = false,
   onToggleExpand,
   onToggleTask,
+  onPressTask,
 }: TaskGroupCardProps) {
   // 그룹 컨테이너의 실제 width를 읽어 헤더/아이콘 표시를 분기한다.
   const [layoutWidth, setLayoutWidth] = React.useState(0)
@@ -89,6 +91,8 @@ function TaskGroupCard({
   const headerIconSize = isMini ? 8 : 10
   const canExpand = typeof onToggleExpand === 'function' && !hideText
   const canToggleTask = typeof onToggleTask === 'function'
+  const canOpenTask =
+    typeof onPressTask === 'function' && resolvedWidth >= TASK_DETAIL_OPEN_MIN_WIDTH
   const baseHeader = expanded
     ? isCompact
       ? '할 일'
@@ -210,9 +214,15 @@ function TaskGroupCard({
               </Pressable>
 
               <Pressable
-                disabled={!canToggleTask}
-                pointerEvents={canToggleTask ? 'auto' : 'none'}
-                onPress={() => onToggleTask?.(task.id, !task.done)}
+                disabled={!canOpenTask && !canToggleTask}
+                pointerEvents={canOpenTask || canToggleTask ? 'auto' : 'none'}
+                onPress={() => {
+                  if (canOpenTask) {
+                    onPressTask?.(task.id)
+                    return
+                  }
+                  onToggleTask?.(task.id, !task.done)
+                }}
                 style={S.taskTextWrap}
               >
                 <Text

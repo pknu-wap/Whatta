@@ -156,6 +156,7 @@ function TaskGroupBox({
   startHour,
   rowH,
   onLocalChange,
+  openTaskPopupFromApi,
   dayColWidth,
   dateISO,
   dayIndex,
@@ -178,6 +179,7 @@ function TaskGroupBox({
     completed?: boolean
     placementTime?: string | null
   }) => void
+  openTaskPopupFromApi?: (taskId: string) => void
 }) {
   const [localTasks, setLocalTasks] = useState(tasks)
   const pixelsPerMin = rowH / 60
@@ -435,6 +437,9 @@ function TaskGroupBox({
             onToggleExpand={(_groupId, nextExpanded) => {
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
               setExpanded(nextExpanded)
+            }}
+            onPressTask={(taskId) => {
+              openTaskPopupFromApi?.(taskId)
             }}
             onToggleTask={(taskId) => {
               const target = localTasks.find((t: any) => String(t.id) === String(taskId))

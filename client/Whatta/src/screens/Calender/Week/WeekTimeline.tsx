@@ -303,6 +303,7 @@ function WeekTimeline({
                           rowH={rowH}
                           column={block.column}
                           columnsTotal={block.columnsTotal}
+                          openTaskPopupFromApi={openTaskPopupFromApi}
                           onLocalChange={({ id, dateISO, completed }: any) => {
                             if (typeof completed === 'boolean') {
                               onTimedTaskCompletedChange({
