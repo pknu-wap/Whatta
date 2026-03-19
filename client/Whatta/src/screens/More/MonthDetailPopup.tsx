@@ -1,6 +1,5 @@
 import React from 'react'
 import {
-  Modal,
   View,
   Text,
   Pressable,
@@ -12,6 +11,7 @@ import {
   Platform,
 } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Easing } from 'react-native'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
@@ -30,6 +30,7 @@ const DETAIL_RIGHT_EXTENSION = 24
 const DETAIL_ITEM_HEIGHT = 60
 const QUICK_INPUT_HEIGHT = 50
 const DETAIL_ITEM_RADIUS = 12
+const APP_HEADER_HEIGHT = 45
 
 export interface DayEvent {
   id?: string | number
@@ -54,6 +55,9 @@ export interface DayEvent {
 interface MonthlyDetailPopupProps {
   visible: boolean
   onClose: () => void
+  interactionLocked?: boolean
+  onPressEvent?: (event: DayEvent) => void
+  onPressTask?: (task: DayEvent) => void
   dayData: {
     date?: string
     dateISO?: string
@@ -112,9 +116,13 @@ const toStartMinutes = (ev: DayEvent) => {
 export default function MonthlyDetailPopup({
   visible,
   onClose,
+  interactionLocked = false,
+  onPressEvent,
+  onPressTask,
   dayData,
 }: MonthlyDetailPopupProps) {
   const navigation = useNavigation<any>()
+  const insets = useSafeAreaInsets()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current
   const [taskDoneMap, setTaskDoneMap] = React.useState<Record<string, boolean>>({})
@@ -254,6 +262,7 @@ export default function MonthlyDetailPopup({
           density="day"
           isUntimed={isUntimed}
           timeRangeText={subText}
+          onPress={!interactionLocked && ev.id != null ? () => onPressEvent?.(ev) : undefined}
           style={
             isUntimed
               ? S.itemCard
@@ -290,6 +299,7 @@ export default function MonthlyDetailPopup({
           isEnd={isEnd}
           density="day"
           isUntimed
+          onPress={!interactionLocked && ev.id != null ? () => onPressEvent?.(ev) : undefined}
           radiusOverride={DETAIL_ITEM_RADIUS}
           capWidthOverride={DETAIL_ITEM_RADIUS}
           style={[S.itemCard, { width: spanWidth }]}
@@ -311,8 +321,8 @@ export default function MonthlyDetailPopup({
           density="day"
           layoutWidthHint={DETAIL_ITEM_WIDTH}
           style={S.itemCard}
-          onPress={() => toggleTask(task)}
-          onToggle={() => toggleTask(task)}
+          onPress={!interactionLocked && task.id != null ? () => onPressTask?.(task) : undefined}
+          onToggle={interactionLocked ? undefined : () => toggleTask(task)}
         />
       </View>
     )
@@ -372,6 +382,7 @@ export default function MonthlyDetailPopup({
   }
 
   const handleHeaderPress = React.useCallback(() => {
+    if (interactionLocked) return
     const iso = String(dayData.dateISO ?? '').slice(0, 10)
     if (!iso) return
 
@@ -380,12 +391,24 @@ export default function MonthlyDetailPopup({
     requestAnimationFrame(() => {
       navigation.navigate('Day')
     })
-  }, [dayData.dateISO, navigation, onClose])
+  }, [dayData.dateISO, interactionLocked, navigation, onClose])
+
+  if (!visible) return null
 
   return (
-    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-
+    <View
+      style={[
+        S.modalHost,
+        {
+          top: APP_HEADER_HEIGHT + insets.top,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={interactionLocked ? undefined : onClose}
+      />
       <KeyboardAvoidingView
         style={S.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -398,11 +421,15 @@ export default function MonthlyDetailPopup({
               <View style={S.container}>
                 <View style={S.headerRow}>
                   <View style={S.headerLeft}>
-                    <Pressable onPress={handleHeaderPress}>
+                    <Pressable onPress={interactionLocked ? undefined : handleHeaderPress}>
                       <Text style={S.headerText}>{headerTitle}</Text>
                     </Pressable>
                   </View>
-                  <Pressable onPress={onClose} hitSlop={10} style={S.headerRightIconWrap}>
+                  <Pressable
+                    onPress={interactionLocked ? undefined : onClose}
+                    hitSlop={10}
+                    style={S.headerRightIconWrap}
+                  >
                     <XIcon width={13} height={13} color={colors.icon.default} />
                   </Pressable>
                 </View>
@@ -474,11 +501,16 @@ export default function MonthlyDetailPopup({
           </Pressable>
         </Animated.View>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   )
 }
 
 const S = StyleSheet.create({
+  modalHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+  },
   keyboardAvoid: {
     flex: 1,
   },

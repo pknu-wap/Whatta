@@ -23,7 +23,7 @@ import { MonthlyDay } from '@/api/calendar'
 import { ScheduleData } from '@/api/adapter'
 import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
-import { fetchTasksForMonth } from '@/api/event_api'
+import { fetchTasksForMonth, getEvent } from '@/api/event_api'
 import { useFocusEffect } from '@react-navigation/native'
 import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
@@ -50,6 +50,7 @@ import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { cellWidth } from './S'
 import { normalizeScheduleColorKey, resolveScheduleColor } from '@/styles/scheduleColorSets'
+import { getTask } from '@/api/task'
 
 
 
@@ -304,6 +305,28 @@ const {
     return found ? Number(found.id) : null
   }, [filterLabels])
 
+  const refreshSelectedDayData = useCallback(
+    async (dateISO?: string | null) => {
+      const targetISO = String(dateISO ?? '').slice(0, 10)
+      if (!targetISO) return
+
+      try {
+        const nextYM = toYM(targetISO)
+        const fresh = await fetchMonthlyApi(nextYM)
+        const rawDay = (fresh.days ?? []).find((day) => {
+          const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
+          return dayISO === targetISO
+        })
+
+        if (!rawDay) return
+        setSelectedDayData(buildSelectedDayDataFromRawDay(targetISO, rawDay))
+      } catch (err) {
+        console.warn('[MonthView] refreshSelectedDayData failed', err)
+      }
+    },
+    [buildSelectedDayDataFromRawDay],
+  )
+
   const openCreateTaskPopup = useCallback(
     (source?: string) => {
       setTaskPopupMode('create')
@@ -337,6 +360,54 @@ const {
     bus.on('task:create', handler)
     return () => bus.off('task:create', handler)
   }, [openCreateTaskPopup])
+
+  const openEventDetail = useCallback(async (eventId: string, occDate?: string) => {
+    try {
+      const data = await getEvent(eventId)
+      const detail = data?.data
+      if (!detail) return
+
+      setEventPopupMode('edit')
+      setEventPopupCreateType('event')
+      setEventPopupData(
+        occDate
+          ? {
+              ...detail,
+              startDate: occDate,
+            }
+          : detail,
+      )
+      setEventPopupVisible(true)
+    } catch (e) {
+      console.warn('event detail load error', e)
+      Alert.alert('오류', '일정 정보를 가져오지 못했습니다.')
+    }
+  }, [])
+
+  const openTaskPopupFromApi = useCallback(async (taskId: string) => {
+    try {
+      const data = await getTask(taskId)
+      if (!data) return
+
+      setTaskPopupMode('edit')
+      setTaskPopupId(data.id)
+      setTaskPopupTask({
+        id: data.id,
+        title: data.title ?? '',
+        content: data.content ?? '',
+        labels: data.labels ?? [],
+        completed: data.completed ?? false,
+        placementDate: data.placementDate,
+        placementTime: data.placementTime,
+        dueDateTime: data.dueDateTime ?? null,
+        reminderNoti: data.reminderNoti ?? null,
+      })
+      setTaskPopupVisible(true)
+    } catch (e) {
+      console.warn('task detail load error', e)
+      Alert.alert('오류', '테스크 정보를 가져오지 못했습니다.')
+    }
+  }, [])
 
 
   // 월 이동 + 스와이프에서 호출
@@ -1282,6 +1353,7 @@ const closeEventPopup = () => {
   setEventPopupData(null)
   setEventPopupCreateType('event')
   void fetchFresh(ym)
+  void refreshSelectedDayData(selectedDayData?.dateISO)
 }
 
 const closeTaskPopup = () => {
@@ -1289,6 +1361,7 @@ const closeTaskPopup = () => {
   setTaskPopupTask(null)
   setTaskPopupId(null)
   void fetchFresh(ym)
+  void refreshSelectedDayData(selectedDayData?.dateISO)
 }
 
 const handleTaskSave = useCallback(async (form:any) => {
@@ -1357,6 +1430,7 @@ const handleTaskSave = useCallback(async (form:any) => {
           })
         }
         await fetchFresh(ym)
+        await refreshSelectedDayData(selectedDayData?.dateISO)
         setTaskPopupVisible(false)
         setTaskPopupId(null)
         setTaskPopupTask(null)
@@ -1370,6 +1444,8 @@ const handleTaskSave = useCallback(async (form:any) => {
       taskPopupId,
       focusedDateISO,
       fetchFresh,
+      refreshSelectedDayData,
+      selectedDayData?.dateISO,
 ])
 
 const handleTaskDelete = useCallback(async () => {
@@ -1383,6 +1459,7 @@ const handleTaskDelete = useCallback(async () => {
     })
 
     await fetchFresh(ym)
+    await refreshSelectedDayData(selectedDayData?.dateISO)
 
     setTaskPopupVisible(false)
     setTaskPopupId(null)
@@ -1391,7 +1468,7 @@ const handleTaskDelete = useCallback(async () => {
     console.error('❌ 테스크 삭제 실패:', err)
     Alert.alert('오류', '테스크를 삭제하지 못했습니다.')
   }
-}, [taskPopupId, focusedDateISO, fetchFresh, ym])
+}, [taskPopupId, focusedDateISO, fetchFresh, ym, refreshSelectedDayData, selectedDayData?.dateISO])
 
 const handleOcrAddEvent = useCallback(
   async (payload:any) => {
@@ -1451,6 +1528,15 @@ const handleOcrSaveAll = useCallback(async () => {
       <MonthDetailPopup
         visible={popupVisible}
         onClose={() => setPopupVisible(false)}
+        interactionLocked={eventPopupVisible || taskPopupVisible}
+        onPressEvent={(event) => {
+          if (event.id == null) return
+          openEventDetail(String(event.id), selectedDayData?.dateISO)
+        }}
+        onPressTask={(task) => {
+          if (task.id == null) return
+          openTaskPopupFromApi(String(task.id))
+        }}
         dayData={selectedDayData || {}}
       />
       <EventDetailPopup
