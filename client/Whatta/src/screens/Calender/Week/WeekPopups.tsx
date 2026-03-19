@@ -103,6 +103,8 @@ export default function WeekPopups({
 
           const reminderNoti = form.reminderNoti ?? null
           if (reminderNoti === null || reminderNoti === undefined) fieldsToClear.push('reminderNoti')
+          const dueDateTime = form.dueDateTime ?? null
+          if (dueDateTime === null || dueDateTime === undefined) fieldsToClear.push('dueDateTime')
 
           try {
             if (taskPopupMode === 'edit') {
@@ -115,6 +117,7 @@ export default function WeekPopups({
                 placementDate,
                 placementTime,
                 reminderNoti,
+                dueDateTime,
                 fieldsToClear,
               })
 
@@ -130,6 +133,7 @@ export default function WeekPopups({
                 placementDate,
                 placementTime,
                 reminderNoti,
+                dueDateTime,
                 date: placementDate ?? anchorDate,
               })
 

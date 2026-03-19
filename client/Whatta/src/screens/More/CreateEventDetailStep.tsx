@@ -72,6 +72,10 @@ type Props = {
   onChangeTaskDueOn: (next: boolean) => void
   taskDueDate: Date | null
   onChangeTaskDueDate: (next: Date | null) => void
+  taskDueTimeOn: boolean
+  onChangeTaskDueTimeOn: (next: boolean) => void
+  taskDueTime: Date
+  onChangeTaskDueTime: (next: Date) => void
 }
 
 type ReminderPresetOption = {
@@ -214,9 +218,13 @@ export default function CreateEventDetailStep({
   onChangeTaskDueOn,
   taskDueDate,
   onChangeTaskDueDate,
+  taskDueTimeOn,
+  onChangeTaskDueTimeOn,
+  taskDueTime,
+  onChangeTaskDueTime,
 }: Props) {
   const displayedEnd = endDisplay ?? end
-  const [openTimeTarget, setOpenTimeTarget] = React.useState<'start' | 'end' | null>(null)
+  const [openTimeTarget, setOpenTimeTarget] = React.useState<'start' | 'end' | 'due' | null>(null)
   const [repeatOpen, setRepeatOpen] = React.useState(false)
   const [monthlyOpen, setMonthlyOpen] = React.useState(false)
   const [repeatCustomOpen, setRepeatCustomOpen] = React.useState(false)
@@ -321,6 +329,12 @@ export default function CreateEventDetailStep({
   React.useEffect(() => {
     if (selectedType === 'task') setColorPaletteOpen(false)
   }, [selectedType])
+
+  React.useEffect(() => {
+    if (!taskDueOn && openTimeTarget === 'due') {
+      setOpenTimeTarget(null)
+    }
+  }, [taskDueOn, openTimeTarget])
 
   const openTaskCalendarWithBase = (target: 'date' | 'due') => {
     const base =
@@ -599,34 +613,38 @@ export default function CreateEventDetailStep({
             </View>
           )}
 
-          <View style={[styles.timeRow, { marginTop: 14 }]}>
-            <Text style={styles.timeRowLabel}>종료 시각</Text>
-            <Pressable
-              style={[
-                styles.timeBox,
-                openTimeTarget === 'end' && styles.timeBoxSelected,
-              ]}
-              onPress={() => setOpenTimeTarget((prev) => (prev === 'end' ? null : 'end'))}
-            >
-              <Text
-                style={[
-                  styles.timeBoxText,
-                  invalidEndTime
-                    ? styles.timeBoxTextInvalid
-                    : openTimeTarget === 'end' && styles.timeBoxTextSelected,
-                ]}
-              >
-                {formatKTime12(displayedEnd)}
-              </Text>
-            </Pressable>
-          </View>
-          {openTimeTarget === 'end' && (
-            <View style={styles.timePickerWrap}>
-              <TimeWheel
-                value={displayedEnd}
-                onChange={onChangeEndTime}
-              />
-            </View>
+          {selectedType === 'event' && (
+            <>
+              <View style={[styles.timeRow, { marginTop: 14 }]}>
+                <Text style={styles.timeRowLabel}>종료 시각</Text>
+                <Pressable
+                  style={[
+                    styles.timeBox,
+                    openTimeTarget === 'end' && styles.timeBoxSelected,
+                  ]}
+                  onPress={() => setOpenTimeTarget((prev) => (prev === 'end' ? null : 'end'))}
+                >
+                  <Text
+                    style={[
+                      styles.timeBoxText,
+                      invalidEndTime
+                        ? styles.timeBoxTextInvalid
+                        : openTimeTarget === 'end' && styles.timeBoxTextSelected,
+                    ]}
+                  >
+                    {formatKTime12(displayedEnd)}
+                  </Text>
+                </Pressable>
+              </View>
+              {openTimeTarget === 'end' && (
+                <View style={styles.timePickerWrap}>
+                  <TimeWheel
+                    value={displayedEnd}
+                    onChange={onChangeEndTime}
+                  />
+                </View>
+              )}
+            </>
           )}
         </View>
       )}
@@ -1170,6 +1188,45 @@ export default function CreateEventDetailStep({
                       </Pressable>
                     </View>
                   )}
+                </View>
+              )}
+              <View style={[styles.timeRow, { marginTop: 14 }]}>
+                <Text style={styles.timeRowLabel}>마감 시각</Text>
+                <Pressable
+                  style={[
+                    styles.timeBox,
+                    openTimeTarget === 'due' && styles.timeBoxSelected,
+                  ]}
+                  onPress={() => setOpenTimeTarget((prev) => (prev === 'due' ? null : 'due'))}
+                >
+                  <Text
+                    style={[
+                      styles.timeBoxText,
+                      !taskDueTimeOn && styles.endDatePlaceholder,
+                      openTimeTarget === 'due' && taskDueTimeOn && styles.timeBoxTextSelected,
+                    ]}
+                  >
+                    {taskDueTimeOn ? formatKTime12(taskDueTime) : '지정안함'}
+                  </Text>
+                </Pressable>
+              </View>
+              {openTimeTarget === 'due' && (
+                <View style={styles.timePickerWrap}>
+                  <TimeWheel
+                    value={taskDueTime}
+                    onChange={onChangeTaskDueTime}
+                  />
+                  <View style={styles.dueTimeActionRow}>
+                    <Pressable
+                      onPress={() => {
+                        onChangeTaskDueTimeOn(false)
+                        setOpenTimeTarget(null)
+                      }}
+                      hitSlop={10}
+                    >
+                      <Text style={styles.dueTimeClearText}>지정 안함</Text>
+                    </Pressable>
+                  </View>
                 </View>
               )}
             </>
@@ -1958,12 +2015,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginLeft: 0,
     width: 302,
-    height: 170,
+    minHeight: 170,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     paddingVertical: 5,
     paddingHorizontal: 5,
+  },
+  dueTimeActionRow: {
+    width: '100%',
+    height: 34,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  dueTimeClearText: {
+    ...ts('label3'),
+    color: colors.text.text3,
+    fontWeight: '700',
   },
   wheelRow: {
     flex: 1,
