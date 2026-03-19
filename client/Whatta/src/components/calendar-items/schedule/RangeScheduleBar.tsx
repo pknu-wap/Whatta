@@ -68,7 +68,13 @@ function RangeScheduleBar({
         style={[S.chipLeft, { width: showStartCap ? capWidth : 0, backgroundColor: mainColor }]}
       />
 
-      <View style={[S.centerContent, hasAnyCap ? { backgroundColor: colors.background.bg1 } : null]}>
+      <View
+        style={[
+          S.centerContent,
+          density === 'month' ? S.centerContentMonth : null,
+          hasAnyCap ? { backgroundColor: colors.background.bg1 } : null,
+        ]}
+      >
         <Text
           style={[
             S.title,
@@ -157,6 +163,10 @@ const S = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     paddingVertical: 0,
+  },
+  centerContentMonth: {
+    paddingLeft: 4,
+    paddingRight: 0,
   },
   title: {
     color: colors.text.text1,
