@@ -142,11 +142,6 @@
         <a href="https://github.com/a54005107" title="Code"><b>a54005107</b></a>
     </td>
     <td align="center">
-        <img src="https://avatars.githubusercontent.com/u/263518012?v=4" width="120px;"/> 
-        <br />
-        <a href="https://github.com/YCJ0033" title="Code"><b>YCJ0033</b></a>
-    </td>
-    <td align="center">
         <img src="https://github.com/user-attachments/assets/841c5481-4d64-4f32-92b7-227e7406370d" width="120px;"/> 
         <br />
         <a href="https://github.com/newdesigner" title="Code"><b></b></a>
@@ -156,11 +151,9 @@
     <td align="center"><b>이수민</b></td>
     <td align="center"><b>최서진</b></td>
     <td align="center"><b>최지선</b></td>
-    <td align="center"><b>윤채준</b></td>
     <td align="center"><b>정하림</b></td>
   </tr>
   <tr>
-    <td align="center"><b>App</b></td>
     <td align="center"><b>App</b></td>
     <td align="center"><b>App</b></td>
     <td align="center"><b>App</b></td>
