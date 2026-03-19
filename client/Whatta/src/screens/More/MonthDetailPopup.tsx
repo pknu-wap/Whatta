@@ -11,15 +11,14 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { useNavigation } from '@react-navigation/native'
 import { Easing } from 'react-native'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
-import DownL from '@/assets/icons/drop_down.svg'
-import XIcon from '@/assets/icons/x.svg'
 import PlusBtn from '@/assets/icons/plusbtn.svg'
-import CalendarModal from '@/components/CalendarModal'
+import XIcon from '@/assets/icons/x.svg'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
@@ -110,23 +109,18 @@ const toStartMinutes = (ev: DayEvent) => {
   return Number.MAX_SAFE_INTEGER
 }
 
-const toISODate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-const todayISO = () => toISODate(new Date())
-
 export default function MonthlyDetailPopup({
   visible,
   onClose,
   dayData,
 }: MonthlyDetailPopupProps) {
+  const navigation = useNavigation<any>()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current
   const [taskDoneMap, setTaskDoneMap] = React.useState<Record<string, boolean>>({})
   const [quickTitle, setQuickTitle] = React.useState('')
   const [quickSaving, setQuickSaving] = React.useState(false)
   const [quickCreatedUntimed, setQuickCreatedUntimed] = React.useState<DayEvent[]>([])
-  const [calendarVisible, setCalendarVisible] = React.useState(false)
 
   const ANIM_DURATION = 260
 
@@ -377,18 +371,16 @@ export default function MonthlyDetailPopup({
     }
   }
 
-  const selectCalendarDate = React.useCallback(
-    (iso: string) => {
-      setCalendarVisible(false)
-      requestAnimationFrame(() => {
-        onClose()
-        requestAnimationFrame(() => {
-          bus.emit('month:detail:navigate', iso)
-        })
-      })
-    },
-    [onClose],
-  )
+  const handleHeaderPress = React.useCallback(() => {
+    const iso = String(dayData.dateISO ?? '').slice(0, 10)
+    if (!iso) return
+
+    bus.emit('calendar:set-date', iso)
+    onClose()
+    requestAnimationFrame(() => {
+      navigation.navigate('Day')
+    })
+  }, [dayData.dateISO, navigation, onClose])
 
   return (
     <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
@@ -404,27 +396,16 @@ export default function MonthlyDetailPopup({
           <Pressable onPress={(e) => e.stopPropagation()}>
             <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
               <View style={S.container}>
-              <View style={S.headerRow}>
-                <Pressable style={S.headerLeft} onPress={() => setCalendarVisible(true)}>
-                  <Text style={S.headerText}>{headerTitle}</Text>
-                  <View style={S.headerDownIconWrap}>
-                    <DownL width={24} height={24} color={colors.icon.default} />
+                <View style={S.headerRow}>
+                  <View style={S.headerLeft}>
+                    <Pressable onPress={handleHeaderPress}>
+                      <Text style={S.headerText}>{headerTitle}</Text>
+                    </Pressable>
                   </View>
-                </Pressable>
-                <View style={S.headerRightGroup}>
-                  <Pressable
-                    style={S.todayBtn}
-                    onPress={() => {
-                      selectCalendarDate(todayISO())
-                    }}
-                  >
-                    <Text style={S.todayBtnText}>Today</Text>
-                  </Pressable>
                   <Pressable onPress={onClose} hitSlop={10} style={S.headerRightIconWrap}>
                     <XIcon width={13} height={13} color={colors.icon.default} />
                   </Pressable>
                 </View>
-              </View>
 
               <ScrollView
                 style={S.scroll}
@@ -493,21 +474,6 @@ export default function MonthlyDetailPopup({
           </Pressable>
         </Animated.View>
       </KeyboardAvoidingView>
-      <CalendarModal
-        visible={calendarVisible}
-        onClose={() => setCalendarVisible(false)}
-        currentDate={dayData.dateISO ?? ''}
-        modalTopOffset={220}
-        onSelectDate={selectCalendarDate}
-        onPressToday={() => selectCalendarDate(todayISO())}
-        autoConfirmOnDayPress
-        showCalendarActions={false}
-        pickerContentHeight={286}
-        initialOpenMode="calendar"
-        pickerConfirmVariant="icon"
-        showPickerCancel
-        pickerActionsLift={0}
-      />
     </Modal>
   )
 }
@@ -550,6 +516,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 32,
+    flexShrink: 1,
   },
   headerText: {
     ...ts('titleM'),
@@ -557,38 +524,12 @@ const S = StyleSheet.create({
     fontWeight: '700',
     includeFontPadding: false,
     lineHeight: ts('titleM').lineHeight,
-    marginRight: 2,
-  },
-  headerDownIconWrap: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   headerRightIconWrap: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerRightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 10,
-  },
-  todayBtn: {
-    width: 57,
-    height: 30,
-    borderRadius: 8,
-    borderWidth: 0.5,
-    borderColor: colors.divider.divider1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.bg1,
-  },
-  todayBtnText: {
-    ...ts('label4'),
-    color: colors.text.text2,
   },
   scroll: {
     flex: 1,
