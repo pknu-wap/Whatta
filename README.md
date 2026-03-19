@@ -27,7 +27,7 @@
 
 <br>
 
-## 현재 기능 미리보기
+## 🟣 현재 기능 미리보기
 <img width="2986" height="2160" alt="Wap32기 팀빌딩  김민아" src="https://github.com/user-attachments/assets/cc32c038-422a-4ab7-bc1f-4e6414e5509e" />
 <img width="2986" height="2160" alt="Wap32기 팀빌딩  김민아 (1)" src="https://github.com/user-attachments/assets/d29bc408-e39b-49f2-9abb-c0a6fe98eb14" />
 
