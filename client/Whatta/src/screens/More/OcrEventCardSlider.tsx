@@ -224,26 +224,24 @@ renderItem={({ item, index }) => {
 
 onSubmit={async (finalPayload) => {
   try {
-    
-const isValidRepeat = (repeat: any) => {
-  if (repeat == null) return true
-  if (typeof repeat !== 'object') return false
-  if (!repeat.type) return false
-  return true
+    const handleUpdateEditedEvent = (id: string, payload: CreateEventPayload) => {
+  setEditedEvents(prev =>
+    prev.map(ev => (ev.id === id ? { ...ev, ...payload } : ev))
+  )
 }
+//console.log('finalPayload.repeat', finalPayload.repeat)
 
-const savedPayload = {
-  ...finalPayload,
-  repeat: isValidRepeat(finalPayload.repeat)
-    ? finalPayload.repeat
-    : item.repeat ?? null,
-}
+    const savedPayload = {
+      ...finalPayload,
+    }
 
+handleUpdateEditedEvent(item.id, savedPayload)
     await createEvent(savedPayload)
 
     onAddEvent(savedPayload) // 부모에서는 상태 추가만
     animateRemove()
   } catch (e) {
+    console.error('❌ 일정 저장 실패:', e)
     Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
   }
 }}
