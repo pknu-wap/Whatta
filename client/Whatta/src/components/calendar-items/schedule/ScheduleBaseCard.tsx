@@ -85,9 +85,17 @@ function ScheduleBaseCard({
   const fixedHeight = density === 'month' ? densityStyle.minHeight : density === 'week' && untimed ? 26 : untimed ? 30 : undefined
   const minCardHeight = fixedHeight ?? densityStyle.minHeight
   const isWeekTimed = density === 'week' && !untimed
-  const effectivePadX =
+  const effectivePadLeft =
     density === 'month'
       ? densityStyle.padX
+      : density === 'week' && untimed
+      ? 3
+      : untimed
+      ? 12
+      : densityStyle.padX
+  const effectivePadRight =
+    density === 'month'
+      ? 0
       : density === 'week' && untimed
       ? 3
       : untimed
@@ -126,7 +134,8 @@ function ScheduleBaseCard({
           // 2) month는 24 고정, untimed(상단바)는 30 고정
           minHeight: minCardHeight,
           height: fixedHeight,
-          paddingHorizontal: effectivePadX,
+          paddingLeft: effectivePadLeft,
+          paddingRight: effectivePadRight,
           paddingVertical: effectivePadY,
           borderRadius: untimed ? 8 : isWeekVertical ? WEEK_VERTICAL_RADIUS : densityStyle.radius,
           justifyContent: isWeekTimed ? 'flex-start' : 'center',

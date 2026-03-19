@@ -1007,6 +1007,9 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                           done: !!task.completed,
                         }))}
                         onToggleExpand={() => setOpenGroupIndex(null)}
+                        onPressTask={(taskId) => {
+                          void openTaskPopupFromApi(taskId)
+                        }}
                         onToggleTask={(taskId, nextDone) => {
                           void updateTask(taskId, { completed: nextDone })
                           setChecks((prev) =>

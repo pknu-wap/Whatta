@@ -72,4 +72,5 @@ export type TaskGroupCardProps = {
   hideText?: boolean
   onToggleExpand?: (groupId: string, nextExpanded: boolean) => void
   onToggleTask?: (taskId: string, nextDone: boolean) => void
+  onPressTask?: (taskId: string) => void
 }
