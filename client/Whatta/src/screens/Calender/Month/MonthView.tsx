@@ -86,6 +86,14 @@ const dedupeSchedules = (items: UISchedule[]) => {
   return Array.from(dedup.values())
 }
 
+const addDaysToISO = (iso: string, delta: number) => {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const next = new Date(y, m - 1, d + delta)
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(
+    next.getDate(),
+  ).padStart(2, '0')}`
+}
+
 
 export default function MonthView() {
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
@@ -100,6 +108,7 @@ export default function MonthView() {
   const [taskPopupTask, setTaskPopupTask] = useState<any | null>(null)
   const [taskPopupId, setTaskPopupId] = useState<string | null>(null)
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
+  const [monthDetailDateChanging, setMonthDetailDateChanging] = useState(false)
 
     useEffect(() => {
     const handler = (payload?: { source?: string }) => {
@@ -325,6 +334,27 @@ const {
       }
     },
     [buildSelectedDayDataFromRawDay],
+  )
+
+  const changeMonthDetailDate = useCallback(
+    async (delta: -1 | 1) => {
+      if (monthDetailDateChanging) return
+      const currentISO = String(selectedDayData?.dateISO ?? '').slice(0, 10)
+      if (!currentISO) return
+
+      const nextISO = addDaysToISO(currentISO, delta)
+      setMonthDetailDateChanging(true)
+      setFocusedDateISO(nextISO)
+      setYm(toYM(nextISO))
+      bus.emit('calendar:set-date', nextISO)
+
+      try {
+        await refreshSelectedDayData(nextISO)
+      } finally {
+        setMonthDetailDateChanging(false)
+      }
+    },
+    [monthDetailDateChanging, refreshSelectedDayData, selectedDayData?.dateISO],
   )
 
   const openCreateTaskPopup = useCallback(
@@ -1528,7 +1558,7 @@ const handleOcrSaveAll = useCallback(async () => {
       <MonthDetailPopup
         visible={popupVisible}
         onClose={() => setPopupVisible(false)}
-        interactionLocked={eventPopupVisible || taskPopupVisible}
+        interactionLocked={eventPopupVisible || taskPopupVisible || monthDetailDateChanging}
         onPressEvent={(event) => {
           if (event.id == null) return
           openEventDetail(String(event.id), selectedDayData?.dateISO)
@@ -1537,6 +1567,7 @@ const handleOcrSaveAll = useCallback(async () => {
           if (task.id == null) return
           openTaskPopupFromApi(String(task.id))
         }}
+        onSwipeDate={changeMonthDetailDate}
         dayData={selectedDayData || {}}
       />
       <EventDetailPopup

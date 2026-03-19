@@ -13,6 +13,8 @@ import {
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Easing } from 'react-native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { runOnJS } from 'react-native-reanimated'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import { http } from '@/lib/http'
@@ -58,6 +60,7 @@ interface MonthlyDetailPopupProps {
   interactionLocked?: boolean
   onPressEvent?: (event: DayEvent) => void
   onPressTask?: (task: DayEvent) => void
+  onSwipeDate?: (delta: -1 | 1) => void
   dayData: {
     date?: string
     dateISO?: string
@@ -119,6 +122,7 @@ export default function MonthlyDetailPopup({
   interactionLocked = false,
   onPressEvent,
   onPressTask,
+  onSwipeDate,
   dayData,
 }: MonthlyDetailPopupProps) {
   const navigation = useNavigation<any>()
@@ -172,10 +176,18 @@ export default function MonthlyDetailPopup({
   const untimedTasks = dayData.untimedTasks ?? fallbackUntimedTasks
   const timedTasks = dayData.timedTasks ?? fallbackTimedTasks
   const headerTitle = React.useMemo(() => buildHeaderTitle(dayData), [dayData])
-  const untimedDisplayEvents = React.useMemo(
-    () => [...normalEvents, ...quickCreatedUntimed],
-    [normalEvents, quickCreatedUntimed],
-  )
+  const untimedDisplayEvents = React.useMemo(() => {
+    const merged = [...normalEvents, ...quickCreatedUntimed]
+    const seen = new Set<string>()
+
+    return merged.filter((ev, index) => {
+      const fallbackKey = `idx-${index}-${ev.title}`
+      const dedupeKey = ev.id != null ? String(ev.id) : fallbackKey
+      if (seen.has(dedupeKey)) return false
+      seen.add(dedupeKey)
+      return true
+    })
+  }, [normalEvents, quickCreatedUntimed])
   const timedMerged = React.useMemo(() => {
     const merged = [
       ...timedScheduleEvents.map((ev) => ({ kind: 'schedule' as const, ev })),
@@ -393,6 +405,20 @@ export default function MonthlyDetailPopup({
     })
   }, [dayData.dateISO, interactionLocked, navigation, onClose])
 
+  const contentSwipeGesture = React.useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!interactionLocked && !!onSwipeDate)
+        .activeOffsetX([-18, 18])
+        .failOffsetY([-12, 12])
+        .onEnd((event) => {
+          if (!onSwipeDate) return
+          if (Math.abs(event.translationX) < 56) return
+          runOnJS(onSwipeDate)(event.translationX > 0 ? -1 : 1)
+        }),
+    [interactionLocked, onSwipeDate],
+  )
+
   if (!visible) return null
 
   return (
@@ -434,43 +460,47 @@ export default function MonthlyDetailPopup({
                   </Pressable>
                 </View>
 
-              <ScrollView
-                style={S.scroll}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={S.scrollContent}
-              >
-                {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
+              <GestureDetector gesture={contentSwipeGesture}>
+                <View style={S.scrollGestureArea}>
+                  <ScrollView
+                    style={S.scroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={S.scrollContent}
+                  >
+                    {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
 
-                {untimedDisplayEvents.map((ev, i) =>
-                  renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
-                )}
+                    {untimedDisplayEvents.map((ev, i) =>
+                      renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
+                    )}
 
-                {untimedTasks.map((task, i) =>
-                  renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
-                )}
+                    {untimedTasks.map((task, i) =>
+                      renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
+                    )}
 
-                <View style={S.divider} />
-                <Text style={S.sectionTitle}>시간별 일정</Text>
+                    <View style={S.divider} />
+                    <Text style={S.sectionTitle}>시간별 일정</Text>
 
-                {timedMerged.map((item, i) => {
-                  if (item.kind === 'task') {
-                    return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
-                  }
-                  const ev = item.ev
-                  const timeText = ev.time?.trim()
-                    ? ev.time
-                    : ev.startAt && ev.endAt
-                    ? formatTimeRange(ev.startAt, ev.endAt)
-                    : undefined
+                    {timedMerged.map((item, i) => {
+                      if (item.kind === 'task') {
+                        return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
+                      }
+                      const ev = item.ev
+                      const timeText = ev.time?.trim()
+                        ? ev.time
+                        : ev.startAt && ev.endAt
+                        ? formatTimeRange(ev.startAt, ev.endAt)
+                        : undefined
 
-                  return renderScheduleCard(
-                    ev,
-                    `timed-${String(ev.id ?? i)}`,
-                    timeText,
-                    false,
-                  )
-                })}
-              </ScrollView>
+                      return renderScheduleCard(
+                        ev,
+                        `timed-${String(ev.id ?? i)}`,
+                        timeText,
+                        false,
+                      )
+                    })}
+                  </ScrollView>
+                </View>
+              </GestureDetector>
 
               <View style={S.bottomReserved} />
               <View style={S.quickInputWrap}>
@@ -566,6 +596,9 @@ const S = StyleSheet.create({
   scroll: {
     flex: 1,
     marginTop: 22,
+  },
+  scrollGestureArea: {
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: 118,
