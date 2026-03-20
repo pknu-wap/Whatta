@@ -1,6 +1,7 @@
 package whatta.Whatta.agent.service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.agent.payload.dto.NormalizedSchedule;
 import whatta.Whatta.agent.payload.dto.RuleBasedExtractionResult;
@@ -17,9 +18,11 @@ import whatta.Whatta.global.exception.RestApiException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @AllArgsConstructor
 public class AgentService {
 
@@ -35,7 +38,15 @@ public class AgentService {
         boolean imageRequest = validateAndResolveRequest(request);
 
         if (imageRequest) {
-            return aiAsyncProcessor.processImage(traceId, userId, request);
+            try {
+                return aiAsyncProcessor.processImage(traceId, userId, request);
+            } catch (RejectedExecutionException e) {
+                log.warn("[AI_IMAGE_ASYNC][REJECTED] traceId={} requestType=IMAGE message={}",
+                        traceId,
+                        e.getMessage(),
+                        e);
+                throw new RestApiException(ErrorCode.AI_REQUEST_REJECTED);
+            }
         }
         return CompletableFuture.completedFuture(processTextOnly(traceId, userId, request));
     }
