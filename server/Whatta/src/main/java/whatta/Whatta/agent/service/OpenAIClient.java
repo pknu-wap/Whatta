@@ -1,4 +1,4 @@
-package whatta.Whatta.ai.service;
+package whatta.Whatta.agent.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -10,14 +10,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-import whatta.Whatta.ai.payload.request.OpenAIRequest;
-import whatta.Whatta.ai.payload.response.OpenAIScheduleResponse;
-import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
+import whatta.Whatta.agent.payload.request.OpenAIRequest;
+import whatta.Whatta.agent.payload.response.OpenAIScheduleResponse;
+import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
@@ -35,7 +35,22 @@ public class OpenAIClient {
     @Value("${openai.timeout.seconds}")
     private long timeoutSeconds;
 
-    public OpenAIScheduleResponse callOpenApi(String input) {
+    public OpenAIExecutionResult callTextOnly(String input) {
+        return callOpenApi(input);
+    }
+
+    public OpenAIExecutionResult callTextWithImage(String inputText, String imageUrl, String detail) {
+        List<OpenAIRequest.InputContent> content = List.of(
+                new OpenAIRequest.InputTextContent("input_text", inputText),
+                new OpenAIRequest.InputImageContent("input_image", imageUrl, detail)
+        );
+        List<OpenAIRequest.InputMessage> input = List.of(
+                new OpenAIRequest.InputMessage("user", "message", content)
+        );
+        return callOpenApi(input);
+    }
+
+    private OpenAIExecutionResult callOpenApi(Object input) {
         OpenAIRequest req = OpenAIRequest.builder()
                 .model(model)
                 .input(input)
@@ -53,8 +68,12 @@ public class OpenAIClient {
                 .store(false)
                 .build();
 
+        long startedAt = System.nanoTime();
         String rawResponse = requestResponse(req);
+        long latencyMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
         JsonNode root = parseResponse(rawResponse);
+        Usage usage = extractUsage(root);
+        printUsageToStdOut(root, req, latencyMs, usage);
         OpenAIScheduleResponse extracted = extractOutput(root);
         if (extracted == null) {
             log.error("[OPENAI][PARSE_ERROR] text output missing. responseId={}, status={}",
@@ -62,20 +81,25 @@ public class OpenAIClient {
                     root.path("status").asText("-"));
             throw new IllegalStateException("OpenAI response does not contain text output");
         }
-        return extracted;
+        return new OpenAIExecutionResult(
+                extracted,
+                usage,
+                root.path("id").asText("-"),
+                root.path("status").asText("-"),
+                root.path("model").asText(model),
+                latencyMs
+        );
     }
 
     private String requestResponse(OpenAIRequest req) {
         try {
-            String rawResponse = openAiWebClient.post()
+            return openAiWebClient.post()
                     .uri("/responses")
                     .bodyValue(req)
                     .retrieve()
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(timeoutSeconds))
                     .block();
-            printUsageToStdOut(rawResponse, req);
-            return rawResponse;
         } catch (WebClientResponseException e) {
             String responseBody = e.getResponseBodyAsString();
             log.error("[OPENAI][ERROR] type=http status={} requestId={} errorType={} errorCode={} errorMessage={}",
@@ -124,46 +148,27 @@ public class OpenAIClient {
         return root == null ? "" : sanitizeLogValue(root.getMessage());
     }
 
-    private void printUsageToStdOut(String rawResponse, OpenAIRequest req) {
-        if (rawResponse == null || rawResponse.isBlank()) {
-            System.out.println("[OPENAI][TOKENS] usage unavailable (empty response body)");
-            return;
-        }
+    private void printUsageToStdOut(JsonNode root, OpenAIRequest req, long latencyMs, Usage usage) {
+        String requestModel = req != null && req.model() != null ? req.model() : "-";
+        String reasoningEffort = req != null && req.reasoning() != null && req.reasoning().effort() != null
+                ? req.reasoning().effort().name()
+                : "-";
 
-        try {
-            JsonNode root = objectMapper.readTree(rawResponse);
-            JsonNode usage = root.path("usage");
-            String responseId = root.path("id").asText("-");
-            String status = root.path("status").asText("-");
-
-            int inputTokens = usage.path("input_tokens").asInt(-1);
-            int outputTokens = usage.path("output_tokens").asInt(-1);
-            int totalTokens = usage.path("total_tokens").asInt(-1);
-            int cachedInputTokens = usage.path("input_tokens_details").path("cached_tokens").asInt(-1);
-            int reasoningTokens = usage.path("output_tokens_details").path("reasoning_tokens").asInt(-1);
-
-            String requestModel = req != null && req.model() != null ? req.model() : "-";
-            String reasoningEffort = req != null && req.reasoning() != null && req.reasoning().effort() != null
-                    ? req.reasoning().effort().name()
-                    : "-";
-
-            System.out.println(
-                    String.format(
-                            "[OPENAI][TOKENS] responseId=%s status=%s model=%s reasoning=%s input=%d output=%d total=%d cached_input=%d reasoning_output=%d",
-                            responseId,
-                            status,
-                            requestModel,
-                            reasoningEffort,
-                            inputTokens,
-                            outputTokens,
-                            totalTokens,
-                            cachedInputTokens,
-                            reasoningTokens
-                    )
-            );
-        } catch (JsonProcessingException e) {
-            System.out.println("[OPENAI][TOKENS] usage unavailable (response parse failed)");
-        }
+        System.out.println(
+                String.format(
+                        "[OPENAI][TOKENS] responseId=%s status=%s model=%s reasoning=%s latency_ms=%d input=%d output=%d total=%d cached_input=%d reasoning_output=%d",
+                        root.path("id").asText("-"),
+                        root.path("status").asText("-"),
+                        requestModel,
+                        reasoningEffort,
+                        latencyMs,
+                        usage.inputTokens(),
+                        usage.outputTokens(),
+                        usage.totalTokens(),
+                        usage.cachedInputTokens(),
+                        usage.reasoningTokens()
+                )
+        );
     }
 
     private JsonNode parseResponse(String rawResponse) {
@@ -177,6 +182,17 @@ public class OpenAIClient {
             log.error("[OPENAI][PARSE_ERROR] invalid json response");
             throw new IllegalStateException("Failed to parse OpenAI response", e);
         }
+    }
+
+    private Usage extractUsage(JsonNode root) {
+        JsonNode usage = root.path("usage");
+        return new Usage(
+                usage.path("input_tokens").asInt(-1),
+                usage.path("output_tokens").asInt(-1),
+                usage.path("total_tokens").asInt(-1),
+                usage.path("input_tokens_details").path("cached_tokens").asInt(-1),
+                usage.path("output_tokens_details").path("reasoning_tokens").asInt(-1)
+        );
     }
 
     private OpenAIScheduleResponse extractOutput(JsonNode root) {
@@ -224,7 +240,7 @@ public class OpenAIClient {
                 }
             }
 
-            if (!sb.isEmpty()) {
+            if (sb.length() > 0) {
                 return sb.toString();
             }
         }
@@ -254,5 +270,24 @@ public class OpenAIClient {
             return sanitized;
         }
         return sanitized.substring(0, MAX_LOG_VALUE_LENGTH) + "...";
+    }
+
+    public record Usage(
+            int inputTokens,
+            int outputTokens,
+            int totalTokens,
+            int cachedInputTokens,
+            int reasoningTokens
+    ) {
+    }
+
+    public record OpenAIExecutionResult(
+            OpenAIScheduleResponse response,
+            Usage usage,
+            String responseId,
+            String status,
+            String model,
+            long latencyMs
+    ) {
     }
 }

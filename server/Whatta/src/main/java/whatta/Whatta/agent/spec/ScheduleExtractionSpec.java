@@ -1,4 +1,4 @@
-package whatta.Whatta.ai.spec;
+package whatta.Whatta.agent.spec;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,7 +19,7 @@ public final class ScheduleExtractionSpec {
     public static String instructions() {
         String now = LocalDateTime.now().atZone(KST_ZONE_ID).truncatedTo(ChronoUnit.SECONDS).toString().replace('T', ' ');
         return """
-                너는 사용자의 자연어에서 일정/할일 생성 의도를 추론하는 파서다.
+                너는 자연어에서 일정/할일 생성 의도를 추론하는 파서다.
                 설명 문장, 마크다운, 코드블록을 절대 출력하지 않는다.
 
                 규칙:

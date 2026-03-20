@@ -1,8 +1,8 @@
-package whatta.Whatta.ai.service;
+package whatta.Whatta.agent.service;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
-import whatta.Whatta.ai.payload.dto.ScheduleCandidate;
+import whatta.Whatta.agent.payload.dto.NormalizedSchedule;
+import whatta.Whatta.agent.payload.dto.ScheduleCandidate;
 
 import java.util.List;
 

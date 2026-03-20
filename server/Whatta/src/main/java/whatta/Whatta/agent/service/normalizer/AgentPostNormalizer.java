@@ -1,10 +1,10 @@
-package whatta.Whatta.ai.service.normalizer;
+package whatta.Whatta.agent.service.normalizer;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
-import whatta.Whatta.ai.payload.dto.ScheduleCandidate;
-import whatta.Whatta.ai.payload.response.OpenAIScheduleResponse;
-import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
+import whatta.Whatta.agent.payload.dto.NormalizedSchedule;
+import whatta.Whatta.agent.payload.dto.ScheduleCandidate;
+import whatta.Whatta.agent.payload.response.OpenAIScheduleResponse;
+import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
 import whatta.Whatta.event.enums.RepeatUnit;
 import whatta.Whatta.event.payload.response.RepeatResponse;
 import whatta.Whatta.global.util.LocalDateTimeUtil;
@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 
 @Component
-public class AIPostNormalizer {
+public class AgentPostNormalizer {
 
     public NormalizedSchedule normalizeRuleBasedCandidate(ScheduleCandidate candidate, Map<String, List<String>> warnings) {
         if (candidate == null) {

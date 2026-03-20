@@ -1,7 +1,6 @@
-package whatta.Whatta.ai.payload.dto;
+package whatta.Whatta.agent.payload.dto;
 
 import lombok.Builder;
-import whatta.Whatta.event.payload.response.RepeatResponse;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

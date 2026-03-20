@@ -1,4 +1,4 @@
-package whatta.Whatta.ai.payload.dto;
+package whatta.Whatta.agent.payload.dto;
 
 import lombok.Builder;
 

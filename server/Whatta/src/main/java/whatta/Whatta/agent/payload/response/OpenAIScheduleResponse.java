@@ -1,4 +1,4 @@
-package whatta.Whatta.ai.payload.response;
+package whatta.Whatta.agent.payload.response;
 
 import java.util.List;
 

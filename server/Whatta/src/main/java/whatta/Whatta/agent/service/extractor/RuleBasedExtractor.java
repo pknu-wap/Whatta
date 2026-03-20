@@ -1,8 +1,8 @@
-package whatta.Whatta.ai.service.extractor;
+package whatta.Whatta.agent.service.extractor;
 
 import org.springframework.stereotype.Component;
-import whatta.Whatta.ai.payload.dto.RuleBasedExtractionResult;
-import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
+import whatta.Whatta.agent.payload.dto.RuleBasedExtractionResult;
+import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
 
 import java.time.Clock;
 import java.time.DateTimeException;

@@ -1,13 +1,13 @@
-package whatta.Whatta.ai.service;
+package whatta.Whatta.agent.service;
 
 import org.junit.jupiter.api.Test;
-import whatta.Whatta.ai.payload.dto.NormalizedSchedule;
-import whatta.Whatta.ai.payload.dto.RuleBasedExtractionResult;
-import whatta.Whatta.ai.payload.dto.ScheduleCandidate;
-import whatta.Whatta.ai.spec.ScheduleExtractionSpec;
-import whatta.Whatta.ai.service.extractor.RuleBasedExtractor;
-import whatta.Whatta.ai.service.normalizer.AIPostNormalizer;
-import whatta.Whatta.ai.service.normalizer.AIPreNormalizer;
+import whatta.Whatta.agent.payload.dto.NormalizedSchedule;
+import whatta.Whatta.agent.payload.dto.RuleBasedExtractionResult;
+import whatta.Whatta.agent.payload.dto.ScheduleCandidate;
+import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
+import whatta.Whatta.agent.service.extractor.RuleBasedExtractor;
+import whatta.Whatta.agent.service.normalizer.AgentPostNormalizer;
+import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -23,36 +23,36 @@ class HybridAiParsingTest {
     private static final Clock FIXED_CLOCK =
             Clock.fixed(Instant.parse("2026-03-14T15:00:00Z"), ScheduleExtractionSpec.KST_ZONE_ID);
 
-    private final AIPreNormalizer aiPreNormalizer = new AIPreNormalizer();
+    private final AgentPreNormalizer agentPreNormalizer = new AgentPreNormalizer();
     private final RuleBasedExtractor ruleBasedExtractor = new RuleBasedExtractor(FIXED_CLOCK);
     private final ScheduleCandidateResolver scheduleCandidateResolver = new ScheduleCandidateResolver();
     private final ScheduleValidationService scheduleValidationService = new ScheduleValidationService();
-    private final AIPostNormalizer aiPostNormalizer = new AIPostNormalizer();
+    private final AgentPostNormalizer agentPostNormalizer = new AgentPostNormalizer();
 
     @Test
     void 전처리기는_자주_쓰는_한국어_축약어를_정규화한다() {
-        String normalized = aiPreNormalizer.normalize("낼   7시   캡디 회의 담주");
+        String normalized = agentPreNormalizer.normalize("낼   7시   캡디 회의 담주");
 
         assertEquals("내일 7시 캡디 회의 다음주", normalized);
     }
 
     @Test
     void 전처리기는_입력을_감싼_따옴표를_제거한다() {
-        String normalized = aiPreNormalizer.normalize("\"내일 오후6시에 왓타회의 추가\"");
+        String normalized = agentPreNormalizer.normalize("\"내일 오후6시에 왓타회의 추가\"");
 
         assertEquals("내일 오후6시에 왓타회의 추가", normalized);
     }
 
     @Test
     void 전처리기는_요일_축약어를_정규화한다() {
-        String normalized = aiPreNormalizer.normalize("수욜 7시에 왓타회의 추가해줘");
+        String normalized = agentPreNormalizer.normalize("수욜 7시에 왓타회의 추가해줘");
 
         assertEquals("수요일 7시에 왓타회의 추가해줘", normalized);
     }
 
     @Test
     void 전처리기는_줄바꿈을_보존하고_줄내_공백만_정리한다() {
-        String normalized = aiPreNormalizer.normalize("내일 12시에  \n   캡디 회의   추가해줘");
+        String normalized = agentPreNormalizer.normalize("내일 12시에  \n   캡디 회의   추가해줘");
 
         assertEquals("내일 12시에\n캡디 회의 추가해줘", normalized);
     }
@@ -69,7 +69,7 @@ class HybridAiParsingTest {
 
     @Test
     void 줄바꿈이_있어도_한_일정_문맥이면_멀티일정으로_보지_않는다() {
-        String normalized = aiPreNormalizer.normalize("내일 12시에\n캡디 회의 추가해줘");
+        String normalized = agentPreNormalizer.normalize("내일 12시에\n캡디 회의 추가해줘");
 
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 12시에\n캡디 회의 추가해줘", normalized);
 
@@ -81,7 +81,7 @@ class HybridAiParsingTest {
 
     @Test
     void 각_줄이_독립적인_일정이면_멀티일정으로_감지한다() {
-        String normalized = aiPreNormalizer.normalize("내일 7시 회의\n금요일 과제 제출");
+        String normalized = agentPreNormalizer.normalize("내일 7시 회의\n금요일 과제 제출");
 
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 7시 회의\n금요일 과제 제출", normalized);
 
@@ -254,7 +254,7 @@ class HybridAiParsingTest {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("3/33 7시 캡디 회의 추가", "3/33 7시 캡디 회의 추가");
 
         ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
-        NormalizedSchedule normalizedSchedule = aiPostNormalizer.normalizeRuleBasedCandidate(candidate, parsed.warnings());
+        NormalizedSchedule normalizedSchedule = agentPostNormalizer.normalizeRuleBasedCandidate(candidate, parsed.warnings());
 
         assertNotNull(normalizedSchedule);
         assertFalse(normalizedSchedule.isScheduled());

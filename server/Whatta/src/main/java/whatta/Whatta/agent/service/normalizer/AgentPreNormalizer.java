@@ -1,4 +1,4 @@
-package whatta.Whatta.ai.service.normalizer;
+package whatta.Whatta.agent.service.normalizer;
 
 import org.springframework.stereotype.Component;
 
@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
-public class AIPreNormalizer {
+public class AgentPreNormalizer {
 
     private static final Map<String, String> REPLACEMENTS = new LinkedHashMap<>();
 
