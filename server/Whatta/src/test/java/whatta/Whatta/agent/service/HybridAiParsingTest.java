@@ -118,6 +118,13 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 룰기반추출기는_문장끝_구두점이_붙은_명령형_접미어도_제거한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 11시 캡디 회의 추가해줘.", "내일 11시 캡디 회의 추가해줘.");
+
+        assertEquals("캡디 회의", parsed.titleHint());
+    }
+
+    @Test
     void 룰기반추출기는_월일_표현을_절대날짜로_파싱한다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("11월 12일에 언니생일 추가", "11월 12일에 언니생일 추가");
 

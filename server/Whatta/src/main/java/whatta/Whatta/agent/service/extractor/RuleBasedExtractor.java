@@ -34,6 +34,7 @@ public class RuleBasedExtractor {
     private static final Pattern LIST_ITEM_PATTERN = Pattern.compile("^\\s*(?:[-*•]|\\d+[.)])\\s+");
     private static final Pattern EDGE_PARTICLE_PATTERN = Pattern.compile("^(에|에게|을|를|은|는|이|가|와|과|도|만|로|으로)\\s+|\\s+(에|에게|을|를|은|는|이|가|와|과|도|만|로|으로)$");
     private static final Pattern COMMAND_SUFFIX_PATTERN = Pattern.compile("\\s*(추가|생성|등록|저장|만들기|만들어줘|넣어줘|넣기|작성해줘|추가해줘)$");
+    private static final Pattern TRAILING_PUNCTUATION_PATTERN = Pattern.compile("[.!?。！？]+$");
     private final Clock clock;
 
     public RuleBasedExtractor() {
@@ -343,6 +344,7 @@ public class RuleBasedExtractor {
         String previous;
         do {
             previous = sanitized;
+            sanitized = TRAILING_PUNCTUATION_PATTERN.matcher(sanitized).replaceAll("").trim();
             sanitized = EDGE_PARTICLE_PATTERN.matcher(sanitized).replaceAll("").trim();
             sanitized = COMMAND_SUFFIX_PATTERN.matcher(sanitized).replaceAll("").trim();
         } while (!sanitized.equals(previous));

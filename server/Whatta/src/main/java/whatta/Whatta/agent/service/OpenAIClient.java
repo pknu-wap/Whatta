@@ -27,7 +27,7 @@ public class OpenAIClient {
     private static final int MAX_LOG_VALUE_LENGTH = 200;
     private final WebClient openAiWebClient;
     private final ObjectMapper objectMapper;
-    private static final int MAX_OUTPUT_TOKENS = 700;
+    private static final int MAX_OUTPUT_TOKENS = 1500;
 
     @Value("${openai.model}")
     private String model;
