@@ -9,6 +9,7 @@ import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -439,10 +440,12 @@ public class RuleBasedExtractor {
 
     private LocalDate resolveDayOnlyDate(int day, LocalDate referenceDate) {
         LocalDate candidate = LocalDate.of(referenceDate.getYear(), referenceDate.getMonth(), day);
-        if (candidate.isBefore(referenceDate)) {
-            return candidate.plusMonths(1);
+        if (!candidate.isBefore(referenceDate)) {
+            return candidate;
         }
-        return candidate;
+
+        YearMonth nextMonth = YearMonth.from(referenceDate).plusMonths(1);
+        return nextMonth.atDay(day);
     }
 
     private int findDeadlineMarkerIndex(String text) {

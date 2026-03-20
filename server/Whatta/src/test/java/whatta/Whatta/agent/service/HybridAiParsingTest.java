@@ -23,6 +23,8 @@ class HybridAiParsingTest {
 
     private static final Clock FIXED_CLOCK =
             Clock.fixed(Instant.parse("2026-03-14T15:00:00Z"), ScheduleExtractionSpec.KST_ZONE_ID);
+    private static final Clock JANUARY_END_CLOCK =
+            Clock.fixed(Instant.parse("2026-01-30T15:00:00Z"), ScheduleExtractionSpec.KST_ZONE_ID);
 
     private final AgentPreNormalizer agentPreNormalizer = new AgentPreNormalizer();
     private final RuleBasedExtractor ruleBasedExtractor = new RuleBasedExtractor(FIXED_CLOCK);
@@ -222,6 +224,19 @@ class HybridAiParsingTest {
 
         assertEquals(List.of("33일"), parsed.warnings().get("startDate"));
         assertEquals(List.of("25시"), parsed.warnings().get("startTime"));
+    }
+
+    @Test
+    void 다음달에_없는_일자면_day_only_날짜를_warning으로_남긴다() {
+        RuleBasedExtractor januaryExtractor = new RuleBasedExtractor(JANUARY_END_CLOCK);
+
+        RuleBasedExtractionResult parsed = januaryExtractor.extract(
+                "30일 23시까지 알고리즘 풀기",
+                "30일 23시까지 알고리즘 풀기"
+        );
+
+        assertTrue(parsed.dateCandidates().isEmpty());
+        assertEquals(List.of("30일"), parsed.warnings().get("startDate"));
     }
 
     @Test
