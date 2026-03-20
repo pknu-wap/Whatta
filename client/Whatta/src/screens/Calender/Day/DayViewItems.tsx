@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { View, Text, Pressable, Dimensions } from 'react-native'
+import { View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
   useSharedValue,
@@ -8,19 +8,19 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
-import CheckOn from '@/assets/icons/check_on.svg'
-import CheckOff from '@/assets/icons/check_off.svg'
 import { updateTask } from '@/api/task'
 import { bus } from '@/lib/eventBus'
 import { DayViewTask } from './overlapUtils'
 import { updateEvent, getEvent, createEvent } from '@/api/event_api'
 import { Alert } from 'react-native'
-import { ROW_H, PIXELS_PER_MIN } from './constants'
+import { PIXELS_PER_MIN } from './constants'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 let draggingEventId: string | null = null
+const DAY_TIME_COL_W = 50
+const DAY_CARD_LEFT = DAY_TIME_COL_W + 18
 const DAY_CARD_WIDTH = 318
 const DAY_CARD_HEIGHT = 60
 
@@ -28,12 +28,9 @@ type DraggableTaskBoxProps = {
   id: string
   title: string | undefined
   startHour: number
-  placementDate?: string | null
   done?: boolean
   anchorDate: string
   onPress?: () => void
-  column: number | undefined
-  totalColumns: number | undefined
   events: any[]
 }
 
@@ -41,12 +38,9 @@ export function DraggableTaskBox({
   id,
   title,
   startHour,
-  placementDate,
   done: initialDone = false,
   anchorDate,
   onPress,
-  column,
-  totalColumns,
   events,
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
@@ -60,6 +54,10 @@ export function DraggableTaskBox({
   useEffect(() => {
     translateY.value = withSpring(startHour * 60 * PIXELS_PER_MIN)
   }, [startHour])
+
+  useEffect(() => {
+    setDone(initialDone)
+  }, [initialDone])
 
   const handleDrop = async (newTime: string) => {
     try {
@@ -120,23 +118,21 @@ export function DraggableTaskBox({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
   }))
 
-  const LEFT_OFFSET = 50 + 18
+  const startMin = startHour * 60
+  const endMin = startMin + 60
 
-const startMin = startHour * 60
-const endMin = startMin + 60 
+  const overlappingEvents = events.filter((ev) => {
+    return !(ev.endMin <= startMin || ev.startMin >= endMin)
+  })
+  const isOverlapWithEvent = overlappingEvents.length > 0
 
-const overlappingEvents = events.filter(ev => {
-  return !(ev.endMin <= startMin || ev.startMin >= endMin)
-})
-const isOverlapWithEvent = overlappingEvents.length > 0
+  let boxWidth = DAY_CARD_WIDTH
+  let left = DAY_CARD_LEFT
 
-let boxWidth = DAY_CARD_WIDTH
-let left = LEFT_OFFSET
-
-if (isOverlapWithEvent) {
-  boxWidth = DAY_CARD_WIDTH / 2
-  left = LEFT_OFFSET + DAY_CARD_WIDTH / 2
-}
+  if (isOverlapWithEvent) {
+    boxWidth = DAY_CARD_WIDTH / 2
+    left = DAY_CARD_LEFT + DAY_CARD_WIDTH / 2
+  }
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -154,24 +150,30 @@ if (isOverlapWithEvent) {
           style,
         ]}
       >
-<TaskItemCard
-  id={id}
-  title={title ?? ''}
-  done={done}
-  density="day"
-  layoutWidthHint={DAY_CARD_WIDTH}
-  style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
-  onPress={onPress}
-  onToggle={(taskId, next) => {
-    setDone(next)
+        <TaskItemCard
+          id={id}
+          title={title ?? ''}
+          done={done}
+          density="day"
+          layoutWidthHint={DAY_CARD_WIDTH}
+          style={{ minHeight: DAY_CARD_HEIGHT, height: DAY_CARD_HEIGHT }}
+          onPress={onPress}
+          onToggle={(taskId, next) => {
+            setDone(next)
 
-    updateTask(taskId, {
-      completed: next,
-    }).catch((err) =>
-      console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
-    )
-  }}
-/>
+            bus.emit('calendar:mutated', {
+              op: 'update',
+              item: { id: taskId, isTask: true, date: anchorDate, completed: next },
+            })
+
+            updateTask(taskId, {
+              completed: next,
+            }).catch((err) => {
+              setDone(!next)
+              console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
+            })
+          }}
+        />
       </Animated.View>
     </GestureDetector>
   )
@@ -180,17 +182,13 @@ if (isOverlapWithEvent) {
 export function DraggableTaskGroupBox({
   group,
   startMin,
-  count,
   anchorDate,
   onPress,
-  setIsDraggingTask, 
 }: {
   group: DayViewTask[]
   startMin: number
-  count: number
   anchorDate: string
   onPress: () => void
-  setIsDraggingTask: (v: boolean) => void
 }) {
   const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
@@ -238,9 +236,7 @@ export function DraggableTaskGroupBox({
           item: { id: null, isTask: true, date: anchorDate },
         })
       } catch (err) {
-        console.log('❌ Group drop error:', err)
-      } finally {
-        runOnJS(setIsDraggingTask)(false) // 드래그 종료
+        console.error('❌ Group drop error:', err)
       }
     },
     [group, startMin, anchorDate],
@@ -250,7 +246,6 @@ export function DraggableTaskGroupBox({
     .minDuration(250)
     .onStart(() => {
       runOnJS(triggerHaptic)()
-      runOnJS(setIsDraggingTask)(true) 
       dragEnabled.value = true
     })
 
@@ -282,17 +277,14 @@ export function DraggableTaskGroupBox({
     transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
   }))
 
-  const LEFT_OFFSET = 50 + 18
-  const boxWidth = DAY_CARD_WIDTH
-
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
         style={[
           {
             position: 'absolute',
-            left: LEFT_OFFSET,
-            width: boxWidth,
+            left: DAY_CARD_LEFT,
+            width: DAY_CARD_WIDTH,
             height: DAY_CARD_HEIGHT,
             backgroundColor: 'transparent',
             zIndex: 200,
@@ -300,25 +292,30 @@ export function DraggableTaskGroupBox({
           style,
         ]}
       >
-<TaskGroupCard
-  groupId={group[0]?.id ?? 'group'}
-tasks={group.map(t => ({
-  id: t.id,
-  title: t.title ?? '',
-  done: Boolean(t.completed)
-}))}
-  density="day"
-  layoutWidthHint={DAY_CARD_WIDTH}
-  expanded={false}
-  onToggleTask={(taskId, next) => {
-    updateTask(taskId, { completed: next }).catch(err =>
-      console.error('❌ 그룹 테스크 업데이트 실패:', err)
-    )
-  }}
-  onToggleExpand={() => {
-    onPress()
-  }}
-/>
+        <TaskGroupCard
+          groupId={group[0]?.id ?? 'group'}
+          tasks={group.map((t) => ({
+            id: t.id,
+            title: t.title ?? '',
+            done: Boolean(t.completed),
+          }))}
+          density="day"
+          layoutWidthHint={DAY_CARD_WIDTH}
+          expanded={false}
+          onToggleTask={(taskId, next) => {
+            bus.emit('calendar:mutated', {
+              op: 'update',
+              item: { id: taskId, isTask: true, date: anchorDate, completed: next },
+            })
+
+            updateTask(taskId, { completed: next }).catch((err) =>
+              console.error('❌ 그룹 테스크 업데이트 실패:', err),
+            )
+          }}
+          onToggleExpand={() => {
+            onPress()
+          }}
+        />
       </Animated.View>
     </GestureDetector>
   )
@@ -327,14 +324,11 @@ tasks={group.map(t => ({
 type DraggableFixedEventProps = {
   id: string
   title: string
-  place: string
   startMin: number
   endMin: number
   color: string
   anchorDate: string
   onPress?: () => void
-  _column?: number
-  _totalColumns?: number
 }
 
 export function DraggableFixedEvent({
@@ -346,9 +340,8 @@ export function DraggableFixedEvent({
   anchorDate,
   onPress,
 }: DraggableFixedEventProps) {
-
-const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
-const height = rawHeight
+  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const height = rawHeight
 
   const translateY = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
@@ -554,14 +547,11 @@ const height = rawHeight
     top: startMin * PIXELS_PER_MIN + translateY.value,
   }))
 
-  const base = color.startsWith('#') ? color : `#${color}`
-  const bg = `${base}` 
-
   const fmt = (min: number) =>
-  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+    `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 
-const startTime = fmt(startMin)
-const endTime = fmt(endMin)
+  const startTime = fmt(startMin)
+  const endTime = fmt(endMin)
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -569,7 +559,7 @@ const endTime = fmt(endMin)
         style={[
           {
             position: 'absolute',
-            left: 50 + 18,
+            left: DAY_CARD_LEFT,
             width: DAY_CARD_WIDTH,
             height,
             backgroundColor: 'transparent',
@@ -578,17 +568,17 @@ const endTime = fmt(endMin)
           style,
         ]}
       >
-<RepeatScheduleCard
-  id={id}
-  title={title}
-  color={color}
-  timeRangeText={`${startTime} ~ ${endTime}`}
-  density="day"
-  layoutWidthHint={DAY_CARD_WIDTH}
-  contentHeightHint={height}
-  style={{ minHeight: 0, height }}
-  onPress={onPress}
-/>
+        <RepeatScheduleCard
+          id={id}
+          title={title}
+          color={color}
+          timeRangeText={`${startTime} ~ ${endTime}`}
+          density="day"
+          layoutWidthHint={DAY_CARD_WIDTH}
+          contentHeightHint={height}
+          style={{ minHeight: 0, height }}
+          onPress={onPress}
+        />
       </Animated.View>
     </GestureDetector>
   )
@@ -605,8 +595,6 @@ type DraggableFlexibleEventProps = {
   anchorDate: string
   isRepeat?: boolean
   onPress?: () => void
-  _column?: number
-  _totalColumns?: number
   events: any[]
 }
 
@@ -621,12 +609,12 @@ export function DraggableFlexibleEvent({
   anchorDate,
   isRepeat = false,
   onPress,
-  events, 
+  events,
 }: DraggableFlexibleEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
-const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
-const height = rawHeight
+  const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
+  const height = rawHeight
   const offsetY = 1
 
   // 절대 Y(위에서부터의 픽셀)로 관리
@@ -870,47 +858,46 @@ const height = rawHeight
     transform: [{ translateX: translateX.value }],
   }))
 
-// 겹침용 계단식 offset
-const BASE_LEFT = 50 + 18
-const STAGGER = 40
+  // 겹침용 계단식 offset
+  const BASE_LEFT = 50 + 18
+  const STAGGER = 40
 
-// 시작 시간 기준 정렬
-const sorted = [...events].sort((a, b) => a.startMin - b.startMin)
+  // 시작 시간 기준 정렬
+  const sorted = [...events].sort((a, b) => a.startMin - b.startMin)
 
-const shiftMap = new Map<string, number>()
+  const shiftMap = new Map<string, number>()
 
-for (let i = 0; i < sorted.length; i++) {
-  const cur = sorted[i]
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i]
 
-  let shift = 0
+    let shift = 0
 
-  for (let j = 0; j < i; j++) {
-    const prev = sorted[j]
+    for (let j = 0; j < i; j++) {
+      const prev = sorted[j]
 
-    const isOverlap =
-      !(prev.endMin <= cur.startMin || prev.startMin >= cur.endMin)
+      const isOverlap = !(prev.endMin <= cur.startMin || prev.startMin >= cur.endMin)
 
-    if (isOverlap) {
-      shift = Math.max(shift, (shiftMap.get(prev.id) ?? 0) + 1)
+      if (isOverlap) {
+        shift = Math.max(shift, (shiftMap.get(prev.id) ?? 0) + 1)
+      }
     }
+
+    shiftMap.set(cur.id, shift)
   }
 
-  shiftMap.set(cur.id, shift)
-}
+  const overlapShift = shiftMap.get(id) ?? 0
 
-const overlapShift = shiftMap.get(id) ?? 0
+  const overlapWithFixed = events.some((ev) => {
+    if (!ev.isRepeat) return false
 
-const overlapWithFixed = events.some(ev => {
-  if (!ev.isRepeat) return false
+    return !(ev.endMin <= startMin || ev.startMin >= endMin)
+  })
 
-  return !(ev.endMin <= startMin || ev.startMin >= endMin)
-})
+  // 기존 계단식 + 고정 overlap 추가
+  const finalShift = Math.max(overlapShift, overlapWithFixed ? 1 : 0)
 
-// 기존 계단식 + 고정 overlap 추가
-const finalShift = Math.max(overlapShift, overlapWithFixed ? 1 : 0)
-
-const left = BASE_LEFT + finalShift * STAGGER
-const width = DAY_CARD_WIDTH - finalShift * STAGGER
+  const left = BASE_LEFT + finalShift * STAGGER
+  const width = DAY_CARD_WIDTH - finalShift * STAGGER
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -928,17 +915,17 @@ const width = DAY_CARD_WIDTH - finalShift * STAGGER
           style,
         ]}
       >
-<FixedScheduleCard
-  id={id}
-  title={title}
-  color={color}
-  timeRangeText={place ?? labels?.[0] ?? ''}
-  density="day"
-  layoutWidthHint={DAY_CARD_WIDTH}
-  contentHeightHint={height}
-  style={{ minHeight: 0, height }}
-  onPress={onPress}
-/>
+        <FixedScheduleCard
+          id={id}
+          title={title}
+          color={color}
+          timeRangeText={place ?? labels?.[0] ?? ''}
+          density="day"
+          layoutWidthHint={DAY_CARD_WIDTH}
+          contentHeightHint={height}
+          style={{ minHeight: 0, height }}
+          onPress={onPress}
+        />
       </Animated.View>
     </GestureDetector>
   )
