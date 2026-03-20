@@ -12,7 +12,7 @@ import whatta.Whatta.user.repository.UserRepository;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.time.LocalTime;
-import java.util.Optional;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -32,10 +32,12 @@ public class UserService {
                     .build();
             userRepository.save(newUser);
 
+            LocalTime defaultSummaryTime = LocalTime.of(9,0).truncatedTo(ChronoUnit.MINUTES);
             UserSetting setting = UserSetting.builder()
                     .userId(newUser.getId())
                     .scheduleSummaryNoti(ScheduleSummaryNoti.builder()
-                            .time(LocalTime.of(9,0))
+                            .time(defaultSummaryTime)
+                            .minuteOfDay(toMinuteOfDay(defaultSummaryTime))
                             .build())
                     .build();
             userSettingRepository.save(setting);
@@ -51,5 +53,9 @@ public class UserService {
         userRepository.save(user);
 
         return new LoginResponse(accessToken, refreshToken);
+    }
+
+    private int toMinuteOfDay(LocalTime time) {
+        return time.getHour() * 60 + time.getMinute();
     }
 }

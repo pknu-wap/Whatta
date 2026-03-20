@@ -6,8 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
-import whatta.Whatta.global.exception.ErrorCode;
-import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.notification.entity.ReminderNotification;
 import whatta.Whatta.notification.enums.NotiStatus;
@@ -30,10 +28,11 @@ public class ReminderNotiService {
     private final EventRepository eventRepository;
 
     private static final int COMPLETED_RETENTION_DAYS = 7;
+    private static final int PROCESSING_TIMEOUT_MINUTES = 30;
 
     public void updateReminderNotification(Event event) {
-        if(event.getStartTime() == null || event.getReminderNotiAt() == null) {
-            cancelReminderNotification(event.getId()); //기존 스케줄 있으면 취소
+        if (event.getStartTime() == null || event.getReminderNotiAt() == null) {
+            cancelReminderNotification(event.getId());
             return;
         }
 
@@ -41,8 +40,8 @@ public class ReminderNotiService {
     }
 
     public void updateReminderNotification(Task task) {
-        if(task.getPlacementDate() == null || task.getPlacementTime() == null || task.getReminderNotiAt() == null) {
-            cancelReminderNotification(task.getId()); //기존 스케줄 있으면 취소
+        if (task.getPlacementTime() == null || task.getReminderNotiAt() == null) {
+            cancelReminderNotification(task.getId());
             return;
         }
 
@@ -51,7 +50,7 @@ public class ReminderNotiService {
                 null,
                 task.getReminderNotiAt());
 
-        if(triggerAt == null) {
+        if (triggerAt == null) {
             cancelReminderNotification(task.getId());
             return;
         }
@@ -83,7 +82,7 @@ public class ReminderNotiService {
     private LocalDateTime calculateTriggerAt(LocalDateTime startAt, Repeat repeat, ReminderNoti offset) {
         LocalDateTime now = LocalDateTime.now();
 
-        if(repeat == null) {
+        if (repeat == null) {
             LocalDateTime triggerAt = applyOffset(startAt, offset);
             return triggerAt.isAfter(now) ? triggerAt : null; //이미 지난 이벤트면 알림 안 만듦
         }
@@ -118,19 +117,29 @@ public class ReminderNotiService {
         return reminderNotiRepository.findByStatusAndTriggerAtLessThanEqual(NotiStatus.ACTIVE, now);
     }
 
+    public boolean tryMarkProcessing(String reminderId) {
+        return transitionStatus(reminderId, NotiStatus.ACTIVE, NotiStatus.PROCESSING);
+    }
+
+    public void restoreActiveIfProcessing(String reminderId) {
+        transitionStatus(reminderId, NotiStatus.PROCESSING, NotiStatus.ACTIVE);
+    }
+
+    public void cancelIfProcessing(String reminderId) {
+        transitionStatus(reminderId, NotiStatus.PROCESSING, NotiStatus.CANCELED);
+    }
+
     @Transactional
     public void completeAndScheduleNextReminder(ReminderNotification noti) {
-        ReminderNotification updated = noti.toBuilder()
-                .status(NotiStatus.COMPLETED)
-                .build();
-
-        reminderNotiRepository.save(updated);
+        boolean completed = transitionStatus(noti.getId(), NotiStatus.PROCESSING, NotiStatus.COMPLETED);
+        if (!completed) {
+            log.warn("[REMINDER_COMPLETE_SKIPPED] id={}, reason=status transition failed", noti.getId());
+            return;
+        }
 
         if (noti.getTargetType() == NotificationTargetType.EVENT) {
-            Event target = eventRepository.findById(noti.getTargetId())
-                    .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
-
-            upsertActiveReminderNotification(target);
+            eventRepository.findById(noti.getTargetId())
+                    .ifPresent(this::upsertActiveReminderNotification);
         }
     }
 
@@ -162,11 +171,32 @@ public class ReminderNotiService {
                 + reminderNotiRepository.deleteByStatusAndUpdatedAtBefore(NotiStatus.CANCELED, expiredBefore);
     }
 
+    public long cancelStaleProcessingReminders() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime staleBefore = now.minusMinutes(PROCESSING_TIMEOUT_MINUTES);
+        return reminderNotiRepository.updateStatusByStatusAndUpdatedAtBefore(
+                NotiStatus.PROCESSING,
+                staleBefore,
+                NotiStatus.CANCELED,
+                now
+        );
+    }
+
     public void cancelInvalidReminder(ReminderNotification noti, String reason) {
-        ReminderNotification canceled = noti.toBuilder()
-                .status(NotiStatus.CANCELED)
-                .build();
-        reminderNotiRepository.save(canceled);
+        boolean canceled = transitionStatus(noti.getId(), NotiStatus.PROCESSING, NotiStatus.CANCELED);
+        if (!canceled) {
+            log.warn("[REMINDER_INVALID_CANCEL_SKIPPED] id={}, reason=status transition failed", noti.getId());
+            return;
+        }
         log.warn("[REMINDER_NOTI_INVALID] id={}, reason={}", noti.getId(), reason);
+    }
+
+    private boolean transitionStatus(String reminderId, NotiStatus currentStatus, NotiStatus nextStatus) {
+        return reminderNotiRepository.updateStatusByIdAndStatus(
+                reminderId,
+                currentStatus,
+                nextStatus,
+                LocalDateTime.now()
+        ) > 0;
     }
 }

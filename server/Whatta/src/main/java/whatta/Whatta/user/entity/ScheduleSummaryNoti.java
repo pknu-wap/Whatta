@@ -25,4 +25,6 @@ public class ScheduleSummaryNoti {
     @NotNull
     private LocalTime time;
 
+    private Integer minuteOfDay;
+
 }

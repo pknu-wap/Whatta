@@ -1,11 +1,14 @@
-package whatta.Whatta.notification.service;
+package whatta.Whatta.notification.service.processor;
 
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.notification.entity.ReminderNotification;
+import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.enums.NotificationTargetType;
+import whatta.Whatta.notification.service.NotificationSendService;
+import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.task.entity.Task;
 import whatta.Whatta.task.repository.TaskRepository;
 
@@ -21,7 +24,7 @@ public class ReminderNotiProcessor {
     private final EventRepository eventRepository;
     private final TaskRepository taskRepository;
 
-    public boolean processReminder(ReminderNotification noti) {
+    public NotificationSendResult processReminder(ReminderNotification noti) {
         String userId = noti.getUserId();
         String targetId = noti.getTargetId();
 
@@ -33,7 +36,7 @@ public class ReminderNotiProcessor {
             Event event = eventRepository.findById(targetId).orElse(null);
             if (event == null) {
                 reminderNotiService.cancelInvalidReminder(noti, "event not found: " + targetId);
-                return false;
+                return NotificationSendResult.TERMINAL_FAILURE;
             }
 
             notiTitle = "일정 리마인드";
@@ -44,7 +47,7 @@ public class ReminderNotiProcessor {
             Task task = taskRepository.findById(targetId).orElse(null);
             if (task == null) {
                 reminderNotiService.cancelInvalidReminder(noti, "task not found: " + targetId);
-                return false;
+                return NotificationSendResult.TERMINAL_FAILURE;
             }
 
             notiTitle = "할 일 리마인드";
@@ -53,7 +56,7 @@ public class ReminderNotiProcessor {
             targetStartAt = LocalDateTime.of(task.getPlacementDate(), task.getPlacementTime());
         } else {
             reminderNotiService.cancelInvalidReminder(noti, "unsupported targetType: " + noti.getTargetType());
-            return false;
+            return NotificationSendResult.TERMINAL_FAILURE;
         }
         LocalDateTime triggerAt = noti.getTriggerAt();
 

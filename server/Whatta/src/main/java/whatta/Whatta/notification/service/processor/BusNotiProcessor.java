@@ -1,9 +1,11 @@
-package whatta.Whatta.notification.service;
+package whatta.Whatta.notification.service.processor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import whatta.Whatta.notification.enums.NotificationSendResult;
+import whatta.Whatta.notification.service.NotificationSendService;
 import whatta.Whatta.traffic.entity.BusFavorite;
 import whatta.Whatta.traffic.entity.TrafficNotification;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
@@ -70,24 +72,24 @@ public class BusNotiProcessor {
 
         if (busesNotifiedCount > 0) {
             String title = String.format("🚨 %d건의 버스 도착 알림이 있습니다.", busesNotifiedCount);
-            boolean sent = notificationSendService.sendTrafficAlarm(
+            NotificationSendResult sendResult = notificationSendService.sendTrafficAlarm(
                     alarm.getUserId(),
                     title,
                     notificationBody.toString().trim()
             );
 
-            if (!sent) {
+            if (sendResult != NotificationSendResult.SUCCESS) {
                 log.info("교통알림이 스킵되거나 실패함. alarmId={}", alarm.getId());
             }
             handleRepeatOption(alarm);
         } else {
-            boolean sent = notificationSendService.sendTrafficAlarm(
+            NotificationSendResult sendResult = notificationSendService.sendTrafficAlarm(
                     alarm.getUserId(),
                     "🚨 현재 운행 중인 버스가 없습니다.",
                     "선택하신 교통수단이 회차 대기 지연 혹은 운행시간이 종료되어 현재 운행정보가 없습니다."
             );
 
-            if (!sent) {
+            if (sendResult != NotificationSendResult.SUCCESS) {
                 log.info("교통알림이 스킵되거나 실패함. alarmId={}", alarm.getId());
             }
             handleRepeatOption(alarm);
