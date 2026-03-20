@@ -23,7 +23,7 @@ import java.util.List;
 public class AIAsyncProcessor {
 
     private static final String DEFAULT_IMAGE_EXTRACTION_PROMPT = "이 이미지에서 일정 또는 할 일 생성에 필요한 정보만 추출해줘.";
-    private static final String DEFAULT_IMAGE_DETAIL = "auto";
+    private static final String DEFAULT_IMAGE_DETAIL = "low";
 
     private final AgentPreNormalizer agentPreNormalizer;
     private final LLMExtractor llmExtractor;
