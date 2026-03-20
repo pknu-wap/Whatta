@@ -40,7 +40,11 @@ public class OpenAIClient {
     }
 
     public OpenAIExecutionResult callTextWithImage(String inputText, String imageUrl, String detail) {
-        List<OpenAIRequest.InputContent> content = List.of(
+        List<OpenAIRequest.InputContent> content = inputText == null || inputText.isBlank()
+                ? List.of(
+                new OpenAIRequest.InputImageContent("input_image", imageUrl, detail)
+        )
+                : List.of(
                 new OpenAIRequest.InputTextContent("input_text", inputText),
                 new OpenAIRequest.InputImageContent("input_image", imageUrl, detail)
         );

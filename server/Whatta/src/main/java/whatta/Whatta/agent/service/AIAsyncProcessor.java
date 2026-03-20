@@ -22,7 +22,6 @@ import java.util.List;
 @Slf4j
 public class AIAsyncProcessor {
 
-    private static final String DEFAULT_IMAGE_EXTRACTION_PROMPT = "이 이미지에서 일정 또는 할 일 생성에 필요한 정보만 추출해줘.";
     private static final String DEFAULT_IMAGE_DETAIL = "low";
 
     private final AgentPreNormalizer agentPreNormalizer;
@@ -51,8 +50,7 @@ public class AIAsyncProcessor {
 
     private List<NormalizedSchedule> executeImage(ScheduleExtractionRequest request) {
         ScheduleExtractionRequest.ScheduleExtractionForImage image = request.image();
-        String promptText = request.hasText() ? agentPreNormalizer.normalize(request.text()) : DEFAULT_IMAGE_EXTRACTION_PROMPT;
-        System.out.println(promptText);
+        String promptText = request.hasText() ? agentPreNormalizer.normalize(request.text()) : null;
         String imageUrl = resolveImageUrl(image);
 
         OpenAIClient.OpenAIExecutionResult result = llmExtractor.extractWithImage(promptText, imageUrl, DEFAULT_IMAGE_DETAIL);
