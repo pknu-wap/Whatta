@@ -1177,7 +1177,6 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
   // ✔ 단일 저장
   onAddEvent={async (payload) => {
     try {
-      await createEvent(payload)
       await fetchDailyEvents()
       bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
     } catch (err) {
