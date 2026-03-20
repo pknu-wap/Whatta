@@ -3,6 +3,7 @@ package whatta.Whatta.agent.service;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.agent.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.agent.payload.dto.ScheduleCandidate;
+import whatta.Whatta.agent.util.ScheduleTypeRules;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,7 +37,7 @@ public class ScheduleCandidateResolver {
     }
 
     private boolean isTask(RuleBasedExtractionResult result) {
-        return looksLikeTaskTitle(result.titleHint()) || result.deadlineCandidate() != null;
+        return ScheduleTypeRules.looksLikeTaskTitle(result.titleHint()) || result.deadlineCandidate() != null;
     }
 
     private boolean isEvent(RuleBasedExtractionResult result) {
@@ -98,7 +99,7 @@ public class ScheduleCandidateResolver {
     }
 
     private ScheduleCandidate resolveUnscheduledCandidate(RuleBasedExtractionResult extractionResult) {
-        boolean taskLike = looksLikeTaskTitle(extractionResult.titleHint()) || extractionResult.deadlineCandidate() != null;
+        boolean taskLike = ScheduleTypeRules.looksLikeTaskTitle(extractionResult.titleHint()) || extractionResult.deadlineCandidate() != null;
 
         return ScheduleCandidate.builder()
                 .type(taskLike ? ScheduleCandidate.CandidateType.TASK : ScheduleCandidate.CandidateType.EVENT)
@@ -123,17 +124,4 @@ public class ScheduleCandidateResolver {
         return extractionResult.warnings() != null && !extractionResult.warnings().isEmpty();
     }
 
-    private boolean looksLikeTaskTitle(String title) {
-        return title.contains("제출")
-                || title.contains("준비")
-                || title.contains("작성")
-                || title.contains("정리")
-                || title.contains("하기")
-                || title.contains("리기")
-                || title.contains("보기")
-                || title.contains("가기")
-                || title.contains("내기")
-                || title.contains("공부")
-                || title.contains("과제");
-    }
 }
