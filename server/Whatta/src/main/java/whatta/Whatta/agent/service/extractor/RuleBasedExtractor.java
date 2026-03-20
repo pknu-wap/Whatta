@@ -23,6 +23,7 @@ public class RuleBasedExtractor {
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
     private static final Pattern KOREAN_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*월\\s*(\\d{1,2})\\s*일(?!\\d)");
     private static final Pattern SLASH_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})/(\\d{1,2})(?!\\d)");
+    private static final Pattern DAY_ONLY_PATTERN = Pattern.compile("(?<![\\d월/])([1-9]|[12]\\d|3[01])\\s*일(?!\\s*뒤)(?!\\d)");
     private static final Pattern RELATIVE_WEEK_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(일주일)|([1-9]\\d*)\\s*주(?:일)?)\\s*뒤(?:에)?");
     private static final Pattern RELATIVE_DAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(하루|이틀|사흘)|([1-9]\\d*)\\s*일)\\s*뒤(?:에)?");
     private static final Pattern WEEKDAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?(?:에)?(?=\\s|$|까지|전까지)");
@@ -50,10 +51,7 @@ public class RuleBasedExtractor {
         Map<String, List<String>> warnings = new LinkedHashMap<>();
 
         LocalDate deadlineCandidate = extractDeadline(normalizedText, referenceDate, warnings);
-
-        if (deadlineCandidate == null) { //deadline이 있으면 task로 무조건 빠지게 되고, 그렇게 되면 startDate는 deadline으로 채워짐
-            dateCandidates.addAll(extractDates(normalizedText, referenceDate, warnings));
-        }
+        dateCandidates.addAll(extractDates(normalizedText, referenceDate, warnings));
 
         timeCandidates.addAll(extractTimes(normalizedText, warnings));
 
@@ -112,6 +110,20 @@ public class RuleBasedExtractor {
             );
         }
 
+        Matcher dayOnlyMatcher = DAY_ONLY_PATTERN.matcher(text);
+        while (dayOnlyMatcher.find()) {
+            if (isPartOfMonthDayExpression(text, dayOnlyMatcher.start())) {
+                continue;
+            }
+            tryAddDayOnlyDate(
+                    dates,
+                    Integer.parseInt(dayOnlyMatcher.group(1)),
+                    referenceDate,
+                    dayOnlyMatcher.group(),
+                    warnings
+            );
+        }
+
         Matcher relativeWeekMatcher = RELATIVE_WEEK_PATTERN.matcher(text);
         while (relativeWeekMatcher.find()) {
             dates.add(referenceDate.plusWeeks(parseRelativeWeekOffset(relativeWeekMatcher)));
@@ -149,7 +161,7 @@ public class RuleBasedExtractor {
         String prefix = text.substring(0, markerIndex).trim();
         List<LocalDate> deadlineDates = extractDates(prefix, referenceDate, warnings);
         if (!deadlineDates.isEmpty()) {
-            return deadlineDates.get(0);
+            return deadlineDates.get(deadlineDates.size() - 1);
         }
 
         if (hasWarning(warnings, "startDate")) {
@@ -354,6 +366,19 @@ public class RuleBasedExtractor {
         }
     }
 
+    private void tryAddDayOnlyDate(List<LocalDate> dates, int day, LocalDate referenceDate, String token, Map<String, List<String>> warnings) {
+        try {
+            dates.add(resolveDayOnlyDate(day, referenceDate));
+        } catch (DateTimeException e) {
+            addWarning(warnings, "startDate", token);
+        }
+    }
+
+    private boolean isPartOfMonthDayExpression(String text, int dayTokenStartIndex) {
+        String prefix = text.substring(0, dayTokenStartIndex);
+        return prefix.matches(".*\\d{1,2}\\s*월\\s*$");
+    }
+
     private void tryAddTime(List<LocalTime> times, int hour, int minute, String token, Map<String, List<String>> warnings) {
         try {
             times.add(LocalTime.of(hour, minute));
@@ -406,6 +431,14 @@ public class RuleBasedExtractor {
         LocalDate candidate = LocalDate.of(referenceDate.getYear(), month, day);
         if (candidate.isBefore(referenceDate)) {
             return candidate.plusYears(1);
+        }
+        return candidate;
+    }
+
+    private LocalDate resolveDayOnlyDate(int day, LocalDate referenceDate) {
+        LocalDate candidate = LocalDate.of(referenceDate.getYear(), referenceDate.getMonth(), day);
+        if (candidate.isBefore(referenceDate)) {
+            return candidate.plusMonths(1);
         }
         return candidate;
     }
