@@ -8,6 +8,7 @@ import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
 import whatta.Whatta.agent.service.extractor.RuleBasedExtractor;
 import whatta.Whatta.agent.service.normalizer.AgentPostNormalizer;
 import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
+import whatta.Whatta.agent.util.ScheduleTypeRules;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -187,6 +188,54 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 룰기반추출기는_일만_있는_마감표현도_날짜로_파싱한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract(
+                "25일 23시까지 알고리즘 풀기 추가",
+                "25일 23시까지 알고리즘 풀기 추가"
+        );
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertEquals(LocalDate.of(2026, 3, 25), parsed.deadlineCandidate());
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertTrue(candidate.scheduled());
+        assertEquals(LocalDate.of(2026, 3, 25), candidate.startDate());
+        assertEquals(LocalDate.of(2026, 3, 25), candidate.endDate());
+        assertEquals(LocalTime.of(23, 0), candidate.startTime());
+        assertEquals(LocalTime.of(23, 0), candidate.dueDateTime().toLocalTime());
+    }
+
+    @Test
+    void 잘못된_일만_있는_날짜도_warning으로_남긴다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract(
+                "33일 25시까지 알고리즘 풀기",
+                "33일 25시까지 알고리즘 풀기"
+        );
+
+        assertEquals(List.of("33일"), parsed.warnings().get("startDate"));
+        assertEquals(List.of("25시"), parsed.warnings().get("startTime"));
+    }
+
+    @Test
+    void 잘못된_날짜와_마감시간이_함께_있으면_오늘_마감으로_확정하지_않는다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("3월33일 22시까지 알고리즘 풀기 추가", "3월33일 22시까지 알고리즘 풀기 추가");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertTrue(candidate.scheduled());
+        assertNull(candidate.startDate());
+        assertNull(candidate.endDate());
+        assertEquals(LocalTime.of(22, 0), candidate.startTime());
+        assertEquals(LocalTime.of(23, 0), candidate.endTime());
+        assertNull(candidate.dueDateTime());
+        assertNull(parsed.deadlineCandidate());
+        assertEquals(List.of("3월33일"), parsed.warnings().get("startDate"));
+    }
+
+    @Test
     void 룰기반추출기는_다음주_단독표현만으로는_date_candidate를_만들지_않는다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("다음주에 7시 캡디 회의 추가", "다음주에 7시 캡디 회의 추가");
 
@@ -315,5 +364,12 @@ class HybridAiParsingTest {
                 .build();
 
         assertTrue(scheduleValidationService.isValidNormalizedSchedule(validTask));
+    }
+
+    @Test
+    void task_title_rule은_단순히_기로_끝나는_명사형_제목을_task로_보지_않는다() {
+        assertFalse(ScheduleTypeRules.looksLikeTaskTitle("정기 회의"));
+        assertFalse(ScheduleTypeRules.looksLikeTaskTitle("후기"));
+        assertTrue(ScheduleTypeRules.looksLikeTaskTitle("알고리즘 풀기"));
     }
 }

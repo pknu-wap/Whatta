@@ -37,10 +37,11 @@ public final class ScheduleExtractionResultMessage {
         String createdTarget = buildCreatedTargetLabel(scheduledEventCount, scheduledTaskCount);
 
         if (scheduledCount > 0) {
+            boolean hasUnscheduledItems = scheduledCount < schedules.size();
             if (hasAnyWarning) {
-                return buildAdjustedSuccessMessage(createdTarget, schedules);
+                return buildAdjustedSuccessMessage(createdTarget, schedules, hasUnscheduledItems);
             }
-            if (scheduledCount == schedules.size()) {
+            if (!hasUnscheduledItems) {
                 return createdTarget + " 만들었어요.";
             }
             return createdTarget + " 만들었어요. 다만 일부 내용은 이해하지 못했어요.";
@@ -53,7 +54,7 @@ public final class ScheduleExtractionResultMessage {
         return "날짜, 시간, 마감 같은 핵심 정보를 충분히 찾지 못해서 만들지 못했어요.";
     }
 
-    private static String buildAdjustedSuccessMessage(String createdTarget, List<NormalizedSchedule> schedules) {
+    private static String buildAdjustedSuccessMessage(String createdTarget, List<NormalizedSchedule> schedules, boolean hasUnscheduledItems) {
         List<String> details = new ArrayList<>();
 
         for (NormalizedSchedule schedule : schedules) {
@@ -66,10 +67,10 @@ public final class ScheduleExtractionResultMessage {
         }
 
         if (details.isEmpty()) {
-            return createdTarget + " 만들었어요. 다만 일부 정보가 불분명해 현재 기준으로 정리했어요.";
+            return appendPartialFailureMessage(createdTarget + " 만들었어요. 다만 일부 정보가 불분명해 현재 기준으로 정리했어요.", hasUnscheduledItems);
         }
 
-        return createdTarget + " 만들었어요. 다만 " + String.join(" ", details);
+        return appendPartialFailureMessage(createdTarget + " 만들었어요. 다만 " + joinWarningDetails(details), hasUnscheduledItems);
     }
 
     private static String buildCreatedTargetLabel(long scheduledEventCount, long scheduledTaskCount) {
@@ -91,17 +92,17 @@ public final class ScheduleExtractionResultMessage {
         String rawDate = rawDates.get(0);
         LocalDate fallbackDate = schedule.startDate();
         if (fallbackDate == null) {
-            details.add("날짜가 \"" + rawDate + "\"로 들어와서 날짜는 비워뒀어요. 확인 후 수정해주세요.");
+            details.add("날짜가 \"" + rawDate + "\"로 들어와서 날짜는 비워뒀어요.");
             return;
         }
 
         LocalDate today = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
         if (Objects.equals(fallbackDate, today)) {
-            details.add("날짜가 \"" + rawDate + "\"로 들어와서 일단 오늘 날짜(" + fallbackDate + ")로 넣었어요. 확인 후 수정해주세요.");
+            details.add("날짜가 \"" + rawDate + "\"로 들어와서 일단 오늘 날짜(" + fallbackDate + ")로 넣었어요.");
             return;
         }
 
-        details.add("날짜가 \"" + rawDate + "\"로 들어와서 일단 " + fallbackDate + "로 넣었어요. 확인 후 수정해주세요.");
+        details.add("날짜가 \"" + rawDate + "\"로 들어와서 일단 " + fallbackDate + "로 넣었어요.");
     }
 
     private static void appendTimeWarnings(List<String> details, NormalizedSchedule schedule) {
@@ -112,11 +113,11 @@ public final class ScheduleExtractionResultMessage {
 
         String rawTime = rawTimes.get(0);
         if (schedule.startTime() == null) {
-            details.add("시간이 \"" + rawTime + "\"로 들어와서 시간은 비워뒀어요. 확인 후 수정해주세요.");
+            details.add("시간이 \"" + rawTime + "\"로 들어와서 시간은 비워뒀어요.");
             return;
         }
 
-        details.add("시간이 \"" + rawTime + "\"로 들어와서 일단 " + LocalDateTimeUtil.localTimeToString(schedule.startTime()) + "로 넣었어요. 확인 후 수정해주세요.");
+        details.add("시간이 \"" + rawTime + "\"로 들어와서 일단 " + LocalDateTimeUtil.localTimeToString(schedule.startTime()) + "로 넣었어요.");
     }
 
     private static String buildUnscheduledWarningMessage(List<NormalizedSchedule> schedules) {
@@ -129,12 +130,12 @@ public final class ScheduleExtractionResultMessage {
 
             List<String> rawDates = schedule.warnings().get("startDate");
             if (rawDates != null && !rawDates.isEmpty()) {
-                details.add("날짜가 \"" + rawDates.get(0) + "\"로 들어와서 이해하지 못해 일단 비워뒀어요. 확인 후 수정해주세요.");
+                details.add("날짜가 \"" + rawDates.get(0) + "\"로 들어와서 이해하지 못해 일단 비워뒀어요.");
             }
 
             List<String> rawTimes = schedule.warnings().get("startTime");
             if (rawTimes != null && !rawTimes.isEmpty()) {
-                details.add("시간이 \"" + rawTimes.get(0) + "\"로 들어와서 이해하지 못해 일단 비워뒀어요. 확인 후 수정해주세요.");
+                details.add("시간이 \"" + rawTimes.get(0) + "\"로 들어와서 이해하지 못해 일단 비워뒀어요.");
             }
         }
 
@@ -142,7 +143,14 @@ public final class ScheduleExtractionResultMessage {
             return "날짜나 시간을 정확히 이해하지 못해서 만들지 못했어요.";
         }
 
-        return String.join(" ", details);
+        return joinWarningDetails(details);
+    }
+
+    private static String appendPartialFailureMessage(String baseMessage, boolean hasUnscheduledItems) {
+        if (!hasUnscheduledItems) {
+            return baseMessage;
+        }
+        return baseMessage + " 일부 내용은 이해하지 못했어요.";
     }
 
     private static boolean hasWarning(List<NormalizedSchedule> schedules, String key) {
@@ -151,5 +159,28 @@ public final class ScheduleExtractionResultMessage {
                 .filter(map -> map != null && !map.isEmpty())
                 .map(Map::keySet)
                 .anyMatch(keys -> keys.contains(key));
+    }
+
+    private static String joinWarningDetails(List<String> details) {
+        if (details == null || details.isEmpty()) {
+            return "확인 후 수정해주세요.";
+        }
+
+        StringBuilder joined = new StringBuilder(details.get(0));
+        for (int i = 1; i < details.size(); i++) {
+            joined.append(" 그리고 ").append(toAdditionalWarningPhrase(details.get(i)));
+        }
+        joined.append(" 확인 후 수정해주세요.");
+        return joined.toString();
+    }
+
+    private static String toAdditionalWarningPhrase(String detail) {
+        if (detail.startsWith("시간이 ")) {
+            return detail.replaceFirst("시간이 ", "시간도 ");
+        }
+        if (detail.startsWith("날짜가 ")) {
+            return detail.replaceFirst("날짜가 ", "날짜도 ");
+        }
+        return detail;
     }
 }

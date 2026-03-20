@@ -23,7 +23,7 @@ public class RuleBasedExtractor {
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
     private static final Pattern KOREAN_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*월\\s*(\\d{1,2})\\s*일(?!\\d)");
     private static final Pattern SLASH_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})/(\\d{1,2})(?!\\d)");
-    private static final Pattern DAY_ONLY_PATTERN = Pattern.compile("(?<![\\d월/])([1-9]|[12]\\d|3[01])\\s*일(?!\\s*뒤)(?!\\d)");
+    private static final Pattern DAY_ONLY_PATTERN = Pattern.compile("(?<![\\d월/])(\\d{1,2})\\s*일(?!\\s*뒤)(?!\\d)");
     private static final Pattern RELATIVE_WEEK_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(일주일)|([1-9]\\d*)\\s*주(?:일)?)\\s*뒤(?:에)?");
     private static final Pattern RELATIVE_DAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(하루|이틀|사흘)|([1-9]\\d*)\\s*일)\\s*뒤(?:에)?");
     private static final Pattern WEEKDAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?(?:에)?(?=\\s|$|까지|전까지)");
