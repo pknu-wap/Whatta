@@ -11,6 +11,7 @@ import whatta.Whatta.agent.service.extractor.RuleBasedExtractor;
 import whatta.Whatta.agent.service.extractor.LLMExtractor;
 import whatta.Whatta.agent.service.normalizer.AgentPostNormalizer;
 import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
+import whatta.Whatta.agent.util.ScheduleExtractionResultMessage;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 
@@ -65,6 +66,7 @@ public class AgentService {
                         agentPostNormalizer.normalizeRuleBasedCandidate(candidate, extractionResult.warnings())
                 );
                 return ScheduleExtractionResponse.builder()
+                        .message(ScheduleExtractionResultMessage.from(normalizedSchedules))
                         .schedules(normalizedSchedules)
                         .build();
             }
@@ -74,6 +76,7 @@ public class AgentService {
         List<NormalizedSchedule> normalizedSchedules = agentPostNormalizer.normalizeLlmResponse(rawResponse.response());
 
         return ScheduleExtractionResponse.builder()
+                .message(ScheduleExtractionResultMessage.from(normalizedSchedules))
                 .schedules(normalizedSchedules)
                 .build();
     }

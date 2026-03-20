@@ -10,6 +10,7 @@ import whatta.Whatta.agent.payload.response.ScheduleExtractionResponse;
 import whatta.Whatta.agent.service.extractor.LLMExtractor;
 import whatta.Whatta.agent.service.normalizer.AgentPostNormalizer;
 import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
+import whatta.Whatta.agent.util.ScheduleExtractionResultMessage;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 
@@ -35,7 +36,10 @@ public class AIAsyncProcessor {
         try {
             List<NormalizedSchedule> items = executeImage(request);
             return CompletableFuture.completedFuture(
-                    new ScheduleExtractionResponse(items)
+                    ScheduleExtractionResponse.builder()
+                            .message(ScheduleExtractionResultMessage.from(items))
+                            .schedules(items)
+                            .build()
             );
         } catch (Exception e) {
             log.error("[AI_IMAGE_ASYNC][ERROR] traceId={} requestType={} total_latency_ms={} message={}",

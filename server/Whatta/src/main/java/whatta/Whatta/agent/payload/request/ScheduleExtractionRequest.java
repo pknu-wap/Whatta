@@ -16,7 +16,7 @@ public record ScheduleExtractionRequest(
     }
 
     public record ScheduleExtractionForImage(
-            @Schema(type = "string", example = "png")
+            @Schema(type = "string", example = "jpg")
             String format,
             @Schema(type = "string", example = "iVBORw0KGgoAAAANSUhEUgAA...")
             String data,
@@ -61,10 +61,6 @@ public record ScheduleExtractionRequest(
             }
             int prefixIndex = data.indexOf(',');
             return prefixIndex >= 0 ? data.substring(prefixIndex + 1).trim() : data.trim();
-        }
-
-        public String resolvedName() {
-            return "schedule-image." + normalizedFormat();
         }
     }
 }
