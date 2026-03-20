@@ -15,7 +15,6 @@ public record ScheduleCandidate(
         LocalTime startTime,
         LocalTime endTime,
         LocalDateTime dueDateTime,
-        boolean allDay,
         boolean scheduled
 ) {
     public enum CandidateType {

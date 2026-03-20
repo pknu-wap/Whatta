@@ -50,7 +50,8 @@ public class RuleBasedExtractor {
         Map<String, List<String>> warnings = new LinkedHashMap<>();
 
         LocalDate deadlineCandidate = extractDeadline(normalizedText, referenceDate, warnings);
-        if (deadlineCandidate == null) {
+
+        if (deadlineCandidate == null) { //deadline이 있으면 task로 무조건 빠지게 되고, 그렇게 되면 startDate는 deadline으로 채워짐
             dateCandidates.addAll(extractDates(normalizedText, referenceDate, warnings));
         }
 
@@ -149,6 +150,10 @@ public class RuleBasedExtractor {
         List<LocalDate> deadlineDates = extractDates(prefix, referenceDate, warnings);
         if (!deadlineDates.isEmpty()) {
             return deadlineDates.get(0);
+        }
+
+        if (hasWarning(warnings, "startDate")) {
+            return null;
         }
 
         return extractTimes(prefix, warnings).isEmpty() ? null : referenceDate;
@@ -362,6 +367,18 @@ public class RuleBasedExtractor {
         if (!values.contains(rawValue)) {
             values.add(rawValue);
         }
+    }
+
+    private int warningCount(Map<String, List<String>> warnings, String fieldName) {
+        if (warnings == null) {
+            return 0;
+        }
+        List<String> values = warnings.get(fieldName);
+        return values == null ? 0 : values.size();
+    }
+
+    private boolean hasWarning(Map<String, List<String>> warnings, String fieldName) {
+        return warningCount(warnings, fieldName) > 0;
     }
 
     private long parseRelativeWeekOffset(Matcher matcher) {

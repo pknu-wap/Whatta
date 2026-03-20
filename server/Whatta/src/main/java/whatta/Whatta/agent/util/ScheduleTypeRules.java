@@ -10,6 +10,17 @@ public final class ScheduleTypeRules {
             "공부",
             "과제"
     };
+    private static final String[] TASK_SUFFIXES = {
+            "하기",
+            "가기",
+            "보기",
+            "내기",
+            "풀기",
+            "쓰기",
+            "읽기",
+            "듣기",
+            "챙기기"
+    };
 
     private ScheduleTypeRules() {
     }
@@ -27,6 +38,14 @@ public final class ScheduleTypeRules {
             }
         }
 
-        return normalized.endsWith("기");
+        String[] tokens = normalized.split("\\s+");
+        String lastToken = tokens[tokens.length - 1];
+        for (String suffix : TASK_SUFFIXES) {
+            if (lastToken.endsWith(suffix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

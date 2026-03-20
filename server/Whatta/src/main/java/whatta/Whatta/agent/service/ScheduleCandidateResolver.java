@@ -17,11 +17,15 @@ public class ScheduleCandidateResolver {
             return null;
         }
 
+        if (hasInvalidStartDateWarningWithoutDateCandidate(extractionResult)) {
+            if (looksLikeTask(extractionResult)) {
+                return resolveTaskCandidateWithInvalidDate(extractionResult);
+            }
+            return resolveEventCandidateWithInvalidDate(extractionResult);
+        }
+
         if (isTask(extractionResult)) {
             return resolveTaskCandidate(extractionResult);
-        }
-        if (hasInvalidStartDateWarningWithoutDateCandidate(extractionResult)) {
-            return resolveEventCandidateWithInvalidDate(extractionResult);
         }
         if (isEvent(extractionResult)) {
             return resolveEventCandidate(extractionResult);
@@ -37,7 +41,7 @@ public class ScheduleCandidateResolver {
     }
 
     private boolean isTask(RuleBasedExtractionResult result) {
-        return ScheduleTypeRules.looksLikeTaskTitle(result.titleHint()) || result.deadlineCandidate() != null;
+        return looksLikeTask(result) || result.deadlineCandidate() != null;
     }
 
     private boolean isEvent(RuleBasedExtractionResult result) {
@@ -60,7 +64,21 @@ public class ScheduleCandidateResolver {
                 .startTime(placementTime)
                 .endTime(placementTime == null ? null : placementTime.plusHours(1))
                 .dueDateTime(dueDateTime)
-                .allDay(extractionResult.isAllDay())
+                .scheduled(true)
+                .build();
+    }
+
+    private ScheduleCandidate resolveTaskCandidateWithInvalidDate(RuleBasedExtractionResult extractionResult) {
+        LocalTime placementTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
+
+        return ScheduleCandidate.builder()
+                .type(ScheduleCandidate.CandidateType.TASK)
+                .title(extractionResult.titleHint())
+                .startDate(null)
+                .endDate(null)
+                .startTime(placementTime)
+                .endTime(placementTime == null ? null : placementTime.plusHours(1))
+                .dueDateTime(null)
                 .scheduled(true)
                 .build();
     }
@@ -77,7 +95,6 @@ public class ScheduleCandidateResolver {
                 .startTime(startTime)
                 .endTime(startTime == null ? null : startTime.plusHours(1))
                 .dueDateTime(null)
-                .allDay(extractionResult.isAllDay())
                 .scheduled(true)
                 .build();
     }
@@ -93,13 +110,12 @@ public class ScheduleCandidateResolver {
                 .startTime(startTime)
                 .endTime(startTime == null ? null : startTime.plusHours(1))
                 .dueDateTime(null)
-                .allDay(startTime == null)
                 .scheduled(false)
                 .build();
     }
 
     private ScheduleCandidate resolveUnscheduledCandidate(RuleBasedExtractionResult extractionResult) {
-        boolean taskLike = ScheduleTypeRules.looksLikeTaskTitle(extractionResult.titleHint()) || extractionResult.deadlineCandidate() != null;
+        boolean taskLike = looksLikeTask(extractionResult) || extractionResult.deadlineCandidate() != null;
 
         return ScheduleCandidate.builder()
                 .type(taskLike ? ScheduleCandidate.CandidateType.TASK : ScheduleCandidate.CandidateType.EVENT)
@@ -109,7 +125,6 @@ public class ScheduleCandidateResolver {
                 .startTime(null)
                 .endTime(null)
                 .dueDateTime(null)
-                .allDay(false)
                 .scheduled(false)
                 .build();
     }
@@ -124,4 +139,7 @@ public class ScheduleCandidateResolver {
         return extractionResult.warnings() != null && !extractionResult.warnings().isEmpty();
     }
 
+    private boolean looksLikeTask(RuleBasedExtractionResult extractionResult) {
+        return ScheduleTypeRules.looksLikeTaskTitle(extractionResult.titleHint());
+    }
 }
