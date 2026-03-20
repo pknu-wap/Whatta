@@ -167,6 +167,21 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 룰기반추출기는_상대일과_기간표현을_day_only_날짜로_오인하지_않는다() {
+        RuleBasedExtractionResult relativeAfter = ruleBasedExtractor.extract("3일 후 회의", "3일 후 회의");
+        RuleBasedExtractionResult durationDays = ruleBasedExtractor.extract("2일간 집중 공부", "2일간 집중 공부");
+        RuleBasedExtractionResult ordinalDays = ruleBasedExtractor.extract("5일째 여행", "5일째 여행");
+        RuleBasedExtractionResult quantityDays = ruleBasedExtractor.extract("1일치 보고서 정리", "1일치 보고서 정리");
+        RuleBasedExtractionResult sizedDays = ruleBasedExtractor.extract("3일짜리 워크숍", "3일짜리 워크숍");
+
+        assertTrue(relativeAfter.dateCandidates().isEmpty());
+        assertTrue(durationDays.dateCandidates().isEmpty());
+        assertTrue(ordinalDays.dateCandidates().isEmpty());
+        assertTrue(quantityDays.dateCandidates().isEmpty());
+        assertTrue(sizedDays.dateCandidates().isEmpty());
+    }
+
+    @Test
     void 룰기반추출기는_이번주_요일을_현재_주기준으로_계산한다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("이번주 월요일 회의", "이번주 월요일 회의");
 
