@@ -357,6 +357,11 @@ const height = rawHeight
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
   }
 
+  const resetDragPosition = useCallback(() => {
+    translateY.value = withSpring(0)
+    dragEnabled.value = false
+  }, [dragEnabled, translateY])
+
   const handleDrop = useCallback(
     async (movedY: number) => {
       try {
@@ -396,65 +401,84 @@ const height = rawHeight
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
           }
 
-          Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
-            { text: '취소', style: 'cancel' },
+          let settled = false
+          const finishCancel = () => {
+            if (settled) return
+            settled = true
+            resetDragPosition()
+          }
 
-            {
-              text: '이 일정만',
-              onPress: async () => {
-                try {
-                  const occ = anchorDate
-                  const prev = ev.repeat.exceptionDates ?? []
-                  const next = prev.includes(occ) ? prev : [...prev, occ]
+          Alert.alert(
+            '반복 일정 수정',
+            '이후 반복하는 일정들도 반영할까요?',
+            [
+              { text: '취소', style: 'cancel', onPress: finishCancel },
 
-                  // 기존 반복 일정에서 제외
-                  await updateEvent(id, {
-                    repeat: {
-                      ...ev.repeat,
-                      exceptionDates: next,
-                    },
-                  })
+              {
+                text: '이 일정만',
+                onPress: async () => {
+                  settled = true
+                  try {
+                    const occ = anchorDate
+                    const prev = ev.repeat.exceptionDates ?? []
+                    const next = prev.includes(occ) ? prev : [...prev, occ]
 
-                  // 단일 일정 만들기
-                  await createEvent({
-                    ...basePayload,
-                    repeat: null,
-                  })
+                    // 기존 반복 일정에서 제외
+                    await updateEvent(id, {
+                      repeat: {
+                        ...ev.repeat,
+                        exceptionDates: next,
+                      },
+                    })
 
-                  bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-                } catch (e) {
-                  console.error('❌ 반복 단일 수정 실패:', e)
-                }
+                    // 단일 일정 만들기
+                    await createEvent({
+                      ...basePayload,
+                      repeat: null,
+                    })
+
+                    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                  } catch (e) {
+                    console.error('❌ 반복 단일 수정 실패:', e)
+                    resetDragPosition()
+                  }
+                },
               },
-            },
 
-            {
-              text: '이후 일정 모두',
-              onPress: async () => {
-                try {
-                  const cutEnd = prevDay(anchorDate)
+              {
+                text: '이후 일정 모두',
+                onPress: async () => {
+                  settled = true
+                  try {
+                    const cutEnd = prevDay(anchorDate)
 
-                  // 기존 반복 일정 잘라내기
-                  await updateEvent(id, {
-                    repeat: {
-                      ...ev.repeat,
-                      endDate: cutEnd,
-                    },
-                  })
+                    // 기존 반복 일정 잘라내기
+                    await updateEvent(id, {
+                      repeat: {
+                        ...ev.repeat,
+                        endDate: cutEnd,
+                      },
+                    })
 
-                  // 이후 반복 일정 새로 만들기
-                  await createEvent({
-                    ...basePayload,
-                    repeat: ev.repeat,
-                  })
+                    // 이후 반복 일정 새로 만들기
+                    await createEvent({
+                      ...basePayload,
+                      repeat: ev.repeat,
+                    })
 
-                  bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-                } catch (e) {
-                  console.error('❌ 반복 전체 수정 실패:', e)
-                }
+                    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                  } catch (e) {
+                    console.error('❌ 반복 전체 수정 실패:', e)
+                    resetDragPosition()
+                  }
+                },
               },
+            ],
+            {
+              cancelable: true,
+              onDismiss: finishCancel,
             },
-          ])
+          )
 
           return
         }
@@ -482,7 +506,7 @@ const height = rawHeight
         console.error('❌ FixedEvent 드롭 실패:', err.message)
       }
     },
-    [id, startMin, endMin, anchorDate],
+    [anchorDate, endMin, id, resetDragPosition, startMin],
   )
 
   // ===== 롱프레스 후 드래그 시작 =====
@@ -561,7 +585,8 @@ const endTime = fmt(endMin)
   timeRangeText={`${startTime} ~ ${endTime}`}
   density="day"
   layoutWidthHint={DAY_CARD_WIDTH}
-  style={{ height }}
+  contentHeightHint={height}
+  style={{ minHeight: 0, height }}
   onPress={onPress}
 />
       </Animated.View>
@@ -612,6 +637,12 @@ const height = rawHeight
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
   }
+
+  const resetDragPosition = useCallback(() => {
+    translateY.value = withSpring(startMin * PIXELS_PER_MIN)
+    translateX.value = withSpring(0)
+    dragEnabled.value = false
+  }, [dragEnabled, startMin, translateX, translateY])
 
   const handleDrop = useCallback(
     async (snappedY: number) => {
@@ -680,73 +711,92 @@ const height = rawHeight
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
           }
 
-          Alert.alert('반복 일정 수정', '이후 반복하는 일정들도 반영할까요?', [
-            { text: '취소', style: 'cancel' },
+          let settled = false
+          const finishCancel = () => {
+            if (settled) return
+            settled = true
+            resetDragPosition()
+          }
 
-            {
-              text: '이 일정만',
-              onPress: async () => {
-                try {
-                  const occDate = ymdLocal(dateISO)
-                  const prev = ev.repeat.exceptionDates ?? []
-                  const next = prev.includes(occDate) ? prev : [...prev, occDate]
+          Alert.alert(
+            '반복 일정 수정',
+            '이후 반복하는 일정들도 반영할까요?',
+            [
+              { text: '취소', style: 'cancel', onPress: finishCancel },
 
-                  // 1) 기존 반복 일정에 exceptionDates 패치
-                  await updateEvent(id, {
-                    repeat: {
-                      ...ev.repeat,
-                      exceptionDates: next,
-                    },
-                  })
+              {
+                text: '이 일정만',
+                onPress: async () => {
+                  settled = true
+                  try {
+                    const occDate = ymdLocal(dateISO)
+                    const prev = ev.repeat.exceptionDates ?? []
+                    const next = prev.includes(occDate) ? prev : [...prev, occDate]
 
-                  // 2) 단일 일정 생성
-                  await createEvent({
-                    ...basePayload,
-                    repeat: null,
-                  })
+                    // 1) 기존 반복 일정에 exceptionDates 패치
+                    await updateEvent(id, {
+                      repeat: {
+                        ...ev.repeat,
+                        exceptionDates: next,
+                      },
+                    })
 
-                  bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-                  bus.emit('calendar:mutated', {
-                    op: 'update',
-                    item: { id, startDate: dateISO, endDate: dateISO },
-                  })
-                } catch (e) {
-                  console.error('❌ 반복 단일 수정(드래그) 실패:', e)
-                }
+                    // 2) 단일 일정 생성
+                    await createEvent({
+                      ...basePayload,
+                      repeat: null,
+                    })
+
+                    bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+                    bus.emit('calendar:mutated', {
+                      op: 'update',
+                      item: { id, startDate: dateISO, endDate: dateISO },
+                    })
+                  } catch (e) {
+                    console.error('❌ 반복 단일 수정(드래그) 실패:', e)
+                    resetDragPosition()
+                  }
+                },
               },
-            },
 
-            {
-              text: '이후 일정 모두',
-              onPress: async () => {
-                try {
-                  const cutEnd = prevDay(dateISO)
+              {
+                text: '이후 일정 모두',
+                onPress: async () => {
+                  settled = true
+                  try {
+                    const cutEnd = prevDay(dateISO)
 
-                  // 1) 기존 반복 일정 끝을 전날로 자름
-                  await updateEvent(id, {
-                    repeat: {
-                      ...ev.repeat,
-                      endDate: cutEnd,
-                    },
-                  })
+                    // 1) 기존 반복 일정 끝을 전날로 자름
+                    await updateEvent(id, {
+                      repeat: {
+                        ...ev.repeat,
+                        endDate: cutEnd,
+                      },
+                    })
 
-                  // 2) 이후 구간 새 반복 일정 생성
-                  await createEvent({
-                    ...basePayload,
-                    repeat: ev.repeat,
-                  })
+                    // 2) 이후 구간 새 반복 일정 생성
+                    await createEvent({
+                      ...basePayload,
+                      repeat: ev.repeat,
+                    })
 
-                  bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
-                  bus.emit('calendar:mutated', {
-                    op: 'update',
-                    item: { id, startDate: dateISO, endDate: dateISO },
-                  })
-                } catch (e) {
-                  console.error('❌ 반복 전체 수정(드래그) 실패:', e)
-                }
+                    bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
+                    bus.emit('calendar:mutated', {
+                      op: 'update',
+                      item: { id, startDate: dateISO, endDate: dateISO },
+                    })
+                  } catch (e) {
+                    console.error('❌ 반복 전체 수정(드래그) 실패:', e)
+                    resetDragPosition()
+                  }
+                },
               },
+            ],
+            {
+              cancelable: true,
+              onDismiss: finishCancel,
             },
-          ])
+          )
 
           return
         }
@@ -770,10 +820,11 @@ const height = rawHeight
           },
         })
       } catch (err: any) {
+        resetDragPosition()
         console.error('❌ 이벤트 시간 이동 실패:', err.message)
       }
     },
-    [id, durationMin, anchorDate, isRepeat],
+    [anchorDate, durationMin, id, isRepeat, resetDragPosition],
   )
 
   const hold = Gesture.LongPress()
@@ -884,7 +935,8 @@ const width = DAY_CARD_WIDTH - finalShift * STAGGER
   timeRangeText={place ?? labels?.[0] ?? ''}
   density="day"
   layoutWidthHint={DAY_CARD_WIDTH}
-  style={{ height }}
+  contentHeightHint={height}
+  style={{ minHeight: 0, height }}
   onPress={onPress}
 />
       </Animated.View>

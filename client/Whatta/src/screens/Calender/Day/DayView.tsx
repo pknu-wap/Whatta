@@ -127,7 +127,7 @@ export default function DayView() {
 }
 
   const [isDraggingTask, setIsDraggingTask] = useState(false)
-  const [openGroupIndex, setOpenGroupIndex] = useState<number | null>(null)
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskDTO | null>(null)
 
   const isFocused = useIsFocused()
@@ -315,6 +315,16 @@ useEffect(() => {
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
   const isToday = anchorDate === today()
 
+  useFocusEffect(
+    React.useCallback(() => {
+      setOpenGroupId(null)
+    }, []),
+  )
+
+  useEffect(() => {
+    setOpenGroupId(null)
+  }, [anchorDate])
+
   // 라벨
 
   interface LabelItem {
@@ -485,10 +495,11 @@ useEffect(() => {
     })
   }, [])
 
-  const {
+const {
   events,
   spanEvents,
   tasks,
+  setTasks,
   checks,
   setChecks,
   fetchDailyEvents,
@@ -525,7 +536,17 @@ useDayDrag({
   gridScrollYRef,
 })
 
-const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
+const taskGroups = useMemo(
+  () =>
+    groupTasksByOverlap(tasks).map((group) => ({
+      ...group,
+      groupId: `day-group-${group.startMin}-${group.tasks
+        .map((task) => String(task.id))
+        .sort()
+        .join('-')}`,
+    })),
+  [tasks],
+)
 
   useEffect(() => {
     // 사이드바 닫힐 때 레이아웃 재측정
@@ -543,8 +564,34 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
       if (!payload?.item) return
       const date =
-        payload.item.startDate ?? payload.item.date ?? payload.item.endDate ?? today()
+        payload.item.startDate ??
+        payload.item.date ??
+        payload.item.endDate ??
+        payload.item.placementDate ??
+        today()
       const itemDateISO = date.slice(0, 10)
+
+      if (
+        itemDateISO === anchorDate &&
+        typeof payload.item.completed === 'boolean'
+      ) {
+        const completed = payload.item.completed
+        const itemId = String(payload.item.id)
+
+        setTasks((prev) =>
+          prev.map((task) =>
+            String(task.id) === itemId ? { ...task, completed } : task,
+          ),
+        )
+        setChecks((prev) =>
+          prev.map((check) =>
+            String(check.id) === itemId
+              ? { ...check, done: completed, completed }
+              : check,
+          ),
+        )
+        return
+      }
 
       if (itemDateISO === anchorDate && payload.item.id !== draggingEventId) {
         fetchDailyEvents()
@@ -555,7 +602,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [anchorDate, fetchDailyEvents])
+  }, [anchorDate, fetchDailyEvents, setChecks, setTasks])
 
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150)
@@ -683,7 +730,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
 
       bus.emit('calendar:mutated', {
         op: 'update',
-        item: { id },
+        item: { id, completed: nextDone, date: anchorDate, isTask: true },
       })
     } catch (err) {
       console.error('❌ 테스크 상태 업데이트 실패:', err)
@@ -937,24 +984,22 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
               })}
 
               {/* ⭐ Task groups 적용 */}
-              {taskGroups.map((group, idx) => {
-                const { tasks: list, startMin } = group
+              {taskGroups.map((group) => {
+                const { tasks: list, startMin, groupId } = group
 
                 // 펼쳐진 그룹은 접힘 카드 렌더를 숨긴다.
-                if (openGroupIndex === idx) return null
+                if (openGroupId === groupId) return null
 
                 // 2개 이상 겹치면 그룹박스 1개로 표시
                 if (list.length >= 2) {
                   return (
                     <DraggableTaskGroupBox
-                      key={`group-${idx}`}
+                      key={groupId}
                       group={list}
                       startMin={startMin}
                       count={list.length}
                       anchorDate={anchorDate}
-                      onPress={() =>
-                        setOpenGroupIndex(openGroupIndex === idx ? null : idx)
-                      }
+                      onPress={() => setOpenGroupId(groupId)}
                       setIsDraggingTask={setIsDraggingTask}
                     />
                   )
@@ -988,11 +1033,11 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
               })}
 
               {/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
-              {openGroupIndex !== null &&
+              {openGroupId !== null &&
                 (() => {
-                  const group = taskGroups[openGroupIndex]
+                  const group = taskGroups.find((item) => item.groupId === openGroupId)
                   if (!group) return null
-                  const { tasks: list, startMin } = group
+                  const { tasks: list, startMin, groupId } = group
 
                   return (
                     <View
@@ -1006,7 +1051,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                       }}
                     >
                       <TaskGroupCard
-                        groupId={`day-group-open-${startMin}-${openGroupIndex}`}
+                        groupId={`day-group-open-${groupId}`}
                         density="day"
                         expanded
                         layoutWidthHint={308}
@@ -1015,7 +1060,7 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                           title: task.title ?? '',
                           done: !!task.completed,
                         }))}
-                        onToggleExpand={() => setOpenGroupIndex(null)}
+                        onToggleExpand={() => setOpenGroupId(null)}
                         onPressTask={(taskId) => {
                           void openTaskPopupFromApi(taskId)
                         }}
@@ -1030,7 +1075,12 @@ const taskGroups = useMemo(() => groupTasksByOverlap(tasks), [tasks])
                           )
                           bus.emit('calendar:mutated', {
                             op: 'update',
-                            item: { id: taskId, isTask: true, date: anchorDate },
+                            item: {
+                              id: taskId,
+                              isTask: true,
+                              date: anchorDate,
+                              completed: nextDone,
+                            },
                           })
                         }}
                       />

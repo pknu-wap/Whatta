@@ -123,12 +123,17 @@ function formatKDate(d: Date) {
 }
 
 function formatKTime12(d: Date) {
+  if (!isValidDate(d)) return '오전 12:00'
   let h = d.getHours()
   const m = String(d.getMinutes()).padStart(2, '0')
   const ap = h < 12 ? '오전' : '오후'
   h = h % 12
   if (h === 0) h = 12
   return `${ap} ${h}:${m}`
+}
+
+function isValidDate(value: Date) {
+  return value instanceof Date && !Number.isNaN(value.getTime())
 }
 
 const END_CAL_PILL_BG = '#B04FFF1A'
@@ -1406,20 +1411,22 @@ export default function CreateEventDetailStep({
 }
 
 function TimeWheel({ value, onChange }: { value: Date; onChange: (next: Date) => void }) {
-  const hour24 = value.getHours()
+  const safeValue = isValidDate(value) ? value : new Date()
+  const hour24 = safeValue.getHours()
   const ampm = hour24 < 12 ? 'AM' : 'PM'
   let hour12 = hour24 % 12
   if (hour12 === 0) hour12 = 12
-  const minute = value.getMinutes()
+  const minute = safeValue.getMinutes()
 
   const setTime = (nextHour12: number, nextMinute: number, nextAmPm: 'AM' | 'PM') => {
     let h = nextHour12 % 12
     if (nextAmPm === 'PM') h += 12
-    const next = new Date(value)
+    const next = new Date(safeValue)
     next.setHours(h)
     next.setMinutes(nextMinute)
     next.setSeconds(0)
     next.setMilliseconds(0)
+    if (!isValidDate(next)) return
     onChange(next)
   }
 

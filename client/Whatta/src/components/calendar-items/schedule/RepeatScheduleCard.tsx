@@ -12,6 +12,7 @@ function RepeatScheduleCard({
   isUntimed,
   density,
   layoutWidthHint,
+  contentHeightHint,
   hideText,
   style,
   onPress,
@@ -25,6 +26,7 @@ function RepeatScheduleCard({
       isUntimed={isUntimed}
       density={density}
       layoutWidthHint={layoutWidthHint}
+      contentHeightHint={contentHeightHint}
       hideText={hideText}
       onPress={onPress}
       style={style}
