@@ -37,4 +37,5 @@ out/
 .env
 /src/main/resources/application.properties
 /src/main/resources/firebase/firebase.json
+/src/main/resources/googleCloudStorage/googleCloudStorage.json
 
