@@ -112,7 +112,7 @@ public class AgentService {
             return false;
         }
 
-        boolean hasSimpleTaskSignal = extractionResult.deadlineCandidate() != null;
+        boolean hasSimpleTaskSignal = extractionResult.deadlineCandidate() != null || extractionResult.explicitTaskSignal();
         boolean hasSimpleEventSignal = extractionResult.hasSingleDate();
         boolean hasRecoverableInputWarning = extractionResult.warnings() != null && !extractionResult.warnings().isEmpty();
         return hasSimpleTaskSignal || hasSimpleEventSignal || hasRecoverableInputWarning;

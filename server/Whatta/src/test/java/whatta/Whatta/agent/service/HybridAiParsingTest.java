@@ -106,6 +106,76 @@ class HybridAiParsingTest {
     }
 
     @Test
+    void 할_일만_있으면_title은_새로운_작업이_되고_task로_분류한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 9시에 할 일 추가해줘", "내일 9시에 할 일 추가해줘");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertTrue(parsed.explicitTaskSignal());
+        assertEquals("새로운 작업", parsed.titleHint());
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertEquals("새로운 작업", candidate.title());
+        assertEquals(LocalDate.of(2026, 3, 16), candidate.startDate());
+        assertEquals(LocalTime.of(9, 0), candidate.startTime());
+    }
+
+    @Test
+    void 붙여쓴_할일만_있어도_title은_새로운_작업이_된다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 9시에 할일 추가해줘", "내일 9시에 할일 추가해줘");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertTrue(parsed.explicitTaskSignal());
+        assertEquals("새로운 작업", parsed.titleHint());
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertEquals("새로운 작업", candidate.title());
+    }
+
+    @Test
+    void task_신호와_다른_title이_함께_있으면_title에서_신호를_제거한다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 9시에 청소 할 일 추가해줘", "내일 9시에 청소 할 일 추가해줘");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertTrue(parsed.explicitTaskSignal());
+        assertEquals("청소", parsed.titleHint());
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertEquals("청소", candidate.title());
+    }
+
+    @Test
+    void 작업_신호도_같은_규칙으로_task를_만든다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 9시에 청소 작업 추가해줘", "내일 9시에 청소 작업 추가해줘");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertTrue(parsed.explicitTaskSignal());
+        assertEquals("청소", parsed.titleHint());
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertEquals("청소", candidate.title());
+    }
+
+    @Test
+    void task_신호만_있는_입력도_unscheduled_task로_남긴다() {
+        RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("할 일 추가해줘", "할 일 추가해줘");
+
+        ScheduleCandidate candidate = scheduleCandidateResolver.resolve(parsed);
+
+        assertTrue(parsed.explicitTaskSignal());
+        assertEquals("새로운 작업", parsed.titleHint());
+        assertNotNull(candidate);
+        assertEquals(ScheduleCandidate.CandidateType.TASK, candidate.type());
+        assertFalse(candidate.scheduled());
+        assertEquals("새로운 작업", candidate.title());
+        assertNull(candidate.startDate());
+        assertNull(candidate.dueDateTime());
+    }
+
+    @Test
     void 룰기반추출기는_title에서_조사와_명령형_접미어를_제거한다() {
         RuleBasedExtractionResult parsed = ruleBasedExtractor.extract("내일 오후6시에 왓타회의 추가", "내일 오후6시에 왓타회의 추가");
 
@@ -467,5 +537,10 @@ class HybridAiParsingTest {
         assertFalse(ScheduleTypeRules.looksLikeTaskTitle("정기 회의"));
         assertFalse(ScheduleTypeRules.looksLikeTaskTitle("후기"));
         assertTrue(ScheduleTypeRules.looksLikeTaskTitle("알고리즘 풀기"));
+        assertTrue(ScheduleTypeRules.looksLikeTaskTitle("할 일"));
+        assertTrue(ScheduleTypeRules.looksLikeTaskTitle("할일"));
+        assertTrue(ScheduleTypeRules.looksLikeTaskTitle("작업"));
+        assertEquals("새로운 작업", ScheduleTypeRules.normalizeTaskTitle("할 일", true));
+        assertEquals("정리", ScheduleTypeRules.normalizeTaskTitle("정리 작업", true));
     }
 }

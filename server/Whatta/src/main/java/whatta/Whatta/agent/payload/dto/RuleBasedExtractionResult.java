@@ -15,6 +15,7 @@ public record RuleBasedExtractionResult(
         List<LocalDate> dateCandidates,
         List<LocalTime> timeCandidates,
         LocalDate deadlineCandidate,
+        boolean explicitTaskSignal,
         boolean hasRepeatExpression,
         String titleHint,
         Map<String, List<String>> warnings,
