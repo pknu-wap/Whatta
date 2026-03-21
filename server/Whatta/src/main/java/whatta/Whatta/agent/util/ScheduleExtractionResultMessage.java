@@ -17,110 +17,33 @@ public final class ScheduleExtractionResultMessage {
 
     public static String from(List<NormalizedSchedule> schedules) {
         if (schedules == null || schedules.isEmpty()) {
-            return "만들 수 있는 내용을 찾지 못했어요.";
+            return "스케줄을 생성할 수 있는 내용을 찾지 못했어요.";
         }
 
         long scheduledCount = schedules.stream()
                 .filter(NormalizedSchedule::isScheduled)
                 .count();
-        long scheduledEventCount = schedules.stream()
-                .filter(NormalizedSchedule::isScheduled)
-                .filter(NormalizedSchedule::isEvent)
-                .count();
-        long scheduledTaskCount = schedules.stream()
-                .filter(NormalizedSchedule::isScheduled)
-                .filter(schedule -> !schedule.isEvent())
-                .count();
         boolean hasStartDateWarning = hasWarning(schedules, "startDate");
         boolean hasStartTimeWarning = hasWarning(schedules, "startTime");
         boolean hasAnyWarning = hasStartDateWarning || hasStartTimeWarning;
-        String createdTarget = buildCreatedTargetLabel(scheduledEventCount, scheduledTaskCount);
+        boolean hasUnscheduledItems = scheduledCount < schedules.size();
 
-        if (scheduledCount > 0) {
-            boolean hasUnscheduledItems = scheduledCount < schedules.size();
-            if (hasAnyWarning) {
-                return buildAdjustedSuccessMessage(createdTarget, schedules, hasUnscheduledItems);
-            }
-            if (!hasUnscheduledItems) {
-                return createdTarget + " 만들었어요.";
-            }
-            return createdTarget + " 만들었어요. 다만 일부 내용은 이해하지 못했어요.";
+        if (hasAnyWarning) {
+            return buildAdjustedSuccessMessage(schedules, scheduledCount > 0 && hasUnscheduledItems);
         }
 
-        if (hasStartDateWarning || hasStartTimeWarning) {
-            return buildUnscheduledWarningMessage(schedules);
+        if (scheduledCount == 0) {
+            return "스케줄을 생성할 수 있는 내용을 찾지 못했어요.";
         }
 
-        return "날짜, 시간, 마감 같은 핵심 정보를 충분히 찾지 못해서 만들지 못했어요.";
+        if (hasUnscheduledItems) {
+            return "스케줄 생성을 완료했어요. 다만 일부 내용은 이해하지 못했어요.";
+        }
+
+        return "스케줄 생성을 완료했어요. 이대로 등록할까요?";
     }
 
-    private static String buildAdjustedSuccessMessage(String createdTarget, List<NormalizedSchedule> schedules, boolean hasUnscheduledItems) {
-        List<String> details = new ArrayList<>();
-
-        for (NormalizedSchedule schedule : schedules) {
-            if (schedule == null || !schedule.isScheduled() || schedule.warnings() == null || schedule.warnings().isEmpty()) {
-                continue;
-            }
-
-            appendDateWarnings(details, schedule);
-            appendTimeWarnings(details, schedule);
-        }
-
-        if (details.isEmpty()) {
-            return appendPartialFailureMessage(createdTarget + " 만들었어요. 다만 일부 정보가 불분명해 현재 기준으로 정리했어요.", hasUnscheduledItems);
-        }
-
-        return appendPartialFailureMessage(createdTarget + " 만들었어요. 다만 " + joinWarningDetails(details), hasUnscheduledItems);
-    }
-
-    private static String buildCreatedTargetLabel(long scheduledEventCount, long scheduledTaskCount) {
-        if (scheduledEventCount > 0 && scheduledTaskCount > 0) {
-            return "일정 " + scheduledEventCount + "개와 할 일 " + scheduledTaskCount + "개를";
-        }
-        if (scheduledEventCount > 0) {
-            return "일정 " + scheduledEventCount + "개를";
-        }
-        return "할 일 " + scheduledTaskCount + "개를";
-    }
-
-    private static void appendDateWarnings(List<String> details, NormalizedSchedule schedule) {
-        List<String> rawDates = schedule.warnings().get("startDate");
-        if (rawDates == null || rawDates.isEmpty()) {
-            return;
-        }
-
-        String rawDate = rawDates.get(0);
-        LocalDate fallbackDate = schedule.startDate();
-        if (fallbackDate == null) {
-            details.add("날짜가 \"" + rawDate + "\"로 들어와서 날짜는 비워뒀어요.");
-            return;
-        }
-
-        LocalDate today = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
-        if (Objects.equals(fallbackDate, today)) {
-            details.add("날짜가 \"" + rawDate + "\"로 들어와서 일단 오늘 날짜(" + fallbackDate + ")로 넣었어요.");
-            return;
-        }
-
-        details.add("날짜가 \"" + rawDate + "\"로 들어와서 일단 " + fallbackDate + "로 넣었어요.");
-    }
-
-    private static void appendTimeWarnings(List<String> details, NormalizedSchedule schedule) {
-        List<String> rawTimes = schedule.warnings().get("startTime");
-        if (rawTimes == null || rawTimes.isEmpty()) {
-            return;
-        }
-
-        String rawTime = rawTimes.get(0);
-        if (schedule.startTime() == null) {
-            details.add("시간이 \"" + rawTime + "\"로 들어와서 시간은 비워뒀어요.");
-            return;
-        }
-
-        details.add("시간이 \"" + rawTime + "\"로 들어와서 일단 " + LocalDateTimeUtil.localTimeToString(schedule.startTime()) + "로 넣었어요.");
-    }
-
-    private static String buildUnscheduledWarningMessage(List<NormalizedSchedule> schedules) {
+    private static String buildAdjustedSuccessMessage(List<NormalizedSchedule> schedules, boolean hasUnscheduledItems) {
         List<String> details = new ArrayList<>();
 
         for (NormalizedSchedule schedule : schedules) {
@@ -128,22 +51,66 @@ public final class ScheduleExtractionResultMessage {
                 continue;
             }
 
-            List<String> rawDates = schedule.warnings().get("startDate");
-            if (rawDates != null && !rawDates.isEmpty()) {
-                details.add("날짜가 \"" + rawDates.get(0) + "\"로 들어와서 이해하지 못해 일단 비워뒀어요.");
-            }
-
-            List<String> rawTimes = schedule.warnings().get("startTime");
-            if (rawTimes != null && !rawTimes.isEmpty()) {
-                details.add("시간이 \"" + rawTimes.get(0) + "\"로 들어와서 이해하지 못해 일단 비워뒀어요.");
+            String warningDetail = buildWarningDetail(schedule);
+            if (warningDetail != null) {
+                details.add(warningDetail);
             }
         }
 
         if (details.isEmpty()) {
-            return "날짜나 시간을 정확히 이해하지 못해서 만들지 못했어요.";
+            return appendPartialFailureMessage("스케줄 생성을 완료했어요. 다만 일부 정보가 불분명해 현재 기준으로 정리했어요.", hasUnscheduledItems);
         }
 
-        return joinWarningDetails(details);
+        return appendPartialFailureMessage("스케줄 생성을 완료했어요. 다만 " + joinWarningDetails(details), hasUnscheduledItems);
+    }
+
+    private static String buildWarningDetail(NormalizedSchedule schedule) {
+        List<String> rawDates = schedule.warnings().get("startDate");
+        List<String> rawTimes = schedule.warnings().get("startTime");
+        boolean hasDateWarning = rawDates != null && !rawDates.isEmpty();
+        boolean hasTimeWarning = rawTimes != null && !rawTimes.isEmpty();
+
+        if (!hasDateWarning && !hasTimeWarning) {
+            return null;
+        }
+
+        if (hasDateWarning && hasTimeWarning) {
+            String rawDate = rawDates.get(0);
+            String rawTime = rawTimes.get(0);
+            return "\"" + rawDate + "\"" + chooseAndParticle(rawDate)
+                    + " \"" + rawTime + "\"" + chooseTopicParticle(rawTime) + " 해석하지 못해서 "
+                    + buildDateResolution(schedule) + " " + buildTimeResolution(schedule);
+        }
+
+        if (hasDateWarning) {
+            String rawDate = rawDates.get(0);
+            return "\"" + rawDate + "\"" + chooseTopicParticle(rawDate) + " 해석하지 못해서 " + buildDateResolution(schedule);
+        }
+
+        String rawTime = rawTimes.get(0);
+        return "\"" + rawTime + "\"" + chooseTopicParticle(rawTime) + " 해석하지 못해서 " + buildTimeResolution(schedule);
+    }
+
+    private static String buildDateResolution(NormalizedSchedule schedule) {
+        LocalDate fallbackDate = schedule.startDate();
+        if (fallbackDate == null) {
+            return "날짜는 비워뒀어요.";
+        }
+
+        LocalDate today = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
+        if (Objects.equals(fallbackDate, today)) {
+            return "일단 오늘 날짜(" + fallbackDate + ")로 넣었어요.";
+        }
+
+        return "일단 " + fallbackDate + "로 넣었어요.";
+    }
+
+    private static String buildTimeResolution(NormalizedSchedule schedule) {
+        if (schedule.startTime() == null) {
+            return "시간은 비워뒀어요.";
+        }
+
+        return "일단 " + LocalDateTimeUtil.localTimeToString(schedule.startTime()) + "로 넣었어요.";
     }
 
     private static String appendPartialFailureMessage(String baseMessage, boolean hasUnscheduledItems) {
@@ -168,19 +135,50 @@ public final class ScheduleExtractionResultMessage {
 
         StringBuilder joined = new StringBuilder(details.get(0));
         for (int i = 1; i < details.size(); i++) {
-            joined.append(" 그리고 ").append(toAdditionalWarningPhrase(details.get(i)));
+            joined.append(" 그리고 ").append(details.get(i));
         }
         joined.append(" 확인 후 수정해주세요.");
         return joined.toString();
     }
 
-    private static String toAdditionalWarningPhrase(String detail) {
-        if (detail.startsWith("시간이 ")) {
-            return detail.replaceFirst("시간이 ", "시간도 ");
+    private static String chooseAndParticle(String value) {
+        CodaType codaType = getCodaType(value);
+        if (codaType == CodaType.HAS_BATCHIM) {
+            return "과";
         }
-        if (detail.startsWith("날짜가 ")) {
-            return detail.replaceFirst("날짜가 ", "날짜도 ");
+        if (codaType == CodaType.NO_BATCHIM) {
+            return "와";
         }
-        return detail;
+        return "과(와)";
+    }
+
+    private static String chooseTopicParticle(String value) {
+        CodaType codaType = getCodaType(value);
+        if (codaType == CodaType.HAS_BATCHIM) {
+            return "은";
+        }
+        if (codaType == CodaType.NO_BATCHIM) {
+            return "는";
+        }
+        return "는(은)";
+    }
+
+    private static CodaType getCodaType(String value) {
+        if (value == null || value.isBlank()) {
+            return CodaType.UNKNOWN;
+        }
+
+        char lastChar = value.charAt(value.length() - 1);
+        if (lastChar < 0xAC00 || lastChar > 0xD7A3) {
+            return CodaType.UNKNOWN;
+        }
+
+        return (lastChar - 0xAC00) % 28 != 0 ? CodaType.HAS_BATCHIM : CodaType.NO_BATCHIM;
+    }
+
+    private enum CodaType {
+        HAS_BATCHIM,
+        NO_BATCHIM,
+        UNKNOWN
     }
 }
