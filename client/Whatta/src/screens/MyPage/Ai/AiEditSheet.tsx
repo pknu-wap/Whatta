@@ -9,9 +9,11 @@ import Animated, {
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import XIcon from '@/assets/icons/x.svg'
+import { createLabel } from '@/api/label_api'
 import type { AiCardDraftItem } from '@/screens/MyPage/Ai/AiCard'
 import CreateEventDetailStep from '@/screens/More/CreateEventDetailStep'
 import AiInlineDateRangePicker from '@/screens/MyPage/Ai/AiInlineDateRangePicker'
+import { useLabels } from '@/providers/LabelProvider'
 import colors from '@/styles/colors'
 import {
   getActiveScheduleColorSetId,
@@ -66,8 +68,28 @@ const toTaskDueDateTime = (date: Date | null, time: Date | null) => {
   return `${yyyyMmDd}T${hhmmss}`
 }
 
+const FIXED_LABEL_TITLES = ['일정', '할 일'] as const
+
+function ensureDefaultLabelIds(
+  ids: number[],
+  labels: Array<{ id: number; title: string }>,
+  isEvent: boolean,
+) {
+  const defaultTitle = isEvent ? '일정' : '할 일'
+  const defaultLabel = labels.find((label) => label.title === defaultTitle)
+  const fixedIds = new Set(
+    labels.filter((label) => FIXED_LABEL_TITLES.includes(label.title as (typeof FIXED_LABEL_TITLES)[number])).map((label) => label.id),
+  )
+  const next = ids.filter((id) => !fixedIds.has(id))
+  if (defaultLabel && !next.includes(defaultLabel.id)) {
+    next.unshift(defaultLabel.id)
+  }
+  return next
+}
+
 export default function AiEditSheet({ visible, item, onChange, onClose }: Props) {
   const insets = useSafeAreaInsets()
+  const { labels: globalLabels, refresh: refreshLabels } = useLabels()
   const { height: screenHeight } = Dimensions.get('window')
   const sheetHeight = Math.min(screenHeight * 0.82, 720)
   const collapsedY = sheetHeight * 0.36
@@ -208,14 +230,26 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     setCustomOpen(false)
     setCustomHour(0)
     setCustomMinute(10)
-    setSelectedLabelIds([])
+    setSelectedLabelIds(
+      ensureDefaultLabelIds(item.labelIds ?? [], globalLabels ?? [], item.isEvent),
+    )
     setTaskDate(parseDateOnly(item.startDate) ?? parseDateOnly(item.dueDateTime?.split('T')[0]))
     setTaskDueOn(!!due)
     setTaskDueDate(due ? new Date(due) : null)
     setTaskDueTimeOn(!!item.dueDateTime)
     setTaskDueTime(due ?? new Date())
     setEventDateOpen(false)
-  }, [item, paletteColors])
+  }, [globalLabels, item, paletteColors])
+
+  React.useEffect(() => {
+    if (!item || !globalLabels.length) return
+    const next = ensureDefaultLabelIds(selectedLabelIds, globalLabels, selectedType === 'event')
+    const changed =
+      next.length !== selectedLabelIds.length || next.some((id, index) => id !== selectedLabelIds[index])
+    if (!changed) return
+    setSelectedLabelIds(next)
+    onChange({ labelIds: next })
+  }, [globalLabels, item, onChange, selectedLabelIds, selectedType])
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -281,7 +315,13 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     onSelectType={(value) => {
                       setSelectedType(value)
                       setEventDateOpen(false)
-                      onChange({ isEvent: value === 'event' })
+                      const nextLabelIds = ensureDefaultLabelIds(
+                        selectedLabelIds,
+                        globalLabels ?? [],
+                        value === 'event',
+                      )
+                      setSelectedLabelIds(nextLabelIds)
+                      onChange({ isEvent: value === 'event', labelIds: nextLabelIds })
                     }}
                     start={start}
                     end={end}
@@ -338,10 +378,22 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     customMinute={customMinute}
                     onChangeCustomHour={setCustomHour}
                     onChangeCustomMinute={setCustomMinute}
-                    labels={[]}
+                    labels={globalLabels ?? []}
                     selectedLabelIds={selectedLabelIds}
-                    onChangeSelectedLabelIds={setSelectedLabelIds}
-                    onCreateLabel={async (labelTitle) => ({ id: Date.now(), title: labelTitle })}
+                    onChangeSelectedLabelIds={(next) => {
+                      const normalized = ensureDefaultLabelIds(
+                        next,
+                        globalLabels ?? [],
+                        selectedType === 'event',
+                      )
+                      setSelectedLabelIds(normalized)
+                      onChange({ labelIds: normalized })
+                    }}
+                    onCreateLabel={async (labelTitle) => {
+                      const created = await createLabel(labelTitle)
+                      await refreshLabels()
+                      return created
+                    }}
                     taskDate={taskDate}
                     onChangeTaskDate={(next) => {
                       setTaskDate(next)

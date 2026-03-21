@@ -10,6 +10,7 @@ export type AiCardDraftItem = AiScheduleDraft & {
   saved: boolean
   saving: boolean
   colorHex?: string
+  labelIds?: number[]
 }
 
 type Props = {

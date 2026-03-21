@@ -527,6 +527,7 @@ export default function AiChatScreen({ navigation }: Props) {
             repeat: item.repeat ?? null,
             warnings: (item as any).warnings ?? (item as any).warnigs ?? null,
             colorHex: '#B04FFF',
+            labelIds: [],
             saved: false,
             saving: false,
           }))
