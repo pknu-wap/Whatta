@@ -37,7 +37,8 @@ public enum ErrorCode {
     //900-xx : 요청/AI 관련 오류
     INVALID_REQUEST_TEXT(HttpStatus.BAD_REQUEST, "900-1", "유효하지 않은 요청 본문입니다."),
     OPENAI_API_FAILED(HttpStatus.BAD_GATEWAY, "900-2", "AI API 호출에 실패했습니다."),
-    OPENAI_API_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "900-3", "AI API 응답 시간이 초과되었습니다.");
+    OPENAI_API_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "900-3", "AI API 응답 시간이 초과되었습니다."),
+    AI_REQUEST_REJECTED(HttpStatus.SERVICE_UNAVAILABLE, "900-4", "AI 요청이 많아 잠시 후 다시 시도해주세요.");
 
 
     private final HttpStatus httpStatus;
