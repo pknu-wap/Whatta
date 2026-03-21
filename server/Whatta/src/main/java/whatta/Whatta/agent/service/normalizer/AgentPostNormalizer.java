@@ -123,7 +123,10 @@ public class AgentPostNormalizer {
         }
 
         if (startTime == null && dueDateTime != null) {
-            startTime = dueDateTime.toLocalTime();
+            LocalTime dueTime = dueDateTime.toLocalTime();
+            if (!LocalTime.MIDNIGHT.equals(dueTime)) { //dueDateTime 시간이 자정이라면 사용자가 입력을 "25일까지"처럼 날짜만 입력했을 가능성이 높음
+                startTime = dueTime;
+            }
         }
 
         LocalTime endTime = startTime == null ? null : startTime.plusHours(1);

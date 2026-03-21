@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import whatta.Whatta.agent.payload.dto.NormalizedSchedule;
 import whatta.Whatta.agent.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.agent.payload.dto.ScheduleCandidate;
+import whatta.Whatta.agent.payload.response.OpenAIScheduleResponse;
 import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
 import whatta.Whatta.agent.service.extractor.RuleBasedExtractor;
 import whatta.Whatta.agent.service.normalizer.AgentPostNormalizer;
@@ -401,6 +402,33 @@ class HybridAiParsingTest {
                 .build();
 
         assertTrue(scheduleValidationService.isValidNormalizedSchedule(validTask));
+    }
+
+    @Test
+    void llm_task의_dueDateTime이_자정이면_startTime으로_승격하지_않는다() {
+        OpenAIScheduleResponse response = new OpenAIScheduleResponse(List.of(
+                new OpenAIScheduleResponse.ScheduleItem(
+                        true,
+                        "알고리즘 풀기",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "2026-03-15 00:00:00",
+                        null
+                )
+        ));
+
+        List<NormalizedSchedule> schedules = agentPostNormalizer.normalizeLlmResponse(response);
+
+        assertEquals(1, schedules.size());
+        NormalizedSchedule schedule = schedules.get(0);
+        assertFalse(schedule.isEvent());
+        assertEquals(LocalDate.of(2026, 3, 15), schedule.startDate());
+        assertEquals(LocalDate.of(2026, 3, 15), schedule.endDate());
+        assertNull(schedule.startTime());
+        assertNull(schedule.endTime());
+        assertEquals(LocalDateTime.of(2026, 3, 15, 0, 0), schedule.dueDateTime());
     }
 
     @Test

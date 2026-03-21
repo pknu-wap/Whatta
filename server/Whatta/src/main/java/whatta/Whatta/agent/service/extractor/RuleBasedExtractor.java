@@ -24,9 +24,7 @@ public class RuleBasedExtractor {
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
     private static final Pattern KOREAN_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*월\\s*(\\d{1,2})\\s*일(?!\\d)");
     private static final Pattern SLASH_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})/(\\d{1,2})(?!\\d)");
-    private static final Pattern DAY_ONLY_PATTERN = Pattern.compile(
-            "(?<![\\d월/])(\\d{1,2})\\s*일(?!\\s*(?:뒤|후|간|동안|째|치|짜리))(?!\\d)"
-    );
+    private static final Pattern DAY_ONLY_PATTERN = Pattern.compile("(?<![\\d월/])(\\d{1,2})\\s*일(?!\\s*(?:뒤|후|간|동안|째|치|짜리))(?!\\d)");
     private static final Pattern RELATIVE_WEEK_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(일주일)|([1-9]\\d*)\\s*주(?:일)?)\\s*뒤(?:에)?");
     private static final Pattern RELATIVE_DAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(?:(하루|이틀|사흘)|([1-9]\\d*)\\s*일)\\s*뒤(?:에)?");
     private static final Pattern WEEKDAY_PATTERN = Pattern.compile("(?<![가-힣A-Za-z0-9])(이번주|다음주)?\\s*(월|화|수|목|금|토|일)(?:요일)?(?:에)?(?=\\s|$|까지|전까지)");
@@ -165,7 +163,7 @@ public class RuleBasedExtractor {
         String prefix = text.substring(0, markerIndex).trim();
         List<LocalDate> deadlineDates = extractDates(prefix, referenceDate, warnings);
         if (!deadlineDates.isEmpty()) {
-            return deadlineDates.get(deadlineDates.size() - 1);
+            return deadlineDates.get(0);
         }
 
         if (hasWarning(warnings, "startDate")) {
@@ -299,6 +297,7 @@ public class RuleBasedExtractor {
                 || ISO_DATE_PATTERN.matcher(line).find()
                 || KOREAN_MONTH_DAY_PATTERN.matcher(line).find()
                 || SLASH_MONTH_DAY_PATTERN.matcher(line).find()
+                || DAY_ONLY_PATTERN.matcher(line).find()
                 || MERIDIEM_TIME_PATTERN.matcher(line).find()
                 || CLOCK_TIME_PATTERN.matcher(line).find()
                 || HOUR_TIME_PATTERN.matcher(line).find();
@@ -319,6 +318,7 @@ public class RuleBasedExtractor {
         title = ISO_DATE_PATTERN.matcher(title).replaceAll(" ");
         title = KOREAN_MONTH_DAY_PATTERN.matcher(title).replaceAll(" ");
         title = SLASH_MONTH_DAY_PATTERN.matcher(title).replaceAll(" ");
+        title = DAY_ONLY_PATTERN.matcher(title).replaceAll(" ");
         title = RELATIVE_WEEK_PATTERN.matcher(title).replaceAll(" ");
         title = RELATIVE_DAY_PATTERN.matcher(title).replaceAll(" ");
         title = title.replace("오늘", " ")
