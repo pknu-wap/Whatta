@@ -16,51 +16,19 @@ public record ScheduleExtractionRequest(
     }
 
     public record ScheduleExtractionForImage(
-            @Schema(type = "string", example = "jpg")
-            String format,
-            @Schema(type = "string", example = "iVBORw0KGgoAAAANSUhEUgAA...")
-            String data,
-            @Schema(type = "string", example = "https://example.com/schedule.png")
-            String url
+            @Schema(type = "string", example = "uploads/agent-images/67c9f2e3349f5d4a3f510001/20260321/8d9d9d8c-f4bc-4db8-a1f8-b2ffbd6b9f61.jpg")
+            String objectKey
     ) {
         public boolean hasSource() {
-            return hasData() || hasUrl();
+            return hasObjectKey();
         }
 
-        public boolean hasData() {
-            return data != null && !data.isBlank();
+        public boolean hasObjectKey() {
+            return objectKey != null && !objectKey.isBlank();
         }
 
-        public boolean hasUrl() {
-            return url != null && !url.isBlank();
-        }
-
-        public String normalizedFormat() {
-            if (format == null || format.isBlank()) {
-                return "jpg";
-            }
-            String lower = format.trim().toLowerCase();
-            return switch (lower) {
-                case "png" -> "png";
-                case "jpeg" -> "jpeg";
-                default -> "jpg";
-            };
-        }
-
-        public String resolvedMimeType() {
-            return switch (normalizedFormat()) {
-                case "png" -> "image/png";
-                case "jpeg" -> "image/jpeg";
-                default -> "image/jpeg";
-            };
-        }
-
-        public String sanitizedData() {
-            if (!hasData()) {
-                return "";
-            }
-            int prefixIndex = data.indexOf(',');
-            return prefixIndex >= 0 ? data.substring(prefixIndex + 1).trim() : data.trim();
+        public String sanitizedObjectKey() {
+            return hasObjectKey() ? objectKey.trim() : "";
         }
     }
 }

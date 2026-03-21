@@ -38,7 +38,11 @@ public enum ErrorCode {
     INVALID_REQUEST_TEXT(HttpStatus.BAD_REQUEST, "900-1", "유효하지 않은 요청 본문입니다."),
     OPENAI_API_FAILED(HttpStatus.BAD_GATEWAY, "900-2", "AI API 호출에 실패했습니다."),
     OPENAI_API_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "900-3", "AI API 응답 시간이 초과되었습니다."),
-    AI_REQUEST_REJECTED(HttpStatus.SERVICE_UNAVAILABLE, "900-4", "AI 요청이 많아 잠시 후 다시 시도해주세요.");
+    AI_REQUEST_REJECTED(HttpStatus.SERVICE_UNAVAILABLE, "900-4", "AI 요청이 많아 잠시 후 다시 시도해주세요."),
+    GCS_SIGNED_URL_FAILED(HttpStatus.BAD_GATEWAY, "900-5", "스토리지 signed URL 발급에 실패했습니다."),
+    INVALID_STORAGE_OBJECT_KEY(HttpStatus.BAD_REQUEST, "900-6", "유효하지 않은 storage objectKey 입니다."),
+    UNSUPPORTED_STORAGE_CONTENT_TYPE(HttpStatus.BAD_REQUEST, "900-7", "지원하지 않는 업로드 contentType 입니다."),
+    INVALID_STORAGE_FILE(HttpStatus.BAD_REQUEST, "900-8", "업로드할 파일이 비어있거나 읽을 수 없습니다.");
 
 
     private final HttpStatus httpStatus;

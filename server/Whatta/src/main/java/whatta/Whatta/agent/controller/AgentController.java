@@ -33,9 +33,9 @@ public class AgentController {
     @PostMapping
     @Operation(summary = "AI 일정/할일 추출", description = "텍스트 또는 이미지를 기반으로 일정/할 일 생성 정보를 추출합니다."
             + "<br><br> <b>이미지 업로드 안내</b>"
-            + "<br> - format : jpg | jpeg | png"
-            + "<br> - data : Base64 인코딩된 이미지 데이터"
-            + "<br> - url : 이미지를 불러올 수 있는 공개된 URL")
+            + "<br> - image.objectKey : GCS 업로드 후 받은 objectKey"
+            + "<br> - 테스트 업로드 : `/api/images/test-upload`"
+            + "<br> - 앱 업로드 : signed URL 발급 후 직접 업로드")
     public CompletableFuture<ResponseEntity<?>> extractSchedules (@AuthenticationPrincipal String userId,
                                                                 @RequestBody @Validated ScheduleExtractionRequest request) {
         return agentService.createSchedules(userId, request)
