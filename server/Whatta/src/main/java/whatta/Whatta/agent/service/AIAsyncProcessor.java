@@ -59,13 +59,14 @@ public class AIAsyncProcessor {
         String promptText = request.hasText() ? agentPreNormalizer.normalize(request.text()) : null;
         String uploadedObjectKey = image != null && image.hasObjectKey() ? image.sanitizedObjectKey() : null;
 
-        try {
-            String imageUrl = resolveImageUrl(userId, image);
-            OpenAIClient.OpenAIExecutionResult result = llmExtractor.extractWithImage(promptText, imageUrl, DEFAULT_IMAGE_DETAIL);
-            return agentPostNormalizer.normalizeLlmResponse(result.response());
-        } finally {
+        String imageUrl = resolveImageUrl(userId, image);
+        OpenAIClient.OpenAIExecutionResult result = llmExtractor.extractWithImage(promptText, imageUrl, DEFAULT_IMAGE_DETAIL);
+        List<NormalizedSchedule> normalizedSchedules = agentPostNormalizer.normalizeLlmResponse(result.response());
+
+        if (uploadedObjectKey != null && !uploadedObjectKey.isBlank()) {
             imageStorageService.deleteObjectQuietly(userId, uploadedObjectKey);
         }
+        return normalizedSchedules;
     }
 
     private String resolveImageUrl(String userId, ScheduleExtractionRequest.ScheduleExtractionForImage image) {

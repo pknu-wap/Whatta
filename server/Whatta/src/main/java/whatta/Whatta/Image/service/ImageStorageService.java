@@ -102,6 +102,9 @@ public class ImageStorageService {
     public String createDownloadSignedUrl(String userId, String objectKey) {
         validateBucketName();
         validateOwnedObjectKey(userId, objectKey);
+        if (gcsStorage.get(BlobId.of(bucketName, objectKey)) == null) {
+            throw new RestApiException(ErrorCode.INVALID_STORAGE_OBJECT_KEY);
+        }
 
         BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).build();
         return signGetUrl(blobInfo).toString();
