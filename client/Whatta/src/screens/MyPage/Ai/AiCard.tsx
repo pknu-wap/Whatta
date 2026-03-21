@@ -71,24 +71,33 @@ export default function AiCard({ item, onChange, onSave, onEdit, onDelete, showD
     ? formatDisplayDateWithWeekday(item.startDate)
     : formatDisplayDateWithWeekday(item.startDate ?? due.date)
   const displayTime = formatDraftTime(item)
+  const isLocked = item.saved || item.saving
 
   return (
-    <View style={S.cardBlock}>
-      <View style={S.card}>
+    <View style={[S.cardBlock, isLocked && S.cardBlockLocked]}>
+      <View style={[S.card, isLocked && S.cardLocked]}>
         <View style={S.cardTopRow}>
           <View style={S.segment}>
-            <Pressable style={S.segmentButton} onPress={() => onChange({ isEvent: true })}>
+            <Pressable
+              style={S.segmentButton}
+              onPress={() => onChange({ isEvent: true })}
+              disabled={isLocked}
+            >
               <View style={[S.segmentButtonInner, item.isEvent && S.segmentButtonInnerActive]}>
                 <Text style={[S.segmentText, item.isEvent && S.segmentTextActive]}>일정</Text>
               </View>
             </Pressable>
-            <Pressable style={S.segmentButton} onPress={() => onChange({ isEvent: false })}>
+            <Pressable
+              style={S.segmentButton}
+              onPress={() => onChange({ isEvent: false })}
+              disabled={isLocked}
+            >
               <View style={[S.segmentButtonInner, !item.isEvent && S.segmentButtonInnerActive]}>
                 <Text style={[S.segmentText, !item.isEvent && S.segmentTextActive]}>할 일</Text>
               </View>
             </Pressable>
           </View>
-          {showDelete ? (
+          {showDelete && !isLocked ? (
             <Pressable style={S.deleteButton} onPress={onDelete} hitSlop={8}>
               <XIcon width={14} height={14} color={colors.icon.default} />
             </Pressable>
@@ -102,7 +111,7 @@ export default function AiCard({ item, onChange, onSave, onEdit, onDelete, showD
         <Text style={S.cardDateText}>{displayDate}</Text>
         <View style={S.cardBottomRow}>
           <Text style={S.cardTimeText}>{displayTime}</Text>
-          <Pressable onPress={onEdit} hitSlop={8}>
+          <Pressable onPress={onEdit} hitSlop={8} disabled={isLocked}>
             <Text style={S.cardEditText}>수정하기</Text>
           </Pressable>
         </View>
@@ -144,6 +153,12 @@ const S = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 15,
     elevation: 10,
+  },
+  cardBlockLocked: {
+    opacity: 0.56,
+  },
+  cardLocked: {
+    backgroundColor: 'rgba(255,255,255,0.88)',
   },
   cardTopRow: {
     width: '100%',
