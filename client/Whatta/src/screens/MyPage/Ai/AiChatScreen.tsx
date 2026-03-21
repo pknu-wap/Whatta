@@ -83,6 +83,11 @@ const STARTER_PROMPTS = [
 const EMPTY_GUIDE = '자유 대화는 지원하지 않아요. 일정이나 할 일을 생성할 문장을 입력해 주세요.'
 const DESIGN_MOCK_MODE = true
 const DAILY_FREE_GENERATION_LIMIT = 3
+const LOADING_STEPS = [
+  '요청을 이해하고 있어요...',
+  '정보를 정리하고 있어요...',
+  '등록할 형식으로 바꾸고 있어요...',
+] as const
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -258,8 +263,7 @@ function IntroTitle({ text }: { text: string }) {
   )
 }
 
-function LoadingText() {
-  const text = '요청을 분석 중이에요...'
+function LoadingText({ text }: { text: string }) {
   const chars = React.useMemo(() => text.split(''), [text])
   const progress = useSharedValue(0)
 
@@ -352,6 +356,7 @@ export default function AiChatScreen({ navigation }: Props) {
   const [isStarterPreviewActive, setIsStarterPreviewActive] = React.useState(false)
   const [usageDayKey, setUsageDayKey] = React.useState(() => getDayKey())
   const [freeUsedCount, setFreeUsedCount] = React.useState(0)
+  const [loadingStepIndex, setLoadingStepIndex] = React.useState(0)
   const starterPreviewText =
     STARTER_PROMPTS.find((item) => item.label === selectedStarterPrompt)?.preview ?? ''
   const effectiveInput = isStarterPreviewActive ? starterPreviewText : input
@@ -372,6 +377,19 @@ export default function AiChatScreen({ navigation }: Props) {
     }, 60)
     return () => clearTimeout(timer)
   }, [messages, draftGroups, loading])
+
+  React.useEffect(() => {
+    if (!loading) {
+      setLoadingStepIndex(0)
+      return
+    }
+
+    const interval = setInterval(() => {
+      setLoadingStepIndex((prev) => (prev + 1) % LOADING_STEPS.length)
+    }, 1400)
+
+    return () => clearInterval(interval)
+  }, [loading])
 
   React.useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
@@ -503,6 +521,7 @@ export default function AiChatScreen({ navigation }: Props) {
       setSelectedStarterPrompt(null)
       setIsStarterPreviewActive(false)
       setLoading(true)
+      setLoadingStepIndex(0)
 
       try {
         const response = await getMockAiResult(text)
@@ -596,14 +615,15 @@ export default function AiChatScreen({ navigation }: Props) {
               if (entry.type === 'message') {
                 const item = messageMap.get(entry.messageId)
                 if (!item) return null
-                const spacing = nextEntry?.type === 'draft-group' ? 12 : 24
+                const spacing = nextEntry?.type === 'draft-group' ? 8 : 24
                 return <ChatBubble key={entry.id} item={item} spacing={spacing} />
               }
 
               const group = draftGroupMap.get(entry.groupId)
               if (!group || group.items.length === 0) return null
               const hasSaveAll = group.items.length > 1 && group.items.some((item) => !item.saved)
-              const needsExtraGap = hasSaveAll && nextEntry?.type === 'message'
+              const needsExtraGap = nextEntry?.type === 'message'
+              const needsMoreGap = hasSaveAll && nextEntry?.type === 'message'
 
               return (
                 <View
@@ -611,7 +631,8 @@ export default function AiChatScreen({ navigation }: Props) {
                   style={[
                     S.draftSection,
                     group.items.length > 1 && S.draftSectionMultiple,
-                    needsExtraGap && S.draftSectionAfterSaveAll,
+                    needsExtraGap && S.draftSectionBeforeNextMessage,
+                    needsMoreGap && S.draftSectionAfterSaveAll,
                   ]}
                 >
                   {group.items.map((item) => (
@@ -626,9 +647,11 @@ export default function AiChatScreen({ navigation }: Props) {
                     />
                   ))}
                   {hasSaveAll ? (
-                    <Pressable style={S.saveAllOutline} onPress={() => saveAll(group.items)}>
-                      <Text style={S.saveAllOutlineText}>모두 등록하기</Text>
-                    </Pressable>
+                    <View style={S.saveAllWrap}>
+                      <Pressable style={S.saveAllOutline} onPress={() => saveAll(group.items)}>
+                        <Text style={S.saveAllOutlineText}>모두 등록하기</Text>
+                      </Pressable>
+                    </View>
                   ) : null}
                 </View>
               )
@@ -676,7 +699,7 @@ export default function AiChatScreen({ navigation }: Props) {
               </View>
             ) : null}
 
-            {loading ? <LoadingText /> : null}
+            {loading ? <LoadingText text={LOADING_STEPS[loadingStepIndex]} /> : null}
 
           </ScrollView>
 
@@ -905,14 +928,17 @@ const S = StyleSheet.create({
     color: '#FFFFFF',
   },
   draftSection: {
-    marginTop: 12,
+    marginTop: 8,
     gap: 16,
   },
   draftSectionMultiple: {
     gap: 12,
   },
+  draftSectionBeforeNextMessage: {
+    marginBottom: 16,
+  },
   draftSectionAfterSaveAll: {
-    marginBottom: 12,
+    marginBottom: 20,
   },
   saveButton: {
     width: 95,
@@ -934,15 +960,22 @@ const S = StyleSheet.create({
     color: '#FFFFFF',
   },
   saveAllOutline: {
-    alignSelf: 'flex-end',
-    borderRadius: 999,
-    borderWidth: 1,
+    width: 95,
+    height: 44,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveAllWrap: {
+    width: 250,
+    alignSelf: 'flex-start',
+    alignItems: 'flex-end',
   },
   saveAllOutlineText: {
-    ...ts('label3'),
+    ...ts('label2'),
     color: '#FFFFFF',
   },
   attachmentPill: {

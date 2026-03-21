@@ -73,6 +73,7 @@ export default function AiCard({ item, onChange, onSave, onEdit, onDelete, showD
     : formatDisplayDateWithWeekday(item.startDate ?? due.date)
   const displayTime = formatDraftTime(item)
   const isLocked = item.saved || item.saving
+  const hasTime = displayTime.trim().length > 0
 
   return (
     <View style={[S.cardBlock, isLocked && S.cardBlockLocked]}>
@@ -110,25 +111,24 @@ export default function AiCard({ item, onChange, onSave, onEdit, onDelete, showD
           {item.title || '제목'}
         </Text>
         <Text style={S.cardDateText}>{displayDate}</Text>
-        <View style={S.cardBottomRow}>
-          <Text style={S.cardTimeText}>{displayTime}</Text>
+        {hasTime ? <Text style={S.cardTimeText}>{displayTime}</Text> : null}
+        <View style={[S.cardActionRow, !hasTime && S.cardActionRowCompact]}>
           <Pressable onPress={onEdit} hitSlop={8} disabled={isLocked}>
             <Text style={S.cardEditText}>수정하기</Text>
           </Pressable>
+          <Pressable
+            style={[S.saveButtonInline, item.saved && S.saveButtonInlineDone]}
+            onPress={onSave}
+            disabled={item.saving || item.saved}
+          >
+            {item.saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={S.saveButtonInlineText}>{item.saved ? '등록완료' : '등록하기'}</Text>
+            )}
+          </Pressable>
         </View>
       </View>
-
-      <Pressable
-        style={[S.saveButton, item.saved && S.saveButtonDone]}
-        onPress={onSave}
-        disabled={item.saving || item.saved}
-      >
-        {item.saving ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={S.saveButtonText}>{item.saved ? '등록 완료' : '등록하기'}</Text>
-        )}
-      </Pressable>
     </View>
   )
 }
@@ -137,7 +137,6 @@ const S = StyleSheet.create({
   cardBlock: {
     width: 250,
     alignSelf: 'flex-start',
-    gap: 16,
   },
   card: {
     width: 250,
@@ -228,13 +227,17 @@ const S = StyleSheet.create({
     color: colors.text.text1,
     fontSize: 14,
     fontWeight: 500,
+    marginTop: 4,
   },
-  cardBottomRow: {
+  cardActionRow: {
     width: '100%',
-    marginTop: 6,
+    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  cardActionRowCompact: {
+    marginTop: 14,
   },
   cardEditText: {
     ...ts('label4'),
@@ -242,23 +245,24 @@ const S = StyleSheet.create({
     fontSize: 14,
     fontWeight: 700,
   },
-  saveButton: {
-    width: 95,
-    height: 44,
-    alignSelf: 'flex-end',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    backgroundColor: 'transparent',
+  saveButtonInline: {
+    minWidth: 78,
+    height: 32,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.primary.main,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveButtonDone: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderColor: 'rgba(255,255,255,0.5)',
+  saveButtonInlineDone: {
+    backgroundColor: '#F6EEFF',
+    borderColor: colors.primary.main,
   },
-  saveButtonText: {
-    ...ts('label2'),
-    color: '#FFFFFF',
+  saveButtonInlineText: {
+    ...ts('label4'),
+    color: colors.text.text1,
+    fontWeight: '700',
   },
 })

@@ -68,6 +68,25 @@ const toTaskDueDateTime = (date: Date | null, time: Date | null) => {
   return `${yyyyMmDd}T${hhmmss}`
 }
 
+const ymdLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const buildAutoEndForEvent = (baseStart: Date, allowNextDay: boolean) => {
+  const nextEnd = new Date(baseStart)
+  if (allowNextDay) {
+    nextEnd.setHours(baseStart.getHours() + 1, baseStart.getMinutes(), 0, 0)
+    return nextEnd
+  }
+  const capped = new Date(baseStart)
+  const nextHour = baseStart.getHours() + 1
+  if (nextHour >= 24) {
+    capped.setHours(23, 59, 0, 0)
+    return capped
+  }
+  capped.setHours(nextHour, baseStart.getMinutes(), 0, 0)
+  return capped
+}
+
 const FIXED_LABEL_TITLES = ['일정', '할 일'] as const
 
 function ensureDefaultLabelIds(
@@ -163,6 +182,8 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
   const [start, setStart] = React.useState(new Date())
   const [end, setEnd] = React.useState(new Date(Date.now() + 60 * 60 * 1000))
   const [timeOn, setTimeOn] = React.useState(true)
+  const [invalidEndTime, setInvalidEndTime] = React.useState(false)
+  const [invalidEndPreview, setInvalidEndPreview] = React.useState<Date | null>(null)
   const [repeatOn, setRepeatOn] = React.useState(false)
   const [repeatMode, setRepeatMode] = React.useState<'daily' | 'weekly' | 'monthly' | 'custom'>(
     'daily',
@@ -206,6 +227,8 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     setStart(startDate)
     setEnd(endDate)
     setTimeOn(!!(item.startTime || item.endTime))
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
     setRepeatOn(!!item.repeat)
     setRepeatMode(
       item.repeat?.unit === 'WEEK'
@@ -325,6 +348,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     }}
                     start={start}
                     end={end}
+                    endDisplay={invalidEndPreview}
                     onPressDateBox={() => {
                       if (selectedType === 'event') {
                         setEventDateOpen((prev) => !prev)
@@ -332,21 +356,56 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     }}
                     onChangeStartTime={(next) => {
                       setStart(next)
+                      setInvalidEndTime(false)
+                      setInvalidEndPreview(null)
+                      let nextEnd = end
+                      if (selectedType === 'event' && end.getTime() < next.getTime()) {
+                        const allowNextDay = ymdLocal(start) !== ymdLocal(end)
+                        nextEnd = buildAutoEndForEvent(next, allowNextDay)
+                        setEnd(nextEnd)
+                      }
                       onChange({
                         startDate: formatDate(next),
                         startTime: formatTime(next),
+                        ...(selectedType === 'event' && end.getTime() < next.getTime()
+                          ? {
+                              endDate: formatDate(nextEnd),
+                              endTime: formatTime(nextEnd),
+                            }
+                          : null),
                       })
                     }}
                     onChangeEndTime={(next) => {
+                      if (selectedType === 'event' && next.getTime() < start.getTime()) {
+                        setInvalidEndTime(true)
+                        setInvalidEndPreview(next)
+                        return
+                      }
+                      setInvalidEndTime(false)
+                      setInvalidEndPreview(null)
                       setEnd(next)
                       onChange({
                         endDate: formatDate(next),
                         endTime: formatTime(next),
                       })
                     }}
-                    invalidEndTime={false}
+                    invalidEndTime={invalidEndTime}
                     timeOn={timeOn}
-                    onToggleTime={setTimeOn}
+                    onToggleTime={(next) => {
+                      setTimeOn(next)
+                      if (!next) {
+                        setInvalidEndTime(false)
+                        setInvalidEndPreview(null)
+                      }
+                      if (selectedType === 'event') {
+                        onChange({
+                          startTime: next ? formatTime(start) : null,
+                          endTime: next ? formatTime(end) : null,
+                        })
+                      } else if (!next) {
+                        onChange({ dueDateTime: toTaskDueDateTime(taskDueDate, null) })
+                      }
+                    }}
                     repeatOn={repeatOn}
                     onToggleRepeat={setRepeatOn}
                     repeatMode={repeatMode}
@@ -407,7 +466,10 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                       onChange({ dueDateTime: toTaskDueDateTime(next, taskDueTimeOn ? taskDueTime : null) })
                     }}
                     taskDueTimeOn={taskDueTimeOn}
-                    onChangeTaskDueTimeOn={setTaskDueTimeOn}
+                    onChangeTaskDueTimeOn={(next) => {
+                      setTaskDueTimeOn(next)
+                      onChange({ dueDateTime: toTaskDueDateTime(taskDueDate, next ? taskDueTime : null) })
+                    }}
                     taskDueTime={taskDueTime}
                     onChangeTaskDueTime={(next) => {
                       setTaskDueTime(next)
