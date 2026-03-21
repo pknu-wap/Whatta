@@ -67,6 +67,15 @@ type TimelineItem =
   | { id: string; type: 'message'; messageId: string }
   | { id: string; type: 'draft-group'; groupId: string }
 
+type DeletedDraftToast = {
+  item: DraftItem
+  groupId: string
+  groupIndex: number
+  itemIndex: number
+  timelineIndex: number
+  groupWasRemoved: boolean
+}
+
 type AiChatResponseBody = {
   statusCode?: string
   message?: string
@@ -251,11 +260,37 @@ function parseAiSchedules(response: AiChatResponseBody) {
   const schedules = response.data?.schedules ?? []
 
   return schedules.filter(
-    (item): item is AiScheduleDraft =>
-      !!item &&
-      (item as { isSchedule?: boolean; isScheduled?: boolean }).isSchedule !== false &&
-      (item as { isScheduled?: boolean }).isScheduled !== false,
+    (item): item is AiScheduleDraft => {
+      if (!item) return false
+
+      const warningMap =
+        item.warnings ??
+        (item as { warnigs?: AiScheduleDraft['warnings'] }).warnigs ??
+        null
+      const hasWarnings = !!warningMap && Object.keys(warningMap).length > 0
+      const flaggedRejected =
+        (item as { isSchedule?: boolean; isScheduled?: boolean }).isSchedule === false ||
+        (item as { isScheduled?: boolean }).isScheduled === false
+
+      if (!flaggedRejected) return true
+
+      return hasWarnings
+    },
   )
+}
+
+function buildAssistantMessage(response: AiChatResponseBody, validSchedules: AiScheduleDraft[]) {
+  const serverMessage = response.data?.message?.trim()
+
+  if (validSchedules.length > 0) {
+    return serverMessage || '생성 결과를 확인해 주세요.'
+  }
+
+  if (serverMessage) {
+    return serverMessage
+  }
+
+  return EMPTY_GUIDE
 }
 
 function validateDraft(item: DraftItem) {
@@ -425,6 +460,7 @@ function LoadingChar({
 
 export default function AiChatScreen({ navigation }: Props) {
   const scrollRef = React.useRef<ScrollView | null>(null)
+  const deletedToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
       id: makeId('assistant'),
@@ -449,6 +485,7 @@ export default function AiChatScreen({ navigation }: Props) {
   const [usageDayKey, setUsageDayKey] = React.useState(() => getDayKey())
   const [freeUsedCount, setFreeUsedCount] = React.useState(0)
   const [serverFreeCount, setServerFreeCount] = React.useState<number | null>(null)
+  const [deletedDraftToast, setDeletedDraftToast] = React.useState<DeletedDraftToast | null>(null)
   const [loadingStepIndex, setLoadingStepIndex] = React.useState(0)
   const starterPreviewText =
     STARTER_PROMPTS.find((item) => item.label === selectedStarterPrompt)?.preview ?? ''
@@ -509,6 +546,27 @@ export default function AiChatScreen({ navigation }: Props) {
   }, [loading])
 
   React.useEffect(() => {
+    if (deletedToastTimerRef.current) {
+      clearTimeout(deletedToastTimerRef.current)
+      deletedToastTimerRef.current = null
+    }
+
+    if (!deletedDraftToast) return
+
+    deletedToastTimerRef.current = setTimeout(() => {
+      setDeletedDraftToast(null)
+      deletedToastTimerRef.current = null
+    }, 5000)
+
+    return () => {
+      if (deletedToastTimerRef.current) {
+        clearTimeout(deletedToastTimerRef.current)
+        deletedToastTimerRef.current = null
+      }
+    }
+  }, [deletedDraftToast])
+
+  React.useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
 
@@ -548,23 +606,79 @@ export default function AiChatScreen({ navigation }: Props) {
     )
   }, [])
 
-  const removeDraft = React.useCallback((id: string) => {
-    let emptyGroupId: string | null = null
-    setDraftGroups((prev) =>
-      prev
-        .map((group) => {
-          const nextItems = group.items.filter((item) => item.id !== id)
-          if (nextItems.length === 0) emptyGroupId = group.id
-          return { ...group, items: nextItems }
-        })
-        .filter((group) => group.items.length > 0),
-    )
-    if (emptyGroupId) {
+  const removeDraft = React.useCallback((
+    groupId: string,
+    item: DraftItem,
+    timelineIndex: number,
+    itemIndex: number,
+  ) => {
+    const groupIndex = draftGroups.findIndex((group) => group.id === groupId)
+    if (groupIndex < 0) return
+
+    const targetGroup = draftGroups[groupIndex]
+    const nextItems = targetGroup.items.filter((draft) => draft.id !== item.id)
+    const groupWasRemoved = nextItems.length === 0
+
+    setDeletedDraftToast({
+      item,
+      groupId,
+      groupIndex,
+      itemIndex,
+      timelineIndex,
+      groupWasRemoved,
+    })
+
+    if (groupWasRemoved) {
+      setDraftGroups((prev) => prev.filter((group) => group.id !== groupId))
       setTimeline((prev) =>
-        prev.filter((item) => !(item.type === 'draft-group' && item.groupId === emptyGroupId)),
+        prev.filter((entry) => !(entry.type === 'draft-group' && entry.groupId === groupId)),
       )
+      return
     }
-  }, [])
+
+    setDraftGroups((prev) =>
+      prev.map((group) =>
+        group.id === groupId
+          ? { ...group, items: group.items.filter((draft) => draft.id !== item.id) }
+          : group,
+      ),
+    )
+  }, [draftGroups])
+
+  const undoRemoveDraft = React.useCallback(() => {
+    if (!deletedDraftToast) return
+
+    const { item, groupId, groupIndex, itemIndex, timelineIndex, groupWasRemoved } = deletedDraftToast
+
+    setDraftGroups((prev) => {
+      if (groupWasRemoved) {
+        const nextGroups = [...prev]
+        nextGroups.splice(groupIndex, 0, { id: groupId, items: [item] })
+        return nextGroups
+      }
+
+      return prev.map((group) => {
+        if (group.id !== groupId) return group
+        const nextItems = [...group.items]
+        nextItems.splice(Math.min(itemIndex, nextItems.length), 0, item)
+        return { ...group, items: nextItems }
+      })
+    })
+
+    if (groupWasRemoved) {
+      setTimeline((prev) => {
+        const nextTimeline = [...prev]
+        nextTimeline.splice(
+          Math.min(timelineIndex, nextTimeline.length),
+          0,
+          { id: makeId('timeline-draft-group'), type: 'draft-group', groupId },
+        )
+        return nextTimeline
+      })
+    }
+
+    setDeletedDraftToast(null)
+  }, [deletedDraftToast])
 
   const editingDraft = React.useMemo(
     () =>
@@ -729,15 +843,15 @@ export default function AiChatScreen({ navigation }: Props) {
             ? { objectKey: submittedImage.objectKey }
             : null,
         })
+        console.log('AI chat raw response', JSON.stringify(response, null, 2))
         if (typeof response.data?.freeCount === 'number') {
           setServerFreeCount(response.data.freeCount)
         }
         const schedules = parseAiSchedules(response)
+        console.log('AI chat parsed schedules', JSON.stringify(schedules, null, 2))
+        const assistantMessage = buildAssistantMessage(response, schedules)
 
-        pushMessage(
-          'assistant',
-          response.data?.message || '생성 결과를 확인해 주세요.',
-        )
+        pushMessage('assistant', assistantMessage)
 
         if (schedules.length > 0) {
           const nextGroupId = makeId('draft-group')
@@ -767,9 +881,6 @@ export default function AiChatScreen({ navigation }: Props) {
           ])
         }
 
-        if (schedules.length === 0) {
-          pushMessage('system', EMPTY_GUIDE)
-        }
       } catch (error: any) {
         console.error('AI chat request failed', error)
         const message =
@@ -810,6 +921,7 @@ export default function AiChatScreen({ navigation }: Props) {
             contentContainerStyle={[
               S.scrollContent,
               hasStartedChat && S.scrollContentStarted,
+              { paddingBottom: 96 },
               hasStartedChat && keyboardHeight > 0 && { paddingBottom: keyboardHeight * 0.25 },
             ]}
             keyboardShouldPersistTaps="handled"
@@ -850,7 +962,7 @@ export default function AiChatScreen({ navigation }: Props) {
                     needsMoreGap && S.draftSectionAfterSaveAll,
                   ]}
                 >
-                  {group.items.map((item) => {
+                  {group.items.map((item, itemIndex) => {
                     const showInlineSave = group.items.length > 1
                     const showSingleSaveBelow = group.items.length === 1
 
@@ -861,7 +973,7 @@ export default function AiChatScreen({ navigation }: Props) {
                           onChange={(patch) => upsertDraft(item.id, patch)}
                           onSave={() => saveDraft(item)}
                           onEdit={() => setEditingDraftId(item.id)}
-                          onDelete={() => removeDraft(item.id)}
+                          onDelete={() => removeDraft(group.id, item, index, itemIndex)}
                           showDelete={group.items.length > 1}
                           showInlineSave={showInlineSave}
                         />
@@ -945,35 +1057,63 @@ export default function AiChatScreen({ navigation }: Props) {
 
           </ScrollView>
 
-          <AiChatInput
-            value={input}
-            previewText={starterPreviewText}
-            previewActive={isStarterPreviewActive}
-            plusActive={plusActive}
-            attachmentMenuOpen={attachmentMenuOpen}
-            imagePreviewUri={attachedImage?.url ?? null}
-            disabled={loading || imageUploading}
-            onPressPlus={() => {
-              setAttachmentMenuOpen((prev) => !prev)
-            }}
-            onPressAlbum={() => {
-              void handleSelectImage()
-            }}
-            onPressCamera={() => {
-              setAttachmentMenuOpen(false)
-              Alert.alert('준비 중이에요', '사진 촬영 기능은 아직 지원하지 않아요.')
-            }}
-            onChangeText={setInput}
-            onClearPreview={() => {
-              setSelectedStarterPrompt(null)
-              setIsStarterPreviewActive(false)
-            }}
-            onRemoveImage={() => {
-              setAttachedImage(null)
-              setAttachedImageName('')
-            }}
-            onSubmit={() => submit()}
-          />
+          <View
+            style={[
+              S.inputOverlay,
+              keyboardHeight > 0
+                ? { bottom: keyboardHeight * 0.9 }
+                : null,
+            ]}
+          >
+            {deletedDraftToast ? (
+              <View style={S.deleteToastWrap}>
+                <View style={S.deleteToast}>
+                  <Text style={S.deleteToastText}>
+                    {deletedDraftToast.item.isEvent ? '일정이 삭제되었습니다' : '할 일이 삭제되었습니다'}
+                  </Text>
+                  <View style={S.deleteToastActions}>
+                    <Pressable onPress={undoRemoveDraft} hitSlop={8}>
+                      <Text style={S.deleteToastUndo}>되돌리기</Text>
+                    </Pressable>
+                    <View style={S.deleteToastDivider} />
+                    <Pressable onPress={() => setDeletedDraftToast(null)} hitSlop={8}>
+                      <XIcon width={14} height={14} color={colors.text.text1w} />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            <AiChatInput
+              value={input}
+              previewText={starterPreviewText}
+              previewActive={isStarterPreviewActive}
+              plusActive={plusActive}
+              attachmentMenuOpen={attachmentMenuOpen}
+              imagePreviewUri={attachedImage?.url ?? null}
+              disabled={loading || imageUploading}
+              onPressPlus={() => {
+                setAttachmentMenuOpen((prev) => !prev)
+              }}
+              onPressAlbum={() => {
+                void handleSelectImage()
+              }}
+              onPressCamera={() => {
+                setAttachmentMenuOpen(false)
+                Alert.alert('준비 중이에요', '사진 촬영 기능은 아직 지원하지 않아요.')
+              }}
+              onChangeText={setInput}
+              onClearPreview={() => {
+                setSelectedStarterPrompt(null)
+                setIsStarterPreviewActive(false)
+              }}
+              onRemoveImage={() => {
+                setAttachedImage(null)
+                setAttachedImageName('')
+              }}
+              onSubmit={() => submit()}
+            />
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
@@ -1026,6 +1166,12 @@ const S = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  inputOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   header: {
     flexDirection: 'row',
@@ -1240,6 +1386,47 @@ const S = StyleSheet.create({
   singleDraftBlock: {
     gap: 16,
   },
+  deleteToastWrap: {
+    width: 358,
+    alignSelf: 'center',
+    zIndex: 5,
+    marginBottom: 16,
+  },
+  deleteToast: {
+    width: '100%',
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: colors.icon.selected,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#C7D1D9',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  deleteToastText: {
+    ...ts('label3'),
+    color: colors.text.text4,
+    flex: 1,
+  },
+  deleteToastActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  deleteToastUndo: {
+    ...ts('label3'),
+    color: colors.text.text1w,
+  },
+  deleteToastDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255,255,255,0.32)',
+    marginHorizontal: 10,
+  },
   saveButton: {
     width: 95,
     height: 44,
@@ -1263,7 +1450,7 @@ const S = StyleSheet.create({
     width: 95,
     height: 44,
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#FFFFFF',
     backgroundColor: 'transparent',
     alignItems: 'center',

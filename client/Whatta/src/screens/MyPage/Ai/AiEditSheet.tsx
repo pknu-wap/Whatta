@@ -108,6 +108,7 @@ function ensureDefaultLabelIds(
 
 export default function AiEditSheet({ visible, item, onChange, onClose }: Props) {
   const insets = useSafeAreaInsets()
+  const prevItemIdRef = React.useRef<string | null>(null)
   const { labels: globalLabels, refresh: refreshLabels } = useLabels()
   const { height: screenHeight } = Dimensions.get('window')
   const sheetHeight = Math.min(screenHeight * 0.82, 720)
@@ -211,6 +212,9 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
   React.useEffect(() => {
     if (!item) return
 
+    const itemChanged = prevItemIdRef.current !== item.id
+    prevItemIdRef.current = item.id
+
     const startDate = parseDateTime(item.startDate, item.startTime)
     const endDate =
       item.isEvent && (item.endDate || item.endTime)
@@ -261,7 +265,21 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     setTaskDueDate(due ? new Date(due) : null)
     setTaskDueTimeOn(!!item.dueDateTime)
     setTaskDueTime(due ?? new Date())
-    setEventDateOpen(false)
+    if (itemChanged) {
+      setEventDateOpen(false)
+      if (item.isEvent && (!item.startDate || !item.endDate)) {
+        onChange({
+          startDate: item.startDate ?? formatDate(startDate),
+          endDate: item.endDate ?? formatDate(endDate),
+        })
+      }
+      if (!item.isEvent && !item.startDate && !item.dueDateTime) {
+        onChange({
+          startDate: formatDate(startDate),
+        })
+        setTaskDate(startDate)
+      }
+    }
   }, [globalLabels, item, paletteColors])
 
   React.useEffect(() => {
@@ -394,6 +412,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     onToggleTime={(next) => {
                       setTimeOn(next)
                       if (!next) {
+                        setRemindOn(false)
                         setInvalidEndTime(false)
                         setInvalidEndPreview(null)
                       }
@@ -421,7 +440,18 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     repeatEndDate={repeatEndDate}
                     onChangeRepeatEndDate={setRepeatEndDate}
                     remindOn={remindOn}
-                    onToggleRemind={setRemindOn}
+                    onToggleRemind={(next) => {
+                      const hasAvailableTime =
+                        selectedType === 'event'
+                          ? timeOn
+                          : !!taskDueDate && taskDueTimeOn
+
+                      if (next && !hasAvailableTime) {
+                        return
+                      }
+
+                      setRemindOn(next)
+                    }}
                     remindOpen={remindOpen}
                     onSetRemindOpen={setRemindOpen}
                     remindDisplayText={remindOn ? '당일 10분 전' : ''}
@@ -463,11 +493,21 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     taskDueDate={taskDueDate}
                     onChangeTaskDueDate={(next) => {
                       setTaskDueDate(next)
+                      if (!next) {
+                        setTaskDueTimeOn(false)
+                        setRemindOn(false)
+                      }
                       onChange({ dueDateTime: toTaskDueDateTime(next, taskDueTimeOn ? taskDueTime : null) })
                     }}
                     taskDueTimeOn={taskDueTimeOn}
                     onChangeTaskDueTimeOn={(next) => {
+                      if (next && !taskDueDate) {
+                        return
+                      }
                       setTaskDueTimeOn(next)
+                      if (!next) {
+                        setRemindOn(false)
+                      }
                       onChange({ dueDateTime: toTaskDueDateTime(taskDueDate, next ? taskDueTime : null) })
                     }}
                     taskDueTime={taskDueTime}

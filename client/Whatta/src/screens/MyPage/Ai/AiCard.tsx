@@ -244,13 +244,13 @@ const S = StyleSheet.create({
     color: colors.text.text1,
     fontSize: 14,
     fontWeight: 500,
-    marginTop: 6,
+    marginTop: 5,
   },
   cardActionRow: {
     width: '100%',
     marginTop: 12,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   cardActionRowCompact: {
@@ -264,7 +264,6 @@ const S = StyleSheet.create({
     color: colors.primary.main,
     fontSize: 14,
     fontWeight: 700,
-    lineHeight: 18,
   },
   saveButtonInline: {
     minWidth: 78,
@@ -285,6 +284,5 @@ const S = StyleSheet.create({
     ...ts('label4'),
     color: colors.primary.main,
     fontWeight: '700',
-    lineHeight: 18,
   },
 })
