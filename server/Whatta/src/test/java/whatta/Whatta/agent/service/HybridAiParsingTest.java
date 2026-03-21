@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -429,6 +430,36 @@ class HybridAiParsingTest {
         assertNull(schedule.startTime());
         assertNull(schedule.endTime());
         assertEquals(LocalDateTime.of(2026, 3, 15, 0, 0), schedule.dueDateTime());
+    }
+
+    @Test
+    void llm_event는_inherited_startDate_warning이_있으면_오늘날짜로_보정하지_않는다() {
+        OpenAIScheduleResponse response = new OpenAIScheduleResponse(List.of(
+                new OpenAIScheduleResponse.ScheduleItem(
+                        true,
+                        "캡디회의",
+                        null,
+                        null,
+                        "11:00:00",
+                        null,
+                        null,
+                        null
+                )
+        ));
+
+        List<NormalizedSchedule> schedules = agentPostNormalizer.normalizeLlmResponse(
+                response,
+                Map.of("startDate", List.of("33일"))
+        );
+
+        assertEquals(1, schedules.size());
+        NormalizedSchedule schedule = schedules.get(0);
+        assertTrue(schedule.isEvent());
+        assertNull(schedule.startDate());
+        assertNull(schedule.endDate());
+        assertEquals(LocalTime.of(11, 0), schedule.startTime());
+        assertEquals(LocalTime.of(12, 0), schedule.endTime());
+        assertEquals(List.of("33일"), schedule.warnings().get("startDate"));
     }
 
     @Test

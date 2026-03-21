@@ -6,9 +6,11 @@ import whatta.Whatta.global.util.LocalDateTimeUtil;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class ScheduleExtractionResultMessage {
 
@@ -45,13 +47,15 @@ public final class ScheduleExtractionResultMessage {
 
     private static String buildAdjustedSuccessMessage(List<NormalizedSchedule> schedules, boolean hasUnscheduledItems) {
         List<String> details = new ArrayList<>();
+        Set<String> seenDateWarnings = new HashSet<>();
+        Set<String> seenTimeWarnings = new HashSet<>();
 
         for (NormalizedSchedule schedule : schedules) {
             if (schedule == null || schedule.warnings() == null || schedule.warnings().isEmpty()) {
                 continue;
             }
 
-            String warningDetail = buildWarningDetail(schedule);
+            String warningDetail = buildWarningDetail(schedule, seenDateWarnings, seenTimeWarnings);
             if (warningDetail != null) {
                 details.add(warningDetail);
             }
@@ -64,30 +68,28 @@ public final class ScheduleExtractionResultMessage {
         return appendPartialFailureMessage("스케줄 생성을 완료했어요. 다만 " + joinWarningDetails(details), hasUnscheduledItems);
     }
 
-    private static String buildWarningDetail(NormalizedSchedule schedule) {
+    private static String buildWarningDetail(NormalizedSchedule schedule, Set<String> seenDateWarnings, Set<String> seenTimeWarnings) {
         List<String> rawDates = schedule.warnings().get("startDate");
         List<String> rawTimes = schedule.warnings().get("startTime");
-        boolean hasDateWarning = rawDates != null && !rawDates.isEmpty();
-        boolean hasTimeWarning = rawTimes != null && !rawTimes.isEmpty();
+        String rawDate = rawDates != null && !rawDates.isEmpty() ? rawDates.get(0) : null;
+        String rawTime = rawTimes != null && !rawTimes.isEmpty() ? rawTimes.get(0) : null;
+        boolean hasDateWarning = rawDate != null && seenDateWarnings.add(rawDate);
+        boolean hasTimeWarning = rawTime != null && seenTimeWarnings.add(rawTime);
 
         if (!hasDateWarning && !hasTimeWarning) {
             return null;
         }
 
         if (hasDateWarning && hasTimeWarning) {
-            String rawDate = rawDates.get(0);
-            String rawTime = rawTimes.get(0);
             return "\"" + rawDate + "\"" + chooseAndParticle(rawDate)
                     + " \"" + rawTime + "\"" + chooseTopicParticle(rawTime) + " 해석하지 못해서 "
                     + buildDateResolution(schedule) + " " + buildTimeResolution(schedule);
         }
 
         if (hasDateWarning) {
-            String rawDate = rawDates.get(0);
             return "\"" + rawDate + "\"" + chooseTopicParticle(rawDate) + " 해석하지 못해서 " + buildDateResolution(schedule);
         }
 
-        String rawTime = rawTimes.get(0);
         return "\"" + rawTime + "\"" + chooseTopicParticle(rawTime) + " 해석하지 못해서 " + buildTimeResolution(schedule);
     }
 

@@ -34,7 +34,7 @@ public final class ScheduleExtractionSpec {
                    - MONTHLY:WEEK=LAST,DAY=MON
                    - MONTHLY:LASTDAY
                 6) due_date_time은 마감 의미가 명확할 때만 넣는다.
-                7) 날짜나 시간에 대한 언급이 없다면 start_date나 start_time에 null을 넣는다.
+                7) 날짜나 시간 정보가 명시되지 않았거나, “33일”, “25시”처럼 유효하지 않은 입력은 start_date나 start_time에 null을 넣는다.
                 """
                 + "8) 상대 날짜 및 시간은(오늘/내일/모레/다음 주/오전/오후/저녁 등) Asia/Seoul (KST, UTC+09:00) 기준 "
                 + now

@@ -41,29 +41,33 @@ public class AgentPostNormalizer {
     }
 
     public List<NormalizedSchedule> normalizeLlmResponse(OpenAIScheduleResponse response) {
+        return normalizeLlmResponse(response, Map.of());
+    }
+
+    public List<NormalizedSchedule> normalizeLlmResponse(OpenAIScheduleResponse response, Map<String, List<String>> inheritedWarnings) {
         if (response == null || response.items() == null) {
             return List.of();
         }
 
         return response.items().stream()
                 .filter(Objects::nonNull)
-                .map(this::normalizeLlmItem)
+                .map(item -> normalizeLlmItem(item, inheritedWarnings))
                 .toList();
     }
 
-    private NormalizedSchedule normalizeLlmItem(OpenAIScheduleResponse.ScheduleItem raw) {
+    private NormalizedSchedule normalizeLlmItem(OpenAIScheduleResponse.ScheduleItem raw, Map<String, List<String>> inheritedWarnings) {
         if (!raw.is_schedule()) {
-            return buildUnscheduledResult();
+            return buildUnscheduledResult(inheritedWarnings);
         }
 
-        return classifyAndPostProcessScheduledItem(raw);
+        return classifyAndPostProcessScheduledItem(raw, inheritedWarnings);
     }
 
-    private NormalizedSchedule classifyAndPostProcessScheduledItem(OpenAIScheduleResponse.ScheduleItem raw) {
+    private NormalizedSchedule classifyAndPostProcessScheduledItem(OpenAIScheduleResponse.ScheduleItem raw, Map<String, List<String>> inheritedWarnings) {
         if (isTaskLike(raw)) {
-            return postProcessLlmTask(raw);
+            return postProcessLlmTask(raw, inheritedWarnings);
         }
-        return postProcessLlmEvent(raw);
+        return postProcessLlmEvent(raw, inheritedWarnings);
     }
 
     private boolean isTaskLike(OpenAIScheduleResponse.ScheduleItem raw) {
@@ -74,15 +78,15 @@ public class AgentPostNormalizer {
         return ScheduleTypeRules.looksLikeTaskTitle(raw.title());
     }
 
-    private NormalizedSchedule postProcessLlmEvent(OpenAIScheduleResponse.ScheduleItem raw) {
+    private NormalizedSchedule postProcessLlmEvent(OpenAIScheduleResponse.ScheduleItem raw, Map<String, List<String>> inheritedWarnings) {
         String title = (raw.title() == null || raw.title().isBlank()) ? "새로운 일정" : raw.title();
         LocalDate startDate = LocalDateTimeUtil.stringToLocalDate(raw.start_date());
-        if (startDate == null) {
+        if (startDate == null && !hasWarning(inheritedWarnings, "startDate")) {
             startDate = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
         }
 
         LocalDate endDate = LocalDateTimeUtil.stringToLocalDate(raw.end_date());
-        if (endDate == null) {
+        if (endDate == null && startDate != null) {
             endDate = startDate;
         }
 
@@ -104,25 +108,25 @@ public class AgentPostNormalizer {
                 .endTime(endTime)
                 .dueDateTime(null)
                 .repeat(repeat)
-                .warnings(Map.of())
+                .warnings(copyWarnings(inheritedWarnings))
                 .build();
     }
 
-    private NormalizedSchedule postProcessLlmTask(OpenAIScheduleResponse.ScheduleItem raw) {
+    private NormalizedSchedule postProcessLlmTask(OpenAIScheduleResponse.ScheduleItem raw, Map<String, List<String>> inheritedWarnings) {
         String title = (raw.title() == null || raw.title().isBlank()) ? "새로운 작업" : raw.title();
         LocalDateTime dueDateTime = LocalDateTimeUtil.stringToLocalDateTime(raw.due_date_time());
         LocalDate startDate = LocalDateTimeUtil.stringToLocalDate(raw.start_date());
         LocalTime startTime = LocalDateTimeUtil.stringToLocalTime(raw.start_time());
 
-        if (startDate == null && dueDateTime != null) {
+        if (startDate == null && dueDateTime != null && !hasWarning(inheritedWarnings, "startDate")) {
             startDate = dueDateTime.toLocalDate();
         }
 
-        if (startDate == null && startTime != null) {
+        if (startDate == null && startTime != null && !hasWarning(inheritedWarnings, "startDate")) {
             startDate = LocalDate.now(ScheduleExtractionSpec.KST_ZONE_ID);
         }
 
-        if (startTime == null && dueDateTime != null) {
+        if (startTime == null && dueDateTime != null && !hasWarning(inheritedWarnings, "startTime")) {
             LocalTime dueTime = dueDateTime.toLocalTime();
             if (!LocalTime.MIDNIGHT.equals(dueTime)) { //dueDateTime 시간이 자정이라면 사용자가 입력을 "25일까지"처럼 날짜만 입력했을 가능성이 높음
                 startTime = dueTime;
@@ -142,7 +146,7 @@ public class AgentPostNormalizer {
                 .endTime(endTime)
                 .dueDateTime(dueDateTime)
                 .repeat(null)
-                .warnings(Map.of())
+                .warnings(copyWarnings(inheritedWarnings))
                 .build();
     }
 
@@ -237,7 +241,7 @@ public class AgentPostNormalizer {
         }
     }
 
-    private NormalizedSchedule buildUnscheduledResult() {
+    private NormalizedSchedule buildUnscheduledResult(Map<String, List<String>> inheritedWarnings) {
         return NormalizedSchedule.builder()
                 .isScheduled(false)
                 .isEvent(false)
@@ -248,7 +252,22 @@ public class AgentPostNormalizer {
                 .endTime(null)
                 .dueDateTime(null)
                 .repeat(null)
-                .warnings(Map.of())
+                .warnings(copyWarnings(inheritedWarnings))
                 .build();
+    }
+
+    private boolean hasWarning(Map<String, List<String>> warnings, String key) {
+        return warnings != null && warnings.containsKey(key) && warnings.get(key) != null && !warnings.get(key).isEmpty();
+    }
+
+    private Map<String, List<String>> copyWarnings(Map<String, List<String>> warnings) {
+        if (warnings == null || warnings.isEmpty()) {
+            return Map.of();
+        }
+        return warnings.entrySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        entry -> List.copyOf(entry.getValue())
+                ));
     }
 }

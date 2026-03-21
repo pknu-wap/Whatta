@@ -84,7 +84,10 @@ public class AgentService {
         }
 
         OpenAIClient.OpenAIExecutionResult rawResponse = llmExtractor.extractTextOnly(normalizedInput);
-        List<NormalizedSchedule> normalizedSchedules = agentPostNormalizer.normalizeLlmResponse(rawResponse.response());
+        List<NormalizedSchedule> normalizedSchedules = agentPostNormalizer.normalizeLlmResponse(
+                rawResponse.response(),
+                extractionResult.warnings()
+        );
 
         return ScheduleExtractionResponse.builder()
                 .message(ScheduleExtractionResultMessage.from(normalizedSchedules))
