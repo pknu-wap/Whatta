@@ -1,8 +1,11 @@
 import React from 'react'
 import {
   Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
+  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -43,6 +46,7 @@ type ChatMessage = {
   id: string
   role: ChatRole
   text: string
+  imageUri?: string | null
 }
 
 type DraftItem = AiCardDraftItem
@@ -88,6 +92,7 @@ const LOADING_STEPS = [
   '정보를 정리하고 있어요...',
   '등록할 형식으로 바꾸고 있어요...',
 ] as const
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -225,9 +230,11 @@ function validateDraft(item: DraftItem) {
 function ChatBubble({
   item,
   spacing = 24,
+  onPressImage,
 }: {
   item: ChatMessage
   spacing?: number
+  onPressImage?: (uri: string) => void
 }) {
   const isUser = item.role === 'user'
   const isSystem = item.role === 'system'
@@ -247,9 +254,14 @@ function ChatBubble({
   return (
     <View style={[S.bubbleRow, S.bubbleRowUser, { marginBottom: spacing }]}>
       <View style={[S.bubble, S.userBubble]}>
-        <Text style={[S.bubbleText, S.userBubbleText]}>
-          {item.text}
-        </Text>
+        {item.imageUri ? (
+          <Pressable onPress={() => onPressImage?.(item.imageUri!)} hitSlop={6}>
+            <Image source={{ uri: item.imageUri }} style={S.userBubbleImage} />
+          </Pressable>
+        ) : null}
+        {item.text ? (
+          <Text style={[S.bubbleText, S.userBubbleText]}>{item.text}</Text>
+        ) : null}
       </View>
     </View>
   )
@@ -351,6 +363,7 @@ export default function AiChatScreen({ navigation }: Props) {
   const [keyboardHeight, setKeyboardHeight] = React.useState(0)
   const [imageSheetOpen, setImageSheetOpen] = React.useState(false)
   const [attachedImage, setAttachedImage] = React.useState<AiImagePayload | null>(null)
+  const [previewImageUri, setPreviewImageUri] = React.useState<string | null>(null)
   const [attachedImageName, setAttachedImageName] = React.useState('')
   const [selectedStarterPrompt, setSelectedStarterPrompt] = React.useState<string | null>(null)
   const [isStarterPreviewActive, setIsStarterPreviewActive] = React.useState(false)
@@ -413,8 +426,8 @@ export default function AiChatScreen({ navigation }: Props) {
     }
   }, [hasStartedChat])
 
-  const pushMessage = React.useCallback((role: ChatRole, text: string) => {
-    const nextMessage = { id: makeId(role), role, text }
+  const pushMessage = React.useCallback((role: ChatRole, text: string, imageUri?: string | null) => {
+    const nextMessage = { id: makeId(role), role, text, imageUri: imageUri ?? null }
     setMessages((prev) => [...prev, nextMessage])
     setTimeline((prev) => [
       ...prev,
@@ -510,13 +523,18 @@ export default function AiChatScreen({ navigation }: Props) {
   const submit = React.useCallback(
     async (textOverride?: string) => {
       const text = (textOverride ?? effectiveInput).trim()
-      if (!text) {
+      const submittedImage = attachedImage
+
+      if (!text && !submittedImage?.url) {
         Alert.alert('입력이 필요해요', EMPTY_GUIDE)
         return
       }
 
       setHasStartedChat(true)
-      pushMessage('user', text)
+      setImageSheetOpen(false)
+      setAttachedImage(null)
+      setAttachedImageName('')
+      pushMessage('user', text, submittedImage?.url ?? null)
       setInput('')
       setSelectedStarterPrompt(null)
       setIsStarterPreviewActive(false)
@@ -567,11 +585,9 @@ export default function AiChatScreen({ navigation }: Props) {
         pushMessage('assistant', message)
       } finally {
         setLoading(false)
-        setAttachedImage(null)
-        setAttachedImageName('')
       }
     },
-    [effectiveInput, freeUsedCount, pushMessage, usageDayKey],
+    [attachedImage, effectiveInput, pushMessage],
   )
 
   return (
@@ -616,7 +632,14 @@ export default function AiChatScreen({ navigation }: Props) {
                 const item = messageMap.get(entry.messageId)
                 if (!item) return null
                 const spacing = nextEntry?.type === 'draft-group' ? 8 : 24
-                return <ChatBubble key={entry.id} item={item} spacing={spacing} />
+                return (
+                  <ChatBubble
+                    key={entry.id}
+                    item={item}
+                    spacing={spacing}
+                    onPressImage={setPreviewImageUri}
+                  />
+                )
               }
 
               const group = draftGroupMap.get(entry.groupId)
@@ -703,25 +726,22 @@ export default function AiChatScreen({ navigation }: Props) {
 
           </ScrollView>
 
-          {attachedImageName ? (
-            <View style={S.attachmentPill}>
-              <Text style={S.attachmentText} numberOfLines={1}>
-                {attachedImageName}
-              </Text>
-            </View>
-          ) : null}
-
           <AiChatInput
             value={input}
             previewText={starterPreviewText}
             previewActive={isStarterPreviewActive}
             plusActive={plusActive}
+            imagePreviewUri={attachedImage?.url ?? null}
             disabled={loading}
             onPressPlus={() => setImageSheetOpen(true)}
             onChangeText={setInput}
             onClearPreview={() => {
               setSelectedStarterPrompt(null)
               setIsStarterPreviewActive(false)
+            }}
+            onRemoveImage={() => {
+              setAttachedImage(null)
+              setAttachedImageName('')
             }}
             onSubmit={() => submit()}
           />
@@ -758,6 +778,33 @@ export default function AiChatScreen({ navigation }: Props) {
         }}
         onClose={() => setEditingDraftId(null)}
       />
+
+      <Modal
+        transparent
+        visible={!!previewImageUri}
+        animationType="fade"
+        onRequestClose={() => setPreviewImageUri(null)}
+      >
+        <View style={S.imageViewerBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPreviewImageUri(null)} />
+          <SafeAreaView style={S.imageViewerSafeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+            <Pressable style={S.imageViewerClose} onPress={() => setPreviewImageUri(null)}>
+              <XIcon width={20} height={20} color="#FFFFFF" />
+            </Pressable>
+            {previewImageUri ? (
+              <View style={S.imageViewerCenter} pointerEvents="box-none">
+                <Pressable style={S.imageViewerImageWrap} onPress={() => {}}>
+                <Image
+                  source={{ uri: previewImageUri }}
+                  style={S.imageViewerImage}
+                  resizeMode="contain"
+                />
+                </Pressable>
+              </View>
+            ) : null}
+          </SafeAreaView>
+        </View>
+      </Modal>
     </LinearGradient>
   )
 }
@@ -855,6 +902,48 @@ const S = StyleSheet.create({
   },
   userBubble: {
     backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  userBubbleImage: {
+    width: 92,
+    height: 92,
+    borderRadius: 16,
+    marginBottom: 10,
+  },
+  imageViewerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(9,10,13,0.92)',
+  },
+  imageViewerSafeArea: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  imageViewerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageViewerClose: {
+    position: 'absolute',
+    top: 72,
+    right: 20,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  imageViewerImageWrap: {
+    width: SCREEN_WIDTH * 0.88,
+    height: SCREEN_HEIGHT * 0.64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageViewerImage: {
+    width: '100%',
+    height: '100%',
+    alignSelf: 'center',
   },
   bubbleText: {
     ...ts('date1'),
@@ -976,20 +1065,6 @@ const S = StyleSheet.create({
   },
   saveAllOutlineText: {
     ...ts('label2'),
-    color: '#FFFFFF',
-  },
-  attachmentPill: {
-    alignSelf: 'flex-start',
-    marginHorizontal: 20,
-    marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    maxWidth: '70%',
-  },
-  attachmentText: {
-    ...ts('body2'),
     color: '#FFFFFF',
   },
 })

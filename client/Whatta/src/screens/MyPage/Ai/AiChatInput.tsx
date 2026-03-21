@@ -1,5 +1,6 @@
 import React from 'react'
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Image, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import XIcon from '@/assets/icons/xL.svg'
 import AiPlusNoIcon from '@/assets/icons/aiplus_no.svg'
 import AiPlusYesIcon from '@/assets/icons/aiplus_yes.svg'
 import EnterNoIcon from '@/assets/icons/enter_no.svg'
@@ -11,10 +12,12 @@ type Props = {
   previewText: string
   previewActive: boolean
   plusActive: boolean
+  imagePreviewUri?: string | null
   disabled?: boolean
   onPressPlus: () => void
   onChangeText: (text: string) => void
   onClearPreview: () => void
+  onRemoveImage: () => void
   onSubmit: () => void
 }
 
@@ -28,10 +31,12 @@ export default function AiChatInput({
   previewText,
   previewActive,
   plusActive,
+  imagePreviewUri = null,
   disabled = false,
   onPressPlus,
   onChangeText,
   onClearPreview,
+  onRemoveImage,
   onSubmit,
 }: Props) {
   const inputRef = React.useRef<TextInput | null>(null)
@@ -48,79 +53,128 @@ export default function AiChatInput({
   const inputWrapHeight = Math.max(34, visibleTextHeight + WRAP_VERTICAL_PADDING * 2)
   const barHeight = Math.max(50, inputWrapHeight + 8)
   const barRadius = barHeight > 50 ? 20 : 50
-  const hasInput = (displayPreview ? previewText : value).trim().length > 0
+  const hasInput = (displayPreview ? previewText : value).trim().length > 0 || !!imagePreviewUri
 
   return (
-    <View style={[S.inputBar, { minHeight: barHeight, borderRadius: barRadius }]}>
-      <Pressable style={S.iconButton} onPress={onPressPlus}>
-        {plusActive ? <AiPlusYesIcon width={34} height={34} /> : <AiPlusNoIcon width={34} height={34} />}
-      </Pressable>
+    <View style={S.wrap}>
+      {imagePreviewUri ? (
+        <View style={[S.imagePreviewRow, { bottom: barHeight + 16 }]}>
+          <View style={S.imagePreviewCard}>
+            <Image source={{ uri: imagePreviewUri }} style={S.imagePreview} />
+            <Pressable style={S.removeImageButton} onPress={onRemoveImage} hitSlop={8}>
+              <View style={S.removeImageButtonInner}>
+                <XIcon width={10} height={10} color="#FFFFFF" />
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
-      <Pressable
-        style={[S.inputWrap, { minHeight: inputWrapHeight }]}
-        onPress={() => {
-          if (displayPreview) onClearPreview()
-          inputRef.current?.focus()
-        }}
-      >
-        {displayPreview ? (
-          <Text style={S.previewText} numberOfLines={1}>
-            {previewText}
-          </Text>
-        ) : null}
+      <View style={[S.inputBar, { minHeight: barHeight, borderRadius: barRadius }]}>
+        <Pressable style={S.iconButton} onPress={onPressPlus}>
+          {plusActive ? <AiPlusYesIcon width={34} height={34} /> : <AiPlusNoIcon width={34} height={34} />}
+        </Pressable>
 
-        <TextInput
-          ref={inputRef}
-          value={value}
-          onFocus={() => {
+        <Pressable
+          style={[S.inputWrap, { minHeight: inputWrapHeight }]}
+          onPress={() => {
             if (displayPreview) onClearPreview()
+            inputRef.current?.focus()
           }}
-          onChangeText={(text) => {
-            if (displayPreview) onClearPreview()
-            onChangeText(text)
-          }}
-          style={[
-            S.input,
-            {
-              minHeight: visibleTextHeight,
-              color: colors.text.text1,
-            },
-          ]}
-          multiline
-          scrollEnabled={false}
-          textAlignVertical="top"
-          blurOnSubmit={false}
-          onContentSizeChange={(event) => {
-            const nextHeight = Math.max(
-              TEXT_MIN_HEIGHT,
-              Math.min(TEXT_MAX_HEIGHT, Math.ceil(event.nativeEvent.contentSize.height)),
-            )
-            setTextHeight(nextHeight)
-          }}
-        />
-      </Pressable>
+        >
+          {displayPreview ? (
+            <Text style={S.previewText} numberOfLines={1}>
+              {previewText}
+            </Text>
+          ) : null}
 
-      <Pressable
-        style={S.iconButtonRight}
-        onPress={() => {
-          Keyboard.dismiss()
-          onSubmit()
-        }}
-        disabled={disabled || !hasInput}
-      >
-        {hasInput ? <EnterYesIcon width={34} height={34} /> : <EnterNoIcon width={34} height={34} />}
-      </Pressable>
+          <TextInput
+            ref={inputRef}
+            value={value}
+            onFocus={() => {
+              if (displayPreview) onClearPreview()
+            }}
+            onChangeText={(text) => {
+              if (displayPreview) onClearPreview()
+              onChangeText(text)
+            }}
+            style={[
+              S.input,
+              {
+                minHeight: visibleTextHeight,
+                color: colors.text.text1,
+              },
+            ]}
+            multiline
+            scrollEnabled={false}
+            textAlignVertical="top"
+            blurOnSubmit={false}
+            onContentSizeChange={(event) => {
+              const nextHeight = Math.max(
+                TEXT_MIN_HEIGHT,
+                Math.min(TEXT_MAX_HEIGHT, Math.ceil(event.nativeEvent.contentSize.height)),
+              )
+              setTextHeight(nextHeight)
+            }}
+          />
+        </Pressable>
+
+        <Pressable
+          style={S.iconButtonRight}
+          onPress={() => {
+            Keyboard.dismiss()
+            onSubmit()
+          }}
+          disabled={disabled || !hasInput}
+        >
+          {hasInput ? <EnterYesIcon width={34} height={34} /> : <EnterNoIcon width={34} height={34} />}
+        </Pressable>
+      </View>
     </View>
   )
 }
 
 const S = StyleSheet.create({
+  wrap: {
+    alignSelf: 'center',
+    width: 358,
+    position: 'relative',
+  },
+  imagePreviewRow: {
+    position: 'absolute',
+    left: 0,
+    alignItems: 'flex-start',
+    zIndex: 2,
+  },
+  imagePreviewCard: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+  },
+  removeImageButtonInner: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(23,25,26,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    width: 358,
+    width: '100%',
     backgroundColor: colors.background.bg2,
-    alignSelf: 'center',
     marginBottom: 10,
     paddingHorizontal: 8,
     paddingVertical: 8,
