@@ -13,6 +13,7 @@ import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
 import whatta.Whatta.agent.util.ScheduleExtractionResultMessage;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.Image.service.ImageStorageService;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -28,13 +29,14 @@ public class AIAsyncProcessor {
     private final AgentPreNormalizer agentPreNormalizer;
     private final LLMExtractor llmExtractor;
     private final AgentPostNormalizer agentPostNormalizer;
+    private final ImageStorageService imageStorageService;
 
     @Async("aiExecutor")
     public CompletableFuture<ScheduleExtractionResponse> processImage(String traceId, String userId, ScheduleExtractionRequest request) {
         long startedAt = System.nanoTime();
 
         try {
-            List<NormalizedSchedule> items = executeImage(request);
+            List<NormalizedSchedule> items = executeImage(userId, request);
             return CompletableFuture.completedFuture(
                     ScheduleExtractionResponse.builder()
                             .message(ScheduleExtractionResultMessage.from(items))
@@ -52,27 +54,29 @@ public class AIAsyncProcessor {
         }
     }
 
-    private List<NormalizedSchedule> executeImage(ScheduleExtractionRequest request) {
+    private List<NormalizedSchedule> executeImage(String userId, ScheduleExtractionRequest request) {
         ScheduleExtractionRequest.ScheduleExtractionForImage image = request.image();
         String promptText = request.hasText() ? agentPreNormalizer.normalize(request.text()) : null;
-        String imageUrl = resolveImageUrl(image);
+        String uploadedObjectKey = image != null && image.hasObjectKey() ? image.sanitizedObjectKey() : null;
 
-        OpenAIClient.OpenAIExecutionResult result = llmExtractor.extractWithImage(promptText, imageUrl, DEFAULT_IMAGE_DETAIL);
-        return agentPostNormalizer.normalizeLlmResponse(result.response());
+        try {
+            String imageUrl = resolveImageUrl(userId, image);
+            OpenAIClient.OpenAIExecutionResult result = llmExtractor.extractWithImage(promptText, imageUrl, DEFAULT_IMAGE_DETAIL);
+            return agentPostNormalizer.normalizeLlmResponse(result.response());
+        } finally {
+            imageStorageService.deleteObjectQuietly(userId, uploadedObjectKey);
+        }
     }
 
-    private String resolveImageUrl(ScheduleExtractionRequest.ScheduleExtractionForImage image) {
+    private String resolveImageUrl(String userId, ScheduleExtractionRequest.ScheduleExtractionForImage image) {
         if (image == null) {
             throw new RestApiException(ErrorCode.INVALID_REQUEST_TEXT);
         }
-        if (image.hasUrl()) {
-            return image.url().trim();
-        }
-        String sanitizedData = image.sanitizedData();
-        if (sanitizedData.isBlank()) {
+        String objectKey = image.sanitizedObjectKey();
+        if (objectKey.isBlank()) {
             throw new RestApiException(ErrorCode.INVALID_REQUEST_TEXT);
         }
-        return "data:" + image.resolvedMimeType() + ";base64," + sanitizedData;
+        return imageStorageService.createDownloadSignedUrl(userId, objectKey);
     }
 
     private long elapsedMillis(long startedAt) {
