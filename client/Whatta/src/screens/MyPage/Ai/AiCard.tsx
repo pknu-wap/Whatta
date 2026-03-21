@@ -20,6 +20,7 @@ type Props = {
   onEdit: () => void
   onDelete: () => void
   showDelete: boolean
+  showInlineSave?: boolean
 }
 
 function splitDueDateTime(value: string | null | undefined) {
@@ -66,7 +67,15 @@ function formatDraftTime(item: AiCardDraftItem) {
   return formatPeriodTime(start)
 }
 
-export default function AiCard({ item, onChange, onSave, onEdit, onDelete, showDelete }: Props) {
+export default function AiCard({
+  item,
+  onChange,
+  onSave,
+  onEdit,
+  onDelete,
+  showDelete,
+  showInlineSave = true,
+}: Props) {
   const due = splitDueDateTime(item.dueDateTime)
   const displayDate = item.isEvent
     ? formatDisplayDateWithWeekday(item.startDate)
@@ -112,21 +121,29 @@ export default function AiCard({ item, onChange, onSave, onEdit, onDelete, showD
         </Text>
         <Text style={S.cardDateText}>{displayDate}</Text>
         {hasTime ? <Text style={S.cardTimeText}>{displayTime}</Text> : null}
-        <View style={[S.cardActionRow, !hasTime && S.cardActionRowCompact]}>
+        <View
+          style={[
+            S.cardActionRow,
+            !hasTime && S.cardActionRowCompact,
+            !showInlineSave && S.cardActionRowSingle,
+          ]}
+        >
           <Pressable onPress={onEdit} hitSlop={8} disabled={isLocked}>
             <Text style={S.cardEditText}>수정하기</Text>
           </Pressable>
-          <Pressable
-            style={[S.saveButtonInline, item.saved && S.saveButtonInlineDone]}
-            onPress={onSave}
-            disabled={item.saving || item.saved}
-          >
-            {item.saving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={S.saveButtonInlineText}>{item.saved ? '등록완료' : '등록하기'}</Text>
-            )}
-          </Pressable>
+          {showInlineSave ? (
+            <Pressable
+              style={[S.saveButtonInline, item.saved && S.saveButtonInlineDone]}
+              onPress={onSave}
+              disabled={item.saving || item.saved}
+            >
+              {item.saving ? (
+                <ActivityIndicator size="small" color={colors.primary.main} />
+              ) : (
+                <Text style={S.saveButtonInlineText}>{item.saved ? '등록완료' : '등록하기'}</Text>
+              )}
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>
@@ -227,23 +244,27 @@ const S = StyleSheet.create({
     color: colors.text.text1,
     fontSize: 14,
     fontWeight: 500,
-    marginTop: 4,
+    marginTop: 6,
   },
   cardActionRow: {
     width: '100%',
     marginTop: 12,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
   },
   cardActionRowCompact: {
     marginTop: 14,
+  },
+  cardActionRowSingle: {
+    justifyContent: 'flex-start',
   },
   cardEditText: {
     ...ts('label4'),
     color: colors.primary.main,
     fontSize: 14,
     fontWeight: 700,
+    lineHeight: 18,
   },
   saveButtonInline: {
     minWidth: 78,
@@ -262,7 +283,8 @@ const S = StyleSheet.create({
   },
   saveButtonInlineText: {
     ...ts('label4'),
-    color: colors.text.text1,
+    color: colors.primary.main,
     fontWeight: '700',
+    lineHeight: 18,
   },
 })

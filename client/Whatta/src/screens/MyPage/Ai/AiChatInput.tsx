@@ -5,16 +5,22 @@ import AiPlusNoIcon from '@/assets/icons/aiplus_no.svg'
 import AiPlusYesIcon from '@/assets/icons/aiplus_yes.svg'
 import EnterNoIcon from '@/assets/icons/enter_no.svg'
 import EnterYesIcon from '@/assets/icons/enter_yes.svg'
+import PicIcon from '@/assets/icons/pic.svg'
+import CameraIcon from '@/assets/icons/camera.svg'
 import colors from '@/styles/colors'
+import { ts } from '@/styles/typography'
 
 type Props = {
   value: string
   previewText: string
   previewActive: boolean
   plusActive: boolean
+  attachmentMenuOpen?: boolean
   imagePreviewUri?: string | null
   disabled?: boolean
   onPressPlus: () => void
+  onPressAlbum: () => void
+  onPressCamera: () => void
   onChangeText: (text: string) => void
   onClearPreview: () => void
   onRemoveImage: () => void
@@ -31,9 +37,12 @@ export default function AiChatInput({
   previewText,
   previewActive,
   plusActive,
+  attachmentMenuOpen = false,
   imagePreviewUri = null,
   disabled = false,
   onPressPlus,
+  onPressAlbum,
+  onPressCamera,
   onChangeText,
   onClearPreview,
   onRemoveImage,
@@ -54,9 +63,23 @@ export default function AiChatInput({
   const barHeight = Math.max(50, inputWrapHeight + 8)
   const barRadius = barHeight > 50 ? 20 : 50
   const hasInput = (displayPreview ? previewText : value).trim().length > 0 || !!imagePreviewUri
+  const attachmentMenuBottom = barHeight + (imagePreviewUri ? 96 : 24)
 
   return (
     <View style={S.wrap}>
+      {attachmentMenuOpen ? (
+        <View style={[S.attachmentMenuRow, { bottom: attachmentMenuBottom }]}>
+          <Pressable style={S.attachmentCard} onPress={onPressAlbum}>
+            <PicIcon width={24} height={24} color={colors.icon.default} />
+            <Text style={S.attachmentCardText}>앨범에서{'\n'}가져오기</Text>
+          </Pressable>
+          <Pressable style={S.attachmentCard} onPress={onPressCamera}>
+            <CameraIcon width={24} height={24} color={colors.icon.default} />
+            <Text style={S.attachmentCardText}>사진 촬영</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {imagePreviewUri ? (
         <View style={[S.imagePreviewRow, { bottom: barHeight + 16 }]}>
           <View style={S.imagePreviewCard}>
@@ -140,6 +163,29 @@ const S = StyleSheet.create({
     width: 358,
     position: 'relative',
   },
+  attachmentMenuRow: {
+    position: 'absolute',
+    left: 0,
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 3,
+  },
+  attachmentCard: {
+    width: 100,
+    height: 100,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  attachmentCardText: {
+    ...ts('body1'),
+    color: colors.text.text3,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontSize: 14
+  },
   imagePreviewRow: {
     position: 'absolute',
     left: 0,
@@ -147,8 +193,8 @@ const S = StyleSheet.create({
     zIndex: 2,
   },
   imagePreviewCard: {
-    width: 56,
-    height: 56,
+    width: 100,
+    height: 100,
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',

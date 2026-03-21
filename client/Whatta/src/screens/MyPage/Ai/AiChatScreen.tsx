@@ -1,5 +1,8 @@
 import React from 'react'
+import * as SecureStore from 'expo-secure-store'
+import * as ImagePicker from 'expo-image-picker'
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Keyboard,
@@ -27,7 +30,6 @@ import Animated, {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
 import XIcon from '@/assets/icons/xL.svg'
-import AddImageSheet from '@/screens/More/Ocr'
 import AiCard, { type AiCardDraftItem } from '@/screens/MyPage/Ai/AiCard'
 import AiChatInput from '@/screens/MyPage/Ai/AiChatInput'
 import AiEditSheet from '@/screens/MyPage/Ai/AiEditSheet'
@@ -98,6 +100,7 @@ const STARTER_PROMPTS = [
 
 const EMPTY_GUIDE = '자유 대화는 지원하지 않아요. 일정이나 할 일을 생성할 문장을 입력해 주세요.'
 const DAILY_FREE_GENERATION_LIMIT = 3
+const AI_FREE_COUNT_STORE_KEY = 'whatta_ai_free_count'
 const LOADING_STEPS = [
   '요청을 이해하고 있어요...',
   '정보를 정리하고 있어요...',
@@ -115,6 +118,32 @@ function getDayKey(date = new Date()) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function readStoredFreeCount() {
+  const raw = await SecureStore.getItemAsync(AI_FREE_COUNT_STORE_KEY)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as { dayKey?: string; freeCount?: number | null }
+    if (!parsed?.dayKey) return null
+    return {
+      dayKey: parsed.dayKey,
+      freeCount:
+        typeof parsed.freeCount === 'number'
+          ? parsed.freeCount
+          : null,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function writeStoredFreeCount(dayKey: string, freeCount: number | null) {
+  await SecureStore.setItemAsync(
+    AI_FREE_COUNT_STORE_KEY,
+    JSON.stringify({ dayKey, freeCount }),
+  )
 }
 
 async function base64ToBlob(base64: string, contentType: string) {
@@ -236,10 +265,6 @@ function validateDraft(item: DraftItem) {
     if (!item.startDate) return '일정 시작 날짜를 입력해 주세요.'
     if (!item.endDate) return '일정 종료 날짜를 입력해 주세요.'
     return null
-  }
-
-  if (!item.startDate && !item.dueDateTime) {
-    return '할 일 날짜 또는 마감일 중 하나는 필요해요.'
   }
 
   return null
@@ -414,7 +439,7 @@ export default function AiChatScreen({ navigation }: Props) {
   const [editingDraftId, setEditingDraftId] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [keyboardHeight, setKeyboardHeight] = React.useState(0)
-  const [imageSheetOpen, setImageSheetOpen] = React.useState(false)
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = React.useState(false)
   const [attachedImage, setAttachedImage] = React.useState<AiImagePayload | null>(null)
   const [imageUploading, setImageUploading] = React.useState(false)
   const [previewImageUri, setPreviewImageUri] = React.useState<string | null>(null)
@@ -428,9 +453,26 @@ export default function AiChatScreen({ navigation }: Props) {
   const starterPreviewText =
     STARTER_PROMPTS.find((item) => item.label === selectedStarterPrompt)?.preview ?? ''
   const effectiveInput = isStarterPreviewActive ? starterPreviewText : input
-  const plusActive = imageSheetOpen || !!attachedImage
+  const plusActive = attachmentMenuOpen || !!attachedImage
   const localFreeRemainingCount = Math.max(0, DAILY_FREE_GENERATION_LIMIT - freeUsedCount)
   const freeRemainingCount = serverFreeCount ?? localFreeRemainingCount
+
+  React.useEffect(() => {
+    let mounted = true
+
+    ;(async () => {
+      const stored = await readStoredFreeCount()
+      if (!mounted || !stored) return
+
+      if (stored.dayKey === getDayKey() && typeof stored.freeCount === 'number') {
+        setServerFreeCount(stored.freeCount)
+      }
+    })()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   React.useEffect(() => {
     const todayKey = getDayKey()
@@ -438,8 +480,13 @@ export default function AiChatScreen({ navigation }: Props) {
       setUsageDayKey(todayKey)
       setFreeUsedCount(0)
       setServerFreeCount(null)
+      writeStoredFreeCount(todayKey, null).catch(() => {})
     }
   }, [usageDayKey])
+
+  React.useEffect(() => {
+    writeStoredFreeCount(usageDayKey, serverFreeCount).catch(() => {})
+  }, [serverFreeCount, usageDayKey])
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -580,6 +627,75 @@ export default function AiChatScreen({ navigation }: Props) {
     }
   }, [saveDraft])
 
+  const handleSelectImage = React.useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('권한이 필요해요', '사진 앨범 접근 권한을 허용해 주세요.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 1,
+    })
+
+    if (result.canceled) return
+
+    const asset = result.assets[0]
+    const uri = asset.uri
+    const base64 = asset.base64?.replace(/^data:.*;base64,/, '')
+    let ext = asset.uri.split('.').pop()?.split('?')[0]?.toLowerCase()
+    if (ext === 'heic') ext = 'jpg'
+
+    if (!base64) {
+      Alert.alert('이미지를 읽지 못했어요', '다시 시도해 주세요.')
+      return
+    }
+
+    setAttachmentMenuOpen(false)
+    setImageUploading(true)
+
+    try {
+      const prepared = await preprocessAiImage({ uri, base64, ext })
+      const draftImage: AiImagePayload = {
+        format: prepared.format,
+        data: prepared.base64,
+        url: prepared.uri,
+        objectKey: null,
+      }
+      setAttachedImage(draftImage)
+      setAttachedImageName(uri.split('/').pop() || '선택한 이미지')
+
+      const uploadMeta = await requestSignedUpload({
+        intent: 'AGENT_IMAGE',
+        target: 'AGENT_IMAGE',
+        contentType: prepared.contentType,
+      })
+      const blob = await base64ToBlob(prepared.base64, prepared.contentType)
+      await uploadToSignedUrl({
+        signedUrl: uploadMeta.signedUrl,
+        httpMethod: uploadMeta.httpMethod,
+        requiredHeaders: uploadMeta.requiredHeaders,
+        contentType: prepared.contentType,
+        body: blob,
+      })
+      setAttachedImage((prev) =>
+        prev?.url === prepared.uri
+          ? { ...prev, objectKey: uploadMeta.objectKey }
+          : prev,
+      )
+    } catch (error) {
+      console.error('AI image upload failed', error)
+      console.error('AI image upload failed response', (error as any)?.response?.data)
+      setAttachedImage(null)
+      setAttachedImageName('')
+      Alert.alert('이미지 업로드 실패', '이미지를 업로드하지 못했어요. 다시 시도해 주세요.')
+    } finally {
+      setImageUploading(false)
+    }
+  }, [])
+
   const submit = React.useCallback(
     async (textOverride?: string) => {
       const text = (textOverride ?? effectiveInput).trim()
@@ -596,7 +712,7 @@ export default function AiChatScreen({ navigation }: Props) {
       }
 
       setHasStartedChat(true)
-      setImageSheetOpen(false)
+      setAttachmentMenuOpen(false)
       setAttachedImage(null)
       setAttachedImageName('')
       pushMessage('user', text, submittedImage?.url ?? null)
@@ -734,17 +850,44 @@ export default function AiChatScreen({ navigation }: Props) {
                     needsMoreGap && S.draftSectionAfterSaveAll,
                   ]}
                 >
-                  {group.items.map((item) => (
-                    <AiCard
-                      key={item.id}
-                      item={item}
-                      onChange={(patch) => upsertDraft(item.id, patch)}
-                      onSave={() => saveDraft(item)}
-                      onEdit={() => setEditingDraftId(item.id)}
-                      onDelete={() => removeDraft(item.id)}
-                      showDelete={group.items.length > 1}
-                    />
-                  ))}
+                  {group.items.map((item) => {
+                    const showInlineSave = group.items.length > 1
+                    const showSingleSaveBelow = group.items.length === 1
+
+                    return (
+                      <View key={item.id} style={S.singleDraftBlock}>
+                        <AiCard
+                          item={item}
+                          onChange={(patch) => upsertDraft(item.id, patch)}
+                          onSave={() => saveDraft(item)}
+                          onEdit={() => setEditingDraftId(item.id)}
+                          onDelete={() => removeDraft(item.id)}
+                          showDelete={group.items.length > 1}
+                          showInlineSave={showInlineSave}
+                        />
+                        {showSingleSaveBelow ? (
+                          <View style={S.saveAllWrap}>
+                            <Pressable
+                              style={[
+                                S.saveAllOutline,
+                                item.saved && S.saveButtonDone,
+                              ]}
+                              onPress={() => saveDraft(item)}
+                              disabled={item.saving || item.saved}
+                            >
+                              {item.saving ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                              ) : (
+                                <Text style={S.saveAllOutlineText}>
+                                  {item.saved ? '등록완료' : '등록하기'}
+                                </Text>
+                              )}
+                            </Pressable>
+                          </View>
+                        ) : null}
+                      </View>
+                    )
+                  })}
                   {hasSaveAll ? (
                     <View style={S.saveAllWrap}>
                       <Pressable style={S.saveAllOutline} onPress={() => saveAll(group.items)}>
@@ -807,9 +950,19 @@ export default function AiChatScreen({ navigation }: Props) {
             previewText={starterPreviewText}
             previewActive={isStarterPreviewActive}
             plusActive={plusActive}
+            attachmentMenuOpen={attachmentMenuOpen}
             imagePreviewUri={attachedImage?.url ?? null}
             disabled={loading || imageUploading}
-            onPressPlus={() => setImageSheetOpen(true)}
+            onPressPlus={() => {
+              setAttachmentMenuOpen((prev) => !prev)
+            }}
+            onPressAlbum={() => {
+              void handleSelectImage()
+            }}
+            onPressCamera={() => {
+              setAttachmentMenuOpen(false)
+              Alert.alert('준비 중이에요', '사진 촬영 기능은 아직 지원하지 않아요.')
+            }}
             onChangeText={setInput}
             onClearPreview={() => {
               setSelectedStarterPrompt(null)
@@ -823,101 +976,6 @@ export default function AiChatScreen({ navigation }: Props) {
           />
         </KeyboardAvoidingView>
       </SafeAreaView>
-
-      <AddImageSheet
-        visible={imageSheetOpen}
-        onClose={() => setImageSheetOpen(false)}
-        onPickImage={async (uri, base64, ext) => {
-          setImageSheetOpen(false)
-          setImageUploading(true)
-
-          try {
-            const prepared = await preprocessAiImage({ uri, base64, ext })
-            const draftImage: AiImagePayload = {
-              format: prepared.format,
-              data: prepared.base64,
-              url: prepared.uri,
-              objectKey: null,
-            }
-            setAttachedImage(draftImage)
-            setAttachedImageName(uri.split('/').pop() || '선택한 이미지')
-
-            const uploadMeta = await requestSignedUpload({
-              intent: 'AGENT_IMAGE',
-              target: 'AGENT_IMAGE',
-              contentType: prepared.contentType,
-            })
-            const blob = await base64ToBlob(prepared.base64, prepared.contentType)
-            await uploadToSignedUrl({
-              signedUrl: uploadMeta.signedUrl,
-              httpMethod: uploadMeta.httpMethod,
-              requiredHeaders: uploadMeta.requiredHeaders,
-              contentType: prepared.contentType,
-              body: blob,
-            })
-            setAttachedImage((prev) =>
-              prev?.url === prepared.uri
-                ? { ...prev, objectKey: uploadMeta.objectKey }
-                : prev,
-            )
-          } catch (error) {
-            console.error('AI image upload failed', error)
-            console.error('AI image upload failed response', (error as any)?.response?.data)
-            setAttachedImage(null)
-            setAttachedImageName('')
-            Alert.alert('이미지 업로드 실패', '이미지를 업로드하지 못했어요. 다시 시도해 주세요.')
-          } finally {
-            setImageUploading(false)
-          }
-        }}
-        onTakePhoto={async (uri, base64, ext) => {
-          const draftImage: AiImagePayload = {
-            format: 'jpg',
-            data: '',
-            url: uri,
-            objectKey: null,
-          }
-          setImageSheetOpen(false)
-          setAttachedImageName(uri.split('/').pop() || '촬영한 이미지')
-          setImageUploading(true)
-
-          try {
-            const prepared = await preprocessAiImage({ uri, base64, ext })
-            setAttachedImage({
-              ...draftImage,
-              format: prepared.format,
-              data: prepared.base64,
-              url: prepared.uri,
-            })
-            const uploadMeta = await requestSignedUpload({
-              intent: 'AGENT_IMAGE',
-              target: 'AGENT_IMAGE',
-              contentType: prepared.contentType,
-            })
-            const blob = await base64ToBlob(prepared.base64, prepared.contentType)
-            await uploadToSignedUrl({
-              signedUrl: uploadMeta.signedUrl,
-              httpMethod: uploadMeta.httpMethod,
-              requiredHeaders: uploadMeta.requiredHeaders,
-              contentType: prepared.contentType,
-              body: blob,
-            })
-            setAttachedImage((prev) =>
-              prev?.url === prepared.uri
-                ? { ...prev, objectKey: uploadMeta.objectKey }
-                : prev,
-            )
-          } catch (error) {
-            console.error('AI image upload failed', error)
-            console.error('AI image upload failed response', (error as any)?.response?.data)
-            setAttachedImage(null)
-            setAttachedImageName('')
-            Alert.alert('이미지 업로드 실패', '이미지를 업로드하지 못했어요. 다시 시도해 주세요.')
-          } finally {
-            setImageUploading(false)
-          }
-        }}
-      />
 
       <AiEditSheet
         visible={!!editingDraft}
@@ -1119,7 +1177,7 @@ const S = StyleSheet.create({
     marginTop: 32,
   },
   starterChip: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     height: 50,
     borderRadius: 20,
     alignItems: 'center',
@@ -1137,21 +1195,21 @@ const S = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   starterChipInnerSelected: {
-    backgroundColor: colors.primary.main,
+    backgroundColor: colors.background.bg1,
   },
   starterText: {
     ...ts('label2'),
-    color: colors.primary.main,
+    color: colors.text.text1w,
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 20,
     includeFontPadding: false,
   },
   starterTextSelected: {
-    color: colors.text.text1w,
+    color: colors.primary.main,
   },
   loadingWrap: {
     alignSelf: 'flex-start',
@@ -1178,6 +1236,9 @@ const S = StyleSheet.create({
   },
   draftSectionAfterSaveAll: {
     marginBottom: 20,
+  },
+  singleDraftBlock: {
+    gap: 16,
   },
   saveButton: {
     width: 95,
