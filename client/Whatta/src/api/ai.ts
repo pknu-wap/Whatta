@@ -4,6 +4,11 @@ export type AiImagePayload = {
   format: string
   data: string
   url: string
+  objectKey?: string | null
+}
+
+export type AiChatImageRequest = {
+  objectKey: string
 }
 
 export type AiRepeatUnit = 'DAY' | 'WEEK' | 'MONTH'
@@ -13,11 +18,13 @@ export type AiRepeat = {
   unit: AiRepeatUnit | null
   on: string[] | null
   endDate: string | null
+  exceptionDates?: string[] | null
 }
 
-export type AiWarnings = Record<string, string> | null
+export type AiWarnings = Record<string, string[] | null> | null
 
 export type AiScheduleDraft = {
+  isScheduled?: boolean
   isEvent: boolean
   title: string
   startDate: string | null
@@ -30,7 +37,7 @@ export type AiScheduleDraft = {
 }
 
 export type AiChatData = {
-  isSchedule: boolean
+  freeCount?: number
   message: string
   schedules: AiScheduleDraft[] | null
 }
@@ -43,7 +50,7 @@ export type AiChatResponse = {
 
 export type AiChatRequest = {
   text: string
-  image: AiImagePayload | null
+  image: AiChatImageRequest | null
 }
 
 const AI_CHAT_PATH = '/ai'
