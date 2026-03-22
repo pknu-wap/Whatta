@@ -15,10 +15,10 @@ import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.notification.service.ReminderNotiService;
-import whatta.Whatta.user.entity.User;
-import whatta.Whatta.user.entity.UserSetting;
-import whatta.Whatta.user.repository.UserRepository;
-import whatta.Whatta.user.repository.UserSettingRepository;
+import whatta.Whatta.user.account.entity.User;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.account.repository.UserRepository;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.time.LocalTime;
 import java.util.ArrayList;

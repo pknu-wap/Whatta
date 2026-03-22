@@ -15,8 +15,8 @@ import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
 import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.global.util.LabelUtil;
-import whatta.Whatta.user.entity.UserSetting;
-import whatta.Whatta.user.repository.UserSettingRepository;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

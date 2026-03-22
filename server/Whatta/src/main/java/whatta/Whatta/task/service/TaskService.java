@@ -16,8 +16,8 @@ import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
 import whatta.Whatta.task.repository.TaskRepository;
-import whatta.Whatta.user.entity.UserSetting;
-import whatta.Whatta.user.repository.UserSettingRepository;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

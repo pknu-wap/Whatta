@@ -2,7 +2,7 @@ package whatta.Whatta.task.payload.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
-import whatta.Whatta.user.payload.dto.ReminderNoti;
+import whatta.Whatta.user.setting.payload.dto.ReminderNoti;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

@@ -15,8 +15,8 @@ import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
 import whatta.Whatta.agent.util.ScheduleExtractionResultMessage;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.user.enums.FeatureType;
-import whatta.Whatta.user.service.FeatureUsageService;
+import whatta.Whatta.user.plan.enums.FeatureType;
+import whatta.Whatta.user.plan.service.FeatureUsageService;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.List;

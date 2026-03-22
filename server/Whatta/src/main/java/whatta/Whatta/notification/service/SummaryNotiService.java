@@ -4,9 +4,9 @@ import jakarta.annotation.PostConstruct;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import whatta.Whatta.user.entity.UserSetting;
-import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
-import whatta.Whatta.user.repository.UserSettingRepository;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.setting.payload.dto.ScheduleSummaryNotiSlim;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.time.LocalTime;
 import java.util.List;

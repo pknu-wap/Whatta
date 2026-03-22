@@ -13,7 +13,7 @@ import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
 import whatta.Whatta.agent.util.ScheduleExtractionResultMessage;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
-import whatta.Whatta.Image.service.ImageStorageService;
+import whatta.Whatta.image.service.ImageStorageService;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

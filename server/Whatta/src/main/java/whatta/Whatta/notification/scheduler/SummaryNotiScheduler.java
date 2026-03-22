@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.service.SummaryNotiService;
 import whatta.Whatta.notification.service.processor.SummaryNotiProcessor;
-import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
+import whatta.Whatta.user.setting.payload.dto.ScheduleSummaryNotiSlim;
 
 import java.time.LocalDateTime;
 import java.util.List;
