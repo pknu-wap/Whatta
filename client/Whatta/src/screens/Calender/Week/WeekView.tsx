@@ -155,6 +155,7 @@ function TaskGroupBox({
   tasks,
   startHour,
   rowH,
+  collapseToken,
   onLocalChange,
   openTaskPopupFromApi,
   dayColWidth,
@@ -167,6 +168,7 @@ function TaskGroupBox({
   tasks: any[]
   startHour: number
   rowH: number
+  collapseToken: number
   dayColWidth: number
   dateISO: string
   dayIndex: number
@@ -181,7 +183,6 @@ function TaskGroupBox({
   }) => void
   openTaskPopupFromApi?: (taskId: string) => void
 }) {
-  const [localTasks, setLocalTasks] = useState(tasks)
   const pixelsPerMin = rowH / 60
   const dayPx = 24 * 60 * pixelsPerMin
   const topBase = startHour * 60 * pixelsPerMin
@@ -194,8 +195,8 @@ function TaskGroupBox({
   const [lastShift, setLastShift] = useState(0)
 
   useEffect(() => {
-    setLocalTasks(tasks)
-  }, [tasks])
+    setExpanded(false)
+  }, [collapseToken])
 
   // ✅ 단일 Task 박스와 동일한 기본 위치
   const colCount = Math.max(1, columnsTotal)
@@ -237,7 +238,7 @@ function TaskGroupBox({
         const newDateISO = addDays(dateISO, dayOffset)
 
         await Promise.all(
-          localTasks.map(async (t: any) => {
+          tasks.map(async (t: any) => {
             const taskId = String(t.id)
             try {
               await moveTaskToDateTime(http, taskId, newDateISO, newTime)
@@ -271,7 +272,7 @@ function TaskGroupBox({
         console.error('❌ TaskGroup 이동 처리 중 오류:', err.message)
       }
     },
-    [dateISO, localTasks, onLocalChange, startHour, translateX, translateY, dayColWidth],
+    [dateISO, onLocalChange, tasks, translateX, translateY, dayColWidth, pixelsPerMin, topBase, dayPx, height],
   )
 
   const longPress = Gesture.LongPress()
@@ -342,18 +343,31 @@ function TaskGroupBox({
 
     const taskDateISO = dateISO
 
+    onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: newCompleted })
+    bus.emit('calendar:mutated', {
+      op: 'update',
+      item: {
+        id: taskId,
+        completed: newCompleted,
+        date: taskDateISO,
+        startDate: taskDateISO,
+      },
+    })
+
     try {
       await updateTaskCompleted(http, taskId, newCompleted, taskDateISO)
-
-      // 서버 반영 후에만 로컬 업데이트 (깜빡임 제거)
-      setLocalTasks((prev) =>
-        prev.map((t) =>
-          String(t.id) === taskId ? { ...t, completed: newCompleted } : t,
-        ),
-      )
-
-      onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: newCompleted })
     } catch (err: any) {
+      onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: !newCompleted })
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: {
+          id: taskId,
+          completed: !newCompleted,
+          date: taskDateISO,
+          startDate: taskDateISO,
+        },
+      })
+      bus.emit('calendar:invalidate', { ym: taskDateISO.slice(0, 7) })
       console.error(
         '❌ TaskGroup PATCH 실패:',
         err && (err as any).response && (err as any).response.data
@@ -429,7 +443,7 @@ function TaskGroupBox({
             expanded={expanded}
             title="할 일"
             layoutWidthHint={finalWidth}
-            tasks={localTasks.map((t: any) => ({
+            tasks={tasks.map((t: any) => ({
               id: String(t.id),
               title: t.title ?? '',
               done: !!t.completed,
@@ -442,7 +456,7 @@ function TaskGroupBox({
               openTaskPopupFromApi?.(taskId)
             }}
             onToggleTask={(taskId) => {
-              const target = localTasks.find((t: any) => String(t.id) === String(taskId))
+              const target = tasks.find((t: any) => String(t.id) === String(taskId))
               if (target) onToggleGroupTask(target)
             }}
           />
@@ -535,23 +549,32 @@ function DraggableTaskBox({
   const toggleDone = async () => {
     const next = !done
     setDone(next)
+    onLocalChange?.({ id, dateISO, completed: next })
+    bus.emit('calendar:mutated', {
+      op: 'update',
+      item: {
+        id,
+        completed: next,
+        date: dateISO,
+        startDate: dateISO,
+      },
+    })
     try {
       await updateTaskCompleted(http, id, next, dateISO)
-
-      onLocalChange?.({ id, dateISO, completed: next })
-
+    } catch (err: any) {
+      console.error('❌ Task 체크 상태 업데이트 실패:', err.message)
+      setDone(!next)
+      onLocalChange?.({ id, dateISO, completed: !next })
       bus.emit('calendar:mutated', {
         op: 'update',
         item: {
           id,
-          completed: next,
+          completed: !next,
           date: dateISO,
           startDate: dateISO,
         },
       })
-    } catch (err: any) {
-      console.error('❌ Task 체크 상태 업데이트 실패:', err.message)
-      setDone(!next)
+      bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
     }
   }
 
@@ -1049,6 +1072,7 @@ const {
   }, [weekDates])
 
   const { weekData, setWeekData, loading, fetchWeek } = useWeekCalendarData(http)
+  const [taskGroupCollapseToken, setTaskGroupCollapseToken] = useState(0)
 
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
@@ -1283,8 +1307,19 @@ const {
     dayColWidth,
     rowH,
     setAnchorDate,
+    setWeekData,
     fetchWeek,
   })
+
+  useFocusEffect(
+    useCallback(() => {
+      setTaskGroupCollapseToken((prev) => prev + 1)
+    }, []),
+  )
+
+  useEffect(() => {
+    setTaskGroupCollapseToken((prev) => prev + 1)
+  }, [anchorDate])
   const showSpanScrollbar = spanContentH > spanWrapH - 10
 
   const gridWrapRef = useRef<View>(null)
@@ -1726,6 +1761,7 @@ const {
               openTaskPopupFromApi={openTaskPopupFromApi}
               onGridScroll={handleGridScroll}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
+              taskGroupCollapseToken={taskGroupCollapseToken}
               DraggableFlexibleEventComponent={MemoDraggableFlexibleEvent}
               TaskGroupBoxComponent={MemoTaskGroupBox}
               DraggableTaskBoxComponent={MemoDraggableTaskBox}

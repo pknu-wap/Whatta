@@ -18,6 +18,7 @@ export type ScheduleCardProps = {
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  contentHeightHint?: number
   isRepeat?: boolean
   hideText?: boolean
   style?: any

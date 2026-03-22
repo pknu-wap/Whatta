@@ -22,6 +22,7 @@ type ScheduleBaseCardProps = {
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  contentHeightHint?: number
   hideText?: boolean
   onPress?: CalendarItemPressHandler
   backgroundColor: string
@@ -38,6 +39,7 @@ function ScheduleBaseCard({
   isUntimed = false,
   density = 'day',
   layoutWidthHint,
+  contentHeightHint,
   hideText = false,
   onPress,
   backgroundColor,
@@ -74,17 +76,19 @@ function ScheduleBaseCard({
   const dayBody3 = ts('body3')
   const weekBody3 = ts('body3')
 
+  const fixedHeight = density === 'month' ? densityStyle.minHeight : density === 'week' && untimed ? 26 : untimed ? 30 : undefined
+  const minCardHeight = fixedHeight ?? densityStyle.minHeight
+  const isWeekTimed = density === 'week' && !untimed
+  const isDayTimed = density === 'day' && !untimed
+  const isShortDayTimed = isDayTimed && typeof contentHeightHint === 'number' && contentHeightHint < 44
   const showSubText =
     density !== 'month' &&
     !untimed &&
     !!normalizedTimeRangeText &&
     !isWeekBottomTiny &&
     !isWeekVertical &&
+    !isShortDayTimed &&
     !hideText
-
-  const fixedHeight = density === 'month' ? densityStyle.minHeight : density === 'week' && untimed ? 26 : untimed ? 30 : undefined
-  const minCardHeight = fixedHeight ?? densityStyle.minHeight
-  const isWeekTimed = density === 'week' && !untimed
   const effectivePadLeft =
     density === 'month'
       ? densityStyle.padX
@@ -101,7 +105,7 @@ function ScheduleBaseCard({
       : untimed
       ? 12
       : densityStyle.padX
-  const effectivePadY = fixedHeight ? 0 : densityStyle.padY
+  const effectivePadY = fixedHeight ? 0 : isShortDayTimed ? 4 : densityStyle.padY
 
   const titleTokenStyle =
     density === 'day'
@@ -138,7 +142,7 @@ function ScheduleBaseCard({
           paddingRight: effectivePadRight,
           paddingVertical: effectivePadY,
           borderRadius: untimed ? 8 : isWeekVertical ? WEEK_VERTICAL_RADIUS : densityStyle.radius,
-          justifyContent: isWeekTimed ? 'flex-start' : 'center',
+          justifyContent: isShortDayTimed ? 'center' : isWeekTimed || isDayTimed ? 'flex-start' : 'center',
           backgroundColor,
           borderColor: borderColor ?? 'transparent',
           borderWidth: borderColor ? (borderWidth ?? StyleSheet.hairlineWidth) : 0,

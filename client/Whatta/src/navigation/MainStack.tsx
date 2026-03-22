@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { View, Pressable, Dimensions, StyleSheet } from 'react-native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useNavigation } from '@react-navigation/native'
+import { getFocusedRouteNameFromRoute, useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { TouchableOpacity } from 'react-native'
 import { DrawerProvider, useDrawer } from '@/providers/DrawerProvider'
@@ -225,8 +225,27 @@ export default function MainTabs() {
           <Tab.Screen
             name="MyPage"
             component={MyPageStack}
-            options={{
+            options={({ route }) => {
+              const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'MyPageList'
+              const hideTabBar = focusedRouteName === 'AiChat'
+
+              return {
               tabBarLabel: '마이페이지',
+              tabBarStyle: hideTabBar
+                ? { display: 'none' }
+                : {
+                    height: TAB_BAR_H,
+                    paddingTop: 3,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.background.bg1,
+                    borderTopWidth: 0,
+                    borderTopColor: 'transparent',
+                    shadowColor: '#D2D2D2',
+                    shadowOpacity: 0.25,
+                    shadowRadius: 15,
+                    shadowOffset: { width: 0, height: 0 },
+                    elevation: 15,
+                  },
               tabBarIcon: ({ focused }) => (
                 focused ? (
                     <PillMypageIcon width={24} height={24} />
@@ -234,7 +253,7 @@ export default function MainTabs() {
                     <MyPageIcon width={24} height={24} color={colors.icon.default}/>
                  )
               ),
-            }}
+            }}}
           />
         </Tab.Navigator>
 
