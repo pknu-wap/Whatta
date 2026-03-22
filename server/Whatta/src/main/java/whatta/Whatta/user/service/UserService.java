@@ -7,8 +7,12 @@ import whatta.Whatta.global.security.JwtTokenProvider;
 import whatta.Whatta.user.entity.ScheduleSummaryNoti;
 import whatta.Whatta.user.entity.User;
 import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.entity.UserPlan;
+import whatta.Whatta.user.enums.PlanStatus;
+import whatta.Whatta.user.enums.PlanType;
 import whatta.Whatta.user.payload.response.LoginResponse;
 import whatta.Whatta.user.repository.UserRepository;
+import whatta.Whatta.user.repository.UserPlanRepository;
 import whatta.Whatta.user.repository.UserSettingRepository;
 
 import java.time.LocalTime;
@@ -20,6 +24,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
+    private final UserPlanRepository userPlanRepository;
     private final JwtTokenProvider jwtTokenProvider;
 
     @Transactional
@@ -44,6 +49,8 @@ public class UserService {
 
             return newUser;
         });
+
+        ensureUserPlan(user.getId());
         //각각 토큰 발급
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
@@ -57,5 +64,13 @@ public class UserService {
 
     private int toMinuteOfDay(LocalTime time) {
         return time.getHour() * 60 + time.getMinute();
+    }
+
+    private void ensureUserPlan(String userId) {
+        userPlanRepository.findByUserId(userId)
+                .orElseGet(() -> userPlanRepository.save(UserPlan.builder()
+                        .userId(userId)
+                        .build())
+        );
     }
 }
