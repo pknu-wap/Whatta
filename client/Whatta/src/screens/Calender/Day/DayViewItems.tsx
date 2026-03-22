@@ -170,6 +170,10 @@ export function DraggableTaskBox({
               completed: next,
             }).catch((err) => {
               setDone(!next)
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: { id: taskId, isTask: true, date: anchorDate, completed: !next },
+              })
               console.error('❌ 테스크 체크 상태 업데이트 실패:', err)
             })
           }}
@@ -308,9 +312,13 @@ export function DraggableTaskGroupBox({
               item: { id: taskId, isTask: true, date: anchorDate, completed: next },
             })
 
-            updateTask(taskId, { completed: next }).catch((err) =>
-              console.error('❌ 그룹 테스크 업데이트 실패:', err),
-            )
+            updateTask(taskId, { completed: next }).catch((err) => {
+              bus.emit('calendar:mutated', {
+                op: 'update',
+                item: { id: taskId, isTask: true, date: anchorDate, completed: !next },
+              })
+              console.error('❌ 그룹 테스크 업데이트 실패:', err)
+            })
           }}
           onToggleExpand={() => {
             onPress()
@@ -357,6 +365,7 @@ export function DraggableFixedEvent({
 
   const handleDrop = useCallback(
     async (movedY: number) => {
+      draggingEventId = id
       try {
         const SNAP_UNIT = 5 * PIXELS_PER_MIN
         const snappedY = Math.round(movedY / SNAP_UNIT) * SNAP_UNIT
@@ -431,6 +440,10 @@ export function DraggableFixedEvent({
                     })
 
                     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                    bus.emit('calendar:mutated', {
+                      op: 'update',
+                      item: { id, startDate: anchorDate, endDate: anchorDate },
+                    })
                   } catch (e) {
                     console.error('❌ 반복 단일 수정 실패:', e)
                     resetDragPosition()
@@ -460,6 +473,10 @@ export function DraggableFixedEvent({
                     })
 
                     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                    bus.emit('calendar:mutated', {
+                      op: 'update',
+                      item: { id, startDate: anchorDate, endDate: anchorDate },
+                    })
                   } catch (e) {
                     console.error('❌ 반복 전체 수정 실패:', e)
                     resetDragPosition()
@@ -496,6 +513,7 @@ export function DraggableFixedEvent({
           },
         })
       } catch (err: any) {
+        resetDragPosition()
         console.error('❌ FixedEvent 드롭 실패:', err.message)
       }
     },

@@ -420,7 +420,7 @@ export default function DayView() {
       const topPos = (hour * 60 + min) * PIXELS_PER_MIN
       setNowTop(topPos)
 
-      if (scrollToCenter && !hasScrolledOnce) {
+      if (isToday && scrollToCenter && !hasScrolledOnce) {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
             y: Math.max(topPos - SCREEN_H * 0.35, 0),
@@ -434,7 +434,7 @@ export default function DayView() {
     updateNowTop(true)
     const id = setInterval(() => updateNowTop(false), 60000)
     return () => clearInterval(id)
-  }, [hasScrolledOnce, PIXELS_PER_MIN])
+  }, [hasScrolledOnce, isToday])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -443,7 +443,7 @@ export default function DayView() {
   )
 
   useEffect(() => {
-    if (nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
+    if (isToday && nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
       requestAnimationFrame(() => {
         gridScrollRef.current?.scrollTo({
           y: Math.max(nowTop - SCREEN_H * 0.35, 0),
@@ -452,7 +452,7 @@ export default function DayView() {
         setHasScrolledOnce(true)
       })
     }
-  }, [nowTop, hasScrolledOnce])
+  }, [hasScrolledOnce, isToday, nowTop])
 
   // 라벨 필터링
   const enabledLabelIds = useMemo(
