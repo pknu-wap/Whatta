@@ -38,8 +38,10 @@ public class AgentService {
 
     public CompletableFuture<ScheduleExtractionResponse> createSchedules(String userId, ScheduleExtractionRequest request) {
         String traceId = UUID.randomUUID().toString().substring(0, 8);
+        Integer freeCount = featureUsageService.increaseUsageIfAvailableOrThrow(userId, FeatureType.AI_AGENT);
+
         boolean imageRequest = validateAndResolveRequest(request);
-        featureUsageService.validateAvailableUsage(userId, FeatureType.AI_AGENT);
+
         CompletableFuture<ScheduleExtractionResponse> responseFuture;
 
         if (imageRequest) {
@@ -56,10 +58,7 @@ public class AgentService {
             responseFuture = CompletableFuture.completedFuture(processTextOnly(traceId, userId, request));
         }
 
-        return responseFuture.thenApply(response -> {
-            Integer freeCount = featureUsageService.recordSuccessfulUsageSafely(userId, FeatureType.AI_AGENT);
-            return withFreeCount(response, freeCount);
-        });
+        return responseFuture.thenApply(response -> withFreeCount(response, freeCount));
     }
 
     private boolean validateAndResolveRequest(ScheduleExtractionRequest request) {

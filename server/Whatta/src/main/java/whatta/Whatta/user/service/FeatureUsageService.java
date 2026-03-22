@@ -1,7 +1,6 @@
 package whatta.Whatta.user.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
@@ -15,7 +14,6 @@ import whatta.Whatta.user.repository.UserPlanRepository;
 import java.time.LocalDate;
 
 @Service
-@Slf4j
 @RequiredArgsConstructor
 public class FeatureUsageService {
 
@@ -24,68 +22,25 @@ public class FeatureUsageService {
     private final UserPlanRepository userPlanRepository;
     private final FeatureUsageRepository featureUsageRepository;
 
-    public void validateAvailableUsage(String userId, FeatureType featureType) {
-        UserPlan userPlan = ensureUserPlan(userId);
-        if (userPlan.getPlanType() != PlanType.FREE) {
-            return;
-        }
-
-        int usedCount = getTodayUsedCount(userId, featureType);
-        if (featureType == FeatureType.AI_AGENT && usedCount >= FREE_DAILY_AI_AGENT_LIMIT) {
-            throw new RestApiException(ErrorCode.AI_DAILY_USAGE_LIMIT_EXCEEDED);
-        }
-    }
-
-    public Integer recordSuccessfulUsageSafely(String userId, FeatureType featureType) {
-        try {
-            return recordSuccessfulUsage(userId, featureType);
-        } catch (Exception e) {
-            log.error("[FEATURE_USAGE][RECORD_FAILED] userId={} featureType={} message={}",
-                    userId,
-                    featureType,
-                    e.getMessage(),
-                    e);
-            return getRemainingCount(userId, featureType);
-        }
-    }
-
-    public Integer getRemainingCount(String userId, FeatureType featureType) {
+    public Integer increaseUsageIfAvailableOrThrow(String userId, FeatureType featureType) {
         UserPlan userPlan = ensureUserPlan(userId);
         if (userPlan.getPlanType() != PlanType.FREE) {
             return null;
         }
 
-        return Math.max(resolveDailyLimit(featureType) -  getTodayUsedCount(userId, featureType), 0);
-    }
-
-    private Integer recordSuccessfulUsage(String userId, FeatureType featureType) {
-        UserPlan userPlan = ensureUserPlan(userId);
-        if (userPlan.getPlanType() != PlanType.FREE) {
-            return null;
-        }
-
-        LocalDate today = LocalDate.now();
-        if (featureUsageRepository.incrementTodayUsage(userId, featureType, today)) {
-            return getRemainingCount(userId, featureType);
-        }
-
-        featureUsageRepository.resetOrCreateUsage(userId, featureType, today);
-        return getRemainingCount(userId, featureType);
+        int dailyLimit = resolveDailyLimit(featureType);
+        FeatureUsage featureUsage = featureUsageRepository
+                .increaseUsageIfAvailable(userId, featureType, LocalDate.now(), dailyLimit)
+                .orElseThrow(() -> new RestApiException(ErrorCode.AI_DAILY_USAGE_LIMIT_EXCEEDED));
+        return Math.max(dailyLimit - featureUsage.getUsedCount(), 0);
     }
 
     private int resolveDailyLimit(FeatureType featureType) {
-        if (featureType == FeatureType.AI_AGENT) {
-            return FREE_DAILY_AI_AGENT_LIMIT;
-        }
-        return Integer.MAX_VALUE;
-    }
-
-    private int getTodayUsedCount(String userId, FeatureType featureType) {
-        LocalDate today = LocalDate.now();
-        return featureUsageRepository.findByUserIdAndFeatureType(userId, featureType)
-                .filter(featureUsage -> today.equals(featureUsage.getUsageDate()))
-                .map(FeatureUsage::getUsedCount)
-                .orElse(0);
+        return switch (featureType) {
+            case AI_AGENT -> FREE_DAILY_AI_AGENT_LIMIT;
+            case OCR -> Integer.MAX_VALUE; //TODO: 추후에 정책 합의 후 변경 예정
+            case TRAFFIC -> Integer.MAX_VALUE; //TODO: 추후에 정책 합의 후 변경 예정
+        };
     }
 
     private UserPlan ensureUserPlan(String userId) {
