@@ -34,7 +34,7 @@ class ScheduleExtractionResultMessageTest {
         String message = ScheduleExtractionResultMessage.from(List.of(scheduledWithWarning, unscheduled));
 
         assertTrue(message.contains("스케줄 생성을 완료했어요. 다만"));
-        assertTrue(message.contains("3/33"));
+        assertTrue(message.contains("날짜를 이해하지 못했어요."));
         assertTrue(message.contains("일부 내용은 이해하지 못했어요."));
     }
 
@@ -56,9 +56,8 @@ class ScheduleExtractionResultMessageTest {
 
         String message = ScheduleExtractionResultMessage.from(List.of(scheduledWithTwoWarnings));
 
-        assertTrue(message.contains("\"3월33일\"과 \"25시\"는 해석하지 못해서"));
-        assertFalse(message.contains("그리고 \"25시\""));
-        assertTrue(message.contains("확인 후 수정해주세요."));
+        assertTrue(message.contains("날짜와 시간을 이해하지 못했어요."));
+        assertFalse(message.contains("확인 후 수정해주세요."));
     }
 
     @Test
@@ -77,12 +76,12 @@ class ScheduleExtractionResultMessageTest {
         String message = ScheduleExtractionResultMessage.from(List.of(unscheduledWithWarning));
 
         assertTrue(message.startsWith("스케줄 생성을 완료했어요. 다만 "));
-        assertTrue(message.contains("\"33일\"은 해석하지 못해서 날짜는 비워뒀어요."));
+        assertTrue(message.contains("날짜를 이해하지 못했어요."));
         assertFalse(message.contains("일부 내용은 이해하지 못했어요."));
     }
 
     @Test
-    void 같은_warning_원문이_여러_항목에_복사돼도_한번만_안내한다() {
+    void 같은_warning이_여러_항목에_있어도_한번만_안내한다() {
         NormalizedSchedule first = NormalizedSchedule.builder()
                 .isScheduled(true)
                 .isEvent(true)
@@ -103,9 +102,8 @@ class ScheduleExtractionResultMessageTest {
 
         String message = ScheduleExtractionResultMessage.from(List.of(first, second));
 
-        assertTrue(message.contains("\"33일\"은 해석하지 못해서 날짜는 비워뒀어요."));
-        assertFalse(message.contains("2026-03-25"));
-        assertEquals(1, countOccurrences(message, "\"33일\""));
+        assertTrue(message.contains("날짜를 이해하지 못했어요."));
+        assertEquals(1, countOccurrences(message, "날짜를 이해하지 못했어요."));
     }
 
     private int countOccurrences(String text, String target) {
