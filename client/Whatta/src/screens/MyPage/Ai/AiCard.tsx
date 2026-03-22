@@ -11,10 +11,17 @@ export type AiCardDraftItem = AiScheduleDraft & {
   saving: boolean
   colorHex?: string
   labelIds?: number[]
+  memo?: string
+  reminderNoti?: {
+    day: number
+    hour: number
+    minute: number
+  } | null
 }
 
 type Props = {
   item: AiCardDraftItem
+  labelTitles?: string[]
   onChange: (patch: Partial<AiCardDraftItem>) => void
   onSave: () => void
   onEdit: () => void
@@ -69,6 +76,7 @@ function formatDraftTime(item: AiCardDraftItem) {
 
 export default function AiCard({
   item,
+  labelTitles = [],
   onChange,
   onSave,
   onEdit,
@@ -83,10 +91,27 @@ export default function AiCard({
   const displayTime = formatDraftTime(item)
   const isLocked = item.saved || item.saving
   const hasTime = displayTime.trim().length > 0
+  const hasRepeat = !!item.repeat?.unit && !!item.repeat?.interval
+  const hasReminder = !!item.reminderNoti
+  const summaryItems = [
+    hasRepeat ? { kind: 'repeat' as const, text: formatRepeatSummary(item.repeat) } : null,
+    hasReminder ? { kind: 'reminder' as const, text: formatReminderSummary(item.reminderNoti) } : null,
+    ...labelTitles.map((title) => ({ kind: 'label' as const, text: title })),
+  ].filter(
+    (
+      value,
+    ): value is { kind: 'repeat' | 'reminder' | 'label'; text: string } => !!value,
+  )
 
   return (
     <View style={[S.cardBlock, isLocked && S.cardBlockLocked]}>
-      <View style={[S.card, isLocked && S.cardLocked]}>
+      <View
+        style={[
+          S.card,
+          { borderColor: item.colorHex ?? colors.primary.main },
+          isLocked && S.cardLocked,
+        ]}
+      >
         <View style={S.cardTopRow}>
           <View style={S.segment}>
             <Pressable
@@ -121,6 +146,20 @@ export default function AiCard({
         </Text>
         <Text style={S.cardDateText}>{displayDate}</Text>
         {hasTime ? <Text style={S.cardTimeText}>{displayTime}</Text> : null}
+        {summaryItems.length > 0 ? (
+          <View style={S.metaWrap}>
+            {summaryItems.map((meta, index) => (
+              <View
+                key={`${meta.kind}-${meta.text}-${index}`}
+                style={[S.metaChip, { borderColor: item.colorHex ?? colors.primary.main }]}
+              >
+                <Text style={S.metaChipText} numberOfLines={1}>
+                  {meta.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
         <View
           style={[
             S.cardActionRow,
@@ -150,6 +189,28 @@ export default function AiCard({
   )
 }
 
+function formatRepeatSummary(repeat: AiCardDraftItem['repeat']) {
+  if (!repeat?.unit || !repeat.interval) return ''
+  const unitLabel =
+    repeat.unit === 'WEEK' ? '주' : repeat.unit === 'MONTH' ? '월' : '일'
+  if (repeat.interval === 1) {
+    return repeat.unit === 'WEEK'
+      ? '매주 반복'
+      : repeat.unit === 'MONTH'
+        ? '매월 반복'
+        : '매일 반복'
+  }
+  return `${repeat.interval}${unitLabel}마다 반복`
+}
+
+function formatReminderSummary(reminder: AiCardDraftItem['reminderNoti']) {
+  if (!reminder) return ''
+  const dayText = reminder.day === 1 ? '전날 ' : ''
+  const hourText = reminder.hour > 0 ? `${reminder.hour}시간 ` : ''
+  const minuteText = reminder.minute > 0 ? `${reminder.minute}분 전` : '전'
+  return `알림 ${`${dayText}${hourText}${minuteText}`.trim()}`
+}
+
 const S = StyleSheet.create({
   cardBlock: {
     width: 250,
@@ -160,7 +221,7 @@ const S = StyleSheet.create({
     minHeight: 152,
     backgroundColor: colors.background.bg1,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.primary.main,
     padding: 20,
     alignItems: 'flex-start',
@@ -245,6 +306,25 @@ const S = StyleSheet.create({
     fontSize: 14,
     fontWeight: 500,
     marginTop: 5,
+  },
+  metaWrap: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  metaChip: {
+    maxWidth: '100%',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  metaChipText: {
+    ...ts('label4'),
+    color: colors.text.text3,
   },
   cardActionRow: {
     width: '100%',

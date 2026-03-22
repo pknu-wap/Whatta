@@ -36,7 +36,15 @@ import AiEditSheet from '@/screens/MyPage/Ai/AiEditSheet'
 import { preprocessAiImage } from '@/screens/MyPage/Ai/aiImagePreprocess'
 import { createEvent, type RepeatRule } from '@/api/event_api'
 import { createTask } from '@/api/task'
+import { bus } from '@/lib/eventBus'
+import { useLabels } from '@/providers/LabelProvider'
 import colors from '@/styles/colors'
+import {
+  getActiveScheduleColorSetId,
+  getScheduleColorSet,
+  resolveSlotIndex,
+  slotKey,
+} from '@/styles/scheduleColorSets'
 import { ts } from '@/styles/typography'
 import {
   requestAiChat,
@@ -316,26 +324,55 @@ function toRepeatRule(repeat: DraftItem['repeat']): RepeatRule | null {
   }
 }
 
-function toEventPayload(item: DraftItem) {
+function ensureDefaultLabelIds(
+  ids: number[],
+  labels: Array<{ id: number; title: string }>,
+  isEvent: boolean,
+) {
+  const defaultTitle = isEvent ? '일정' : '할 일'
+  const defaultLabel = labels.find((label) => label.title === defaultTitle)
+  const fixedTitles = new Set(['일정', '할 일'])
+  const fixedIds = new Set(
+    labels.filter((label) => fixedTitles.has(label.title)).map((label) => label.id),
+  )
+  const next = ids.filter((id) => !fixedIds.has(id))
+  if (defaultLabel && !next.includes(defaultLabel.id)) {
+    next.unshift(defaultLabel.id)
+  }
+  return next
+}
+
+function toEventPayload(item: DraftItem, labels: Array<{ id: number; title: string }>) {
   return {
     title: item.title.trim(),
-    labels: item.labelIds ?? [],
+    content: item.memo?.trim() ?? '',
+    labels: ensureDefaultLabelIds(item.labelIds ?? [], labels, true),
     startDate: item.startDate!,
     endDate: item.endDate ?? item.startDate!,
     startTime: item.startTime ?? null,
     endTime: item.endTime ?? null,
     repeat: toRepeatRule(item.repeat),
-    colorKey: (item.colorHex ?? '#B04FFF').replace('#', ''),
+    colorKey: slotKey(resolveSlotIndex(item.colorHex ?? getScheduleColorSet(getActiveScheduleColorSetId())[0] ?? '#B04FFF')),
+    reminderNoti: item.reminderNoti ?? null,
   }
 }
 
-function toTaskPayload(item: DraftItem) {
+function toTaskPayload(item: DraftItem, labels: Array<{ id: number; title: string }>) {
+  const fallbackDate =
+    item.startDate ??
+    item.dueDateTime?.split('T')[0] ??
+    getDayKey()
+
   return {
     title: item.title.trim(),
-    labels: item.labelIds ?? [],
+    content: item.memo?.trim() ?? '',
+    labels: ensureDefaultLabelIds(item.labelIds ?? [], labels, false),
     placementDate: item.startDate ?? null,
+    placementTime: item.startTime ?? null,
+    reminderNoti: item.reminderNoti ?? null,
     dueDateTime: item.dueDateTime ?? null,
     repeat: toRepeatRule(item.repeat),
+    date: fallbackDate,
   }
 }
 
@@ -460,6 +497,11 @@ function LoadingChar({
 export default function AiChatScreen({ navigation }: Props) {
   const scrollRef = React.useRef<ScrollView | null>(null)
   const deletedToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { labels } = useLabels()
+  const defaultScheduleColor = React.useMemo(
+    () => getScheduleColorSet(getActiveScheduleColorSetId())[0] ?? '#B04FFF',
+    [],
+  )
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
       id: makeId('assistant'),
@@ -701,18 +743,61 @@ export default function AiChatScreen({ navigation }: Props) {
       upsertDraft(item.id, { saving: true })
       try {
         if (item.isEvent) {
-          await createEvent(toEventPayload(item))
+          const payload = toEventPayload(item, labels)
+          const result = await createEvent(payload)
+          const eventId = result.eventId
+          const ym = payload.startDate.slice(0, 7)
+
+          if (eventId) {
+            bus.emit('calendar:mutated', {
+              op: 'create',
+              item: {
+                id: eventId,
+                title: payload.title,
+                content: payload.content,
+                startDate: payload.startDate,
+                endDate: payload.endDate,
+                startTime: payload.startTime,
+                endTime: payload.endTime,
+                colorKey: payload.colorKey,
+                repeat: payload.repeat,
+                labels: payload.labels,
+              },
+            })
+          }
+          if (ym) {
+            bus.emit('calendar:invalidate', { ym })
+          }
         } else {
-          await createTask(toTaskPayload(item))
+          const payload = toTaskPayload(item, labels)
+          const result = await createTask(payload)
+          const targetDate = payload.placementDate ?? payload.date
+
+          if (result?.id && targetDate) {
+            bus.emit('calendar:mutated', {
+              op: 'create',
+              item: {
+                id: result.id,
+                isTask: true,
+                date: targetDate,
+              },
+            })
+          }
+          if (targetDate) {
+            bus.emit('calendar:invalidate', { ym: targetDate.slice(0, 7) })
+          }
         }
         upsertDraft(item.id, { saving: false, saved: true })
       } catch (error) {
         console.error('AI draft save failed', error)
         upsertDraft(item.id, { saving: false })
-        Alert.alert('오류', '생성된 일정을 저장하지 못했어요.')
+        Alert.alert(
+          '오류',
+          (error as any)?.response?.data?.message ?? '생성된 일정을 저장하지 못했어요.',
+        )
       }
     },
-    [upsertDraft],
+    [labels, upsertDraft],
   )
 
   const saveAll = React.useCallback(async (items: DraftItem[]) => {
@@ -826,8 +911,12 @@ export default function AiChatScreen({ navigation }: Props) {
             : null,
         })
         console.log('AI chat raw response', JSON.stringify(response, null, 2))
-        if (typeof response.data?.freeCount === 'number') {
-          setServerFreeCount(response.data.freeCount)
+        if (response.data && 'freeCount' in response.data) {
+          setServerFreeCount(
+            typeof response.data.freeCount === 'number'
+              ? response.data.freeCount
+              : null,
+          )
         }
         const schedules = parseAiSchedules(response)
         console.log('AI chat parsed schedules', JSON.stringify(schedules, null, 2))
@@ -851,8 +940,10 @@ export default function AiChatScreen({ navigation }: Props) {
               (item as { warnings?: DraftItem['warnings']; warnigs?: DraftItem['warnings'] }).warnings ??
               (item as { warnigs?: DraftItem['warnings'] }).warnigs ??
               null,
-            colorHex: '#B04FFF',
-            labelIds: [],
+            colorHex: item.isEvent ? defaultScheduleColor : undefined,
+            labelIds: ensureDefaultLabelIds([], labels, item.isEvent),
+            memo: '',
+            reminderNoti: null,
             saved: false,
             saving: false,
           }))
@@ -872,7 +963,7 @@ export default function AiChatScreen({ navigation }: Props) {
         setLoading(false)
       }
     },
-    [attachedImage, effectiveInput, imageUploading, pushMessage],
+    [attachedImage, defaultScheduleColor, effectiveInput, imageUploading, labels, pushMessage],
   )
 
   return (
@@ -954,6 +1045,9 @@ export default function AiChatScreen({ navigation }: Props) {
                       <View key={item.id} style={S.singleDraftBlock}>
                         <AiCard
                           item={item}
+                          labelTitles={(item.labelIds ?? [])
+                            .map((id) => labels.find((label) => label.id === id)?.title)
+                            .filter((value): value is string => !!value)}
                           onChange={(patch) => upsertDraft(item.id, patch)}
                           onSave={() => saveDraft(item)}
                           onEdit={() => setEditingDraftId(item.id)}

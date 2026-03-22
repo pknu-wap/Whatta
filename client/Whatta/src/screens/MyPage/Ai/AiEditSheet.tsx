@@ -33,6 +33,7 @@ const REMIND_OPTIONS = [
   { type: 'preset' as const, id: 'same-day-1h', day: 0, hour: 1, minute: 0, label: '당일 1시간 전' },
   { type: 'custom' as const, label: '맞춤 설정' },
 ]
+const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
 
 const parseDateOnly = (value: string | null | undefined) => {
   if (!value) return null
@@ -85,6 +86,52 @@ const buildAutoEndForEvent = (baseStart: Date, allowNextDay: boolean) => {
   }
   capped.setHours(nextHour, baseStart.getMinutes(), 0, 0)
   return capped
+}
+
+const getWeekIndexOfMonth = (d: Date) => {
+  const day = d.getDate()
+  const nth = Math.floor((day - 1) / 7) + 1
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  const isLast = day > lastDay - 7
+  return { nth, isLast }
+}
+
+function normalizeWeekdayOn(values: string[] | null | undefined) {
+  if (!values?.length) return []
+
+  const next = values
+    .map((value) => {
+      const asNumber = Number(value)
+      if (Number.isFinite(asNumber)) return asNumber
+      const idx = WEEKDAY_ENUM.indexOf(value as (typeof WEEKDAY_ENUM)[number])
+      return idx >= 0 ? idx : null
+    })
+    .filter((value): value is number => value !== null && value >= 0 && value <= 6)
+
+  return Array.from(new Set(next)).sort((a, b) => a - b)
+}
+
+function sameRepeat(
+  left: AiCardDraftItem['repeat'] | null | undefined,
+  right: AiCardDraftItem['repeat'] | null | undefined,
+) {
+  if (!left && !right) return true
+  if (!left || !right) return false
+
+  const leftOn = left.on ?? []
+  const rightOn = right.on ?? []
+  const leftExceptions = left.exceptionDates ?? []
+  const rightExceptions = right.exceptionDates ?? []
+
+  return (
+    left.interval === right.interval &&
+    left.unit === right.unit &&
+    left.endDate === right.endDate &&
+    leftOn.length === rightOn.length &&
+    leftOn.every((value, index) => value === rightOn[index]) &&
+    leftExceptions.length === rightExceptions.length &&
+    leftExceptions.every((value, index) => value === rightExceptions[index])
+  )
 }
 
 const FIXED_LABEL_TITLES = ['일정', '할 일'] as const
@@ -201,6 +248,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
   const [customOpen, setCustomOpen] = React.useState(false)
   const [customHour, setCustomHour] = React.useState(0)
   const [customMinute, setCustomMinute] = React.useState(10)
+  const [remindValue, setRemindValue] = React.useState<(typeof REMIND_OPTIONS)[number] | 'custom' | null>(null)
   const [selectedLabelIds, setSelectedLabelIds] = React.useState<number[]>([])
   const [taskDate, setTaskDate] = React.useState<Date | null>(null)
   const [taskDueOn, setTaskDueOn] = React.useState(false)
@@ -210,9 +258,10 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
   const [eventDateOpen, setEventDateOpen] = React.useState(false)
 
   React.useEffect(() => {
-    if (!item) return
+    if (!visible || !item) return
 
     const itemChanged = prevItemIdRef.current !== item.id
+    if (!itemChanged) return
     prevItemIdRef.current = item.id
 
     const startDate = parseDateTime(item.startDate, item.startTime)
@@ -223,7 +272,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     const due = parseDueDateTime(item.dueDateTime)
 
     setTitle(item.title || '')
-    setMemo('')
+    setMemo(item.memo ?? '')
     setSelectedColorIndex(
       Math.max(0, paletteColors.findIndex((color) => color === item.colorHex)),
     )
@@ -250,13 +299,30 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
           : 'day',
     )
     setMonthlyOpt('byDate')
-    setRepeatWeekdays((item.repeat?.on ?? []).map((v) => Number(v)).filter(Number.isFinite))
+    setRepeatWeekdays(normalizeWeekdayOn(item.repeat?.on))
     setRepeatEndDate(parseDateOnly(item.repeat?.endDate))
-    setRemindOn(false)
+    const reminder = item.reminderNoti
+    const matchedReminder =
+      REMIND_OPTIONS.find(
+        (option) =>
+          option.type === 'preset' &&
+          reminder &&
+          option.day === reminder.day &&
+          option.hour === reminder.hour &&
+          option.minute === reminder.minute,
+      ) ?? null
+    setRemindOn(!!reminder)
     setRemindOpen(false)
-    setCustomOpen(false)
-    setCustomHour(0)
-    setCustomMinute(10)
+    setCustomOpen(reminder ? !matchedReminder : false)
+    setCustomHour(reminder?.hour ?? 0)
+    setCustomMinute(reminder?.minute ?? 10)
+    setRemindValue(
+      !reminder
+        ? null
+        : matchedReminder
+          ? matchedReminder
+          : 'custom',
+    )
     setSelectedLabelIds(
       ensureDefaultLabelIds(item.labelIds ?? [], globalLabels ?? [], item.isEvent),
     )
@@ -280,7 +346,113 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
         setTaskDate(startDate)
       }
     }
-  }, [globalLabels, item, paletteColors])
+  }, [globalLabels, item, paletteColors, visible])
+
+  const buildReminderNoti = React.useCallback(() => {
+    if (!remindOn || !remindValue) return null
+
+    if (remindValue === 'custom' || remindValue.type === 'custom') {
+      return {
+        day: 0,
+        hour: customHour,
+        minute: customMinute,
+      }
+    }
+
+    return {
+      day: remindValue.day,
+      hour: remindValue.hour,
+      minute: remindValue.minute,
+    }
+  }, [customHour, customMinute, remindOn, remindValue])
+
+  const remindDisplayText = React.useMemo(() => {
+    if (!remindOn || !remindValue) return ''
+    if (remindValue === 'custom' || remindValue.type === 'custom') {
+      const hourText = customHour > 0 ? `${customHour}시간 ` : ''
+      return `${hourText}${customMinute}분 전`
+    }
+    return remindValue.label
+  }, [customHour, customMinute, remindOn, remindValue])
+
+  const remindSelectedKey = React.useMemo(() => {
+    if (!remindOn || !remindValue) return null
+    if (remindValue === 'custom' || remindValue.type === 'custom') return 'custom'
+    return remindValue.id
+  }, [remindOn, remindValue])
+
+  const nextRepeatDraft = React.useMemo<AiCardDraftItem['repeat']>(() => {
+    if (selectedType !== 'event' || !repeatOn) return null
+
+    let interval = repeatEvery
+    let unit: 'DAY' | 'WEEK' | 'MONTH' = 'DAY'
+    let on: string[] = []
+
+    if (repeatMode === 'custom') {
+      interval = repeatEvery
+      unit = repeatUnit === 'week' ? 'WEEK' : repeatUnit === 'month' ? 'MONTH' : 'DAY'
+    } else {
+      interval = 1
+      unit = repeatMode === 'weekly' ? 'WEEK' : repeatMode === 'monthly' ? 'MONTH' : 'DAY'
+    }
+
+    if (unit === 'WEEK') {
+      const weekdays =
+        repeatMode === 'weekly'
+          ? Array.from(new Set([start.getDay(), ...repeatWeekdays])).sort((a, b) => a - b)
+          : [start.getDay()]
+      on = weekdays.map((day) => WEEKDAY_ENUM[day])
+    } else if (unit === 'MONTH') {
+      const weekday = WEEKDAY_ENUM[start.getDay()]
+      const { nth, isLast } = getWeekIndexOfMonth(start)
+
+      if (monthlyOpt === 'byDate') {
+        on = [`D${start.getDate()}`]
+      } else if (monthlyOpt === 'byNthWeekday') {
+        on = [`${nth}${weekday}`]
+      } else {
+        on = [isLast ? `LAST${weekday}` : `${nth}${weekday}`]
+      }
+    }
+
+    return {
+      interval,
+      unit,
+      on,
+      endDate: formatDate(repeatEndDate),
+      exceptionDates: item?.repeat?.exceptionDates ?? [],
+    }
+  }, [
+    item?.repeat?.exceptionDates,
+    monthlyOpt,
+    repeatEndDate,
+    repeatEvery,
+    repeatMode,
+    repeatOn,
+    repeatUnit,
+    repeatWeekdays,
+    selectedType,
+    start,
+  ])
+
+  React.useEffect(() => {
+    if (!item) return
+    if (sameRepeat(item.repeat, nextRepeatDraft)) return
+    onChange({ repeat: nextRepeatDraft })
+  }, [item, nextRepeatDraft, onChange])
+
+  React.useEffect(() => {
+    if (!item) return
+    const nextReminder = buildReminderNoti()
+    const currentReminder = item.reminderNoti ?? null
+    const sameReminder =
+      currentReminder?.day === nextReminder?.day &&
+      currentReminder?.hour === nextReminder?.hour &&
+      currentReminder?.minute === nextReminder?.minute
+
+    if (sameReminder) return
+    onChange({ reminderNoti: nextReminder })
+  }, [buildReminderNoti, item, onChange])
 
   React.useEffect(() => {
     if (!item || !globalLabels.length) return
@@ -345,7 +517,10 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                       onChange({ title: next })
                     }}
                     memo={memo}
-                    onChangeMemo={setMemo}
+                    onChangeMemo={(next) => {
+                      setMemo(next)
+                      onChange({ memo: next })
+                    }}
                     colors={paletteColors}
                     selectedColorIndex={selectedColorIndex}
                     onSelectColorIndex={(index) => {
@@ -409,7 +584,11 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     }}
                     invalidEndTime={invalidEndTime}
                     timeOn={timeOn}
+                    timeDisabled={selectedType === 'task' && !taskDate}
                     onToggleTime={(next) => {
+                      if (selectedType === 'task' && next && !taskDate) {
+                        return
+                      }
                       setTimeOn(next)
                       if (!next) {
                         setRemindOn(false)
@@ -421,8 +600,10 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                           startTime: next ? formatTime(start) : null,
                           endTime: next ? formatTime(end) : null,
                         })
-                      } else if (!next) {
-                        onChange({ dueDateTime: toTaskDueDateTime(taskDueDate, null) })
+                      } else {
+                        onChange({
+                          startTime: next ? formatTime(start) : null,
+                        })
                       }
                     }}
                     repeatOn={repeatOn}
@@ -444,29 +625,49 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                       const hasAvailableTime =
                         selectedType === 'event'
                           ? timeOn
-                          : !!taskDueDate && taskDueTimeOn
+                          : !!taskDate && timeOn
 
                       if (next && !hasAvailableTime) {
                         return
                       }
 
                       setRemindOn(next)
+                      if (next && !remindValue) {
+                        setRemindValue(REMIND_OPTIONS[0])
+                      }
+                      if (!next) {
+                        setRemindOpen(false)
+                        setCustomOpen(false)
+                      }
                     }}
                     remindOpen={remindOpen}
                     onSetRemindOpen={setRemindOpen}
-                    remindDisplayText={remindOn ? '당일 10분 전' : ''}
+                    remindDisplayText={remindDisplayText}
                     remindOptions={REMIND_OPTIONS}
-                    remindSelectedKey={remindOn ? 'same-day-10m' : null}
-                    onSelectRemindOption={() => {
+                    remindSelectedKey={remindSelectedKey}
+                    onSelectRemindOption={(option) => {
                       setRemindOn(true)
+                      if (option.type === 'custom') {
+                        setRemindValue('custom')
+                        setCustomOpen((prev) => !prev)
+                        return
+                      }
+                      setRemindValue(option)
+                      setCustomOpen(false)
                       setRemindOpen(false)
                     }}
                     customOpen={customOpen}
                     onSetCustomOpen={setCustomOpen}
                     customHour={customHour}
                     customMinute={customMinute}
-                    onChangeCustomHour={setCustomHour}
-                    onChangeCustomMinute={setCustomMinute}
+                    onChangeCustomHour={(next) => {
+                      setCustomHour(next)
+                      setRemindValue('custom')
+                    }}
+                    onChangeCustomMinute={(next) => {
+                      setCustomMinute(next)
+                      setRemindValue('custom')
+                    }}
                     labels={globalLabels ?? []}
                     selectedLabelIds={selectedLabelIds}
                     onChangeSelectedLabelIds={(next) => {
@@ -486,6 +687,10 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     taskDate={taskDate}
                     onChangeTaskDate={(next) => {
                       setTaskDate(next)
+                      if (!next) {
+                        setTimeOn(false)
+                        setRemindOn(false)
+                      }
                       onChange({ startDate: formatDate(next) })
                     }}
                     taskDueOn={taskDueOn}
@@ -513,6 +718,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                     taskDueTime={taskDueTime}
                     onChangeTaskDueTime={(next) => {
                       setTaskDueTime(next)
+                      setTaskDueTimeOn(true)
                       onChange({ dueDateTime: toTaskDueDateTime(taskDueDate, next) })
                     }}
                   />
