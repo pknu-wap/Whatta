@@ -11,8 +11,8 @@ import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.payload.request.FcmTokenRequest;
 import whatta.Whatta.notification.repository.FcmTokenRepository;
 import whatta.Whatta.notification.repository.ReminderNotiRepository;
-import whatta.Whatta.user.entity.User;
-import whatta.Whatta.user.repository.UserRepository;
+import whatta.Whatta.user.account.entity.User;
+import whatta.Whatta.user.account.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;

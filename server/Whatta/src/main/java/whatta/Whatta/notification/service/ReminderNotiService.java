@@ -12,7 +12,7 @@ import whatta.Whatta.notification.enums.NotiStatus;
 import whatta.Whatta.notification.enums.NotificationTargetType;
 import whatta.Whatta.notification.repository.ReminderNotiRepository;
 import whatta.Whatta.task.entity.Task;
-import whatta.Whatta.user.payload.dto.ReminderNoti;
+import whatta.Whatta.user.setting.payload.dto.ReminderNoti;
 
 import java.time.LocalDateTime;
 import java.util.List;

@@ -49,6 +49,10 @@ public class ScheduleCandidateResolver {
     }
 
     private ScheduleCandidate resolveTaskCandidate(RuleBasedExtractionResult extractionResult) {
+        if (shouldRemainUnscheduledTask(extractionResult)) {
+            return buildTaskCandidate(extractionResult, null, null, null, false);
+        }
+
         LocalDate deadline = extractionResult.deadlineCandidate();
         LocalDate placementDate = extractionResult.hasSingleDate() ? extractionResult.dateCandidates().get(0) : deadline;
         LocalTime placementTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
@@ -56,31 +60,13 @@ public class ScheduleCandidateResolver {
                 ? null
                 : deadline.atTime(placementTime == null ? LocalTime.of(23, 59, 59) : placementTime);
 
-        return ScheduleCandidate.builder()
-                .type(ScheduleCandidate.CandidateType.TASK)
-                .title(extractionResult.titleHint())
-                .startDate(placementDate)
-                .endDate(placementDate)
-                .startTime(placementTime)
-                .endTime(placementTime == null ? null : placementTime.plusHours(1))
-                .dueDateTime(dueDateTime)
-                .scheduled(true)
-                .build();
+        return buildTaskCandidate(extractionResult, placementDate, placementTime, dueDateTime, true);
     }
 
     private ScheduleCandidate resolveTaskCandidateWithInvalidDate(RuleBasedExtractionResult extractionResult) {
         LocalTime placementTime = extractionResult.hasSingleTime() ? extractionResult.timeCandidates().get(0) : null;
 
-        return ScheduleCandidate.builder()
-                .type(ScheduleCandidate.CandidateType.TASK)
-                .title(extractionResult.titleHint())
-                .startDate(null)
-                .endDate(null)
-                .startTime(placementTime)
-                .endTime(placementTime == null ? null : placementTime.plusHours(1))
-                .dueDateTime(null)
-                .scheduled(true)
-                .build();
+        return buildTaskCandidate(extractionResult, null, placementTime, null, true);
     }
 
     private ScheduleCandidate resolveEventCandidate(RuleBasedExtractionResult extractionResult) {
@@ -140,6 +126,34 @@ public class ScheduleCandidateResolver {
     }
 
     private boolean looksLikeTask(RuleBasedExtractionResult extractionResult) {
-        return ScheduleTypeRules.looksLikeTaskTitle(extractionResult.titleHint());
+        return extractionResult.explicitTaskSignal()
+                || ScheduleTypeRules.looksLikeTaskTitle(extractionResult.titleHint());
+    }
+
+    private boolean shouldRemainUnscheduledTask(RuleBasedExtractionResult extractionResult) {
+        return extractionResult.explicitTaskSignal()
+                && extractionResult.deadlineCandidate() == null
+                && !extractionResult.hasSingleDate()
+                && !extractionResult.hasSingleTime()
+                && !hasRecoverableInputWarning(extractionResult);
+    }
+
+    private ScheduleCandidate buildTaskCandidate(
+            RuleBasedExtractionResult extractionResult,
+            LocalDate placementDate,
+            LocalTime placementTime,
+            LocalDateTime dueDateTime,
+            boolean scheduled
+    ) {
+        return ScheduleCandidate.builder()
+                .type(ScheduleCandidate.CandidateType.TASK)
+                .title(extractionResult.titleHint())
+                .startDate(placementDate)
+                .endDate(placementDate)
+                .startTime(placementTime)
+                .endTime(placementTime == null ? null : placementTime.plusHours(1))
+                .dueDateTime(dueDateTime)
+                .scheduled(scheduled)
+                .build();
     }
 }

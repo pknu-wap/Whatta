@@ -3,6 +3,7 @@ package whatta.Whatta.agent.service.extractor;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.agent.payload.dto.RuleBasedExtractionResult;
 import whatta.Whatta.agent.spec.ScheduleExtractionSpec;
+import whatta.Whatta.agent.util.ScheduleTypeRules;
 
 import java.time.Clock;
 import java.time.DateTimeException;
@@ -21,6 +22,8 @@ import java.util.regex.Pattern;
 @Component
 public class RuleBasedExtractor {
 
+    private static final String TASK_ALIAS_SPACED_MASK = "__TASK_ALIAS_SPACED__";
+    private static final String TASK_ALIAS_COMPACT_MASK = "__TASK_ALIAS_COMPACT__";
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
     private static final Pattern KOREAN_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})\\s*월\\s*(\\d{1,2})\\s*일(?!\\d)");
     private static final Pattern SLASH_MONTH_DAY_PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})/(\\d{1,2})(?!\\d)");
@@ -51,11 +54,13 @@ public class RuleBasedExtractor {
         List<LocalDate> dateCandidates = new ArrayList<>();
         List<LocalTime> timeCandidates = new ArrayList<>();
         Map<String, List<String>> warnings = new LinkedHashMap<>();
+        boolean explicitTaskSignal = ScheduleTypeRules.containsExplicitTaskSignal(normalizedText);
+        String maskedText = maskTaskAliases(normalizedText);
 
-        LocalDate deadlineCandidate = extractDeadline(normalizedText, referenceDate, warnings);
-        dateCandidates.addAll(extractDates(normalizedText, referenceDate, warnings));
+        LocalDate deadlineCandidate = extractDeadline(maskedText, referenceDate, warnings);
+        dateCandidates.addAll(extractDates(maskedText, referenceDate, warnings));
 
-        timeCandidates.addAll(extractTimes(normalizedText, warnings));
+        timeCandidates.addAll(extractTimes(maskedText, warnings));
 
         return RuleBasedExtractionResult.builder()
                 .originalText(originalText)
@@ -64,12 +69,13 @@ public class RuleBasedExtractor {
                 .dateCandidates(dateCandidates)
                 .timeCandidates(timeCandidates)
                 .deadlineCandidate(deadlineCandidate)
-                .hasRepeatExpression(hasRepeatExpression(normalizedText))
-                .titleHint(extractTitleHint(normalizedText))
+                .explicitTaskSignal(explicitTaskSignal)
+                .hasRepeatExpression(hasRepeatExpression(maskedText))
+                .titleHint(ScheduleTypeRules.normalizeTaskTitle(extractTitleHint(maskedText), explicitTaskSignal))
                 .warnings(warnings)
-                .ambiguousDate(hasAmbiguousDate(normalizedText))
-                .ambiguousTime(hasAmbiguousTime(normalizedText))
-                .hasMultipleItems(hasMultipleItems(normalizedText, dateCandidates, timeCandidates))
+                .ambiguousDate(hasAmbiguousDate(maskedText))
+                .ambiguousTime(hasAmbiguousTime(maskedText))
+                .hasMultipleItems(hasMultipleItems(maskedText, dateCandidates, timeCandidates))
                 .build();
     }
 
@@ -352,7 +358,25 @@ public class RuleBasedExtractor {
             sanitized = COMMAND_SUFFIX_PATTERN.matcher(sanitized).replaceAll("").trim();
         } while (!sanitized.equals(previous));
 
-        return sanitized;
+        return unmaskTaskAliases(sanitized);
+    }
+
+    private String maskTaskAliases(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+
+        return text.replace("할 일", TASK_ALIAS_SPACED_MASK)
+                .replace("할일", TASK_ALIAS_COMPACT_MASK);
+    }
+
+    private String unmaskTaskAliases(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+
+        return text.replace(TASK_ALIAS_SPACED_MASK, "할 일")
+                .replace(TASK_ALIAS_COMPACT_MASK, "할일");
     }
 
     private void tryAddDate(List<LocalDate> dates, int year, int month, int day, String token, Map<String, List<String>> warnings) {

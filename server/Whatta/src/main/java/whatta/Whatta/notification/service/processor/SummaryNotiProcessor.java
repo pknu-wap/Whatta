@@ -8,8 +8,8 @@ import whatta.Whatta.calendar.service.CalendarViewService;
 import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.service.NotificationSendService;
-import whatta.Whatta.user.enums.NotifyDay;
-import whatta.Whatta.user.payload.dto.ScheduleSummaryNotiSlim;
+import whatta.Whatta.user.setting.enums.NotifyDay;
+import whatta.Whatta.user.setting.payload.dto.ScheduleSummaryNotiSlim;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
