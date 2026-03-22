@@ -1,6 +1,7 @@
 package whatta.Whatta.user.account.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.security.JwtTokenProvider;
@@ -66,9 +67,17 @@ public class UserService {
 
     private void ensureUserPlan(String userId) {
         userPlanRepository.findByUserId(userId)
-                .orElseGet(() -> userPlanRepository.save(UserPlan.builder()
-                        .userId(userId)
-                        .build())
-        );
+                .orElseGet(() -> createUserPlanSafely(userId));
+    }
+
+    private UserPlan createUserPlanSafely(String userId) {
+        try {
+            return userPlanRepository.save(UserPlan.builder()
+                    .userId(userId)
+                    .build());
+        } catch (DuplicateKeyException e) {
+            return userPlanRepository.findByUserId(userId)
+                    .orElseThrow(() -> e);
+        }
     }
 }

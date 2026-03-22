@@ -1,6 +1,7 @@
 package whatta.Whatta.user.plan.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
@@ -45,8 +46,17 @@ public class FeatureUsageService {
 
     private UserPlan ensureUserPlan(String userId) {
         return userPlanRepository.findByUserId(userId)
-                .orElseGet(() -> userPlanRepository.save(UserPlan.builder()
-                        .userId(userId)
-                        .build()));
+                .orElseGet(() -> createUserPlanSafely(userId));
+    }
+
+    private UserPlan createUserPlanSafely(String userId) {
+        try {
+            return userPlanRepository.save(UserPlan.builder()
+                    .userId(userId)
+                    .build());
+        } catch (DuplicateKeyException e) {
+            return userPlanRepository.findByUserId(userId)
+                    .orElseThrow(() -> e);
+        }
     }
 }
