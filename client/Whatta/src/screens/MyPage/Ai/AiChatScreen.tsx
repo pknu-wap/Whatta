@@ -108,7 +108,6 @@ const STARTER_PROMPTS = [
 ] as const
 
 const EMPTY_GUIDE = '자유 대화는 지원하지 않아요. 일정이나 할 일을 생성할 문장을 입력해 주세요.'
-const DAILY_FREE_GENERATION_LIMIT = 3
 const AI_FREE_COUNT_STORE_KEY = 'whatta_ai_free_count'
 const LOADING_STEPS = [
   '요청을 이해하고 있어요...',
@@ -483,7 +482,6 @@ export default function AiChatScreen({ navigation }: Props) {
   const [selectedStarterPrompt, setSelectedStarterPrompt] = React.useState<string | null>(null)
   const [isStarterPreviewActive, setIsStarterPreviewActive] = React.useState(false)
   const [usageDayKey, setUsageDayKey] = React.useState(() => getDayKey())
-  const [freeUsedCount, setFreeUsedCount] = React.useState(0)
   const [serverFreeCount, setServerFreeCount] = React.useState<number | null>(null)
   const [deletedDraftToast, setDeletedDraftToast] = React.useState<DeletedDraftToast | null>(null)
   const [loadingStepIndex, setLoadingStepIndex] = React.useState(0)
@@ -491,8 +489,7 @@ export default function AiChatScreen({ navigation }: Props) {
     STARTER_PROMPTS.find((item) => item.label === selectedStarterPrompt)?.preview ?? ''
   const effectiveInput = isStarterPreviewActive ? starterPreviewText : input
   const plusActive = attachmentMenuOpen || !!attachedImage
-  const localFreeRemainingCount = Math.max(0, DAILY_FREE_GENERATION_LIMIT - freeUsedCount)
-  const freeRemainingCount = serverFreeCount ?? localFreeRemainingCount
+  const freeRemainingCount = serverFreeCount
 
   React.useEffect(() => {
     let mounted = true
@@ -515,7 +512,6 @@ export default function AiChatScreen({ navigation }: Props) {
     const todayKey = getDayKey()
     if (todayKey !== usageDayKey) {
       setUsageDayKey(todayKey)
-      setFreeUsedCount(0)
       setServerFreeCount(null)
       writeStoredFreeCount(todayKey, null).catch(() => {})
     }
@@ -696,18 +692,6 @@ export default function AiChatScreen({ navigation }: Props) {
 
   const saveDraft = React.useCallback(
     async (item: DraftItem) => {
-      const todayKey = getDayKey()
-      const nextUsedCount = todayKey !== usageDayKey ? 0 : freeUsedCount
-      if (todayKey !== usageDayKey) {
-        setUsageDayKey(todayKey)
-        setFreeUsedCount(0)
-      }
-
-      if (nextUsedCount >= DAILY_FREE_GENERATION_LIMIT) {
-        Alert.alert('무료 생성 횟수를 모두 사용했어요', '오늘의 무료 일정 생성 기회를 모두 사용했어요.')
-        return
-      }
-
       const errorMessage = validateDraft(item)
       if (errorMessage) {
         Alert.alert('저장할 수 없어요', errorMessage)
@@ -722,15 +706,13 @@ export default function AiChatScreen({ navigation }: Props) {
           await createTask(toTaskPayload(item))
         }
         upsertDraft(item.id, { saving: false, saved: true })
-        setFreeUsedCount((prev) => Math.min(DAILY_FREE_GENERATION_LIMIT, prev + 1))
-        setServerFreeCount((prev) => (prev == null ? prev : Math.max(0, prev - 1)))
       } catch (error) {
         console.error('AI draft save failed', error)
         upsertDraft(item.id, { saving: false })
         Alert.alert('오류', '생성된 일정을 저장하지 못했어요.')
       }
     },
-    [freeUsedCount, upsertDraft, usageDayKey],
+    [upsertDraft],
   )
 
   const saveAll = React.useCallback(async (items: DraftItem[]) => {
@@ -906,7 +888,9 @@ export default function AiChatScreen({ navigation }: Props) {
             </Pressable>
             <View style={S.headerCenter}>
               <Text style={S.headerCaption}>오늘 남은 무료 생성</Text>
-              <Text style={S.headerCount}>{freeRemainingCount}회</Text>
+              <Text style={S.headerCount}>
+                {typeof freeRemainingCount === 'number' ? `${freeRemainingCount}회` : '무제한'}
+              </Text>
             </View>
             <View style={S.headerRight}>
               <View style={S.headerTag}>
