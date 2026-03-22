@@ -134,6 +134,22 @@ public class BusApiClient {
         return callApi(uri);
     }
 
+    //시티코드 조회
+    public BusApiResponse getCityCode() {
+        String operationPath = "/getCtyCodeList";
+
+        URI uri = UriComponentsBuilder
+                .fromUriString(arrivalBaseUrl + operationPath)
+                .queryParam("serviceKey", serviceKey)
+                .queryParam("_type", "json")
+                .queryParam("pageNo", 1)
+                .queryParam("numOfRows", 999)
+                .build(true)
+                .toUri();
+
+        return callApi(uri);
+    }
+
     private BusApiResponse callApi(URI uri){
         log.info(">>> 실제 요청 URI: {}", uri.toString());
         try {

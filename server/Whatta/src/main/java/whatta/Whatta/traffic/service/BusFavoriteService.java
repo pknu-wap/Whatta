@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.traffic.TrafficConstants;
 import whatta.Whatta.traffic.entity.BusFavorite;
 import whatta.Whatta.traffic.payload.request.BusFavoriteCreateRequest;
 import whatta.Whatta.traffic.payload.response.BusFavoriteResponse;
@@ -43,6 +44,7 @@ public class BusFavoriteService {
                 .busStationName(request.busStationName())
                 .busRouteId(request.busRouteId())
                 .busRouteNo(request.busRouteNo())
+                .cityCode(resolveCityCode(request.cityCode()))
                 .build();
         try {
             BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
@@ -72,5 +74,12 @@ public class BusFavoriteService {
         return busFavoriteRepository.findByUserId(userId).stream()
                 .map(BusFavoriteResponse::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    private String resolveCityCode(String cityCode) {
+        if (cityCode == null || cityCode.isBlank()) {
+            return TrafficConstants.DEFAULT_CITY_CODE;
+        }
+        return cityCode.trim();
     }
 }

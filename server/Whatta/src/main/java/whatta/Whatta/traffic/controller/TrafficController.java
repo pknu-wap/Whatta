@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
+import whatta.Whatta.traffic.payload.response.BusCityResponse;
 import whatta.Whatta.traffic.payload.response.BusRouteResponse;
 import whatta.Whatta.traffic.payload.response.BusStationResponse;
 import whatta.Whatta.traffic.service.TrafficService;
@@ -26,6 +27,13 @@ public class TrafficController {
 
     private final TrafficService trafficService;
 
+    @GetMapping("/cities")
+    @Operation(summary = "시/도 코드 목록 조회", description = "지역 선택에 사용할 시/도 코드 목록을 반환합니다.")
+    public ResponseEntity<?> getCities() {
+        List<BusCityResponse> cities = trafficService.searchCities();
+        return Response.ok("시/도 코드 목록 조회 성공", cities);
+    }
+
     @GetMapping("/station/searchGps")
     @Operation(summary = "좌표 기반 근접 정류장 검색(GPS)", description = "현재 좌표를 기반으로 반경 500m 내의 정류장 목록을 반환합니다.")
     public ResponseEntity<?> searchStationsByGps(
@@ -39,27 +47,30 @@ public class TrafficController {
     @GetMapping("/station/searchName")
     @Operation(summary = "정류장 키워드 검색", description = "정류장명 또는 번호로 검색하여 정류장 목록을 반환합니다.")
     public ResponseEntity<?> searchStationsByName(
-            @Parameter(description = "검색할 정류장명 또는 번호 (예: 부산시민공원, 05034)") @RequestParam String keyword
+            @Parameter(description = "검색할 정류장명 또는 번호 (예: 부산시민공원, 05034)") @RequestParam String keyword,
+            @Parameter(description = "시/도 코드(미입력 시 부산 21)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusStationResponse> stations = trafficService.searchStationsByName(keyword);
+        List<BusStationResponse> stations = trafficService.searchStationsByName(keyword, cityCode);
         return Response.ok("정류장 키워드 검색 성공", stations);
     }
 
     @GetMapping("/station/searchRoutes/{busStationId}")
     @Operation(summary = "정류장별 경유노선 목록 조회", description = "해당 정류장을 경유하는 모든 버스 노선 목록을 반환합니다.")
     public ResponseEntity<?> searchRoutesByStation(
-            @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId
+            @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
+            @Parameter(description = "시/도 코드(미입력 시 부산 21)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusRouteResponse> routes = trafficService.searchRouteByStation(busStationId);
+        List<BusRouteResponse> routes = trafficService.searchRouteByStation(busStationId, cityCode);
         return Response.ok("정류장별 경유노선 조회 성공", routes);
     }
 
     @GetMapping("/bus/arrivalStation/{busStationId}")
     @Operation(summary = "정류장별 도착예정정보 조회", description = "정류장별로 실시간 도착예정정보 및 운행정보 목록을 반환합니다.")
     public ResponseEntity<?> searchArrivalsByStation(
-            @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId
+            @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
+            @Parameter(description = "시/도 코드(미입력 시 부산 21)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByStation(busStationId);
+        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByStation(busStationId, cityCode);
         return Response.ok("정류장별 도착예정정보 조회 성공", arrivalResponses);
     }
 
@@ -67,10 +78,11 @@ public class TrafficController {
     @Operation(summary = "특정노선 도착예정정보 조회", description = "특정노선의 실시간 도착예정정보 및 운행정보 목록을 반환합니다.")
     public ResponseEntity<?> searchArrivalsByRoute(
             @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
-            @Parameter(description = "조회할 경유노선ID (예: BSB5200033000)") @PathVariable String busRouteId
+            @Parameter(description = "조회할 경유노선ID (예: BSB5200033000)") @PathVariable String busRouteId,
+            @Parameter(description = "시/도 코드(미입력 시 부산 21)") @RequestParam(required = false) String cityCode
 
     ) {
-        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByRoute(busStationId, busRouteId);
+        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByRoute(busStationId, busRouteId, cityCode);
         return Response.ok("특정노선 도착예정정보 조회 성공", arrivalResponses);
     }
 }
