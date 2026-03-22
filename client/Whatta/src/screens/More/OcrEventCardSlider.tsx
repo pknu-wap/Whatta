@@ -4,6 +4,7 @@ import OCREventCard from './OcrEventCard'
 import colors from '@/styles/colors'
 import { createEvent, CreateEventPayload } from '@/api/event_api'
 import { getMyLabels, createLabel } from '@/api/label_api'
+import { resolveScheduleColor ,resolveSlotIndex, slotKey } from '@/styles/scheduleColorSets'
 
 import Animated, {
   useSharedValue,
@@ -20,6 +21,7 @@ export interface OCREventDisplay {
   date: string
   startTime?: string
   endTime?: string
+  colorKey?: string
 }
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
   onClose: () => void
   onAddEvent: (ev: any) => void
   onSaveAll?: () => void
+  colorKey?: string
 }
 
 export default function OCREventCardSlider({
@@ -36,7 +39,10 @@ export default function OCREventCardSlider({
   onClose,
   onAddEvent,
   onSaveAll,
+  colorKey,
 }: Props) {
+
+  const [selectedColor, setSelectedColor] = useState(resolveScheduleColor(colorKey))
 
   const { width } = Dimensions.get('window')
   const ITEM_WIDTH = width * 0.88
@@ -106,27 +112,45 @@ export default function OCREventCardSlider({
         startTime: ev.startTime ? `${ev.startTime}:00` : null,
         endTime: ev.endTime ? `${ev.endTime}:00` : null,
         repeat: mapWeekDayToRepeat(ev.weekDay),
-        colorKey: 'FFD966',
-        reminderNoti: { day: 0, hour: 0, minute: 0 },
+        colorKey: slotKey(resolveSlotIndex(selectedColor))
       }))
     )
-  }, [events, timetableLabelId])
+  }, [events, timetableLabelId, selectedColor])
+
+  const payloadGettersRef = React.useRef<Record<string, () => CreateEventPayload>>({})
+
+const registerPayloadGetter = (id: string, getter: () => CreateEventPayload) => {
+  payloadGettersRef.current[id] = getter
+}
+
+const unregisterPayloadGetter = (id: string) => {
+  delete payloadGettersRef.current[id]
+}
 
   /** ⭐ 모두 저장 */
-  const handleSaveAll = async () => {
-    try {
-      for (const payload of editedEvents) {
-        await createEvent(payload)
-      }
+const handleSaveAll = async () => {
+  try {
+    for (const item of editedEvents) {
+      const getter = payloadGettersRef.current[item.id]
 
-      onSaveAll?.()
-      onClose()
+      const payload = getter
+        ? getter()
+        : (() => {
+            const { id, ...rest } = item
+            return rest
+          })()
 
-    } catch (err) {
-      console.error(err)
-      Alert.alert('오류', '일정 저장 중 오류가 발생했습니다.')
+      await createEvent(payload)
+      onAddEvent(payload)
     }
+
+    onSaveAll?.()
+    onClose()
+  } catch (err) {
+    console.error(err)
+    Alert.alert('오류', '일정 저장 중 오류가 발생했습니다.')
   }
+}
 
   const handleRemoveCard = (id: string) => {
   setEditedEvents(prev => prev.filter(ev => ev.id !== id))
@@ -216,20 +240,29 @@ renderItem={({ item, index }) => {
           date={item.startDate}
           startTime={item.startTime?.slice(0, 5)}
           endTime={item.endTime?.slice(0, 5)}
+          registerPayloadGetter={(getter) => registerPayloadGetter(item.id, getter)}
+          unregisterPayloadGetter={() => unregisterPayloadGetter(item.id)}
 
 onSubmit={async (finalPayload) => {
   try {
+    const handleUpdateEditedEvent = (id: string, payload: CreateEventPayload) => {
+  setEditedEvents(prev =>
+    prev.map(ev => (ev.id === id ? { ...ev, ...payload } : ev))
+  )
+}
+//console.log('finalPayload.repeat', finalPayload.repeat)
 
-    await createEvent({
+    const savedPayload = {
       ...finalPayload,
-      repeat: item.repeat,
-    })
+    }
 
-    onAddEvent({ ...finalPayload, repeat: item.repeat })
+handleUpdateEditedEvent(item.id, savedPayload)
+    await createEvent(savedPayload)
 
+    onAddEvent(savedPayload) // 부모에서는 상태 추가만
     animateRemove()
-
   } catch (e) {
+    console.error('❌ 일정 저장 실패:', e)
     Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
   }
 }}

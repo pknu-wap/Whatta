@@ -21,6 +21,12 @@ import Xbutton from '@/assets/icons/x.svg'
 import Check from '@/assets/icons/check.svg'
 import type { CreateEventPayload } from '@/api/event_api'
 import { getMyLabels } from '@/api/label_api'
+import {
+  getScheduleColorSet,
+  resolveScheduleColor,
+  resolveSlotIndex,
+  slotKey,
+} from '@/styles/scheduleColorSets'
 
 
 interface OCREventEditCardProps {
@@ -32,9 +38,10 @@ interface OCREventEditCardProps {
   onClose: () => void
   isFromOCR?: boolean
   colorKey?: string
+  onSubmit: (data: CreateEventPayload) => void
 
-onSubmit: (data: CreateEventPayload) => void
-
+  registerPayloadGetter?: (getter: () => CreateEventPayload) => void
+  unregisterPayloadGetter?: () => void
 }
 
 export default function OCREventEditCard({
@@ -46,10 +53,19 @@ export default function OCREventEditCard({
   onSubmit,
   onClose,
   colorKey,
+  registerPayloadGetter,
+  unregisterPayloadGetter,
 }: OCREventEditCardProps) {
 
   // ⭐ 색상 선택 state
-const [selectedColor, setSelectedColor] = useState(colorKey ? `#${colorKey}` : '#FFD966')
+
+const COLORS = getScheduleColorSet()
+
+const [selectedColor, setSelectedColor] = useState(resolveScheduleColor(colorKey))
+
+useEffect(() => {
+  setSelectedColor(resolveScheduleColor(colorKey))
+}, [colorKey])
 
 useEffect(() => {
   if (colorKey) {
@@ -73,17 +89,6 @@ const POP_GAP = 8
 const RIGHT_ALIGN = true
 const NUDGE_X = -5
 const NUDGE_Y = -10
-
-const COLORS = [
-  '#B04FFF',
-  '#FF4F4F',
-  '#FF8A66',
-  '#FFD966',
-  '#75FF66',
-  '#4FCAFF',
-  '#584FFF',
-  '#FF4FF0',
-]
 
   // 제목/메모
   const [titleInput, setTitleInput] = useState(title)
@@ -157,6 +162,15 @@ const formatKoreanTime = (d: Date) => {
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12
 
   return `${period} ${h12}:${m}`
+}
+
+const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
+
+const formatLocalDate = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 // 🔥 1) 일정이 멀티데이 span인지 여부 (지금은 false 고정)
@@ -300,12 +314,11 @@ const endLabel = (mode: 'none' | 'date', d: Date | null) => {
 
 // ⭐ 서버에 보낼 최종 payload 생성 함수
 const buildEventPayload = () => {
-  // 시간
   const startHM = hasTime ? formatHM(startDate) + ':00' : null
-  const endHM   = hasTime ? formatHM(endDate) + ':00' : null
+  const endHM = hasTime ? formatHM(endDate) + ':00' : null
 
-  // 반복 옵션
   let repeat: any = null
+  const wd = WEEKDAY_ENUM[startDate.getDay()]
 
   if (tab === '반복' && repeatMode !== 'none') {
     if (repeatMode === 'daily') {
@@ -313,15 +326,15 @@ const buildEventPayload = () => {
         interval: 1,
         unit: 'DAY',
         on: [],
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'weekly') {
       repeat = {
         interval: 1,
         unit: 'WEEK',
-        on: [ WEEKDAY[startDate.getDay()] ],
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        on: [wd],
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'monthly') {
@@ -330,25 +343,24 @@ const buildEventPayload = () => {
         unit: 'MONTH',
         on:
           monthlyOpt === 'byDate'
-            ? [String(startDate.getDate())]
+            ? [`D${startDate.getDate()}`]
             : monthlyOpt === 'byNthWeekday'
-              ? [`${nth}-${startDate.getDay()}`]        // 예: "2-1"
-              : [`LAST-${startDate.getDay()}`],        // 예: "LAST-1"
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+              ? [`${nth}${wd}`]
+              : [`LAST${wd}`],
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     } else if (repeatMode === 'custom') {
       repeat = {
         interval: repeatEvery,
-        unit: repeatUnit.toUpperCase(),  // DAY/WEEK/MONTH
-        on: [],
-        endDate: repeatEndDate ? repeatEndDate.toISOString().split('T')[0] : null,
+        unit: repeatUnit.toUpperCase(),
+        on: repeatUnit === 'week' ? [wd] : [],
+        endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
     }
   }
 
-  // 알림 옵션
   let reminderNoti = { day: 0, hour: 0, minute: 0 }
 
   if (remindOn) {
@@ -375,15 +387,41 @@ const buildEventPayload = () => {
     title: titleInput,
     content: memo || '',
     labels: selectedLabelIds,
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
+    startDate: formatLocalDate(startDate),
+    endDate: formatLocalDate(endDate),
     startTime: startHM,
     endTime: endHM,
     repeat,
-    colorKey: selectedColor.replace('#', '').toUpperCase(),
+    colorKey: slotKey(resolveSlotIndex(selectedColor)),
     reminderNoti,
   }
 }
+
+useEffect(() => {
+  registerPayloadGetter?.(buildEventPayload)
+
+  return () => {
+    unregisterPayloadGetter?.()
+  }
+}, [
+  titleInput,
+  memo,
+  selectedLabelIds,
+  startDate,
+  endDate,
+  hasTime,
+  repeatMode,
+  monthlyOpt,
+  repeatEvery,
+  repeatUnit,
+  repeatEndDate,
+  remindOn,
+  remindValue,
+  customHour,
+  customMinute,
+  selectedColor,
+  tab,
+])
 
   // 🔥 OCR 카드 전용: '시간표' 라벨 자동 선택/자동 생성
 // 🔥 라벨 목록 불러오기
