@@ -46,6 +46,24 @@ function formatDisplayDateWithWeekday(value: string | null | undefined) {
   return `${year}년 ${month}월 ${day}일(${weekdays[date.getDay()]})`
 }
 
+function formatDisplayDate(value: string | null | undefined) {
+  if (!value) return ''
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return value
+  return `${year}년 ${month}월 ${day}일`
+}
+
+function formatEventDisplayDateRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+) {
+  if (!startDate) return ''
+  if (!endDate || endDate === startDate) {
+    return formatDisplayDate(startDate)
+  }
+  return `${formatDisplayDate(startDate)} ~ ${formatDisplayDate(endDate)}`
+}
+
 function formatPeriodTime(value: string | null | undefined) {
   if (!value) return ''
   const [rawHour, rawMinute = '00'] = value.split(':')
@@ -87,7 +105,7 @@ export default function AiCard({
   const due = splitDueDateTime(item.dueDateTime)
   const taskDateSource = due.date || item.startDate
   const displayDate = item.isEvent
-    ? formatDisplayDateWithWeekday(item.startDate)
+    ? formatEventDisplayDateRange(item.startDate, item.endDate)
     : formatDisplayDateWithWeekday(taskDateSource)
   const displayTime = formatDraftTime(item)
   const isLocked = item.saved || item.saving

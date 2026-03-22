@@ -309,6 +309,10 @@ function validateDraft(item: DraftItem) {
     return null
   }
 
+  if (item.startTime && !item.startDate) {
+    return '할 일 날짜를 먼저 입력해 주세요.'
+  }
+
   return null
 }
 
@@ -1059,7 +1063,18 @@ export default function AiChatScreen({ navigation }: Props) {
                           labelTitles={(item.labelIds ?? [])
                             .map((id) => labels.find((label) => label.id === id)?.title)
                             .filter((value): value is string => !!value)}
-                          onChange={(patch) => upsertDraft(item.id, patch)}
+                          onChange={(patch) => {
+                            if (typeof patch.isEvent === 'boolean') {
+                              const nextLabelIds = ensureDefaultLabelIds(
+                                item.labelIds ?? [],
+                                labels,
+                                patch.isEvent,
+                              )
+                              upsertDraft(item.id, { ...patch, labelIds: nextLabelIds })
+                              return
+                            }
+                            upsertDraft(item.id, patch)
+                          }}
                           onSave={() => saveDraft(item)}
                           onEdit={() => setEditingDraftId(item.id)}
                           onDelete={() => removeDraft(group.id, item, index, itemIndex)}

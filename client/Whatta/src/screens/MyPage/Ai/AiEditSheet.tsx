@@ -72,6 +72,8 @@ const toTaskDueDateTime = (date: Date | null, time: Date | null) => {
 const ymdLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+const isEventEndBeforeStart = (start: Date, end: Date) => end.getTime() < start.getTime()
+
 const buildAutoEndForEvent = (baseStart: Date, allowNextDay: boolean) => {
   const nextEnd = new Date(baseStart)
   if (allowNextDay) {
@@ -156,6 +158,7 @@ function ensureDefaultLabelIds(
 export default function AiEditSheet({ visible, item, onChange, onClose }: Props) {
   const insets = useSafeAreaInsets()
   const prevItemIdRef = React.useRef<string | null>(null)
+  const prevVisibleRef = React.useRef(false)
   const { labels: globalLabels, refresh: refreshLabels } = useLabels()
   const { height: screenHeight } = Dimensions.get('window')
   const sheetHeight = Math.min(screenHeight * 0.82, 720)
@@ -258,10 +261,14 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
   const [eventDateOpen, setEventDateOpen] = React.useState(false)
 
   React.useEffect(() => {
+    const wasVisible = prevVisibleRef.current
+    prevVisibleRef.current = visible
+
     if (!visible || !item) return
 
     const itemChanged = prevItemIdRef.current !== item.id
-    if (!itemChanged) return
+    const openedNow = !wasVisible
+    if (!itemChanged && !openedNow) return
     prevItemIdRef.current = item.id
 
     const startDate = parseDateTime(item.startDate, item.startTime)
@@ -280,8 +287,9 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     setStart(startDate)
     setEnd(endDate)
     setTimeOn(!!(item.startTime || item.endTime))
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
+    const nextInvalidEndTime = item.isEvent && !!item.startTime && !!item.endTime && isEventEndBeforeStart(startDate, endDate)
+    setInvalidEndTime(nextInvalidEndTime)
+    setInvalidEndPreview(nextInvalidEndTime ? endDate : null)
     setRepeatOn(!!item.repeat)
     setRepeatMode(
       item.repeat?.unit === 'WEEK'
@@ -331,20 +339,18 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     setTaskDueDate(due ? new Date(due) : null)
     setTaskDueTimeOn(!!item.dueDateTime)
     setTaskDueTime(due ?? new Date())
-    if (itemChanged) {
-      setEventDateOpen(false)
-      if (item.isEvent && (!item.startDate || !item.endDate)) {
-        onChange({
-          startDate: item.startDate ?? formatDate(startDate),
-          endDate: item.endDate ?? formatDate(endDate),
-        })
-      }
-      if (!item.isEvent && !item.startDate && !item.dueDateTime) {
-        onChange({
-          startDate: formatDate(startDate),
-        })
-        setTaskDate(startDate)
-      }
+    setEventDateOpen(false)
+    if (item.isEvent && (!item.startDate || !item.endDate)) {
+      onChange({
+        startDate: item.startDate ?? formatDate(startDate),
+        endDate: item.endDate ?? formatDate(endDate),
+      })
+    }
+    if (!item.isEvent && !item.startDate && !item.dueDateTime) {
+      onChange({
+        startDate: formatDate(startDate),
+      })
+      setTaskDate(startDate)
     }
   }, [globalLabels, item, paletteColors, visible])
 
@@ -532,7 +538,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                       setSelectedType(value)
                       setEventDateOpen(false)
                       const nextLabelIds = ensureDefaultLabelIds(
-                        selectedLabelIds,
+                        item.labelIds ?? selectedLabelIds,
                         globalLabels ?? [],
                         value === 'event',
                       )
@@ -569,7 +575,7 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
                       })
                     }}
                     onChangeEndTime={(next) => {
-                      if (selectedType === 'event' && next.getTime() < start.getTime()) {
+                      if (selectedType === 'event' && isEventEndBeforeStart(start, next)) {
                         setInvalidEndTime(true)
                         setInvalidEndPreview(next)
                         return
