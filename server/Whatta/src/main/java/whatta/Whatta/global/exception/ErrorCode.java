@@ -42,7 +42,8 @@ public enum ErrorCode {
     GCS_SIGNED_URL_FAILED(HttpStatus.BAD_GATEWAY, "900-5", "스토리지 signed URL 발급에 실패했습니다."),
     INVALID_STORAGE_OBJECT_KEY(HttpStatus.BAD_REQUEST, "900-6", "유효하지 않은 storage objectKey 입니다."),
     UNSUPPORTED_STORAGE_CONTENT_TYPE(HttpStatus.BAD_REQUEST, "900-7", "지원하지 않는 업로드 contentType 입니다."),
-    INVALID_STORAGE_FILE(HttpStatus.BAD_REQUEST, "900-8", "업로드할 파일이 비어있거나 읽을 수 없습니다.");
+    INVALID_STORAGE_FILE(HttpStatus.BAD_REQUEST, "900-8", "업로드할 파일이 비어있거나 읽을 수 없습니다."),
+    AI_DAILY_USAGE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "900-9", "오늘의 AI 기능 사용 횟수를 모두 사용했습니다.");
 
 
     private final HttpStatus httpStatus;

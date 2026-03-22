@@ -15,6 +15,8 @@ import whatta.Whatta.agent.service.normalizer.AgentPreNormalizer;
 import whatta.Whatta.agent.util.ScheduleExtractionResultMessage;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.user.enums.FeatureType;
+import whatta.Whatta.user.service.FeatureUsageService;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.List;
@@ -32,14 +34,17 @@ public class AgentService {
     private final ScheduleCandidateResolver scheduleCandidateResolver;
     private final LLMExtractor llmExtractor;
     private final AgentPostNormalizer agentPostNormalizer;
+    private final FeatureUsageService featureUsageService;
 
     public CompletableFuture<ScheduleExtractionResponse> createSchedules(String userId, ScheduleExtractionRequest request) {
         String traceId = UUID.randomUUID().toString().substring(0, 8);
         boolean imageRequest = validateAndResolveRequest(request);
+        featureUsageService.validateAvailableUsage(userId, FeatureType.AI_AGENT);
+        CompletableFuture<ScheduleExtractionResponse> responseFuture;
 
         if (imageRequest) {
             try {
-                return aiAsyncProcessor.processImage(traceId, userId, request);
+                responseFuture = aiAsyncProcessor.processImage(traceId, userId, request);
             } catch (RejectedExecutionException e) {
                 log.warn("[AI_IMAGE_ASYNC][REJECTED] traceId={} requestType=IMAGE message={}",
                         traceId,
@@ -47,8 +52,14 @@ public class AgentService {
                         e);
                 throw new RestApiException(ErrorCode.AI_REQUEST_REJECTED);
             }
+        } else {
+            responseFuture = CompletableFuture.completedFuture(processTextOnly(traceId, userId, request));
         }
-        return CompletableFuture.completedFuture(processTextOnly(traceId, userId, request));
+
+        return responseFuture.thenApply(response -> {
+            Integer freeCount = featureUsageService.recordSuccessfulUsageSafely(userId, FeatureType.AI_AGENT);
+            return withFreeCount(response, freeCount);
+        });
     }
 
     private boolean validateAndResolveRequest(ScheduleExtractionRequest request) {
@@ -92,6 +103,14 @@ public class AgentService {
         return ScheduleExtractionResponse.builder()
                 .message(ScheduleExtractionResultMessage.from(normalizedSchedules))
                 .schedules(normalizedSchedules)
+                .build();
+    }
+
+    private ScheduleExtractionResponse withFreeCount(ScheduleExtractionResponse response, Integer freeCount) {
+        return ScheduleExtractionResponse.builder()
+                .freeCount(freeCount)
+                .message(response.message())
+                .schedules(response.schedules())
                 .build();
     }
 

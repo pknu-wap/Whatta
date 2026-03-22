@@ -14,8 +14,8 @@ import java.time.LocalDate;
 
 @Document("feature_usages")
 @CompoundIndex(
-        name = "idx_feature_usage_user_feature_date",
-        def = "{'userId': 1, 'featureType': 1, 'usageDate': 1}",
+        name = "idx_feature_usage_user_feature",
+        def = "{'userId': 1, 'featureType': 1}",
         unique = true
 )
 @AllArgsConstructor
