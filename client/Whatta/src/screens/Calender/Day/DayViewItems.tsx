@@ -897,7 +897,7 @@ export function DraggableFlexibleEvent({
   const finalShift = Math.max(overlapShift, overlapWithFixed ? 1 : 0)
 
   const left = BASE_LEFT + finalShift * STAGGER
-  const width = DAY_CARD_WIDTH - finalShift * STAGGER
+  const width = Math.max(72, DAY_CARD_WIDTH - finalShift * STAGGER)
 
   return (
     <GestureDetector gesture={composedGesture}>

@@ -64,7 +64,7 @@ function formatPeriodTime(value: string | null | undefined) {
 
 function formatDraftTime(item: AiCardDraftItem) {
   const due = splitDueDateTime(item.dueDateTime)
-  const start = item.startTime ?? due.time
+  const start = item.isEvent ? item.startTime : (due.time || item.startTime)
   const end = item.isEvent ? item.endTime : null
 
   if (start && end) {
@@ -85,9 +85,10 @@ export default function AiCard({
   showInlineSave = true,
 }: Props) {
   const due = splitDueDateTime(item.dueDateTime)
+  const taskDateSource = due.date || item.startDate
   const displayDate = item.isEvent
     ? formatDisplayDateWithWeekday(item.startDate)
-    : formatDisplayDateWithWeekday(item.startDate ?? due.date)
+    : formatDisplayDateWithWeekday(taskDateSource)
   const displayTime = formatDraftTime(item)
   const isLocked = item.saved || item.saving
   const hasTime = displayTime.trim().length > 0

@@ -63,6 +63,7 @@ export default function AiChatInput({
   const barHeight = Math.max(50, inputWrapHeight + 8)
   const barRadius = barHeight > 50 ? 20 : 50
   const hasInput = (displayPreview ? previewText : value).trim().length > 0 || !!imagePreviewUri
+  const canSubmit = hasInput && !disabled
   const attachmentMenuBottom = barHeight + (imagePreviewUri ? 96 : 24)
 
   return (
@@ -148,9 +149,9 @@ export default function AiChatInput({
             Keyboard.dismiss()
             onSubmit()
           }}
-          disabled={disabled || !hasInput}
+          disabled={!canSubmit}
         >
-          {hasInput ? <EnterYesIcon width={34} height={34} /> : <EnterNoIcon width={34} height={34} />}
+          {canSubmit ? <EnterYesIcon width={34} height={34} /> : <EnterNoIcon width={34} height={34} />}
         </Pressable>
       </View>
     </View>

@@ -502,6 +502,7 @@ export default function AiChatScreen({ navigation }: Props) {
     () => getScheduleColorSet(getActiveScheduleColorSetId())[0] ?? '#B04FFF',
     [],
   )
+  const [freeCountHydrated, setFreeCountHydrated] = React.useState(false)
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
       id: makeId('assistant'),
@@ -538,11 +539,12 @@ export default function AiChatScreen({ navigation }: Props) {
 
     ;(async () => {
       const stored = await readStoredFreeCount()
-      if (!mounted || !stored) return
+      if (!mounted) return
 
-      if (stored.dayKey === getDayKey() && typeof stored.freeCount === 'number') {
-        setServerFreeCount(stored.freeCount)
+      if (stored && stored.dayKey === getDayKey()) {
+        setServerFreeCount(typeof stored.freeCount === 'number' ? stored.freeCount : null)
       }
+      setFreeCountHydrated(true)
     })()
 
     return () => {
@@ -560,8 +562,9 @@ export default function AiChatScreen({ navigation }: Props) {
   }, [usageDayKey])
 
   React.useEffect(() => {
+    if (!freeCountHydrated) return
     writeStoredFreeCount(usageDayKey, serverFreeCount).catch(() => {})
-  }, [serverFreeCount, usageDayKey])
+  }, [freeCountHydrated, serverFreeCount, usageDayKey])
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -867,8 +870,10 @@ export default function AiChatScreen({ navigation }: Props) {
           : prev,
       )
     } catch (error) {
-      console.error('AI image upload failed', error)
-      console.error('AI image upload failed response', (error as any)?.response?.data)
+      if (__DEV__) {
+        console.error('AI image upload failed', (error as any)?.message ?? error)
+        console.error('AI image upload failed response', (error as any)?.response?.data)
+      }
       setAttachedImage(null)
       setAttachedImageName('')
       Alert.alert('이미지 업로드 실패', '이미지를 업로드하지 못했어요. 다시 시도해 주세요.')
@@ -910,7 +915,9 @@ export default function AiChatScreen({ navigation }: Props) {
             ? { objectKey: submittedImage.objectKey }
             : null,
         })
-        console.log('AI chat raw response', JSON.stringify(response, null, 2))
+        if (__DEV__) {
+          console.log('AI chat raw response', JSON.stringify(response, null, 2))
+        }
         if (response.data && 'freeCount' in response.data) {
           setServerFreeCount(
             typeof response.data.freeCount === 'number'
@@ -919,7 +926,9 @@ export default function AiChatScreen({ navigation }: Props) {
           )
         }
         const schedules = parseAiSchedules(response)
-        console.log('AI chat parsed schedules', JSON.stringify(schedules, null, 2))
+        if (__DEV__) {
+          console.log('AI chat parsed schedules', JSON.stringify(schedules, null, 2))
+        }
         const assistantMessage = buildAssistantMessage(response, schedules)
 
         pushMessage('assistant', assistantMessage)
@@ -955,7 +964,9 @@ export default function AiChatScreen({ navigation }: Props) {
         }
 
       } catch (error: any) {
-        console.error('AI chat request failed', error)
+        if (__DEV__) {
+          console.error('AI chat request failed', (error as any)?.message ?? error)
+        }
         const message =
           error?.response?.data?.message ?? 'AI 요청 처리 중 오류가 발생했어요.'
         pushMessage('assistant', message)

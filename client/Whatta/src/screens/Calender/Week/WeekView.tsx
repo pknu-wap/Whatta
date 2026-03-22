@@ -367,6 +367,7 @@ function TaskGroupBox({
           startDate: taskDateISO,
         },
       })
+      bus.emit('calendar:invalidate', { ym: taskDateISO.slice(0, 7) })
       console.error(
         '❌ TaskGroup PATCH 실패:',
         err && (err as any).response && (err as any).response.data
@@ -573,6 +574,7 @@ function DraggableTaskBox({
           startDate: dateISO,
         },
       })
+      bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
     }
   }
 

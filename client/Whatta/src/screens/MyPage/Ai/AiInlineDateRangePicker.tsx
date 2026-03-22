@@ -20,6 +20,11 @@ const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'] as const
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 const isSameDay = (a: Date, b: Date) => startOfDay(a).getTime() === startOfDay(b).getTime()
+const mergeDateWithTime = (dateOnly: Date, source: Date) => {
+  const merged = new Date(dateOnly)
+  merged.setHours(source.getHours(), source.getMinutes(), source.getSeconds(), source.getMilliseconds())
+  return merged
+}
 
 function getMonthCells(base: Date): Array<Date | null> {
   const y = base.getFullYear()
@@ -73,9 +78,10 @@ export default function AiInlineDateRangePicker({
 
     if (pickingEndRef.current) {
       if (d.getTime() >= s0.getTime()) {
-        onChangeRange(s0, d)
+        onChangeRange(start, mergeDateWithTime(d, end))
       } else {
-        onChangeRange(d, d)
+        const next = mergeDateWithTime(d, start)
+        onChangeRange(next, next)
       }
       pickingEndRef.current = false
       return
@@ -84,9 +90,10 @@ export default function AiInlineDateRangePicker({
     const isSingle = s0.getTime() === e0.getTime()
     if (isSingle) {
       if (d.getTime() > s0.getTime()) {
-        onChangeRange(s0, d)
+        onChangeRange(start, mergeDateWithTime(d, end))
       } else if (d.getTime() < s0.getTime()) {
-        onChangeRange(d, d)
+        const next = mergeDateWithTime(d, start)
+        onChangeRange(next, next)
         pickingEndRef.current = true
       } else {
         pickingEndRef.current = true
@@ -94,7 +101,8 @@ export default function AiInlineDateRangePicker({
       return
     }
 
-    onChangeRange(d, d)
+    const next = mergeDateWithTime(d, start)
+    onChangeRange(next, next)
     pickingEndRef.current = true
   }
 
