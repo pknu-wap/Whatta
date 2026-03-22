@@ -155,6 +155,7 @@ export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
     events,
     spanEvents,
     tasks,
+    setTasks,
     checks,
     setChecks,
     fetchDailyEvents,

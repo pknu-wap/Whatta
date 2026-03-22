@@ -32,6 +32,7 @@ type WeekTimelineProps = {
     dateISO: string
     completed: boolean
   }) => void
+  taskGroupCollapseToken: number
   DraggableFlexibleEventComponent: React.ComponentType<any>
   TaskGroupBoxComponent: React.ComponentType<any>
   DraggableTaskBoxComponent: React.ComponentType<any>
@@ -137,6 +138,7 @@ function WeekTimeline({
   openTaskPopupFromApi,
   onGridScroll,
   onTimedTaskCompletedChange,
+  taskGroupCollapseToken,
   DraggableFlexibleEventComponent,
   TaskGroupBoxComponent,
   DraggableTaskBoxComponent,
@@ -304,6 +306,7 @@ function WeekTimeline({
                           column={block.column}
                           columnsTotal={block.columnsTotal}
                           openTaskPopupFromApi={openTaskPopupFromApi}
+                          collapseToken={taskGroupCollapseToken}
                           onLocalChange={({ id, dateISO, completed }: any) => {
                             if (typeof completed === 'boolean') {
                               onTimedTaskCompletedChange({
