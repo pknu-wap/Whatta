@@ -1507,7 +1507,6 @@ const handleTaskDelete = useCallback(async () => {
 const handleOcrAddEvent = useCallback(
   async (payload:any) => {
     try {
-      await createEvent(payload)
       await fetchFresh(ym)
       bus.emit('calendar:invalidate', { ym })
     } catch (err) {

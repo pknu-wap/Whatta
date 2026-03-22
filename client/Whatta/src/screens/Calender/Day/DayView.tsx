@@ -1188,27 +1188,28 @@ export default function DayView() {
           onPickImage={(uri, base64, ext) => sendToOCR(base64, ext)}
           onTakePhoto={(uri, base64, ext) => sendToOCR(base64, ext)}
         />
-        <OCREventCardSlider
-          visible={ocrModalVisible}
-          events={ocrEvents}
-          onClose={() => setOcrModalVisible(false)}
-          // ✔ 단일 저장
-          onAddEvent={async (payload) => {
-            try {
-              await createEvent(payload)
-              await fetchDailyEvents()
-              bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-            } catch (err) {
-              console.error(err)
-            }
-          }}
-          // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
-          onSaveAll={async () => {
-            await fetchDailyEvents()
-            bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-            setOcrModalVisible(false)
-          }}
-        />
+       <OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => setOcrModalVisible(false)}
+
+  // ✔ 단일 저장
+  onAddEvent={async (payload) => {
+    try {
+      await fetchDailyEvents()
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    } catch (err) {
+      console.error(err)
+    }
+  }}
+
+  // ✔ 전체 저장 → 슬라이더 내부에서 이미 저장 처리함
+  onSaveAll={async () => {
+    await fetchDailyEvents()
+    bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+    setOcrModalVisible(false)
+  }}
+/>
       </ScreenWithSidebar>
     </GestureHandlerRootView>
   )
