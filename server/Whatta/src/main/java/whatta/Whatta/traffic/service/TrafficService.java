@@ -11,6 +11,8 @@ import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
 import whatta.Whatta.traffic.payload.response.BusCityResponse;
 import whatta.Whatta.traffic.payload.response.BusRouteResponse;
 import whatta.Whatta.traffic.payload.response.BusStationResponse;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class TrafficService {
 
     private final BusApiClient busApiClient;
+    private final UserSettingRepository userSettingRepository;
 
     public List<BusCityResponse> searchCities() {
         BusApiResponse rawResponse = busApiClient.getCityCode();
@@ -47,6 +50,10 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
+    public List<BusStationResponse> searchStationsByName(String userId, String keyword, String cityCode) {
+        return searchStationsByName(keyword, resolveCityCode(userId, cityCode));
+    }
+
     public List<BusStationResponse> searchStationsByName(String keyword, String cityCode) {
         String resolvedCityCode = resolveCityCode(cityCode);
 
@@ -58,6 +65,10 @@ public class TrafficService {
                 .map(item -> parseToStationResponse(item, resolvedCityCode))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+
+    public List<BusRouteResponse> searchRouteByStation(String userId, String busStationId, String cityCode) {
+        return searchRouteByStation(busStationId, resolveCityCode(userId, cityCode));
     }
 
     public List<BusRouteResponse> searchRouteByStation(String busStationId, String cityCode) {
@@ -72,6 +83,10 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
+    public List<BusArrivalResponse> searchArrivalsByStation(String userId, String busStationId, String cityCode) {
+        return searchArrivalsByStation(busStationId, resolveCityCode(userId, cityCode));
+    }
+
     public List<BusArrivalResponse> searchArrivalsByStation(String busStationId, String cityCode) {
         String resolvedCityCode = resolveCityCode(cityCode);
 
@@ -83,6 +98,10 @@ public class TrafficService {
                 .map(this::parseToArrivalResponse)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+
+    public List<BusArrivalResponse> searchArrivalsByRoute(String userId, String busStationId, String busRouteId, String cityCode) {
+        return searchArrivalsByRoute(busStationId, busRouteId, resolveCityCode(userId, cityCode));
     }
 
     public List<BusArrivalResponse> searchArrivalsByRoute(String busStationId, String busRouteId, String cityCode) {
@@ -172,5 +191,16 @@ public class TrafficService {
             return TrafficConstants.DEFAULT_CITY_CODE;
         }
         return cityCode.trim();
+    }
+
+    private String resolveCityCode(String userId, String cityCode) {
+        if (cityCode != null && !cityCode.isBlank()) {
+            return cityCode.trim();
+        }
+
+        return userSettingRepository.findByUserId(userId)
+                .map(UserSetting::getCityCode)
+                .map(this::resolveCityCode)
+                .orElse(TrafficConstants.DEFAULT_CITY_CODE);
     }
 }

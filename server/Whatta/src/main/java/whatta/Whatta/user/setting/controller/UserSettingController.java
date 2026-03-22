@@ -1,5 +1,6 @@
 package whatta.Whatta.user.setting.controller;
 
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.user.setting.payload.request.ReminderNotiRequest;
 import whatta.Whatta.user.setting.payload.request.ScheduleSummaryNotiRequest;
+import whatta.Whatta.user.setting.payload.request.UserCityCodeRequest;
+import whatta.Whatta.user.setting.payload.response.UserCityCodeResponse;
 import whatta.Whatta.user.setting.service.UserSettingService;
 
 import java.util.List;
@@ -81,6 +84,21 @@ public class UserSettingController {
     @Operation(summary = "일정 요약 알림 조회", description = "설정된 일정 요약 알림 값을 제공합니다.")
     public ResponseEntity<?> get(@AuthenticationPrincipal String userId) {
         return Response.ok("success get schedule summary notification", userSettingService.getSummaryNoti(userId));
+    }
+
+    @PatchMapping("/cityCode")
+    @Operation(summary = "기본 도시코드 수정", description = "사용자의 기본 버스 도시코드를 수정합니다.")
+    public ResponseEntity<?> updateCityCode(@AuthenticationPrincipal String userId,
+                                            @RequestBody @Valid UserCityCodeRequest request) {
+        userSettingService.updateCityCode(userId, request);
+        return Response.ok("success update city code");
+    }
+
+    @GetMapping("/cityCode")
+    @Operation(summary = "기본 도시코드 조회", description = "사용자의 기본 버스 도시코드를 조회합니다.")
+    public ResponseEntity<?> getCityCode(@AuthenticationPrincipal String userId) {
+        UserCityCodeResponse response = userSettingService.getCityCode(userId);
+        return Response.ok("success get city code", response);
     }
 
 

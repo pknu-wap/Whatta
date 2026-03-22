@@ -10,6 +10,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 import whatta.Whatta.global.label.Label;
+import whatta.Whatta.traffic.TrafficConstants;
 import whatta.Whatta.user.setting.enums.DefaultMainView;
 import whatta.Whatta.user.setting.enums.StartOfWeek;
 
@@ -45,8 +46,9 @@ public class UserSetting {
 
     @Builder.Default
     private ScheduleSummaryNoti scheduleSummaryNoti = ScheduleSummaryNoti.builder().build();
-    //TODO:추후에 도시 선택기능 구현
-    //@NotNull
-    //private String cityCode;
+
+    @NotNull
+    @Builder.Default
+    private String cityCode = TrafficConstants.DEFAULT_CITY_CODE;
     //TODO: 알림 default 값은 알림 구현할 때 함께 구현하기
 }

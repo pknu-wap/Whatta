@@ -6,13 +6,16 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LocalDateTimeUtil;
+import whatta.Whatta.traffic.TrafficConstants;
 import whatta.Whatta.user.setting.entity.ReminderNotiPreset;
 import whatta.Whatta.user.setting.entity.ScheduleSummaryNoti;
 import whatta.Whatta.user.setting.entity.UserSetting;
 import whatta.Whatta.user.setting.payload.request.ReminderNotiRequest;
 import whatta.Whatta.user.setting.payload.request.ScheduleSummaryNotiRequest;
+import whatta.Whatta.user.setting.payload.request.UserCityCodeRequest;
 import whatta.Whatta.user.setting.payload.response.ReminderNotiResponse;
 import whatta.Whatta.user.setting.payload.response.ScheduleSummaryNotiResponse;
+import whatta.Whatta.user.setting.payload.response.UserCityCodeResponse;
 import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.time.LocalTime;
@@ -26,6 +29,24 @@ import java.util.stream.Collectors;
 public class UserSettingService {
 
     private final UserSettingRepository userSettingRepository;
+
+    public void updateCityCode(String userId, UserCityCodeRequest request) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        userSettingRepository.save(userSetting.toBuilder()
+                .cityCode(resolveCityCode(request.cityCode()))
+                .build());
+    }
+
+    public UserCityCodeResponse getCityCode(String userId) {
+        UserSetting userSetting = userSettingRepository.findByUserId(userId)
+                .orElseThrow(() -> new RestApiException(ErrorCode.USER_NOT_EXIST));
+
+        return UserCityCodeResponse.builder()
+                .cityCode(resolveCityCode(userSetting.getCityCode()))
+                .build();
+    }
 
     public ReminderNotiResponse createReminder(String userId, ReminderNotiRequest request) {
         UserSetting userSetting = userSettingRepository.findByUserId(userId)
@@ -172,5 +193,12 @@ public class UserSettingService {
 
     private int toMinuteOfDay(LocalTime time) {
         return time.getHour() * 60 + time.getMinute();
+    }
+
+    private String resolveCityCode(String cityCode) {
+        if (cityCode == null || cityCode.isBlank()) {
+            return TrafficConstants.DEFAULT_CITY_CODE;
+        }
+        return cityCode.trim();
     }
 }
