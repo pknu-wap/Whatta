@@ -27,6 +27,7 @@ const AI_ICON_H = 68
 const TAB_BAR_SHADOW_STYLE = {
   shadowColor: '#17191A',
   shadowOpacity: 0.08,
+  shadowRadius: 18,
   shadowOffset: { width: 0, height: -6 } as const,
   elevation: 18,
 }
