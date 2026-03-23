@@ -3,6 +3,7 @@ import {
   createBottomTabNavigator,
   type BottomTabBarButtonProps,
 } from '@react-navigation/bottom-tabs'
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import AiIcon from '@/assets/icons/ai.svg'
@@ -23,6 +24,23 @@ const AI_BUBBLE_SIZE = 115
 const AI_BUBBLE_RISE = 20
 const AI_ICON_W = 130
 const AI_ICON_H = 68
+const TAB_BAR_SHADOW_STYLE = {
+  shadowColor: '#17191A',
+  shadowOpacity: 0.08,
+  shadowOffset: { width: 0, height: -6 } as const,
+  elevation: 18,
+}
+const TAB_BAR_BASE_STYLE = {
+  height: TAB_BAR_H,
+  paddingTop: 0,
+  paddingHorizontal: 10,
+  overflow: 'visible' as const,
+  backgroundColor: 'transparent',
+  borderTopWidth: 0,
+  borderTopColor: 'transparent',
+  elevation: 0,
+  shadowOpacity: 0,
+}
 
 function AiTabStack() {
   return <MyPageStack initialRouteName="AiChat" />
@@ -38,13 +56,7 @@ function TabBarBackground() {
   )
 }
 
-function AiTabButton({
-  accessibilityState,
-  onPress,
-  onLongPress,
-}: BottomTabBarButtonProps) {
-  const focused = accessibilityState?.selected ?? false
-
+function AiTabButton({ accessibilityState, onPress, onLongPress }: BottomTabBarButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -53,11 +65,24 @@ function AiTabButton({
       onLongPress={onLongPress}
       style={S.aiTabButton}
     >
-      <View style={[S.aiIconWrap, focused ? S.aiIconWrapFocused : null]}>
+      <View style={S.aiIconWrap}>
         <AiIcon width={AI_ICON_W} height={AI_ICON_H} />
       </View>
     </Pressable>
   )
+}
+
+function getAiTabOptions(route: { key: string; name: string; params?: object | undefined }) {
+  const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'AiChat'
+
+  return {
+    tabBarLabel: '',
+    tabBarButton: (props: BottomTabBarButtonProps) => <AiTabButton {...props} />,
+    tabBarStyle:
+      focusedRouteName === 'AiChat'
+        ? { ...TAB_BAR_BASE_STYLE, display: 'none' as const }
+        : TAB_BAR_BASE_STYLE,
+  }
 }
 
 export default function RootTabs() {
@@ -70,17 +95,7 @@ export default function RootTabs() {
           backgroundColor: 'transparent',
         },
         tabBarBackground: () => <TabBarBackground />,
-        tabBarStyle: {
-          height: TAB_BAR_H,
-          paddingTop: 0,
-          paddingHorizontal: 10,
-          overflow: 'visible',
-          backgroundColor: 'transparent',
-          borderTopWidth: 0,
-          borderTopColor: 'transparent',
-          elevation: 0,
-          shadowOpacity: 0,
-        },
+        tabBarStyle: TAB_BAR_BASE_STYLE,
         tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
         tabBarIconStyle: { marginTop: 7.5 },
         tabBarActiveTintColor: TAB_ACTIVE_COLOR,
@@ -110,10 +125,7 @@ export default function RootTabs() {
       <Tab.Screen
         name="AI"
         component={AiTabStack}
-        options={{
-          tabBarLabel: '',
-          tabBarButton: (props) => <AiTabButton {...props} />,
-        }}
+        options={({ route }) => getAiTabOptions(route)}
       />
 
       <Tab.Screen
@@ -149,11 +161,7 @@ const S = StyleSheet.create({
     backgroundColor: colors.icon.w,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    shadowColor: '#17191A',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -6 },
-    elevation: 18,
+    ...TAB_BAR_SHADOW_STYLE,
   },
   tabBarBgCenterBump: {
     position: 'absolute',
@@ -164,11 +172,7 @@ const S = StyleSheet.create({
     height: AI_BUBBLE_SIZE,
     borderRadius: AI_BUBBLE_SIZE / 2,
     backgroundColor: colors.icon.w,
-    shadowColor: '#17191A',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -6 },
-    elevation: 18,
+    ...TAB_BAR_SHADOW_STYLE,
   },
   aiTabButton: {
     flex: 1,
@@ -181,8 +185,5 @@ const S = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -18,
-  },
-  aiIconWrapFocused: {
-    opacity: 1,
   },
 })
