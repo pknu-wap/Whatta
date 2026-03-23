@@ -13,7 +13,6 @@ import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.payload.LabelItem;
-import whatta.Whatta.event.entity.Repeat;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.user.setting.entity.UserSetting;
 import whatta.Whatta.user.setting.repository.UserSettingRepository;
@@ -27,7 +26,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-import static whatta.Whatta.global.util.RepeatUtil.findNextOccurrenceStartAfter;
+import static whatta.Whatta.global.util.RepeatUtil.expandRepeatDates;
 
 @Service
 @AllArgsConstructor
@@ -490,31 +489,5 @@ public class CalendarViewService {
             dates.add(date);
         }
         return dates;
-    }
-
-    private List<LocalDate> expandRepeatDates(LocalDateTime rootStartAt, Repeat repeat,
-                                              LocalDate rangeStart, LocalDate rangeEnd) {
-        List<LocalDate> result = new ArrayList<>();
-        if (repeat == null) return result;
-
-        LocalDateTime cursor = rangeStart.atStartOfDay().minusSeconds(1);
-        LocalDateTime rangeEndTime = rangeEnd.atTime(LocalTime.MAX);
-
-        int safeGuard = 0;
-        while (safeGuard++ < 1000) {
-
-            LocalDateTime next = findNextOccurrenceStartAfter(rootStartAt, repeat, cursor);
-            if (next == null || next.isAfter(rangeEndTime)) break;
-
-            LocalDate occDate = next.toLocalDate();
-
-            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) { //rangeStart <= occDate <= rangeEnd
-                result.add(occDate);
-            }
-
-            cursor = next.plusSeconds(1);
-
-        }
-        return result;
     }
 }

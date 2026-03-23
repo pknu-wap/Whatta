@@ -38,6 +38,12 @@ public class EventController {
         return Response.ok("success get event", eventService.getEventDetails(userId, eventId));
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "비서홈 오늘 일정 요약 조회", description = "비서홈의 오늘의 일정에 사용될 목록을 조회합니다.")
+    public ResponseEntity<?> getTodayEventSummary(@AuthenticationPrincipal String userId) {
+        return Response.ok("success get today event summary", eventService.getTodaySummary(userId));
+    }
+
     @PatchMapping("/{eventId}")
     @Operation(summary = "일정 수정",
             description = "해당 일정을 수정합니다."

@@ -262,4 +262,27 @@ public class RepeatUtil {
     private static LocalDateTime candidateForLastDayOfMonth(YearMonth ym, LocalTime startTime) {
         return LocalDateTime.of(ym.atEndOfMonth(), startTime);
     }
+
+    public static List<LocalDate> expandRepeatDates(LocalDateTime rootStartAt, Repeat repeat,
+                                                    LocalDate rangeStart, LocalDate rangeEnd) {
+        List<LocalDate> result = new ArrayList<>();
+        if (repeat == null) return result;
+
+        LocalDateTime cursor = rangeStart.atStartOfDay().minusSeconds(1);
+        LocalDateTime rangeEndTime = rangeEnd.atTime(LocalTime.MAX);
+
+        int safeGuard = 0;
+        while (safeGuard++ < 1000) {
+            LocalDateTime next = findNextOccurrenceStartAfter(rootStartAt, repeat, cursor);
+            if (next == null || next.isAfter(rangeEndTime)) break;
+
+            LocalDate occDate = next.toLocalDate();
+            if (!occDate.isBefore(rangeStart) && !occDate.isAfter(rangeEnd)) {
+                result.add(occDate);
+            }
+
+            cursor = next.plusSeconds(1);
+        }
+        return result;
+    }
 }

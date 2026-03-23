@@ -84,6 +84,10 @@ public class TaskController {
         return Response.ok("사이드바의 Task 목록입니다.", response);
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "비서홈 오늘의 Task 요약 조회", description = "비서홈의 오늘의 할 일과 오늘 마감인 할 일에 사용될 목록을 조회합니다.")
+    public ResponseEntity<?> getTodayTaskSummary(@AuthenticationPrincipal String userId) {
+        return Response.ok("오늘 Task 요약 목록입니다.", taskService.getTodaySummary(userId));
+    }
 
 }
-

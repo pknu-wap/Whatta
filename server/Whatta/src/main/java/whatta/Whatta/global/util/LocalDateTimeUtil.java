@@ -38,4 +38,17 @@ public class LocalDateTimeUtil {
         }
         return TIME_FORMATTER.format(localTime);
     }
+
+    public static String localDateTimeToString(LocalDateTime localDateTime) {
+        if (localDateTime == null) { return null; }
+
+        LocalTime localTime = localDateTime.toLocalTime();
+        String newTime = TIME_FORMATTER.format(localTime);
+        if (localTime.equals(LocalTime.MAX.truncatedTo(DB_PRECISION)) || localTime.equals(LocalTime.MAX)) {
+            newTime = "24:00:00";
+        }
+
+
+        return DATE_FORMATTER.format(localDateTime.toLocalDate()) + " " + newTime;
+    }
 }
