@@ -129,7 +129,9 @@ export default function AiCard({
   showDelete,
   showInlineSave = true,
 }: Props) {
-  const cardBorderColor = item.isEvent ? (item.colorHex ?? colors.primary.main) : colors.primary.main
+  const cardBorderColor = item.isEvent
+    ? (item.colorHex ?? colors.primary.main)
+    : colors.background.bg1
   const due = splitDueDateTime(item.dueDateTime)
   const taskDateSource = due.date || item.startDate
   const dueCountdown = !item.isEvent

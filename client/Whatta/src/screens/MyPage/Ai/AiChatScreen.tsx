@@ -932,9 +932,6 @@ export default function AiChatScreen({ navigation }: Props) {
             ? { objectKey: submittedImage.objectKey }
             : null,
         })
-        if (__DEV__) {
-          console.log('AI chat raw response', JSON.stringify(response, null, 2))
-        }
         if (response.data && 'freeCount' in response.data) {
           setServerFreeCount(
             typeof response.data.freeCount === 'number'
@@ -943,9 +940,6 @@ export default function AiChatScreen({ navigation }: Props) {
           )
         }
         const schedules = parseAiSchedules(response)
-        if (__DEV__) {
-          console.log('AI chat parsed schedules', JSON.stringify(schedules, null, 2))
-        }
         const assistantMessage = buildAssistantMessage(response, schedules)
 
         pushMessage('assistant', assistantMessage)
