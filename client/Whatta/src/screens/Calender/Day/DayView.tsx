@@ -113,9 +113,7 @@ const getTaskStartHour = (placementTime?: string | null) => {
 }
 
 export default function DayView({ active = true }: { active?: boolean }) {
-  const suppressNextAutoScrollRef = useRef(
-    calendarViewTransition.consumeNextEntranceSuppressed(),
-  )
+  const suppressNextAutoScrollRef = useRef(false)
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
 
   const isFocused = useIsFocused()
@@ -150,6 +148,11 @@ export default function DayView({ active = true }: { active?: boolean }) {
   useEffect(() => {
     anchorDateRef.current = anchorDate
   }, [anchorDate])
+
+  useEffect(() => {
+    if (!screenActive) return
+    suppressNextAutoScrollRef.current = calendarViewTransition.consumeNextEntranceSuppressed()
+  }, [screenActive])
   // 중복 방송 방지용
   const lastBroadcastRef = useRef<string | null>(null)
   useEffect(() => {

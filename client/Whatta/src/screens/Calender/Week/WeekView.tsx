@@ -1032,9 +1032,7 @@ const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 /* -------------------------------------------------------------------------- */
 
 export default function WeekView({ active = true }: { active?: boolean }) {
-  const suppressNextAutoScrollRef = useRef(
-    calendarViewTransition.consumeNextEntranceSuppressed(),
-  )
+  const suppressNextAutoScrollRef = useRef(false)
   const isFocused = useIsFocused()
   const screenActive = active && isFocused
   const spanWrapRef = useRef<View>(null)
@@ -1081,6 +1079,11 @@ const {
 
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
+
+  useEffect(() => {
+    if (!screenActive) return
+    suppressNextAutoScrollRef.current = calendarViewTransition.consumeNextEntranceSuppressed()
+  }, [screenActive])
 
   const [spanWrapH, setSpanWrapH] = useState(150)
   const [spanContentH, setSpanContentH] = useState(150)

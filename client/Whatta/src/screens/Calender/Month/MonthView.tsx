@@ -33,7 +33,6 @@ import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { S } from './S'
 import { buildLaneMap, getDisplayItems, getCalendarDates, CalendarDateItem } from './MonthView.utils'
 import { useOCR } from '@/hooks/useOCR'
-import { calendarViewTransition } from '@/providers/CalendarViewProvider'
 
 import OcrSplash from '@/screens/More/OcrSplash'
 
@@ -104,7 +103,6 @@ type MonthViewProps = {
 }
 
 export default function MonthView({ active = true, initialDateISO }: MonthViewProps) {
-  const suppressNextTransitionRef = useRef(calendarViewTransition.consumeNextEntranceSuppressed())
   const isScreenFocused = useIsFocused()
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
   const [, setColorSetVersion] = useState(0)
@@ -1009,6 +1007,7 @@ const holidayIsoByWeek = useMemo(() => {
       setHasHydratedMonth(true)
       setLoading(false)
     } else {
+      setHasHydratedMonth(false)
       setLoading(true)
     }
     ;(async () => {
@@ -1053,12 +1052,6 @@ const holidayIsoByWeek = useMemo(() => {
       alive = false
     }
   }, [ym])
-
-  useEffect(() => {
-    if (!loading && suppressNextTransitionRef.current) {
-      suppressNextTransitionRef.current = false
-    }
-  }, [loading])
 
   // 필터링 된 일정 (라벨 on/off 반영)
   const filteredSchedules = useMemo(() => {
