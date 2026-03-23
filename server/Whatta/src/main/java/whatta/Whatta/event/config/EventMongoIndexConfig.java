@@ -34,7 +34,7 @@ public class EventMongoIndexConfig {
                         .on("userId", Sort.Direction.ASC)
                         .on("startDate", Sort.Direction.ASC)
                         .named("idx_event_repeat_start")
-                        .partial(PartialIndexFilter.of(Criteria.where("repeat").ne(null)))
+                        .partial(PartialIndexFilter.of(Criteria.where("repeat").exists(true)))
         );
 
         log.info("Event 인덱스 보장: idx_event_nonrepeat_range, idx_event_repeat_start");
