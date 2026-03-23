@@ -7,7 +7,7 @@ import java.util.List;
 @Builder
 public record TodayTaskSummaryResponse(
         List<TaskPlacedToday> placedToday,
-        List<TaskDueToday> DueToday
+        List<TaskDueToday> dueToday
 
 ) {
     @Builder
@@ -15,13 +15,13 @@ public record TodayTaskSummaryResponse(
             String title,
             String placementTime,
             boolean complete,
-            String DueDateTime
+            String dueDateTime
     ) { }
     @Builder
     public record TaskDueToday(
             String title,
             boolean complete,
-            String DueDateTime
+            String dueDateTime
     ) { }
 
 }
