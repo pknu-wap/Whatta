@@ -85,7 +85,7 @@ const BASE_ROW_H = 48
 const DRAG_LONG_PRESS_MS = 380
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
-const TIME_COL_W = 50
+const TIME_COL_W = 58
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 // 겹침(반분할) 카드 폭 튜닝: + 넓어지고, - 좁아진다
@@ -1702,7 +1702,7 @@ const {
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ScreenWithSidebar mode="overlay">
+        <ScreenWithSidebar mode="overlay" floatingVisible={false}>
           <View style={S.loadingCenter}>
             <ActivityIndicator size="large" color={colors.primary.main} />
           </View>
@@ -1713,7 +1713,16 @@ const {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ScreenWithSidebar mode="overlay">
+      <ScreenWithSidebar
+        mode="overlay"
+        floatingVisible={
+          !taskPopupVisible &&
+          !eventPopupVisible &&
+          !imagePopupVisible &&
+          !ocrSplashVisible &&
+          !ocrModalVisible
+        }
+      >
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[S.screen, animatedStyle, swipeStyle]}>
             <WeekHeaderSpan
@@ -1817,13 +1826,13 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-    height: 40,
+    height: 48,
     backgroundColor: '#FFFFFF',
     alignItems: 'flex-start',
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'flex-start',
     paddingLeft: 0,
     paddingTop: 1,
@@ -1831,6 +1840,7 @@ const S = StyleSheet.create({
   weekHeaderBigDate: {
     ...ts('label1'),
     fontSize: 19,
+    lineHeight: 20,
     color: '#000000',
   },
   weekHeaderCol: {
@@ -1841,9 +1851,10 @@ const S = StyleSheet.create({
   weekHeaderWeekday: {
     ...ts('date3'),
     fontSize: 12,
+    lineHeight: 16,
     fontWeight: 500,
     color: colors.text.text2,
-    marginBottom: 4,
+    marginBottom: 0,
   },
   weekHeaderWeekdayToday: {
     fontWeight: 700,
@@ -1853,7 +1864,8 @@ const S = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 3,
+    marginTop: 0,
+    marginBottom: 2,
   },
   weekHeaderDatePillToday: {
     backgroundColor: '#EFE7F7',

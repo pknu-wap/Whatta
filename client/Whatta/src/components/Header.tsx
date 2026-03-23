@@ -431,7 +431,7 @@ export default function Header() {
 
 /* 스타일 */
 const styles = StyleSheet.create({
-  root: { height: 48, overflow: 'visible' },
+  root: { height: 48, overflow: 'visible', marginTop: -8 },
   header: {
     position: 'relative',
     height: '100%',

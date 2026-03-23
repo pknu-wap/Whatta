@@ -742,7 +742,16 @@ export default function DayView() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ScreenWithSidebar mode="overlay">
+      <ScreenWithSidebar
+        mode="overlay"
+        floatingVisible={
+          !taskPopupVisible &&
+          !eventPopupVisible &&
+          !imagePopupVisible &&
+          !ocrSplashVisible &&
+          !ocrModalVisible
+        }
+      >
         <GestureDetector gesture={swipeGesture}>
           <Animated.View style={[S.screen, swipeStyle]}>
             {/* ✅ 상단 테스크 박스 */}

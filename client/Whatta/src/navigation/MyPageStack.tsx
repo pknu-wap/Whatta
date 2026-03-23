@@ -26,9 +26,13 @@ export type MyPageStackList = {
 
 const Stack = createNativeStackNavigator<MyPageStackList>()
 
-export default function MyPageStack() {
+type MyPageStackProps = {
+  initialRouteName?: keyof MyPageStackList
+}
+
+export default function MyPageStack({ initialRouteName = 'MyPageList' }: MyPageStackProps) {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator initialRouteName={initialRouteName}>
       {/* 목록(섹션 리스트) */}
       <Stack.Screen name="MyPageList" component={MyPageScreen} />
 

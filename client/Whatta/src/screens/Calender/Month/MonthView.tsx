@@ -1523,7 +1523,17 @@ const handleOcrSaveAll = useCallback(async () => {
 }, [fetchFresh, ym])
 
   return (
-    <ScreenWithSidebar mode="overlay">
+    <ScreenWithSidebar
+      mode="overlay"
+      floatingVisible={
+        !popupVisible &&
+        !eventPopupVisible &&
+        !taskPopupVisible &&
+        !imagePopupVisible &&
+        !ocrSplashVisible &&
+        !ocrModalVisible
+      }
+    >
       <GestureDetector gesture={swipeGesture}>
         <Animated.View collapsable={false} style={[{ flex: 1 }, swipeStyle]}>
           <View style={S.contentContainerWrapper}>

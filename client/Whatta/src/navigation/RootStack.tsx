@@ -1,7 +1,13 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
-import MainTabs from '@/navigation/MainStack'
+import RootTabs from '@/navigation/RootTabs'
+import MyPageStack from '@/navigation/MyPageStack'
 
-const Root = createNativeStackNavigator()
+export type RootStackParamList = {
+  RootTabs: undefined
+  MyPage: undefined
+}
+
+const Root = createNativeStackNavigator<RootStackParamList>()
 
 export default function RootNavigator() {
   return (
@@ -11,10 +17,17 @@ export default function RootNavigator() {
       }}
     >
       <Root.Screen
-        name="MainTabs"
-        component={MainTabs}
+        name="RootTabs"
+        component={RootTabs}
         options={{
           headerTitle: '',
+        }}
+      />
+      <Root.Screen
+        name="MyPage"
+        component={MyPageStack}
+        options={{
+          headerShown: false,
         }}
       />
     </Root.Navigator>

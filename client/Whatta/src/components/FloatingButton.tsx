@@ -33,6 +33,8 @@ const SPRING = { damping: 10, stiffness: 140, overshootClamping: true }
 const BTN_SIZE = 66
 
 export default function FabHybridIOS({
+  bottomOffset = 97,
+  rightOffset = 18,
   collapsedIcon = <Plus width={BTN_SIZE} height={BTN_SIZE} />,
   expandedIcon = <PlusShedule width={BTN_SIZE} height={BTN_SIZE} />,
   onPressTop1,
@@ -84,7 +86,10 @@ export default function FabHybridIOS({
       </AnimatedView>
 
       {/* FAB 묶음 */}
-      <View pointerEvents="box-none" style={[S.wrap]}>
+      <View
+        pointerEvents="box-none"
+        style={[S.wrap, { bottom: bottomOffset, right: rightOffset }]}
+      >
         {/* 미니 버튼 1 */}
         <AnimatedView
           style={[S.miniWrap, s1, S.shadow]}
@@ -157,8 +162,7 @@ const S = StyleSheet.create({
   wrap: {
     position: 'absolute',
     alignItems: 'flex-end',
-    bottom: 97,
-    right: 18,
+    zIndex: 36,
   },
   overlay: { backgroundColor: 'rgba(255,255,255,0.7)' },
 
