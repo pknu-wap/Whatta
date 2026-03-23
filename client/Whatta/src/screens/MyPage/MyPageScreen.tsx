@@ -7,6 +7,7 @@ import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/conta
 import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
+import LeftIcon from '@/assets/icons/left.svg'
 import {
   getActiveScheduleColorSetId,
   SCHEDULE_COLOR_SET_IDS,
@@ -52,7 +53,13 @@ function SmallCard({ label, onPress }: { label: string; onPress: () => void }) {
   )
 }
 
-function SimpleHeader() {
+function SimpleHeader({
+  canGoBack,
+  onPressBack,
+}: {
+  canGoBack: boolean
+  onPressBack: () => void
+}) {
   const insets = useSafeAreaInsets()
   return (
     <View style={{ backgroundColor: colors.neutral.surface }}>
@@ -67,6 +74,21 @@ function SimpleHeader() {
           borderBottomColor: '#B3B3B3',
         }}
       >
+        {canGoBack ? (
+          <Pressable
+            onPress={onPressBack}
+            style={({ pressed }) => [S.backButton, pressed && S.backButtonPressed]}
+            hitSlop={10}
+          >
+            {({ pressed }) => (
+              <LeftIcon
+                width={24}
+                height={24}
+                color={pressed ? colors.icon.selected : colors.icon.default}
+              />
+            )}
+          </Pressable>
+        ) : null}
         <Text style={{ fontSize: 20, fontWeight: '700' }}>마이페이지</Text>
       </View>
     </View>
@@ -96,7 +118,12 @@ export default function MyPageScreen({ navigation }: Props) {
     navigation.setOptions({
       headerShown: true,
       headerShadowVisible: false,
-      header: () => <SimpleHeader />,
+      header: () => (
+        <SimpleHeader
+          canGoBack={navigation.canGoBack()}
+          onPressBack={() => navigation.goBack()}
+        />
+      ),
     })
   }, [navigation])
 
@@ -166,6 +193,18 @@ export default function MyPageScreen({ navigation }: Props) {
 }
 
 const S = StyleSheet.create({
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    top: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonPressed: {
+    opacity: 1,
+  },
   smallCard: {
     width: '90%',
     height: 48,

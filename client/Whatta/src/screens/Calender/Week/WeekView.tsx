@@ -24,7 +24,7 @@ import Animated, {
   runOnJS,
   withDelay,
 } from 'react-native-reanimated'
-import { useFocusEffect, useIsFocused } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
@@ -38,6 +38,7 @@ import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import { calendarViewTransition } from '@/providers/CalendarViewProvider'
 import { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import WeekHeaderSpan from '@/screens/Calender/Week/WeekHeaderSpan'
 import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
@@ -85,7 +86,7 @@ const BASE_ROW_H = 48
 const DRAG_LONG_PRESS_MS = 380
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
-const TIME_COL_W = 50
+const TIME_COL_W = 58
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 // 겹침(반분할) 카드 폭 튜닝: + 넓어지고, - 좁아진다
@@ -1030,8 +1031,10 @@ const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 /* WeekView 메인 */
 /* -------------------------------------------------------------------------- */
 
-export default function WeekView() {
+export default function WeekView({ active = true }: { active?: boolean }) {
+  const suppressNextAutoScrollRef = useRef(false)
   const isFocused = useIsFocused()
+  const screenActive = active && isFocused
   const spanWrapRef = useRef<View>(null)
   const [spanRect, setSpanRect] = useState<GridRect | null>(null)
 
@@ -1076,6 +1079,11 @@ const {
 
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
+
+  useEffect(() => {
+    if (!screenActive) return
+    suppressNextAutoScrollRef.current = calendarViewTransition.consumeNextEntranceSuppressed()
+  }, [screenActive])
 
   const [spanWrapH, setSpanWrapH] = useState(150)
   const [spanContentH, setSpanContentH] = useState(150)
@@ -1209,7 +1217,7 @@ const {
 
       setWeekDates(arr)
 
-      if (isFocused) {
+      if (screenActive) {
         bus.emit('calendar:state', {
           date: arr[0],
           mode: 'week',
@@ -1225,7 +1233,7 @@ const {
 
       setWeekDates(arr)
 
-      if (isFocused) {
+      if (screenActive) {
         bus.emit('calendar:state', {
           date: arr[0],
           mode: 'week',
@@ -1235,7 +1243,7 @@ const {
         })
       }
     }
-  }, [anchorDate, isZoomed, isFocused])
+  }, [anchorDate, isZoomed, screenActive])
 
   const rowH =
     weekDates.length === 7 ? 61 : weekDates.length === 5 ? 62 : BASE_ROW_H
@@ -1266,8 +1274,9 @@ const {
           requestAnimationFrame(() => {
             gridScrollRef.current?.scrollTo({
               y: Math.max(topPos - SCREEN_H * 0.35, 0),
-              animated: true,
+              animated: !suppressNextAutoScrollRef.current,
             })
+            suppressNextAutoScrollRef.current = false
             setHasScrolledOnce(true)
           })
         })
@@ -1285,23 +1294,24 @@ const {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
             y: Math.max(nowTop - SCREEN_H * 0.35, 0),
-            animated: true,
+            animated: !suppressNextAutoScrollRef.current,
           })
+          suppressNextAutoScrollRef.current = false
           setHasScrolledOnce(true)
         })
       })
     }
   }, [nowTop, weekData, hasScrolledOnce])
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
+    if (suppressNextAutoScrollRef.current) return
       setHasScrolledOnce(false) // ← 요거 하나로 DayView와 동일한 동작 완성
-    }, []),
-  )
+  }, [screenActive])
 
   const today = todayISO()
   useCalendarSync({
-    isFocused,
+    active: screenActive,
     weekDates,
     anchorDateRef,
     dayColWidth,
@@ -1311,11 +1321,10 @@ const {
     fetchWeek,
   })
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
       setTaskGroupCollapseToken((prev) => prev + 1)
-    }, []),
-  )
+  }, [screenActive])
 
   useEffect(() => {
     setTaskGroupCollapseToken((prev) => prev + 1)
@@ -1702,7 +1711,7 @@ const {
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ScreenWithSidebar mode="overlay">
+        <ScreenWithSidebar mode="overlay" floatingVisible={false}>
           <View style={S.loadingCenter}>
             <ActivityIndicator size="large" color={colors.primary.main} />
           </View>
@@ -1713,7 +1722,16 @@ const {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ScreenWithSidebar mode="overlay">
+      <ScreenWithSidebar
+        mode="overlay"
+        floatingVisible={
+          !taskPopupVisible &&
+          !eventPopupVisible &&
+          !imagePopupVisible &&
+          !ocrSplashVisible &&
+          !ocrModalVisible
+        }
+      >
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[S.screen, animatedStyle, swipeStyle]}>
             <WeekHeaderSpan
@@ -1817,13 +1835,13 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-    height: 40,
+    height: 48,
     backgroundColor: '#FFFFFF',
     alignItems: 'flex-start',
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'flex-start',
     paddingLeft: 0,
     paddingTop: 1,
@@ -1831,6 +1849,7 @@ const S = StyleSheet.create({
   weekHeaderBigDate: {
     ...ts('label1'),
     fontSize: 19,
+    lineHeight: 20,
     color: '#000000',
   },
   weekHeaderCol: {
@@ -1841,9 +1860,10 @@ const S = StyleSheet.create({
   weekHeaderWeekday: {
     ...ts('date3'),
     fontSize: 12,
+    lineHeight: 16,
     fontWeight: 500,
     color: colors.text.text2,
-    marginBottom: 4,
+    marginBottom: 0,
   },
   weekHeaderWeekdayToday: {
     fontWeight: 700,
@@ -1853,7 +1873,8 @@ const S = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 3,
+    marginTop: 0,
+    marginBottom: 2,
   },
   weekHeaderDatePillToday: {
     backgroundColor: '#EFE7F7',

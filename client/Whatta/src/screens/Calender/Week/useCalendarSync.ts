@@ -1,5 +1,4 @@
 import { useCallback, useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
 
 import { bus } from '@/lib/eventBus'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
@@ -7,7 +6,7 @@ import { todayISO } from '@/screens/Calender/Week/date'
 import type { WeekData } from '@/screens/Calender/Week/useWeekCalendarData'
 
 type UseCalendarSyncParams = {
-  isFocused: boolean
+  active: boolean
   weekDates: string[]
   anchorDateRef: MutableRefObject<string>
   dayColWidth: number
@@ -18,7 +17,7 @@ type UseCalendarSyncParams = {
 }
 
 export function useCalendarSync({
-  isFocused,
+  active,
   weekDates,
   anchorDateRef,
   dayColWidth,
@@ -27,8 +26,8 @@ export function useCalendarSync({
   setWeekData,
   fetchWeek,
 }: UseCalendarSyncParams) {
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+      if (!active) return
       currentCalendarView.set('week')
 
       if (weekDates.length > 0) {
@@ -52,11 +51,10 @@ export function useCalendarSync({
       if (weekDates.length > 0) {
         fetchWeek(weekDates)
       }
-    }, [anchorDateRef, dayColWidth, fetchWeek, rowH, weekDates]),
-  )
+  }, [active, anchorDateRef, dayColWidth, fetchWeek, rowH, weekDates])
 
   useEffect(() => {
-    if (!weekDates.length || !isFocused) return
+    if (!weekDates.length || !active) return
 
     bus.emit('calendar:state', {
       date: weekDates[0],
@@ -71,10 +69,10 @@ export function useCalendarSync({
       dayColWidth,
       rowH,
     })
-  }, [dayColWidth, isFocused, rowH, weekDates])
+  }, [active, dayColWidth, rowH, weekDates])
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+      if (!active) return
       const onReq = () => {
         if (!weekDates.length) return
 
@@ -107,8 +105,7 @@ export function useCalendarSync({
         bus.off('calendar:set-date', onSet)
         bus.off('calendar:state', onState)
       }
-    }, [anchorDateRef, setAnchorDate, weekDates]),
-  )
+  }, [active, anchorDateRef, setAnchorDate, weekDates])
 
   useEffect(() => {
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
