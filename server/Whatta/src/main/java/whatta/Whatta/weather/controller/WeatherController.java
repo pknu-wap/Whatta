@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import whatta.Whatta.global.payload.Response;
 import whatta.Whatta.weather.service.WeatherService;
 
-@Tag(name = "Assistant Weather", description = "비서홈 날씨 API")
+@Tag(name = "Assistant Home Weather", description = "비서홈 날씨 API")
 @RestController
 @RequestMapping("/api/weather")
 @RequiredArgsConstructor
