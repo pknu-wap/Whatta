@@ -9,6 +9,7 @@ import type {
 
 type Props = {
   weather: AssistantWeatherCard
+  locationStatusText?: string
 }
 
 const toneStyles: Record<
@@ -22,7 +23,7 @@ const toneStyles: Record<
   neutral: { backgroundColor: '#EEF3F7', textColor: '#4F5B66' },
 }
 
-export default function WeatherSummaryCard({ weather }: Props) {
+export default function WeatherSummaryCard({ weather, locationStatusText }: Props) {
   const [activeIndex, setActiveIndex] = useState(0)
 
   useEffect(() => {
@@ -84,9 +85,13 @@ export default function WeatherSummaryCard({ weather }: Props) {
           ))}
         </View>
 
-        <Pressable style={S.permissionHint}>
-          <Text style={S.permissionHintText}>위치 off</Text>
-        </Pressable>
+        {locationStatusText ? (
+          <Pressable style={S.permissionHint}>
+            <Text style={S.permissionHintText} numberOfLines={1}>
+              {locationStatusText}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   )

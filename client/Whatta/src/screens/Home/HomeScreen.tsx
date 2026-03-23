@@ -1,4 +1,5 @@
 import React from 'react'
+import { useCallback, useMemo } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -7,7 +8,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useNavigation } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import MypageIcon from '@/assets/icons/mypage.svg'
 import colors from '@/styles/colors'
@@ -28,9 +29,33 @@ import BriefingCard from '@/screens/Home/assistantHome/components/BriefingCard'
 import TopicSlidesSection from '@/screens/Home/assistantHome/components/TopicSlidesSection'
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
 import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
+import useCurrentLocation from '@/hooks/useCurrentLocation'
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  const {
+    loading,
+    permissionDenied,
+    coords,
+    error,
+    fetchCurrentLocation,
+  } = useCurrentLocation()
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCurrentLocation()
+    }, [fetchCurrentLocation]),
+  )
+
+  const locationStatusText = useMemo(() => {
+    if (loading) return '위치 확인 중'
+    if (coords) {
+      return `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`
+    }
+    if (permissionDenied) return '위치 권한 필요'
+    if (error) return error
+    return undefined
+  }, [coords, error, loading, permissionDenied])
 
   const handleQuickActionPress = (action: AssistantQuickAction) => {
     switch (action.id) {
@@ -58,7 +83,10 @@ export default function HomeScreen() {
           contentContainerStyle={S.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <WeatherSummaryCard weather={assistantWeather} />
+          <WeatherSummaryCard
+            weather={assistantWeather}
+            locationStatusText={locationStatusText}
+          />
 
           <BriefingCard briefing={assistantBriefing} />
 
