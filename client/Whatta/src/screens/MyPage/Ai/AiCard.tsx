@@ -1,5 +1,8 @@
 import React from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import AlarmIcon from '@/assets/icons/alarm.svg'
+import MonthIcon from '@/assets/icons/month.svg'
+import TimeIcon from '@/assets/icons/time.svg'
 import XIcon from '@/assets/icons/x.svg'
 import type { AiScheduleDraft } from '@/api/ai'
 import colors from '@/styles/colors'
@@ -43,7 +46,7 @@ function formatDisplayDateWithWeekday(value: string | null | undefined) {
 
   const date = new Date(year, month - 1, day)
   const weekdays = ['일', '월', '화', '수', '목', '금', '토']
-  return `${year}년 ${month}월 ${day}일(${weekdays[date.getDay()]})`
+  return `${year}년 ${month}월 ${day}일 (${weekdays[date.getDay()]})`
 }
 
 function formatDisplayDate(value: string | null | undefined) {
@@ -59,9 +62,9 @@ function formatEventDisplayDateRange(
 ) {
   if (!startDate) return ''
   if (!endDate || endDate === startDate) {
-    return formatDisplayDate(startDate)
+    return formatDisplayDateWithWeekday(startDate)
   }
-  return `${formatDisplayDate(startDate)} ~ ${formatDisplayDate(endDate)}`
+  return `${formatDisplayDateWithWeekday(startDate)} ~ ${formatDisplayDateWithWeekday(endDate)}`
 }
 
 function formatPeriodTime(value: string | null | undefined) {
@@ -92,6 +95,30 @@ function formatDraftTime(item: AiCardDraftItem) {
   return formatPeriodTime(start)
 }
 
+function parseDateString(value: string | null | undefined) {
+  if (!value) return null
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+function formatDueCountdown(
+  startDate: string | null | undefined,
+  dueDate: string | null | undefined,
+) {
+  const start = parseDateString(startDate)
+  const due = parseDateString(dueDate)
+  if (!start || !due) return ''
+  const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const dueOnly = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  const diffMs = dueOnly.getTime() - startOnly.getTime()
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return '(마감까지 D-Day)'
+  if (diffDays > 0) return `(마감까지 D-${diffDays})`
+  return `(마감까지 D+${Math.abs(diffDays)})`
+}
+
 export default function AiCard({
   item,
   labelTitles = [],
@@ -102,11 +129,17 @@ export default function AiCard({
   showDelete,
   showInlineSave = true,
 }: Props) {
+  const cardBorderColor = item.isEvent ? (item.colorHex ?? colors.primary.main) : colors.primary.main
   const due = splitDueDateTime(item.dueDateTime)
   const taskDateSource = due.date || item.startDate
-  const displayDate = item.isEvent
+  const dueCountdown = !item.isEvent
+    ? formatDueCountdown(item.startDate, due.date)
+    : ''
+  const rawDisplayDate = item.isEvent
     ? formatEventDisplayDateRange(item.startDate, item.endDate)
     : formatDisplayDateWithWeekday(taskDateSource)
+  const hasDate = rawDisplayDate.trim().length > 0
+  const displayDate = hasDate ? rawDisplayDate : '!! 날짜 지정안됨'
   const displayTime = formatDraftTime(item)
   const isLocked = item.saved || item.saving
   const hasTime = displayTime.trim().length > 0
@@ -115,7 +148,7 @@ export default function AiCard({
   const summaryItems = [
     hasRepeat ? { kind: 'repeat' as const, text: formatRepeatSummary(item.repeat) } : null,
     hasReminder ? { kind: 'reminder' as const, text: formatReminderSummary(item.reminderNoti) } : null,
-    ...labelTitles.map((title) => ({ kind: 'label' as const, text: title })),
+    ...labelTitles.map((title) => ({ kind: 'label' as const, text: `#${title}` })),
   ].filter(
     (
       value,
@@ -127,7 +160,7 @@ export default function AiCard({
       <View
         style={[
           S.card,
-          { borderColor: item.colorHex ?? colors.primary.main },
+          { borderColor: cardBorderColor },
           isLocked && S.cardLocked,
         ]}
       >
@@ -152,25 +185,54 @@ export default function AiCard({
               </View>
             </Pressable>
           </View>
-          {showDelete && !isLocked ? (
-            <Pressable style={S.deleteButton} onPress={onDelete} hitSlop={8}>
-              <XIcon width={14} height={14} color={colors.icon.default} />
-            </Pressable>
-          ) : (
-            <View style={S.deletePlaceholder} />
-          )}
+          <View style={S.topRightActions}>
+            <View style={S.alarmBadge}>
+              <AlarmIcon
+                width={24}
+                height={24}
+                color={hasReminder ? colors.primary.main : colors.icon.default}
+              />
+            </View>
+            {showDelete ? (
+              !isLocked ? (
+                <Pressable style={S.deleteButton} onPress={onDelete} hitSlop={8}>
+                  <XIcon width={14} height={14} color={colors.icon.default} />
+                </Pressable>
+              ) : (
+                <View style={S.deletePlaceholder} />
+              )
+            ) : null}
+          </View>
         </View>
         <Text style={S.cardTitleText} numberOfLines={1}>
           {item.title || '제목'}
         </Text>
-        <Text style={S.cardDateText}>{displayDate}</Text>
-        {hasTime ? <Text style={S.cardTimeText}>{displayTime}</Text> : null}
+        <View style={S.infoRow}>
+          <MonthIcon
+            width={24}
+            height={24}
+            color={hasDate ? colors.icon.default : colors.icon.trash}
+          />
+          <View style={S.dateTextRow}>
+            {dueCountdown ? <Text style={S.cardDueCountdownText}>{dueCountdown}</Text> : null}
+            <Text style={[S.cardDateText, !hasDate && S.cardDateTextMissing]}>{displayDate}</Text>
+          </View>
+        </View>
+        {hasTime ? (
+          <View style={[S.infoRow, S.timeInfoRow]}>
+            <TimeIcon width={24} height={24} color={colors.icon.default} />
+            <Text style={S.cardTimeText}>{displayTime}</Text>
+          </View>
+        ) : null}
         {summaryItems.length > 0 ? (
           <View style={S.metaWrap}>
             {summaryItems.map((meta, index) => (
               <View
                 key={`${meta.kind}-${meta.text}-${index}`}
-                style={[S.metaChip, { borderColor: item.colorHex ?? colors.primary.main }]}
+                style={[
+                  S.metaChip,
+                  meta.kind === 'label' ? S.metaChipLabel : S.metaChipOutlined,
+                ]}
               >
                 <Text style={S.metaChipText} numberOfLines={1}>
                   {meta.text}
@@ -232,17 +294,17 @@ function formatReminderSummary(reminder: AiCardDraftItem['reminderNoti']) {
 
 const S = StyleSheet.create({
   cardBlock: {
-    width: 250,
+    width: 334,
     alignSelf: 'flex-start',
   },
   card: {
-    width: 250,
-    minHeight: 152,
+    width: 334,
+    minHeight: 228,
     backgroundColor: colors.background.bg1,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: colors.primary.main,
-    padding: 20,
+    padding: 16,
     alignItems: 'flex-start',
     gap: 0,
     shadowColor: '#8D99A3',
@@ -266,6 +328,17 @@ const S = StyleSheet.create({
   segment: {
     flexDirection: 'row',
     gap: 10,
+  },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alarmBadge: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   segmentButton: {
     width: 60,
@@ -297,12 +370,12 @@ const S = StyleSheet.create({
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginLeft: 4,
   },
   deletePlaceholder: {
     width: 24,
     height: 24,
-    marginLeft: 8,
+    marginLeft: 4,
   },
   cardTitleText: {
     marginTop: 15,
@@ -313,18 +386,45 @@ const S = StyleSheet.create({
     lineHeight: 25,
   },
   cardDateText: {
-    marginTop: 10,
     ...ts('body1'),
     color: colors.text.text1,
+    fontWeight: '400',
+    lineHeight: 16,
+    fontSize: 14
+  },
+  cardDateTextMissing: {
+    color: colors.icon.trash,
+  },
+  dateTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 4,
+  },
+  cardDueCountdownText: {
+    ...ts('body1'),
+    color: colors.primary.main,
+    fontWeight: '400',
+    lineHeight: 16,
     fontSize: 14,
-    fontWeight: 500,
   },
   cardTimeText: {
     ...ts('body1'),
     color: colors.text.text1,
-    fontSize: 14,
-    fontWeight: 500,
-    marginTop: 5,
+    fontWeight: '400',
+    lineHeight: 16,
+    fontSize: 14
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+    minHeight: 24,
+    overflow: 'visible',
+  },
+  timeInfoRow: {
+    marginTop: 2,
   },
   metaWrap: {
     width: '100%',
@@ -335,15 +435,24 @@ const S = StyleSheet.create({
   },
   metaChip: {
     maxWidth: '100%',
+    height: 24,
     paddingHorizontal: 8,
-    paddingVertical: 4,
     borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metaChipOutlined: {
     borderWidth: 1,
+    borderColor: colors.divider.divider1,
     backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  metaChipLabel: {
+    backgroundColor: colors.background.bg3,
   },
   metaChipText: {
     ...ts('label4'),
     color: colors.text.text3,
+    fontSize: 13,
   },
   cardActionRow: {
     width: '100%',

@@ -113,6 +113,64 @@ function normalizeWeekdayOn(values: string[] | null | undefined) {
   return Array.from(new Set(next)).sort((a, b) => a - b)
 }
 
+function deriveRepeatMode(repeat: AiCardDraftItem['repeat']) {
+  type DerivedRepeatState = {
+    mode: 'daily' | 'weekly' | 'monthly' | 'custom'
+    unit: 'day' | 'week' | 'month'
+    monthlyOpt: 'byDate' | 'byNthWeekday' | 'byLastWeekday'
+  }
+
+  if (!repeat?.unit || !repeat.interval) {
+    return {
+      mode: 'daily' as const,
+      unit: 'day' as const,
+      monthlyOpt: 'byDate' as const,
+    } satisfies DerivedRepeatState
+  }
+
+  const unit = repeat.unit === 'WEEK' ? 'week' : repeat.unit === 'MONTH' ? 'month' : 'day'
+  const on = repeat.on ?? []
+
+  if (repeat.interval > 1) {
+    return {
+      mode: 'custom' as const,
+      unit,
+      monthlyOpt: 'byDate' as const,
+    } satisfies DerivedRepeatState
+  }
+
+  if (repeat.unit === 'DAY') {
+    return {
+      mode: 'daily' as const,
+      unit: 'day' as const,
+      monthlyOpt: 'byDate' as const,
+    } satisfies DerivedRepeatState
+  }
+
+  if (repeat.unit === 'WEEK') {
+    const mode = on.length <= 1 ? 'weekly' : 'custom'
+    return {
+      mode,
+      unit: 'week' as const,
+      monthlyOpt: 'byDate' as const,
+    } satisfies DerivedRepeatState
+  }
+
+  const monthlyOpt =
+    on.some((value) => value.startsWith('LAST'))
+      ? ('byLastWeekday' as const)
+      : on.some((value) => /^D\d+$/.test(value))
+        ? ('byDate' as const)
+        : ('byNthWeekday' as const)
+
+  const mode = monthlyOpt === 'byDate' ? 'monthly' : 'custom'
+  return {
+    mode,
+    unit: 'month' as const,
+    monthlyOpt,
+  } satisfies DerivedRepeatState
+}
+
 function sameRepeat(
   left: AiCardDraftItem['repeat'] | null | undefined,
   right: AiCardDraftItem['repeat'] | null | undefined,
@@ -290,23 +348,12 @@ export default function AiEditSheet({ visible, item, onChange, onClose }: Props)
     const nextInvalidEndTime = item.isEvent && !!item.startTime && !!item.endTime && isEventEndBeforeStart(startDate, endDate)
     setInvalidEndTime(nextInvalidEndTime)
     setInvalidEndPreview(nextInvalidEndTime ? endDate : null)
+    const repeatState = deriveRepeatMode(item.repeat)
     setRepeatOn(!!item.repeat)
-    setRepeatMode(
-      item.repeat?.unit === 'WEEK'
-        ? 'weekly'
-        : item.repeat?.unit === 'MONTH'
-          ? 'monthly'
-          : 'daily',
-    )
+    setRepeatMode(repeatState.mode)
     setRepeatEvery(item.repeat?.interval ?? 1)
-    setRepeatUnit(
-      item.repeat?.unit === 'WEEK'
-        ? 'week'
-        : item.repeat?.unit === 'MONTH'
-          ? 'month'
-          : 'day',
-    )
-    setMonthlyOpt('byDate')
+    setRepeatUnit(repeatState.unit)
+    setMonthlyOpt(repeatState.monthlyOpt)
     setRepeatWeekdays(normalizeWeekdayOn(item.repeat?.on))
     setRepeatEndDate(parseDateOnly(item.repeat?.endDate))
     const reminder = item.reminderNoti

@@ -38,6 +38,7 @@ const colors = {
     w: '#FFFFFF',
     label: '#464A4D',
     wlabel: '#FFFFFF',
+    trash: '#FF5353',
   },
 
   feedback: {

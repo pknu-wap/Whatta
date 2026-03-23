@@ -29,6 +29,7 @@ import Animated, {
 } from 'react-native-reanimated'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
+import DownIcon from '@/assets/icons/down.svg'
 import XIcon from '@/assets/icons/xL.svg'
 import AiCard, { type AiCardDraftItem } from '@/screens/MyPage/Ai/AiCard'
 import AiChatInput from '@/screens/MyPage/Ai/AiChatInput'
@@ -500,6 +501,8 @@ function LoadingChar({
 
 export default function AiChatScreen({ navigation }: Props) {
   const scrollRef = React.useRef<ScrollView | null>(null)
+  const editingDraftOpenRef = React.useRef(false)
+  const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const deletedToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const { labels } = useLabels()
   const defaultScheduleColor = React.useMemo(
@@ -571,11 +574,16 @@ export default function AiChatScreen({ navigation }: Props) {
   }, [freeCountHydrated, serverFreeCount, usageDayKey])
 
   React.useEffect(() => {
+    if (editingDraftOpenRef.current) return
     const timer = setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true })
     }, 60)
     return () => clearTimeout(timer)
-  }, [messages, draftGroups, loading])
+  }, [draftGroups, loading, messages])
+
+  React.useEffect(() => {
+    editingDraftOpenRef.current = !!editingDraftId
+  }, [editingDraftId])
 
   React.useEffect(() => {
     if (!loading) {
@@ -640,6 +648,11 @@ export default function AiChatScreen({ navigation }: Props) {
       ...prev,
       { id: makeId('timeline-message'), type: 'message', messageId: nextMessage.id },
     ])
+  }, [])
+
+  const scrollToBottom = React.useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true })
+    setShowScrollToBottom(false)
   }, [])
 
   const upsertDraft = React.useCallback((id: string, patch: Partial<DraftItem>) => {
@@ -1016,6 +1029,13 @@ export default function AiChatScreen({ navigation }: Props) {
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={(event) => {
+              const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
+              const distanceFromBottom =
+                contentSize.height - (contentOffset.y + layoutMeasurement.height)
+              setShowScrollToBottom(distanceFromBottom > 120)
+            }}
           >
             {!hasStartedChat ? <IntroTitle text={messages[0].text} /> : null}
 
@@ -1218,6 +1238,18 @@ export default function AiChatScreen({ navigation }: Props) {
               onSubmit={() => submit()}
             />
           </View>
+
+          {showScrollToBottom && !editingDraft ? (
+            <Pressable
+              style={[
+                S.scrollToBottomButton,
+                keyboardHeight > 0 ? { bottom: keyboardHeight * 0.9 + 76 } : null,
+              ]}
+              onPress={scrollToBottom}
+            >
+              <DownIcon width={14} height={10} color={colors.icon.selected} />
+            </Pressable>
+          ) : null}
         </KeyboardAvoidingView>
       </SafeAreaView>
 
@@ -1276,6 +1308,22 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  scrollToBottomButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 84,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#C7D1D9',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   header: {
     flexDirection: 'row',
@@ -1561,7 +1609,7 @@ const S = StyleSheet.create({
     justifyContent: 'center',
   },
   saveAllWrap: {
-    width: 250,
+    width: 334,
     alignSelf: 'flex-start',
     alignItems: 'flex-end',
   },
