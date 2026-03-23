@@ -76,6 +76,9 @@ type Props = {
   onChangeTaskDueTimeOn: (next: boolean) => void
   taskDueTime: Date
   onChangeTaskDueTime: (next: Date) => void
+  contentWidth?: number
+  contentPaddingHorizontal?: number
+  eventDateInline?: React.ReactNode
 }
 
 type ReminderPresetOption = {
@@ -137,7 +140,6 @@ function isValidDate(value: Date) {
 }
 
 const TIME_WHEEL_FALLBACK_DATE = new Date(2000, 0, 1, 0, 0, 0, 0)
-
 const END_CAL_PILL_BG = '#B04FFF1A'
 const END_CAL_W = 301
 const END_DAY_W = 43
@@ -229,7 +231,13 @@ export default function CreateEventDetailStep({
   onChangeTaskDueTimeOn,
   taskDueTime,
   onChangeTaskDueTime,
+  contentWidth = 302,
+  contentPaddingHorizontal = 24,
+  eventDateInline = null,
 }: Props) {
+  const paletteWidth = contentWidth + 18
+  const typeButtonWidth = (contentWidth - 16) / 2
+  const timeBoxWidth = contentWidth - 76
   const displayedEnd = endDisplay ?? end
   const [openTimeTarget, setOpenTimeTarget] = React.useState<
     'start' | 'end' | 'due' | null
@@ -377,7 +385,10 @@ export default function CreateEventDetailStep({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.containerContent}
+      contentContainerStyle={[
+        styles.containerContent,
+        { paddingHorizontal: contentPaddingHorizontal },
+      ]}
       showsVerticalScrollIndicator={false}
       bounces={false}
     >
@@ -403,7 +414,7 @@ export default function CreateEventDetailStep({
           )}
         </View>
         {selectedType === 'event' && colorPaletteOpen && (
-          <View style={styles.colorPaletteBox}>
+          <View style={[styles.colorPaletteBox, { width: paletteWidth }]}>
             <View style={styles.colorPaletteGrid}>
               {paletteColors.slice(0, 12).map((c, idx) => (
                 <Pressable
@@ -423,6 +434,7 @@ export default function CreateEventDetailStep({
           <Pressable
             style={[
               styles.typeButton,
+              { width: typeButtonWidth },
               selectedType === 'event' && styles.typeButtonSelected,
             ]}
             onPress={() => onSelectType('event')}
@@ -439,6 +451,7 @@ export default function CreateEventDetailStep({
           <Pressable
             style={[
               styles.typeButton,
+              { width: typeButtonWidth },
               selectedType === 'task' && styles.typeButtonSelected,
             ]}
             onPress={() => onSelectType('task')}
@@ -457,7 +470,7 @@ export default function CreateEventDetailStep({
 
       <Text style={styles.sectionLabel}>날짜</Text>
       <Pressable
-        style={styles.dateBox}
+        style={[styles.dateBox, { width: contentWidth }]}
         onPress={
           selectedType === 'event'
             ? onPressDateBox
@@ -496,6 +509,7 @@ export default function CreateEventDetailStep({
           </Text>
         )}
       </Pressable>
+      {selectedType === 'event' ? eventDateInline : null}
       {selectedType === 'task' && openTaskCalendar === 'date' && (
         <View style={styles.repeatEndCalendarWrap}>
           <View style={styles.repeatEndCalendarHeader}>
@@ -662,6 +676,7 @@ export default function CreateEventDetailStep({
             <Pressable
               style={[
                 styles.timeBox,
+                { width: timeBoxWidth },
                 openTimeTarget === 'start' && styles.timeBoxSelected,
               ]}
               onPress={() =>
@@ -679,8 +694,11 @@ export default function CreateEventDetailStep({
             </Pressable>
           </View>
           {openTimeTarget === 'start' && (
-            <View style={styles.timePickerWrap}>
-              <TimeWheel value={start} onChange={onChangeStartTime} />
+            <View style={[styles.timePickerWrap, { width: contentWidth }]}>
+              <TimeWheel
+                value={start}
+                onChange={onChangeStartTime}
+              />
             </View>
           )}
 
@@ -691,6 +709,7 @@ export default function CreateEventDetailStep({
                 <Pressable
                   style={[
                     styles.timeBox,
+                    { width: timeBoxWidth },
                     openTimeTarget === 'end' && styles.timeBoxSelected,
                   ]}
                   onPress={() =>
@@ -710,8 +729,11 @@ export default function CreateEventDetailStep({
                 </Pressable>
               </View>
               {openTimeTarget === 'end' && (
-                <View style={styles.timePickerWrap}>
-                  <TimeWheel value={displayedEnd} onChange={onChangeEndTime} />
+                <View style={[styles.timePickerWrap, { width: contentWidth }]}>
+                  <TimeWheel
+                    value={displayedEnd}
+                    onChange={onChangeEndTime}
+                  />
                 </View>
               )}
             </>
@@ -742,7 +764,7 @@ export default function CreateEventDetailStep({
           {repeatOn && (
             <View style={styles.repeatDetail}>
               <Pressable
-                style={styles.repeatBox}
+                style={[styles.repeatBox, { width: contentWidth }]}
                 onPress={() => {
                   setRepeatOpen((v) => !v)
                   setMonthlyOpen(false)
@@ -756,7 +778,7 @@ export default function CreateEventDetailStep({
               </Pressable>
 
               {repeatOpen && (
-                <View style={styles.repeatMenu}>
+                <View style={[styles.repeatMenu, { width: contentWidth }]}>
                   {(
                     [
                       { k: 'daily', t: '매일' },
@@ -799,9 +821,7 @@ export default function CreateEventDetailStep({
                           style={[
                             styles.repeatMenuText,
                             repeatMode === k && styles.repeatMenuTextSelected,
-                            k === 'monthly' &&
-                              monthlyOpen &&
-                              styles.repeatMenuTextOpenStrong,
+                            k === 'monthly' && monthlyOpen && styles.repeatMenuTextOpenStrong,
                           ]}
                         >
                           {t}
@@ -812,9 +832,7 @@ export default function CreateEventDetailStep({
                               width={12}
                               height={10}
                               color={colors.icon.selected}
-                              style={
-                                monthlyOpen ? styles.repeatMenuItemArrowOpen : undefined
-                              }
+                              style={monthlyOpen ? styles.repeatMenuItemArrowOpen : undefined}
                             />
                           </View>
                         )}
@@ -893,7 +911,7 @@ export default function CreateEventDetailStep({
                       )}
 
                       {k === 'custom' && repeatCustomOpen && (
-                        <View style={styles.customPickerInList}>
+                        <View style={[styles.customPickerInList, { width: contentWidth }]}>
                           <View style={{ height: 8, pointerEvents: 'none' }} />
                           <View style={styles.customRow}>
                             <View style={styles.customCol}>
@@ -940,7 +958,10 @@ export default function CreateEventDetailStep({
       {selectedType === 'event' && repeatOn && repeatMode === 'weekly' && (
         <>
           <View style={styles.weekdaySection}>
-            <Pressable style={styles.repeatBox} onPress={() => setWeekdayOpen((v) => !v)}>
+            <Pressable
+              style={[styles.repeatBox, { width: contentWidth }]}
+              onPress={() => setWeekdayOpen((v) => !v)}
+            >
               <Text
                 style={[
                   styles.repeatBoxText,
@@ -954,7 +975,7 @@ export default function CreateEventDetailStep({
               </View>
             </Pressable>
             {weekdayOpen && (
-              <View style={styles.weekdayWrap}>
+              <View style={[styles.weekdayWrap, { width: contentWidth }]}>
                 {WEEKDAY_OPTIONS.map(({ label, value }) => {
                   const disabled = value === disabledWeekday
                   const selected = repeatWeekdays.includes(value)
@@ -998,7 +1019,11 @@ export default function CreateEventDetailStep({
           <View style={styles.timeRow}>
             <Text style={styles.timeRowLabel}>종료일</Text>
             <Pressable
-              style={[styles.timeBox, openRepeatEndDate && styles.timeBoxSelected]}
+              style={[
+                styles.timeBox,
+                { width: timeBoxWidth },
+                openRepeatEndDate && styles.timeBoxSelected,
+              ]}
               onPress={() => setOpenRepeatEndDate((v) => !v)}
             >
               <Text
@@ -1175,7 +1200,7 @@ export default function CreateEventDetailStep({
           {taskDueOn && (
             <>
               <Pressable
-                style={styles.dateBox}
+                style={[styles.dateBox, { width: contentWidth }]}
                 onPress={() => openTaskCalendarWithBase('due')}
               >
                 <Text
@@ -1339,6 +1364,7 @@ export default function CreateEventDetailStep({
                 <Pressable
                   style={[
                     styles.timeBox,
+                    { width: timeBoxWidth },
                     openTimeTarget === 'due' && styles.timeBoxSelected,
                   ]}
                   onPress={() =>
@@ -1359,8 +1385,11 @@ export default function CreateEventDetailStep({
                 </Pressable>
               </View>
               {openTimeTarget === 'due' && (
-                <View style={styles.timePickerWrap}>
-                  <TimeWheel value={taskDueTime} onChange={onChangeTaskDueTime} />
+                <View style={[styles.timePickerWrap, { width: contentWidth }]}>
+                  <TimeWheel
+                    value={taskDueTime}
+                    onChange={onChangeTaskDueTime}
+                  />
                   <View style={styles.dueTimeActionRow}>
                     <Pressable
                       onPress={() => {
@@ -1398,7 +1427,7 @@ export default function CreateEventDetailStep({
       {remindOn && (
         <View style={styles.repeatDetail}>
           <Pressable
-            style={styles.repeatBox}
+            style={[styles.repeatBox, { width: contentWidth }]}
             onPress={() => {
               const nextOpen = !remindOpen
               onSetRemindOpen(nextOpen)
@@ -1421,7 +1450,7 @@ export default function CreateEventDetailStep({
           </Pressable>
 
           {remindOpen && (
-            <View style={styles.repeatMenu}>
+            <View style={[styles.repeatMenu, { width: contentWidth }]}>
               {remindOptions.map((opt, idx) => {
                 const isLast = idx === remindOptions.length - 1
                 const key = opt.type === 'preset' ? opt.id : 'custom'
@@ -1450,7 +1479,7 @@ export default function CreateEventDetailStep({
           )}
 
           {customOpen && (
-            <View style={styles.remindPickerWrap}>
+            <View style={[styles.remindPickerWrap, { width: contentWidth }]}>
               <View style={styles.remindPickerInner}>
                 <View style={styles.remindPickerBox}>
                   <Picker
@@ -1503,7 +1532,7 @@ export default function CreateEventDetailStep({
           />
         </Pressable>
       </View>
-      <View style={styles.labelBox}>
+      <View style={[styles.labelBox, { width: contentWidth }]}>
         {selectedLabelIds.length > 0 ? (
           <ScrollView
             horizontal
@@ -1552,7 +1581,7 @@ export default function CreateEventDetailStep({
       )}
 
       <Text style={[styles.sectionLabel, styles.memoLabel]}>메모</Text>
-      <View style={styles.memoBox}>
+      <View style={[styles.memoBox, { width: contentWidth }]}>
         <TextInput
           value={memo}
           onChangeText={onChangeMemo}
@@ -1580,7 +1609,7 @@ function TimeWheel({ value, onChange }: { value: Date; onChange: (next: Date) =>
     if (!canPropagateChange) return
     let h = nextHour12 % 12
     if (nextAmPm === 'PM') h += 12
-    const next = new Date(value)
+    const next = new Date(safeValue)
     next.setHours(h)
     next.setMinutes(nextMinute)
     next.setSeconds(0)

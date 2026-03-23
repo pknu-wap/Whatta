@@ -26,6 +26,7 @@ export type CreateEventPayload = {
   endTime?: string | null // "HH:mm:ss"
   repeat?: RepeatRule | null
   colorKey?: string // "FFFFFF"
+  reminderNoti?: { day: number; hour: number; minute: number } | null
 }
 
 type CreateEventResponse<Data = any> = {

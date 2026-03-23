@@ -1,4 +1,5 @@
 import { http } from '@/lib/http'
+import type { RepeatRule } from '@/api/event_api'
 
 export interface TaskDTO {
   id: string
@@ -20,6 +21,7 @@ export interface CreateTaskPayload {
   placementTime?: string | null
   reminderNoti?: any | null
   dueDateTime?: string | null
+  repeat?: RepeatRule | null
   date?: string
 }
 
@@ -33,6 +35,7 @@ export interface UpdateTaskPayload {
   placementTime?: string | null
   reminderNoti?: any | null
   dueDateTime?: string | null
+  repeat?: RepeatRule | null
 
   fieldsToClear?: string[]
 }

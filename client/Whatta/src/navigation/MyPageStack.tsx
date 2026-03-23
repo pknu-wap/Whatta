@@ -6,6 +6,7 @@ import LabelsScreen from '@/screens/MyPage/LabelScreen'
 import RemainderScreen from '@/screens/MyPage/RemainderTimeScreen'
 import SummaryScreean from '@/screens/MyPage/SummaryTimeScreen'
 import TrafficAlertStack from '@/navigation/TrafficAlertStack'
+import AiChatScreen from '@/screens/MyPage/Ai/AiChatScreen'
 
 export type MyPageStackList = {
   MyPageList: undefined
@@ -20,6 +21,7 @@ export type MyPageStackList = {
   CalendarVibration: undefined
   UsageReminders: undefined
   TrafficAlertsRoot: undefined
+  AiChat: undefined
 }
 
 const Stack = createNativeStackNavigator<MyPageStackList>()
@@ -31,6 +33,11 @@ export default function MyPageStack() {
       <Stack.Screen name="MyPageList" component={MyPageScreen} />
 
       {/* 플레이스홀더들: 나중에 실제 화면으로 대체 */}
+      <Stack.Screen
+        name="AiChat"
+        component={AiChatScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen
         name="Profile"
         component={PlaceholderScreen}

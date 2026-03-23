@@ -440,10 +440,6 @@ export function DraggableFixedEvent({
                     })
 
                     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-                    bus.emit('calendar:mutated', {
-                      op: 'update',
-                      item: { id, startDate: anchorDate, endDate: anchorDate },
-                    })
                   } catch (e) {
                     console.error('❌ 반복 단일 수정 실패:', e)
                     resetDragPosition()
@@ -473,10 +469,6 @@ export function DraggableFixedEvent({
                     })
 
                     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
-                    bus.emit('calendar:mutated', {
-                      op: 'update',
-                      item: { id, startDate: anchorDate, endDate: anchorDate },
-                    })
                   } catch (e) {
                     console.error('❌ 반복 전체 수정 실패:', e)
                     resetDragPosition()
@@ -915,7 +907,7 @@ export function DraggableFlexibleEvent({
   const finalShift = Math.max(overlapShift, overlapWithFixed ? 1 : 0)
 
   const left = BASE_LEFT + finalShift * STAGGER
-  const width = DAY_CARD_WIDTH - finalShift * STAGGER
+  const width = Math.max(72, DAY_CARD_WIDTH - finalShift * STAGGER)
 
   return (
     <GestureDetector gesture={composedGesture}>

@@ -413,6 +413,11 @@ export default function DayView() {
   }, [openCreateTaskPopup])
 
   useEffect(() => {
+    if (!isToday) {
+      setNowTop(null)
+      return
+    }
+    
     const updateNowTop = (scrollToCenter: boolean) => {
       const now = new Date()
       const hour = now.getHours()
@@ -434,7 +439,7 @@ export default function DayView() {
     updateNowTop(true)
     const id = setInterval(() => updateNowTop(false), 60000)
     return () => clearInterval(id)
-  }, [hasScrolledOnce, isToday])
+  }, [hasScrolledOnce, isToday, PIXELS_PER_MIN])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -452,7 +457,7 @@ export default function DayView() {
         setHasScrolledOnce(true)
       })
     }
-  }, [hasScrolledOnce, isToday, nowTop])
+  }, [nowTop, isToday, hasScrolledOnce])
 
   // 라벨 필터링
   const enabledLabelIds = useMemo(
