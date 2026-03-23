@@ -38,4 +38,13 @@ public class LocalDateTimeUtil {
         }
         return TIME_FORMATTER.format(localTime);
     }
+
+    public static String localDateTimeToString(LocalDateTime localDateTime) {
+        if (localDateTime == null) { return null; }
+
+        LocalTime localTime = localDateTime.toLocalTime();
+        String newTime = localTimeToString(localTime);
+
+        return DATE_FORMATTER.format(localDateTime.toLocalDate()) + " " + newTime;
+    }
 }

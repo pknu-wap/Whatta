@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayEventItem;
+import whatta.Whatta.calendar.repository.dto.CalendarEventSummaryItem;
 import whatta.Whatta.calendar.repository.dto.CalendarEventsResult;
 import whatta.Whatta.calendar.repository.dto.CalendarMonthlyEventResult;
 import whatta.Whatta.calendar.repository.dto.CalendarTimedEventItem;
@@ -91,6 +92,51 @@ public class CalendarEventsRepositoryCustom {
                 ? result : new CalendarEventsResult(
                 List.<CalendarAllDayEventItem>of(),
                 List.<CalendarTimedEventItem>of());
+    }
+
+    public List<CalendarEventSummaryItem> getTodaySummaryByUserId(String userId, LocalDate date) {
+
+        Criteria base = Criteria.where("userId").is(userId)
+                .and("startDate").lte(date);
+
+        Criteria nonRepeat = new Criteria().andOperator(
+                Criteria.where("repeat").is(null),
+                Criteria.where("endDate").gte(date)
+        );
+
+        Criteria hasRepeat = new Criteria().andOperator(
+                Criteria.where("repeat").ne(null),
+                Criteria.where("repeat.deadline").gte(date)
+        );
+
+        AggregationOperation commonMatch = Aggregation.match(
+                new Criteria().andOperator(
+                        base,
+                        new Criteria().orOperator(nonRepeat, hasRepeat)
+                )
+        );
+
+        List<AggregationOperation> operations = new ArrayList<>();
+        operations.add(commonMatch);
+        operations.add(Aggregation.project()
+                .and("title").as("title")
+                .and("content").as("content")
+                .and("startDate").as("startDate")
+                .and("endDate").as("endDate")
+                .and("startTime").as("startTime")
+                .and("endTime").as("endTime")
+                .and("repeat").as("repeat"));
+        operations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("startTime"),
+                Sort.Order.asc("endTime"),
+                Sort.Order.asc("title")
+        )));
+
+        Aggregation aggregation = Aggregation.newAggregation(operations);
+
+        return mongoTemplate
+                .aggregate(aggregation, "events", CalendarEventSummaryItem.class)
+                .getMappedResults();
     }
 
     public CalendarEventsResult getWeeklyViewByUserId(String userId, LocalDate start, LocalDate end) {

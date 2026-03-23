@@ -4,9 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import whatta.Whatta.calendar.repository.CalendarTasksRepositoryCustom;
+import whatta.Whatta.calendar.repository.dto.CalendarTaskSummaryResult;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
+import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.notification.service.ReminderNotiService;
 import whatta.Whatta.notification.service.TaskDueNotiService;
 import whatta.Whatta.task.entity.Task;
@@ -15,10 +18,12 @@ import whatta.Whatta.task.payload.request.TaskCreateRequest;
 import whatta.Whatta.task.payload.request.TaskUpdateRequest;
 import whatta.Whatta.task.payload.response.SidebarTaskResponse;
 import whatta.Whatta.task.payload.response.TaskResponse;
+import whatta.Whatta.task.payload.response.TodayTaskSummaryResponse;
 import whatta.Whatta.task.repository.TaskRepository;
 import whatta.Whatta.user.setting.entity.UserSetting;
 import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +37,7 @@ import java.util.stream.Collectors;
 public class TaskService {
 
     private final TaskRepository taskRepository;
+    private final CalendarTasksRepositoryCustom calendarTasksRepository;
     private final UserSettingRepository userSettingRepository;
     private final TaskMapper taskMapper;
     private final ReminderNotiService reminderNotiService;
@@ -229,4 +235,27 @@ public class TaskService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public TodayTaskSummaryResponse getTodaySummary(String userId) {
+        CalendarTaskSummaryResult summaryResult =
+                calendarTasksRepository.getTodaySummaryByUserId(userId, LocalDate.now());
+
+        return TodayTaskSummaryResponse.builder()
+                .placedToday(summaryResult.placedToday().stream()
+                        .map(item -> TodayTaskSummaryResponse.TaskPlacedToday.builder()
+                                .title(item.title())
+                                .placementTime(LocalDateTimeUtil.localTimeToString(item.placementTime()))
+                                .complete(item.completed())
+                                .DueDateTime(LocalDateTimeUtil.localDateTimeToString(item.dueDateTime()))
+                                .build())
+                        .toList())
+                .DueToday(summaryResult.dueToday().stream()
+                        .map(item -> TodayTaskSummaryResponse.TaskDueToday.builder()
+                                .title(item.title())
+                                .complete(item.completed())
+                                .DueDateTime(LocalDateTimeUtil.localDateTimeToString(item.dueDateTime()))
+                                .build())
+                        .toList())
+                .build();
+    }
 }
