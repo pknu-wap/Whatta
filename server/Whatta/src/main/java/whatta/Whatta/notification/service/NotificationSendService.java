@@ -1,7 +1,9 @@
 package whatta.Whatta.notification.service;
 
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.Notification;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +29,7 @@ public class NotificationSendService {
             return NotificationSendResult.TERMINAL_FAILURE;
         }
 
-        return send(token.getFcmToken(), title, body, Map.of(
+        return send(userId, "SUMMARY", null, token.getFcmToken(), title, body, Map.of(
                 "type", "SUMMARY",
                 "userId", userId)
         );
@@ -40,7 +42,7 @@ public class NotificationSendService {
             return NotificationSendResult.TERMINAL_FAILURE;
         }
 
-        return send(token.getFcmToken(), title, body, Map.of(
+        return send(userId, "REMINDER", targetId, token.getFcmToken(), title, body, Map.of(
                 "type", "REMINDER",
                 "userId", userId,
                 "targetId", targetId
@@ -54,7 +56,7 @@ public class NotificationSendService {
             return NotificationSendResult.TERMINAL_FAILURE;
         }
 
-        return send(token.getFcmToken(), title, body, Map.of(
+        return send(userId, "TASK_DUE", targetId, token.getFcmToken(), title, body, Map.of(
                 "type", "TASK_DUE",
                 "userId", userId,
                 "targetId", targetId
@@ -68,13 +70,21 @@ public class NotificationSendService {
             return NotificationSendResult.TERMINAL_FAILURE;
         }
 
-        return send(token.getFcmToken(), title, body, Map.of(
+        return send(userId, "TRAFFIC", null, token.getFcmToken(), title, body, Map.of(
                 "type", "TRAFFIC",
                 "userId", userId
         ));
     }
 
-    private NotificationSendResult send(String token, String title, String body, Map<String, String> data) {
+    private NotificationSendResult send(
+            String userId,
+            String notificationType,
+            String targetId,
+            String token,
+            String title,
+            String body,
+            Map<String, String> data
+    ) {
         Notification notification = Notification.builder()
                 .setTitle(title)
                 .setBody(body)
@@ -93,9 +103,55 @@ public class NotificationSendService {
         try {
             firebaseMessaging.send(message);
             return NotificationSendResult.SUCCESS;
+        } catch (FirebaseMessagingException e) {
+            NotificationSendResult result = classifyFirebaseFailure(e);
+            MessagingErrorCode messagingErrorCode = e.getMessagingErrorCode();
+
+            if (result == NotificationSendResult.TERMINAL_FAILURE) {
+                log.warn(
+                        "FCM send terminal failure. userId={}, type={}, targetId={}, messagingErrorCode={}, errorCode={}, message={}",
+                        userId,
+                        notificationType,
+                        targetId,
+                        messagingErrorCode,
+                        e.getErrorCode(),
+                        e.getMessage(),
+                        e
+                );
+                return result;
+            }
+
+            log.warn(
+                    "FCM send retryable failure. userId={}, type={}, targetId={}, messagingErrorCode={}, errorCode={}, message={}",
+                    userId,
+                    notificationType,
+                    targetId,
+                    messagingErrorCode,
+                    e.getErrorCode(),
+                    e.getMessage(),
+                    e
+            );
+            return result;
         } catch (Exception e) {
-            log.warn("FCM send failed", e);
+            log.warn(
+                    "FCM send retryable failure. userId={}, type={}, targetId={}, error={}",
+                    userId,
+                    notificationType,
+                    targetId,
+                    e.getClass().getSimpleName(),
+                    e
+            );
             return NotificationSendResult.RETRYABLE_FAILURE;
         }
+    }
+
+    private NotificationSendResult classifyFirebaseFailure(FirebaseMessagingException e) {
+        MessagingErrorCode messagingErrorCode = e.getMessagingErrorCode();
+        if (messagingErrorCode == MessagingErrorCode.UNREGISTERED
+                || messagingErrorCode == MessagingErrorCode.SENDER_ID_MISMATCH) {
+            return NotificationSendResult.TERMINAL_FAILURE;
+        }
+
+        return NotificationSendResult.RETRYABLE_FAILURE;
     }
 }
