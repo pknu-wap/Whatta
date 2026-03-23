@@ -14,6 +14,10 @@ export default function RootNavigator() {
     <Root.Navigator
       screenOptions={{
         headerShown: false,
+        contentStyle: {
+          backgroundColor: 'transparent',
+        },
+        animation: 'none',
       }}
     >
       <Root.Screen
