@@ -10,11 +10,15 @@ import whatta.Whatta.weather.enums.KoreanAirQualityGrade;
 import whatta.Whatta.weather.enums.WeatherGroup;
 import whatta.Whatta.weather.payload.response.WeatherResponse;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class WeatherService {
+
+    private static final DateTimeFormatter WEATHER_API_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final WeatherApiClient weatherApiClient;
 
@@ -24,15 +28,16 @@ public class WeatherService {
         WeatherApiForecastResponse.Current current = response.current();
         WeatherApiForecastResponse.ForecastDay todayForecast = extractTodayForecast(response);
         WeatherApiForecastResponse.Day today = todayForecast.day();
-        WeatherApiForecastResponse.Condition condition = today.condition();
-        WeatherApiForecastResponse.AirQuality airQuality = current != null ? current.airQuality() : null;
-        WeatherGroup weatherGroup = WeatherGroup.fromCode(condition != null ? condition.code() : null);
-        WeatherApiForecastResponse.Hour firstRainHour = findFirstRainHour(todayForecast.hour());
-        WeatherApiForecastResponse.Hour firstSnowHour = findFirstSnowHour(todayForecast.hour());
 
-        if (current == null || condition == null) {
+        if (current == null || today == null || today.condition() == null) {
             throw new RestApiException(ErrorCode.WEATHER_API_INVALID_RESPONSE);
         }
+
+        WeatherApiForecastResponse.Condition condition = today.condition();
+        WeatherApiForecastResponse.AirQuality airQuality = current.airQuality();
+        WeatherGroup weatherGroup = WeatherGroup.fromCode(condition.code());
+        WeatherApiForecastResponse.Hour firstRainHour = findFirstRainHour(todayForecast.hour());
+        WeatherApiForecastResponse.Hour firstSnowHour = findFirstSnowHour(todayForecast.hour());
 
         return WeatherResponse.builder()
                 .todayMinTemperatureC(today.minTempC())
@@ -83,7 +88,10 @@ public class WeatherService {
             return null;
         }
 
+        LocalDateTime now = LocalDateTime.now();
+
         return hours.stream()
+                .filter(hour -> isAfterOrSameCurrentHour(hour.time(), now))
                 .filter(hour -> toBoolean(hour.willItRain()))
                 .findFirst()
                 .orElse(null);
@@ -94,9 +102,21 @@ public class WeatherService {
             return null;
         }
 
+        LocalDateTime now = LocalDateTime.now();
+
         return hours.stream()
+                .filter(hour -> isAfterOrSameCurrentHour(hour.time(), now))
                 .filter(hour -> toBoolean(hour.willItSnow()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean isAfterOrSameCurrentHour(String weatherApiTime, LocalDateTime now) {
+        if (weatherApiTime == null) {
+            return false;
+        }
+
+        LocalDateTime forecastTime = LocalDateTime.parse(weatherApiTime, WEATHER_API_TIME_FORMAT);
+        return !forecastTime.isBefore(now.withMinute(0).withSecond(0).withNano(0));
     }
 }
