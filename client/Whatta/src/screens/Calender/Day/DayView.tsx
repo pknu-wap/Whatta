@@ -14,7 +14,7 @@ import { GestureDetector } from 'react-native-gesture-handler'
 import Animated from 'react-native-reanimated'
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { useFocusEffect, useIsFocused } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import { bus } from '@/lib/eventBus'
@@ -37,6 +37,7 @@ import { useDayData } from './eventUtils'
 import { useDaySwipe } from './swipeUtils'
 import { useOCR } from '@/hooks/useOCR'
 import { useDayDrag } from './dragUtils'
+import { calendarViewTransition } from '@/providers/CalendarViewProvider'
 import {
   computeEventOverlap,
   groupTasksByOverlap,
@@ -111,10 +112,14 @@ const getTaskStartHour = (placementTime?: string | null) => {
   return h + m / 60
 }
 
-export default function DayView() {
+export default function DayView({ active = true }: { active?: boolean }) {
+  const suppressNextAutoScrollRef = useRef(
+    calendarViewTransition.consumeNextEntranceSuppressed(),
+  )
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
 
   const isFocused = useIsFocused()
+  const screenActive = active && isFocused
 
   const [anchorDate, setAnchorDate] = useState<string>(today())
   const [, setColorSetVersion] = useState(0)
@@ -148,14 +153,15 @@ export default function DayView() {
   // 중복 방송 방지용
   const lastBroadcastRef = useRef<string | null>(null)
   useEffect(() => {
+    if (!screenActive) return
     if (lastBroadcastRef.current !== anchorDate) {
       bus.emit('calendar:state', { date: anchorDate, mode: 'day' })
       lastBroadcastRef.current = anchorDate
     }
-  }, [anchorDate])
+  }, [anchorDate, screenActive])
 
   useEffect(() => {
-    if (!isFocused) return
+    if (!screenActive) return
 
     bus.emit('calendar:state', {
       date: anchorDate,
@@ -164,7 +170,7 @@ export default function DayView() {
     bus.emit('calendar:meta', {
       mode: 'day',
     })
-  }, [anchorDate, isFocused])
+  }, [anchorDate, screenActive])
   const [eventPopupVisible, setEventPopupVisible] = useState(false)
   const [eventPopupData, setEventPopupData] = useState<EventItem | null>(null)
   const [eventPopupMode, setEventPopupMode] = useState<'create' | 'edit'>('create')
@@ -218,8 +224,8 @@ export default function DayView() {
     bottom: 0,
   })
   const [gridRect, setGridRect] = useState({ left: 0, top: 0, right: 0, bottom: 0 })
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+      if (!screenActive) return
       currentCalendarView.set('day')
 
       // 헤더나 WeekView에서 현재 상태를 알려줄 때
@@ -243,24 +249,23 @@ export default function DayView() {
         bus.off('calendar:state', onState)
         bus.off('calendar:set-date', onSet)
       }
-    }, []), // 의존성 비움 - 스와이프 시 재실행 방지
-  )
-  useFocusEffect(
-    useCallback(() => {
+  }, [screenActive])
+  useEffect(() => {
+      if (!screenActive) return
       bus.emit('calendar:state', {
         date: anchorDate,
         mode: 'day',
       })
-    }, [anchorDate]),
-  )
+  }, [anchorDate, screenActive])
 
   useEffect(() => {
-    if (isFocused) {
+    if (screenActive) {
       bus.emit('calendar:set-date', anchorDate)
     }
-  }, [anchorDate, isFocused])
+  }, [anchorDate, screenActive])
 
   useEffect(() => {
+    if (!screenActive) return
     const onReq = () =>
       bus.emit('calendar:state', { date: anchorDateRef.current, mode: 'day' })
     const onSet = (iso: string) => {
@@ -277,7 +282,7 @@ export default function DayView() {
       bus.off('calendar:request-sync', onReq)
       bus.off('calendar:set-date', onSet)
     }
-  }, [])
+  }, [screenActive])
 
   const gridScrollYRef = useRef(0)
   const taskBoxRectRef = useRef(taskBoxRect)
@@ -297,11 +302,10 @@ export default function DayView() {
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
   const isToday = anchorDate === today()
 
-  useFocusEffect(
-    React.useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
       setOpenGroupId(null)
-    }, []),
-  )
+  }, [screenActive])
 
   useEffect(() => {
     setOpenGroupId(null)
@@ -429,9 +433,10 @@ export default function DayView() {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
             y: Math.max(topPos - SCREEN_H * 0.35, 0),
-            animated: true,
+            animated: !suppressNextAutoScrollRef.current,
           })
         })
+        suppressNextAutoScrollRef.current = false
         setHasScrolledOnce(true)
       }
     }
@@ -441,19 +446,20 @@ export default function DayView() {
     return () => clearInterval(id)
   }, [hasScrolledOnce, isToday, PIXELS_PER_MIN])
 
-  useFocusEffect(
-    React.useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
+    if (suppressNextAutoScrollRef.current) return
       setHasScrolledOnce(false)
-    }, []),
-  )
+  }, [screenActive])
 
   useEffect(() => {
     if (isToday && nowTop != null && gridScrollRef.current && !hasScrolledOnce) {
       requestAnimationFrame(() => {
         gridScrollRef.current?.scrollTo({
           y: Math.max(nowTop - SCREEN_H * 0.35, 0),
-          animated: true,
+          animated: !suppressNextAutoScrollRef.current,
         })
+        suppressNextAutoScrollRef.current = false
         setHasScrolledOnce(true)
       })
     }

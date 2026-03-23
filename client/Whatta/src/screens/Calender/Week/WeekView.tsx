@@ -24,7 +24,7 @@ import Animated, {
   runOnJS,
   withDelay,
 } from 'react-native-reanimated'
-import { useFocusEffect, useIsFocused } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
@@ -38,6 +38,7 @@ import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import { calendarViewTransition } from '@/providers/CalendarViewProvider'
 import { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import WeekHeaderSpan from '@/screens/Calender/Week/WeekHeaderSpan'
 import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
@@ -1030,8 +1031,12 @@ const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 /* WeekView 메인 */
 /* -------------------------------------------------------------------------- */
 
-export default function WeekView() {
+export default function WeekView({ active = true }: { active?: boolean }) {
+  const suppressNextAutoScrollRef = useRef(
+    calendarViewTransition.consumeNextEntranceSuppressed(),
+  )
   const isFocused = useIsFocused()
+  const screenActive = active && isFocused
   const spanWrapRef = useRef<View>(null)
   const [spanRect, setSpanRect] = useState<GridRect | null>(null)
 
@@ -1209,7 +1214,7 @@ const {
 
       setWeekDates(arr)
 
-      if (isFocused) {
+      if (screenActive) {
         bus.emit('calendar:state', {
           date: arr[0],
           mode: 'week',
@@ -1225,7 +1230,7 @@ const {
 
       setWeekDates(arr)
 
-      if (isFocused) {
+      if (screenActive) {
         bus.emit('calendar:state', {
           date: arr[0],
           mode: 'week',
@@ -1235,7 +1240,7 @@ const {
         })
       }
     }
-  }, [anchorDate, isZoomed, isFocused])
+  }, [anchorDate, isZoomed, screenActive])
 
   const rowH =
     weekDates.length === 7 ? 61 : weekDates.length === 5 ? 62 : BASE_ROW_H
@@ -1266,8 +1271,9 @@ const {
           requestAnimationFrame(() => {
             gridScrollRef.current?.scrollTo({
               y: Math.max(topPos - SCREEN_H * 0.35, 0),
-              animated: true,
+              animated: !suppressNextAutoScrollRef.current,
             })
+            suppressNextAutoScrollRef.current = false
             setHasScrolledOnce(true)
           })
         })
@@ -1285,23 +1291,24 @@ const {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
             y: Math.max(nowTop - SCREEN_H * 0.35, 0),
-            animated: true,
+            animated: !suppressNextAutoScrollRef.current,
           })
+          suppressNextAutoScrollRef.current = false
           setHasScrolledOnce(true)
         })
       })
     }
   }, [nowTop, weekData, hasScrolledOnce])
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
+    if (suppressNextAutoScrollRef.current) return
       setHasScrolledOnce(false) // ← 요거 하나로 DayView와 동일한 동작 완성
-    }, []),
-  )
+  }, [screenActive])
 
   const today = todayISO()
   useCalendarSync({
-    isFocused,
+    active: screenActive,
     weekDates,
     anchorDateRef,
     dayColWidth,
@@ -1311,11 +1318,10 @@ const {
     fetchWeek,
   })
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
       setTaskGroupCollapseToken((prev) => prev + 1)
-    }, []),
-  )
+  }, [screenActive])
 
   useEffect(() => {
     setTaskGroupCollapseToken((prev) => prev + 1)

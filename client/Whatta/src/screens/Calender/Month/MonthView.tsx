@@ -4,8 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  Animated as RNAnimated,
   Alert,
   Modal,
   Dimensions,
@@ -24,23 +22,23 @@ import { ScheduleData } from '@/api/adapter'
 import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
 import { fetchTasksForMonth, getEvent } from '@/api/event_api'
-import { useFocusEffect } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
-import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
+import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { S } from './S'
 import { buildLaneMap, getDisplayItems, getCalendarDates, CalendarDateItem } from './MonthView.utils'
 import { useOCR } from '@/hooks/useOCR'
+import { calendarViewTransition } from '@/providers/CalendarViewProvider'
 
-import { createEvent } from '@/api/event_api'
 import OcrSplash from '@/screens/More/OcrSplash'
 
 
-import { today, getDateOfWeek } from './dateUtils'
+import { today } from './dateUtils'
 import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
@@ -56,6 +54,10 @@ import { getTask } from '@/api/task'
 
 const isSpan = (s: ScheduleData) => !!(s.multiDayStart && s.multiDayEnd)
 type UISchedule = ScheduleData & { colorKey?: string }
+type MonthCacheSnapshot = {
+  days: MonthlyDay[]
+  schedules: UISchedule[]
+}
 const MONTH_ITEM_WIDTH = cellWidth
 const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
@@ -66,7 +68,8 @@ const HOLIDAY_EVENT_OFFSET = Math.max(
   0,
   MONTH_ITEM_SLOT_HEIGHT - HOLIDAY_HEADER_BASE_OFFSET,
 )
-const { width: SCREEN_W } = Dimensions.get('window')
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
+const monthDataCache = new Map<string, MonthCacheSnapshot>()
 
 const getOccurrenceDedupKey = (item: UISchedule) => {
   const prefix = item.isTask ? 'TASK' : 'EVENT'
@@ -95,7 +98,14 @@ const addDaysToISO = (iso: string, delta: number) => {
 }
 
 
-export default function MonthView() {
+type MonthViewProps = {
+  active?: boolean
+  initialDateISO?: string | null
+}
+
+export default function MonthView({ active = true, initialDateISO }: MonthViewProps) {
+  const suppressNextTransitionRef = useRef(calendarViewTransition.consumeNextEntranceSuppressed())
+  const isScreenFocused = useIsFocused()
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
   const [, setColorSetVersion] = useState(0)
 
@@ -139,10 +149,14 @@ export default function MonthView() {
   }, [])
 
   // 캘린더 동기화 hooks
-  const [focusedDateISO, setFocusedDateISO] = useState<string>(today())
+  const resolvedInitialDateISO = initialDateISO && initialDateISO.length >= 10
+    ? initialDateISO.slice(0, 10)
+    : today()
+  const initialYM = resolvedInitialDateISO.slice(0, 7)
+  const initialCache = monthDataCache.get(initialYM)
+  const [focusedDateISO, setFocusedDateISO] = useState<string>(resolvedInitialDateISO)
   const [ym, setYm] = useState<string>(() => {
-    const t = new Date()
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`
+    return initialYM
   })
 
   useEffect(() => {
@@ -189,11 +203,10 @@ export default function MonthView() {
     return () => bus.off('month:detail:navigate', onNavigate)
   }, [buildSelectedDayDataFromRawDay])
 
-  useFocusEffect(
-    React.useCallback(() => {
+  useEffect(() => {
+    if (!active || !isScreenFocused) return
       bus.emit('calendar:state', { date: focusedDateISO, mode: 'month' })
-    }, [ym, focusedDateISO]),
-  )
+  }, [active, isScreenFocused, ym, focusedDateISO])
 
 
   // 데이터 fetch
@@ -229,6 +242,10 @@ export default function MonthView() {
        const merged = dedupeSchedules(mergedRaw)
 
         if (targetYM === ym) {
+          monthDataCache.set(targetYM, {
+            days: fresh.days,
+            schedules: merged,
+          })
           setDays(fresh.days)
           setServerSchedules(merged)
         }
@@ -253,15 +270,14 @@ export default function MonthView() {
   }, [fetchFresh, ym])
 
   const isFirstFocusRef = useRef(true)
-  useFocusEffect(
-    React.useCallback(() => {
+  useEffect(() => {
+      if (!active || !isScreenFocused) return
       if (isFirstFocusRef.current) {
         isFirstFocusRef.current = false
         return
       }
       void fetchFresh(ym)
-    }, [fetchFresh, ym]),
-  )
+  }, [active, isScreenFocused, fetchFresh, ym])
 
   useEffect(() => {
     const onMutated = (_payload?: { op?: 'create' | 'update' | 'delete'; item?: any }) => {
@@ -281,8 +297,6 @@ const {
 } = useOCR()
 
   const laneMapRef = useRef<Map<string, number>>(new Map())
-
-  const fade = useRef(new RNAnimated.Value(1)).current
 
   const pad = (n: number) => String(n).padStart(2, '0')
   const toYM = (src: string | Date): string => {
@@ -465,7 +479,6 @@ const {
     [focusedDateISO],
   )
 
-  // 좌우 스와이프 제스처 (DayView 구조 참고)
   const swipeTranslateX = useSharedValue(0)
   const swipeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: swipeTranslateX.value }],
@@ -484,34 +497,45 @@ const {
           if (nx < -max) nx = -max
           swipeTranslateX.value = nx
         })
-        .onEnd(() => {
+        .onEnd((e) => {
           'worklet'
           const cur = swipeTranslateX.value
           const th = SCREEN_W * 0.06
 
           if (cur > th) {
-            swipeTranslateX.value = withTiming(SCREEN_W * 0.15, { duration: 120 }, () => {
-              runOnJS(goMonth)(-1)
-              swipeTranslateX.value = withTiming(0, { duration: 160 })
-            })
+            swipeTranslateX.value = withTiming(
+              SCREEN_W * 0.15,
+              { duration: 120 },
+              () => {
+                runOnJS(goMonth)(-1)
+                swipeTranslateX.value = withTiming(0, { duration: 160 })
+              },
+            )
           } else if (cur < -th) {
-            swipeTranslateX.value = withTiming(-SCREEN_W * 0.15, { duration: 120 }, () => {
-              runOnJS(goMonth)(+1)
-              swipeTranslateX.value = withTiming(0, { duration: 160 })
-            })
+            swipeTranslateX.value = withTiming(
+              -SCREEN_W * 0.15,
+              { duration: 120 },
+              () => {
+                runOnJS(goMonth)(+1)
+                swipeTranslateX.value = withTiming(0, { duration: 160 })
+              },
+            )
           } else {
             swipeTranslateX.value = withTiming(0, { duration: 150 })
           }
         }),
-    [goMonth, swipeTranslateX],
+    [goMonth],
   )
 
   const { year, monthIndex } = useMemo(() => parseYM(ym), [ym])
 
   const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
-  const [days, setDays] = useState<MonthlyDay[]>([])
-  const [loading, setLoading] = useState(false)
-  const [calendarBodyHeight, setCalendarBodyHeight] = useState(0)
+  const [days, setDays] = useState<MonthlyDay[]>(() => initialCache?.days ?? [])
+  const [loading, setLoading] = useState(!initialCache)
+  const [hasHydratedMonth, setHasHydratedMonth] = useState(!!initialCache)
+  const [calendarBodyHeight, setCalendarBodyHeight] = useState(
+    Math.max(SCREEN_H - 260, 360),
+  )
 
   
   // Memo로 캐싱
@@ -865,7 +889,9 @@ const holidayIsoByWeek = useMemo(() => {
     openDetailPopupForDateItem(dateItem, true)
   }
 
-  const [serverSchedules, setServerSchedules] = useState<UISchedule[]>([])
+  const [serverSchedules, setServerSchedules] = useState<UISchedule[]>(
+    () => initialCache?.schedules ?? [],
+  )
 
   useEffect(() => {
     laneMapRef.current = buildLaneMap(serverSchedules.filter(isSpan))
@@ -976,8 +1002,16 @@ const holidayIsoByWeek = useMemo(() => {
 
   useEffect(() => {
     let alive = true
-    ;(async () => {
+    const cachedSnapshot = monthDataCache.get(ym)
+    if (cachedSnapshot) {
+      setDays(cachedSnapshot.days)
+      setServerSchedules(cachedSnapshot.schedules)
+      setHasHydratedMonth(true)
+      setLoading(false)
+    } else {
       setLoading(true)
+    }
+    ;(async () => {
       try {
         const fresh = await fetchMonthlyApi(ym)
         const monthlySchedules = flattenMonthly(fresh)
@@ -997,13 +1031,19 @@ const holidayIsoByWeek = useMemo(() => {
         
 
         if (!alive) return
+        monthDataCache.set(ym, {
+          days: fresh.days,
+          schedules: merged,
+        })
         setDays(fresh.days)
         setServerSchedules(merged)
+        setHasHydratedMonth(true)
       } catch (err) {
         if (!alive) return
         console.warn('[MonthView] fetchMonthlyApi 실패', err)
         setDays([])
         setServerSchedules([])
+        setHasHydratedMonth(true)
       } finally {
         if (alive) setLoading(false)
       }
@@ -1014,15 +1054,9 @@ const holidayIsoByWeek = useMemo(() => {
     }
   }, [ym])
 
-  // 월이 바뀔 때 살짝 페이드 아웃
   useEffect(() => {
-    RNAnimated.timing(fade, { toValue: 0.4, duration: 120, useNativeDriver: true }).start()
-  }, [ym])
-
-  // 로딩이 끝나면 다시 페이드 인
-  useEffect(() => {
-    if (!loading) {
-      RNAnimated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start()
+    if (!loading && suppressNextTransitionRef.current) {
+      suppressNextTransitionRef.current = false
     }
   }, [loading])
 
@@ -1068,13 +1102,16 @@ const holidayIsoByWeek = useMemo(() => {
         </Text>
       </View>
     ))}
-    {loading && (
-      <View style={S.loadingOverlay}>
-        <ActivityIndicator />
-      </View>
-    )}
   </View>
 )
+
+  const handleCalendarBodyLayout = useCallback((nextHeight: number) => {
+    if (nextHeight <= 0) return
+    setCalendarBodyHeight((prev) => {
+      if (Math.abs(prev - nextHeight) < 8) return prev
+      return nextHeight
+    })
+  }, [])
 
   const renderDateCell = (dateItem: CalendarDateItem, weekIndex: number, dayIndex: number, ) => { 
     const itemsToRender = displayItemsByWeek[weekIndex][dayIndex]
@@ -1516,11 +1553,13 @@ const handleOcrAddEvent = useCallback(
   [fetchFresh, ym],
 )
 
-const handleOcrSaveAll = useCallback(async () => {
+  const handleOcrSaveAll = useCallback(async () => {
   await fetchFresh(ym)
   bus.emit('calendar:invalidate', { ym })
   setOcrModalVisible(false)
 }, [fetchFresh, ym])
+
+  const shouldHideMonthGrid = loading && !hasHydratedMonth
 
   return (
     <ScreenWithSidebar
@@ -1544,15 +1583,21 @@ const handleOcrSaveAll = useCallback(async () => {
             <ScrollView
               style={S.contentArea}
               contentContainerStyle={S.scrollContentContainer}
-              onLayout={(e) => setCalendarBodyHeight(e.nativeEvent.layout.height)}
+              onLayout={(e) => handleCalendarBodyLayout(e.nativeEvent.layout.height)}
             >
-              <RNAnimated.View style={[S.calendarGrid, { opacity: fade }]}>
+              <View
+                style={[
+                  S.calendarGrid,
+                  shouldHideMonthGrid ? S.calendarGridHidden : null,
+                ]}
+                pointerEvents={shouldHideMonthGrid ? 'none' : 'auto'}
+              >
                     {weeks.map((week, weekIndex) => (
                       <View
                         key={`week-${weekIndex}`}
                         style={[
                           S.weekRow,
-                          weekRowHeight ? { minHeight: weekRowHeight } : null,
+                          weekRowHeight ? { height: weekRowHeight } : null,
                           { zIndex: weeks.length - weekIndex },
                         ]}
                       >
@@ -1561,7 +1606,7 @@ const handleOcrSaveAll = useCallback(async () => {
                         )}
                       </View>
                     ))}
-              </RNAnimated.View>
+              </View>
             </ScrollView>
           </View>
         </Animated.View>

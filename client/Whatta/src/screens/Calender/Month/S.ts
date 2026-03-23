@@ -41,6 +41,9 @@ export const S = StyleSheet.create({
   },
 
   calendarGrid: {},
+  calendarGridHidden: {
+    opacity: 0,
+  },
   weekRow: {
     flexDirection: 'row',
     width: '100%',

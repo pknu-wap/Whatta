@@ -52,9 +52,9 @@ export default function RootTabs() {
           tabBarLabel: '홈',
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <HomeIconActive width={24} height={24} />
+              <HomeIconActive width={24} height={24}/>
             ) : (
-              <HomeIcon width={24} height={24} />
+              <HomeIcon width={24} height={24} color={colors.icon.default} />
             ),
         }}
       />
