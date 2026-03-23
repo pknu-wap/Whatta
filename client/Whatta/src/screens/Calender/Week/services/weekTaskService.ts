@@ -41,14 +41,11 @@ export async function updateTaskCompleted(
   nextCompleted: boolean,
   fallbackPlacementDate?: string,
 ) {
-  const full = await http.get(`/task/${taskId}`)
-  const fullTask = full.data.data
-  const payload = buildTaskUpdatePayload(fullTask, {
+  await http.patch(`/task/${taskId}`, {
     completed: nextCompleted,
-    placementDate: fullTask?.placementDate ?? fallbackPlacementDate,
+    ...(fallbackPlacementDate ? { placementDate: fallbackPlacementDate } : {}),
   })
-  await http.patch(`/task/${taskId}`, payload)
-  return fullTask
+  return { id: taskId, completed: nextCompleted, placementDate: fallbackPlacementDate }
 }
 
 export async function moveTaskToDateTime(
