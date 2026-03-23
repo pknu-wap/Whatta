@@ -17,6 +17,7 @@ export const MY_SECTIONS: MySection[] = [
     data: [
       { key: 'AI 대화창', route: 'AiChat' },
       { key: '라벨 관리', route: 'Labels' },
+      { key: '애플 캘린더 연동', route: 'AppleCalendar' },
     ],
   },
   {
