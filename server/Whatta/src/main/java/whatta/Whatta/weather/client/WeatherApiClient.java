@@ -40,7 +40,6 @@ public class WeatherApiClient {
                 .queryParam("q", latitude + "," + longitude)
                 .queryParam("days", 1)
                 .queryParam("dt", today.toLocalDate().toString())
-                .queryParam("hour", String.valueOf(today.getHour()))
                 .queryParam("lang", "ko")
                 .queryParam("alerts", "no")
                 .queryParam("aqi", "yes")
