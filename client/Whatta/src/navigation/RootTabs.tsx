@@ -1,12 +1,17 @@
 import React from 'react'
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import {
+  createBottomTabNavigator,
+  type BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs'
+import { Pressable, StyleSheet, View } from 'react-native'
 
-import AiIcon from '@/assets/icons/ai_icon.svg'
+import AiIcon from '@/assets/icons/ai.svg'
 import HomeIcon from '@/assets/icons/home_no.svg'
 import HomeIconActive from '@/assets/icons/home_yes.svg'
 import MonthIcon from '@/assets/icons/month.svg'
 import PillMonthIcon from '@/assets/icons/pill_month.svg'
 import colors from '@/styles/colors'
+import { ts } from '@/styles/typography'
 import HomeScreen from '@/screens/Home/HomeScreen'
 import MyPageStack from '@/navigation/MyPageStack'
 import CalendarScreen from '@/screens/Calender/CalendarScreen'
@@ -14,9 +19,45 @@ import CalendarScreen from '@/screens/Calender/CalendarScreen'
 const Tab = createBottomTabNavigator()
 const TAB_BAR_H = 83
 const TAB_ACTIVE_COLOR = '#464A4D'
+const AI_BUBBLE_SIZE = 115
+const AI_BUBBLE_RISE = 20
+const AI_ICON_W = 130
+const AI_ICON_H = 68
 
 function AiTabStack() {
   return <MyPageStack initialRouteName="AiChat" />
+}
+
+function TabBarBackground() {
+  return (
+    <View style={S.tabBarBgWrap} pointerEvents="none">
+      <View style={S.tabBarBgMainShadow} />
+      <View style={S.tabBarBgCenterBump} />
+      <View style={S.tabBarBgMain} />
+    </View>
+  )
+}
+
+function AiTabButton({
+  accessibilityState,
+  onPress,
+  onLongPress,
+}: BottomTabBarButtonProps) {
+  const focused = accessibilityState?.selected ?? false
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={accessibilityState}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={S.aiTabButton}
+    >
+      <View style={[S.aiIconWrap, focused ? S.aiIconWrapFocused : null]}>
+        <AiIcon width={AI_ICON_W} height={AI_ICON_H} />
+      </View>
+    </Pressable>
+  )
 }
 
 export default function RootTabs() {
@@ -28,33 +69,35 @@ export default function RootTabs() {
         sceneStyle: {
           backgroundColor: 'transparent',
         },
+        tabBarBackground: () => <TabBarBackground />,
         tabBarStyle: {
           height: TAB_BAR_H,
           paddingTop: 0,
           paddingHorizontal: 10,
-          backgroundColor: colors.icon.wlabel,
+          overflow: 'visible',
+          backgroundColor: 'transparent',
           borderTopWidth: 0,
           borderTopColor: 'transparent',
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          shadowColor: '#17191A',
-          shadowOpacity: 0.12,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: -6 },
-          elevation: 18,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
         tabBarIconStyle: { marginTop: 7.5 },
         tabBarActiveTintColor: TAB_ACTIVE_COLOR,
         tabBarInactiveTintColor: colors.icon.default,
-        tabBarLabelStyle: { fontSize: 12, textAlign: 'center', marginTop: -2 },
+        tabBarLabelStyle: {
+          ...ts('body3'),
+          color: colors.text.text1,
+          textAlign: 'center',
+          marginTop: -1,
+        },
       }}
     >
       <Tab.Screen
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarLabel: '홈',
+          tabBarLabel: 'HOME',
           tabBarIcon: ({ focused }) =>
             focused ? (
               <HomeIconActive width={24} height={24}/>
@@ -69,12 +112,7 @@ export default function RootTabs() {
         component={AiTabStack}
         options={{
           tabBarLabel: '',
-          tabBarIcon: ({ focused }) =>
-            <AiIcon
-              width={24}
-              height={24}
-              color={focused ? TAB_ACTIVE_COLOR : colors.icon.default}
-            />,
+          tabBarButton: (props) => <AiTabButton {...props} />,
         }}
       />
 
@@ -82,15 +120,69 @@ export default function RootTabs() {
         name="Calendar"
         component={CalendarScreen}
         options={{
-          tabBarLabel: '달력',
+          tabBarLabel: '캘린더',
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <PillMonthIcon width={24} height={24} />
+              <PillMonthIcon width={26} height={26} />
             ) : (
-              <MonthIcon width={24} height={24} color={colors.icon.default} />
+              <MonthIcon width={26} height={26} color={colors.icon.default} />
             ),
         }}
       />
     </Tab.Navigator>
   )
 }
+
+const S = StyleSheet.create({
+  tabBarBgWrap: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'visible',
+  },
+  tabBarBgMain: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.icon.w,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  tabBarBgMainShadow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.icon.w,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#17191A',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 18,
+  },
+  tabBarBgCenterBump: {
+    position: 'absolute',
+    top: -AI_BUBBLE_RISE,
+    left: '50%',
+    marginLeft: -(AI_BUBBLE_SIZE / 2),
+    width: AI_BUBBLE_SIZE,
+    height: AI_BUBBLE_SIZE,
+    borderRadius: AI_BUBBLE_SIZE / 2,
+    backgroundColor: colors.icon.w,
+    shadowColor: '#17191A',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 18,
+  },
+  aiTabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    overflow: 'visible',
+  },
+  aiIconWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -18,
+  },
+  aiIconWrapFocused: {
+    opacity: 1,
+  },
+})
