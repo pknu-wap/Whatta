@@ -7,9 +7,18 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record WeatherApiForecastResponse(
+        Location location,
         Current current,
         Forecast forecast
 ) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Location(
+            @JsonProperty("name")
+            String name,
+            @JsonProperty("country")
+            String country
+    ) {
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Current(

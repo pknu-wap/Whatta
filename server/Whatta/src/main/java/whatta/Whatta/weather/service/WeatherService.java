@@ -2,6 +2,7 @@ package whatta.Whatta.weather.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.weather.client.WeatherApiClient;
@@ -25,11 +26,16 @@ public class WeatherService {
     public WeatherResponse getWeather(double latitude, double longitude) {
         WeatherApiForecastResponse response = weatherApiClient.getTodayWeather(latitude, longitude);
 
+        WeatherApiForecastResponse.Location location = response.location();
         WeatherApiForecastResponse.Current current = response.current();
         WeatherApiForecastResponse.ForecastDay todayForecast = extractTodayForecast(response);
         WeatherApiForecastResponse.Day today = todayForecast.day();
 
-        if (current == null || today == null || today.condition() == null) {
+        if (location == null
+                || !StringUtils.hasText(location.name())
+                || current == null
+                || today == null
+                || today.condition() == null) {
             throw new RestApiException(ErrorCode.WEATHER_API_INVALID_RESPONSE);
         }
 
@@ -40,6 +46,7 @@ public class WeatherService {
         WeatherApiForecastResponse.Hour firstSnowHour = findFirstSnowHour(todayForecast.hour());
 
         return WeatherResponse.builder()
+                .locationName(location.name())
                 .todayMinTemperatureC(today.minTempC())
                 .todayMaxTemperatureC(today.maxTempC())
                 .todayWeather(condition.text())

@@ -4,6 +4,7 @@ import lombok.Builder;
 
 @Builder
 public record WeatherResponse(
+        String locationName,
         Double todayMinTemperatureC,
         Double todayMaxTemperatureC,
         String todayWeather,
