@@ -70,7 +70,8 @@ public class ScheduleBlockDetector {
 
         //V채널 하한
         Mat vMask = new Mat();
-        double vOtsu = threshold(V, new Mat(), 0, 255, THRESH_BINARY | THRESH_OTSU);
+        Mat vOtsuProbe = new Mat();
+        double vOtsu = threshold(V, vOtsuProbe, 0, 255, THRESH_BINARY | THRESH_OTSU);
         double vThreshold = darkMode
                 ? Math.max(DARK_MODE_V_THRESHOLD_MIN, vOtsu * DARK_MODE_V_THRESHOLD_SCALE)
                 : Math.max(LIGHT_MODE_V_THRESHOLD_MIN, vOtsu * LIGHT_MODE_V_THRESHOLD_SCALE);
@@ -89,7 +90,7 @@ public class ScheduleBlockDetector {
         //리소스 해제
         smooth.release(); hsv.release();
         S.release(); V.release();
-        sMask.release(); vMask.release(); mask.release();
+        sMask.release(); vMask.release(); vOtsuProbe.release(); mask.release();
         vividBgr.release();
         workBgr.release();
 
