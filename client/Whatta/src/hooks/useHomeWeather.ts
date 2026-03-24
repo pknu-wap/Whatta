@@ -40,9 +40,9 @@ function buildDustMessage(grade: number) {
     case 2:
       return '공기는 무난한 편이에요'
     case 3:
-      return '미세먼지가 나빠요. 마스크 챙기면 좋아요'
+      return '미세먼지가 나빠요. 마스크 챙기세요'
     case 4:
-      return '공기가 탁해요. 마스크 꼭 챙겨주세요'
+      return '공기가 탁해요. 마스크 챙기세요'
     default:
       return '공기 정보를 확인하고 있어요'
   }

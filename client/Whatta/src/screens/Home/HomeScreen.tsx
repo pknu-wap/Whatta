@@ -1,5 +1,5 @@
 import React from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -10,9 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
-import MypageIcon from '@/assets/icons/mypage.svg'
+import MypageNoIcon from '@/assets/icons/mypage_no.svg'
+import MypageYesIcon from '@/assets/icons/mypage_yes.svg'
+import TransportNoIcon from '@/assets/icons/transport_no.svg'
+import TransportYesIcon from '@/assets/icons/transport_yes.svg'
 import colors from '@/styles/colors'
-import { ts } from '@/styles/typography'
 import type { RootStackParamList } from '@/navigation/RootStack'
 import {
   assistantBriefing,
@@ -30,19 +32,36 @@ import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherS
 import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
+import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
 
 const SEOUL_COORDS = {
   latitude: 37.5665,
   longitude: 126.978,
 }
 
+const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
+  locationLabel: '지금 있는 곳 기준',
+  headline: '오늘 날씨를 준비하고 있어요',
+  compactSummary: '날씨 조회 중',
+  currentTemperatureLabel: '현재 --°',
+  feelsLikeLabel: '체감 --°',
+  highLowLabel: '최고 --° / 최저 --°',
+  conditionEmoji: '☁️',
+  conditionLabel: '날씨 정보',
+  weatherTheme: 'cloudy',
+  dustGradeLabel: '알 수 없음',
+  dustDetailLabel: '공기 정보를 확인하고 있어요',
+  noPermissionMessage: '위치 권한이 없으면 현재 위치 기반 날씨를 불러올 수 없어요.',
+  highlights: [],
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  const [isMypageActive, setIsMypageActive] = useState(false)
+  const [isTransportActive, setIsTransportActive] = useState(false)
   const {
-    loading,
     permissionDenied,
     coords,
-    error,
     fetchCurrentLocation,
   } = useCurrentLocation()
   const {
@@ -81,12 +100,28 @@ export default function HomeScreen() {
     return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
   }, [permissionDenied, weatherCard, weatherError, weatherLoading])
 
+  const weatherCardToRender = weatherCard ?? DEFAULT_WEATHER_CARD
+  const quickActionIconMap = useMemo(
+    () => ({
+      mypage: <MypageNoIcon width={18} height={18} />,
+    }),
+    [],
+  )
+
   const handleQuickActionPress = (action: AssistantQuickAction) => {
     switch (action.id) {
       case 'mypage':
         navigation.navigate('MyPage')
         return
     }
+  }
+
+  const handlePressTrafficAlerts = () => {
+    navigation.navigate('TrafficAlerts')
+  }
+
+  const handlePressMypage = () => {
+    navigation.navigate('MyPage')
   }
 
   return (
@@ -98,18 +133,40 @@ export default function HomeScreen() {
             <Text style={S.title}>{weatherHeadline}</Text>
           </View>
 
-          <Pressable style={S.iconButton} onPress={() => navigation.navigate('MyPage')}>
-            <MypageIcon width={22} height={22} color={colors.icon.selected} />
-          </Pressable>
+          <View style={S.headerActionRow}>
+            <Pressable
+              style={S.iconButton}
+              onPress={handlePressTrafficAlerts}
+              onPressIn={() => setIsTransportActive(true)}
+              onPressOut={() => setIsTransportActive(false)}
+            >
+              {isTransportActive ? (
+                <TransportYesIcon width={28} height={28} />
+              ) : (
+                <TransportNoIcon width={28} height={28} />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={S.iconButton}
+              onPress={handlePressMypage}
+              onPressIn={() => setIsMypageActive(true)}
+              onPressOut={() => setIsMypageActive(false)}
+            >
+              {isMypageActive ? (
+                <MypageYesIcon width={28} height={28} />
+              ) : (
+                <MypageNoIcon width={28} height={28} />
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
           contentContainerStyle={S.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {weatherCard ? (
-            <WeatherSummaryCard weather={weatherCard} />
-          ) : null}
+          <WeatherSummaryCard weather={weatherCardToRender} />
 
           <BriefingCard briefing={assistantBriefing} />
 
@@ -123,9 +180,7 @@ export default function HomeScreen() {
           <QuickActionGrid
             items={assistantQuickActions}
             onPress={handleQuickActionPress}
-            iconMap={{
-              mypage: <MypageIcon width={18} height={18} color={colors.text.text1} />,
-            }}
+            iconMap={quickActionIconMap}
           />
           <TopicSlidesSection
             items={assistantTopicSlides}
@@ -154,6 +209,12 @@ const S = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 14,
   },
+  headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
   headerTextBlock: {
     flex: 1,
     paddingRight: 16,
@@ -165,30 +226,24 @@ const S = StyleSheet.create({
     color: '#7D858C',
   },
   title: {
-    fontSize: 17,
-    lineHeight: 23,
+    fontSize: 21,
+    lineHeight: 26,
     fontWeight: '700',
     color: colors.text.text1,
     marginTop: 8,
     maxWidth: 280,
-    letterSpacing: -0.2,
+    letterSpacing: -0.4,
   },
   iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background.bg1,
-    shadowColor: '#17324D',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-    marginTop: -2,
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 6,
     paddingBottom: 120,
   },
 })

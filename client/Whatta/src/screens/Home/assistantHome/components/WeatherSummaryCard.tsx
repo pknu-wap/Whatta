@@ -2,7 +2,6 @@ import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import colors from '@/styles/colors'
-import { ts } from '@/styles/typography'
 import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
 
 type Props = {
@@ -18,45 +17,53 @@ const dustIndicatorOffset: Record<string, number> = {
 }
 
 const dustAccentColor: Record<string, string> = {
-  '알 수 없음': '#8CA0B3',
-  좋음: '#4E7CF3',
-  보통: '#67C73D',
-  나쁨: '#FFAF38',
-  '매우 나쁨': '#FF534B',
+  '알 수 없음': '#8B98A7',
+  좋음: '#4F7BFF',
+  보통: '#34C98D',
+  나쁨: '#FFAA47',
+  '매우 나쁨': '#FF5E7A',
 }
 
 const weatherPanelTheme = {
   sunny: {
-    colors: ['#4D89F7', '#7ECDF8'] as const,
-    glow: 'rgba(255,255,255,0.20)',
+    colors: ['#FF9C78', '#FFC66C'] as const,
+    largeCircle: 'rgba(255,223,155,0.28)',
+    smallCircle: 'rgba(255,255,255,0.10)',
   },
   cloudy: {
-    colors: ['#7B9CB8', '#B9CBDA'] as const,
-    glow: 'rgba(255,255,255,0.14)',
+    colors: ['#74BCF8', '#6797F0'] as const,
+    largeCircle: 'rgba(224,242,255,0.20)',
+    smallCircle: 'rgba(255,255,255,0.08)',
   },
   overcast: {
-    colors: ['#7C8D9A', '#B1BDC7'] as const,
-    glow: 'rgba(255,255,255,0.10)',
+    colors: ['#99AEC4', '#7A92AE'] as const,
+    largeCircle: 'rgba(225,233,241,0.14)',
+    smallCircle: 'rgba(255,255,255,0.07)',
   },
   rainy: {
-    colors: ['#77879A', '#AAB6C3'] as const,
-    glow: 'rgba(255,255,255,0.08)',
+    colors: ['#7A73D0', '#6268BB'] as const,
+    largeCircle: 'rgba(203,200,255,0.14)',
+    smallCircle: 'rgba(255,255,255,0.06)',
   },
 }
 
-const dustPanelTheme: Record<string, string> = {
-  '알 수 없음': '#F2F5F8',
-  좋음: '#EEF2FF',
-  보통: '#EFF7F1',
-  나쁨: '#FFF3E8',
-  '매우 나쁨': '#FFECEC',
+const dustPanelTheme: Record<string, readonly [string, string]> = {
+  '알 수 없음': ['#F2F6FA', '#E3EBF2'],
+  좋음: ['#EDF7FF', '#BDD9FF'],
+  보통: ['#ECFFF4', '#BEEFD1'],
+  나쁨: ['#FFF5E7', '#FFD19A'],
+  '매우 나쁨': ['#FFF0F4', '#FFB5C6'],
 }
+
+const dustBarColors = ['#6D8EFF', '#63DA9D', '#FFB658', '#FF6C87'] as const
+const dustBarLocations = [0, 0.33, 0.68, 1] as const
+const defaultDustPanelColors = ['#F2F6FA', '#E3EBF2'] as const
 
 export default function WeatherSummaryCard({ weather }: Props) {
   const indicatorLeft = dustIndicatorOffset[weather.dustGradeLabel] ?? 10
   const indicatorColor = dustAccentColor[weather.dustGradeLabel] ?? '#8CA0B3'
   const weatherTheme = weatherPanelTheme[weather.weatherTheme]
-  const dustPanelColor = dustPanelTheme[weather.dustGradeLabel] ?? '#F2F5F8'
+  const dustPanelColors = dustPanelTheme[weather.dustGradeLabel] ?? defaultDustPanelColors
   const currentTemperature = weather.currentTemperatureLabel.replace('현재 ', '')
   const feelsLike = weather.feelsLikeLabel.replace('체감 ', '체감 ')
   const [, highText = '--°', lowText = '--°'] =
@@ -71,7 +78,8 @@ export default function WeatherSummaryCard({ weather }: Props) {
           end={{ x: 1, y: 1 }}
           style={S.weatherPanel}
         >
-          <View style={[S.weatherGlow, { backgroundColor: weatherTheme.glow }]} />
+          <View style={[S.weatherCircleLarge, { backgroundColor: weatherTheme.largeCircle }]} />
+          <View style={[S.weatherCircleSmall, { backgroundColor: weatherTheme.smallCircle }]} />
           <View style={S.weatherInfo}>
             <View style={S.temperatureRow}>
               <Text style={S.currentTemperature}>{currentTemperature}</Text>
@@ -89,27 +97,30 @@ export default function WeatherSummaryCard({ weather }: Props) {
 
         <View style={S.divider} />
 
-        <View style={[S.dustPanel, { backgroundColor: dustPanelColor }]}>
-          <View>
+        <LinearGradient
+          colors={dustPanelColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={S.dustPanel}
+        >
+          <View style={S.dustContent}>
             <Text style={S.dustTitle}>미세먼지</Text>
-            <Text style={S.dustGrade}>{weather.dustGradeLabel}</Text>
-            <Text style={S.dustDescription}>{weather.dustDetailLabel}</Text>
+            <Text style={[S.dustGradeText, { color: indicatorColor }]}>{weather.dustGradeLabel}</Text>
           </View>
 
-          <View style={S.dustBarTrack}>
-            <View style={[S.dustBarSegment, S.dustBarBlue]} />
-            <View style={[S.dustBarSegment, S.dustBarGreen]} />
-            <View style={[S.dustBarSegment, S.dustBarOrange]} />
-            <View style={[S.dustBarSegment, S.dustBarRed]} />
+          <View style={S.dustBarWrap}>
+            <View style={S.dustBarTrack}>
+              <LinearGradient
+                colors={dustBarColors}
+                locations={dustBarLocations}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={S.dustBarGradient}
+              />
+            </View>
             <View style={[S.dustIndicator, { left: `${indicatorLeft}%` }]} />
-            <View
-              style={[
-                S.dustIndicatorInner,
-                { left: `${indicatorLeft}%`, backgroundColor: indicatorColor },
-              ]}
-            />
           </View>
-        </View>
+        </LinearGradient>
       </View>
     </View>
   )
@@ -123,14 +134,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 26,
     padding: 8,
-    backgroundColor: '#F9FBFC',
-    borderWidth: 1,
-    borderColor: '#EDF1F4',
-    shadowColor: '#121A22',
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2,
+    backgroundColor: colors.background.bg1,
   },
   weatherPanel: {
     flex: 1.18,
@@ -141,14 +145,21 @@ const S = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  weatherGlow: {
+  weatherCircleLarge: {
     position: 'absolute',
-    top: -14,
-    right: -10,
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    right: -16,
+    top: -26,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+  },
+  weatherCircleSmall: {
+    position: 'absolute',
+    left: -24,
+    bottom: -34,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
   },
   divider: {
     width: 8,
@@ -157,11 +168,11 @@ const S = StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     padding: 16,
-    backgroundColor: '#F5F7FC',
     minHeight: 140,
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     justifyContent: 'space-between',
     overflow: 'hidden',
+    position: 'relative',
   },
   emoji: {
     fontSize: 48,
@@ -196,73 +207,53 @@ const S = StyleSheet.create({
     color: 'rgba(248,252,255,0.86)',
     marginTop: 5,
   },
+  dustContent: {
+    alignItems: 'flex-end',
+    alignSelf: 'stretch',
+    zIndex: 1,
+  },
   dustTitle: {
     fontSize: 12,
     lineHeight: 15,
     fontWeight: '700',
     color: '#50555B',
-  },
-  dustGrade: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '700',
-    color: '#3D64D7',
-    letterSpacing: -0.6,
-    marginTop: 8,
-  },
-  dustDescription: {
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: '600',
-    color: '#6C7580',
-    minHeight: 28,
     marginTop: 6,
+    textAlign: 'right',
+  },
+  dustGradeText: {
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: '700',
+    letterSpacing: -0.8,
+    marginTop: 10,
+    textAlign: 'right',
+  },
+  dustBarWrap: {
+    width: '100%',
+    position: 'relative',
+    marginTop: 10,
+    height: 18,
+    justifyContent: 'center',
+    zIndex: 1,
   },
   dustBarTrack: {
     width: '100%',
-    height: 10,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
-    flexDirection: 'row',
     position: 'relative',
-    marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.26)',
   },
-  dustBarSegment: {
-    flex: 1,
-  },
-  dustBarBlue: {
-    backgroundColor: '#4E83F1',
-  },
-  dustBarGreen: {
-    backgroundColor: '#75D33D',
-  },
-  dustBarOrange: {
-    backgroundColor: '#FFB039',
-  },
-  dustBarRed: {
-    backgroundColor: '#FF4C46',
+  dustBarGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   dustIndicator: {
     position: 'absolute',
-    top: -3,
-    marginLeft: -7,
-    width: 14,
-    height: 14,
+    top: 0,
+    marginLeft: -2.5,
+    width: 5,
+    height: 18,
     borderRadius: 999,
     backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#101828',
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  dustIndicatorInner: {
-    position: 'absolute',
-    top: 1,
-    marginLeft: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 999,
   },
 })

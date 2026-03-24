@@ -3,12 +3,14 @@ import RootTabs from '@/navigation/RootTabs'
 import MyPageStack from '@/navigation/MyPageStack'
 import TrafficAlertStack from '@/navigation/TrafficAlertStack'
 import AssistantTopicTasksScreen from '@/screens/Home/AssistantTopicTasksScreen'
+import WeatherCardPreviewScreen from '@/screens/Dev/WeatherCardPreviewScreen'
 
 export type RootStackParamList = {
   RootTabs: undefined
   MyPage: undefined
   TrafficAlerts: undefined
   AssistantTopicTasks: { topicId: string }
+  WeatherCardPreview: undefined
 }
 
 const Root = createNativeStackNavigator<RootStackParamList>()
@@ -48,6 +50,13 @@ export default function RootNavigator() {
       <Root.Screen
         name="AssistantTopicTasks"
         component={AssistantTopicTasksScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Root.Screen
+        name="WeatherCardPreview"
+        component={WeatherCardPreviewScreen}
         options={{
           headerShown: false,
         }}
