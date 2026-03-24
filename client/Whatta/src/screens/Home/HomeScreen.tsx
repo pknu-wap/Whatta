@@ -42,11 +42,16 @@ import type {
   AssistantBriefing,
   AssistantTaskBriefing,
 } from '@/screens/Home/assistantHome/types'
+import { ts } from '@/styles/typography'
 
 const SEOUL_COORDS = {
   latitude: 37.5665,
   longitude: 126.978,
 }
+const HEADLINE_HOLD_MS = 3000
+const HEADLINE_TRANSITION_MS = 380
+const HEADLINE_TOTAL_MS = HEADLINE_HOLD_MS + HEADLINE_TRANSITION_MS
+let headlineTickerOriginMs = Date.now()
 
 const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
   locationLabel: '지금 있는 곳 기준',
@@ -175,6 +180,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [isMypageActive, setIsMypageActive] = useState(false)
   const [isTransportActive, setIsTransportActive] = useState(false)
+  const [tickerNow, setTickerNow] = useState(Date.now())
   const todayLabel = useToday('YYYY.MM.DD (dd)')
   const [briefing, setBriefing] = useState<AssistantBriefing>({
     dateLabel: todayLabel,
@@ -294,6 +300,66 @@ export default function HomeScreen() {
     return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
   }, [permissionDenied, weatherCard, weatherError, weatherLoading])
 
+  const rotatingHeadlines = useMemo(() => {
+    if (weatherLoading) {
+      return [permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요']
+    }
+
+    if (weatherError) return [weatherError]
+
+    if (!weatherCard) {
+      return [permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요']
+    }
+
+    const weatherMessage = weatherCard.headline
+      .split(/그리고\s*미세먼지|미세먼지가/)
+      .map((text) => text.trim())
+      .find(Boolean) ?? weatherHeadline
+
+    const dustMessage =
+      weatherCard.dustDetailLabel?.trim()
+        ? weatherCard.dustDetailLabel
+        : `미세먼지 ${weatherCard.dustGradeLabel}`
+
+    return [weatherMessage, dustMessage]
+  }, [permissionDenied, weatherCard, weatherError, weatherHeadline, weatherLoading])
+
+  useEffect(() => {
+    if (rotatingHeadlines.length <= 1) return
+
+    const timer = setInterval(() => {
+      setTickerNow(Date.now())
+    }, 50)
+
+    return () => clearInterval(timer)
+  }, [rotatingHeadlines.length])
+
+  const elapsedMs = Math.max(0, tickerNow - headlineTickerOriginMs)
+  const cycleIndex =
+    rotatingHeadlines.length > 1
+      ? Math.floor(elapsedMs / HEADLINE_TOTAL_MS) % rotatingHeadlines.length
+      : 0
+  const phaseMs =
+    rotatingHeadlines.length > 1
+      ? elapsedMs % HEADLINE_TOTAL_MS
+      : 0
+  const transitionProgress =
+    phaseMs <= HEADLINE_HOLD_MS
+      ? 0
+      : Math.min(1, (phaseMs - HEADLINE_HOLD_MS) / HEADLINE_TRANSITION_MS)
+
+  const currentHeadline = rotatingHeadlines[cycleIndex] ?? weatherHeadline
+  const nextHeadline =
+    rotatingHeadlines[(cycleIndex + 1) % rotatingHeadlines.length] ?? weatherHeadline
+  const currentHeadlineStyle = {
+    transform: [{ translateY: -52 * transitionProgress }],
+    opacity: 1 - transitionProgress,
+  }
+  const nextHeadlineStyle = {
+    transform: [{ translateY: 52 * (1 - transitionProgress) }],
+    opacity: transitionProgress,
+  }
+
   const weatherCardToRender = weatherCard ?? DEFAULT_WEATHER_CARD
   const handlePressTrafficAlerts = () => {
     navigation.navigate('TrafficAlerts')
@@ -351,37 +417,47 @@ export default function HomeScreen() {
         >
           <View style={S.contentBody}>
             <View style={S.headerRow}>
-              <View style={S.headerTextBlock}>
+              <View style={S.headerTopRow}>
                 <Text style={S.eyebrow}>안녕하세요, 사용자님</Text>
-                <Text style={S.title}>{weatherHeadline}</Text>
+
+                <View style={S.headerActionRow}>
+                  <Pressable
+                    style={S.iconButton}
+                    onPress={handlePressTrafficAlerts}
+                    onPressIn={() => setIsTransportActive(true)}
+                    onPressOut={() => setIsTransportActive(false)}
+                  >
+                    {isTransportActive ? (
+                      <TransportYesIcon width={28} height={28} />
+                    ) : (
+                      <TransportNoIcon width={28} height={28} />
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    style={S.iconButton}
+                    onPress={handlePressMypage}
+                    onPressIn={() => setIsMypageActive(true)}
+                    onPressOut={() => setIsMypageActive(false)}
+                  >
+                    {isMypageActive ? (
+                      <MypageYesIcon width={28} height={28} />
+                    ) : (
+                      <MypageNoIcon width={28} height={28} />
+                    )}
+                  </Pressable>
+                </View>
               </View>
 
-              <View style={S.headerActionRow}>
-                <Pressable
-                  style={S.iconButton}
-                  onPress={handlePressTrafficAlerts}
-                  onPressIn={() => setIsTransportActive(true)}
-                  onPressOut={() => setIsTransportActive(false)}
-                >
-                  {isTransportActive ? (
-                    <TransportYesIcon width={28} height={28} />
-                  ) : (
-                    <TransportNoIcon width={28} height={28} />
-                  )}
-                </Pressable>
-
-                <Pressable
-                  style={S.iconButton}
-                  onPress={handlePressMypage}
-                  onPressIn={() => setIsMypageActive(true)}
-                  onPressOut={() => setIsMypageActive(false)}
-                >
-                  {isMypageActive ? (
-                    <MypageYesIcon width={28} height={28} />
-                  ) : (
-                    <MypageNoIcon width={28} height={28} />
-                  )}
-                </Pressable>
+              <View style={S.headerMessageBlock}>
+                <View style={S.titleTickerWrap}>
+                  <View style={[S.titleTickerText, currentHeadlineStyle]}>
+                    <Text style={S.title}>{currentHeadline}</Text>
+                  </View>
+                  <View style={[S.titleTickerText, nextHeadlineStyle]}>
+                    <Text style={S.title}>{nextHeadline}</Text>
+                  </View>
+                </View>
               </View>
             </View>
 
@@ -436,11 +512,13 @@ const S = StyleSheet.create({
     backgroundColor: '#F6FAFC',
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     paddingTop: 8,
-    paddingBottom: 14,
+    paddingBottom: 0,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerActionRow: {
     flexDirection: 'row',
@@ -448,24 +526,31 @@ const S = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 4,
   },
-  headerTextBlock: {
-    flex: 1,
-    paddingRight: 16,
+  headerMessageBlock: {
+    marginTop: 4,
   },
   eyebrow: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '700',
-    color: '#7D858C',
+    ...ts('label2'),
+    fontSize: 17,
+    lineHeight: 21,
+    color: colors.text.text2,
   },
   title: {
-    fontSize: 21,
-    lineHeight: 26,
-    fontWeight: '700',
+    ...ts('titleL'),
+    lineHeight: 28,
     color: colors.text.text1,
-    marginTop: 8,
     maxWidth: 280,
     letterSpacing: -0.4,
+  },
+  titleTickerWrap: {
+    height: 30,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  titleTickerText: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   iconButton: {
     width: 48,
