@@ -17,6 +17,7 @@ import {
   slotKey,
 } from '@/styles/scheduleColorSets'
 import CreateEventDetailStep from '@/screens/More/CreateEventDetailStep'
+import CreateEventDateStep from '@/screens/More/CreateEventDateStep'
 
 
 interface OCREventEditCardProps {
@@ -76,6 +77,8 @@ const parseTime = (t?: string) => {
   const [endDate, setEndDate] = useState(parseTime(endTime))
 
   const [openCalendar, setOpenCalendar] = useState(false)
+
+  const [editDatePicking, setEditDatePicking] = useState(false)
 
 
   // 시간 형식 변환 HH:mm
@@ -407,71 +410,85 @@ return (
 </View>
 
   {/* 내용 스크롤 가능 */}
-<CreateEventDetailStep
-  title={titleInput}
-  onChangeTitle={setTitleInput}
-  memo={memo}
-  onChangeMemo={setMemo}
-  colors={paletteColors}
-  selectedColorIndex={selectedColorIndex}
-  onSelectColorIndex={setSelectedColorIndex}
-  selectedType="event"
-  onSelectType={() => {}}
-  start={startDate}
-  end={endDate}
-  endDisplay={endDate}
-  onPressDateBox={() => setOpenCalendar((prev) => !prev)}
-  onChangeStartTime={setStartDate}
-  onChangeEndTime={setEndDate}
-  invalidEndTime={endDate.getTime() < startDate.getTime()}
-  timeOn={hasTime}
-  timeDisabled={false}
-  onToggleTime={setHasTime}
-  repeatOn={repeatOn}
-  onToggleRepeat={setRepeatOn}
-  repeatMode={repeatMode}
-  repeatEvery={repeatEvery}
-  repeatUnit={repeatUnit}
-  monthlyOpt={monthlyOpt}
-  onChangeRepeatMode={setRepeatMode}
-  onChangeRepeatEvery={setRepeatEvery}
-  onChangeRepeatUnit={setRepeatUnit}
-  onChangeMonthlyOpt={setMonthlyOpt}
-  repeatWeekdays={repeatWeekdays}
-  onChangeRepeatWeekdays={setRepeatWeekdays}
-  repeatEndDate={repeatEndDate}
-  onChangeRepeatEndDate={setRepeatEndDate}
-  remindOn={remindOn}
-  remindDisabled={false}
-  onToggleRemind={setRemindOn}
-  remindOpen={remindOpen}
-  onSetRemindOpen={setRemindOpen}
-  remindDisplayText={remindDisplayText}
-  remindOptions={remindOptions as any}
-  remindSelectedKey={remindSelectedKey}
-  onSelectRemindOption={handleSelectRemindOption}
-  customOpen={customOpen}
-  onSetCustomOpen={setCustomOpen}
-  customHour={customHour}
-  customMinute={customMinute}
-  onChangeCustomHour={setCustomHour}
-  onChangeCustomMinute={setCustomMinute}
-  labels={labels as any}
-  selectedLabelIds={selectedLabelIds}
-  labelMaxSelected={3}
-  onChangeSelectedLabelIds={setSelectedLabelIds}
-  onCreateLabel={handleCreateLabel as any}
-  taskDate={null}
-  onChangeTaskDate={() => {}}
-  taskDueOn={false}
-  onChangeTaskDueOn={() => {}}
-  taskDueDate={null}
-  onChangeTaskDueDate={() => {}}
-  taskDueTimeOn={false}
-  onChangeTaskDueTimeOn={() => {}}
-  taskDueTime={new Date()}
-  onChangeTaskDueTime={() => {}}
-/>
+{editDatePicking ? (
+  <CreateEventDateStep
+    start={startDate}
+    end={endDate}
+    onChangeRange={(nextStart, nextEnd) => {
+      setStartDate(nextStart)
+      setEndDate(nextEnd)
+    }}
+    onNext={() => setEditDatePicking(false)}
+  />
+) : (
+  <CreateEventDetailStep
+    title={titleInput}
+    onChangeTitle={setTitleInput}
+    memo={memo}
+    onChangeMemo={setMemo}
+    colors={paletteColors}
+    selectedColorIndex={selectedColorIndex}
+    onSelectColorIndex={setSelectedColorIndex}
+    selectedType="event"
+    onSelectType={() => {}}
+    start={startDate}
+    end={endDate}
+    endDisplay={endDate}
+    onPressDateBox={() => {
+      setEditDatePicking(true)
+    }}
+    onChangeStartTime={setStartDate}
+    onChangeEndTime={setEndDate}
+    invalidEndTime={endDate.getTime() < startDate.getTime()}
+    timeOn={hasTime}
+    timeDisabled={false}
+    onToggleTime={setHasTime}
+    repeatOn={repeatOn}
+    onToggleRepeat={setRepeatOn}
+    repeatMode={repeatMode}
+    repeatEvery={repeatEvery}
+    repeatUnit={repeatUnit}
+    monthlyOpt={monthlyOpt}
+    onChangeRepeatMode={setRepeatMode}
+    onChangeRepeatEvery={setRepeatEvery}
+    onChangeRepeatUnit={setRepeatUnit}
+    onChangeMonthlyOpt={setMonthlyOpt}
+    repeatWeekdays={repeatWeekdays}
+    onChangeRepeatWeekdays={setRepeatWeekdays}
+    repeatEndDate={repeatEndDate}
+    onChangeRepeatEndDate={setRepeatEndDate}
+    remindOn={remindOn}
+    remindDisabled={false}
+    onToggleRemind={setRemindOn}
+    remindOpen={remindOpen}
+    onSetRemindOpen={setRemindOpen}
+    remindDisplayText={remindDisplayText}
+    remindOptions={remindOptions as any}
+    remindSelectedKey={remindSelectedKey}
+    onSelectRemindOption={handleSelectRemindOption}
+    customOpen={customOpen}
+    onSetCustomOpen={setCustomOpen}
+    customHour={customHour}
+    customMinute={customMinute}
+    onChangeCustomHour={setCustomHour}
+    onChangeCustomMinute={setCustomMinute}
+    labels={labels as any}
+    selectedLabelIds={selectedLabelIds}
+    labelMaxSelected={3}
+    onChangeSelectedLabelIds={setSelectedLabelIds}
+    onCreateLabel={handleCreateLabel as any}
+    taskDate={null}
+    onChangeTaskDate={() => {}}
+    taskDueOn={false}
+    onChangeTaskDueOn={() => {}}
+    taskDueDate={null}
+    onChangeTaskDueDate={() => {}}
+    taskDueTimeOn={false}
+    onChangeTaskDueTimeOn={() => {}}
+    taskDueTime={new Date()}
+    onChangeTaskDueTime={() => {}}
+  />
+)}
     </View>
     </View>
   )
