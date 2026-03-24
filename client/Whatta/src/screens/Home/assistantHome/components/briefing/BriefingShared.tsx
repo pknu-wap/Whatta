@@ -8,6 +8,11 @@ import { ts } from '@/styles/typography'
 
 export type TimelineState = 'past' | 'current' | 'upcoming'
 
+const CARD_WIDTH = 358
+const ROW_WIDTH = 310
+const ROW_HEIGHT = 30
+const TRAILING_WIDTH = 56
+
 type BriefingFrameProps = {
   dateLabel: string
   heading: string
@@ -198,7 +203,7 @@ export function BriefingTimelineRow({
 
 const S = StyleSheet.create({
   card: {
-    width: 358,
+    width: CARD_WIDTH,
     borderRadius: 20,
     padding: 24,
     backgroundColor: '#FFFFFF',
@@ -244,8 +249,8 @@ const S = StyleSheet.create({
     marginTop: 8,
   },
   listRow: {
-    width: 310,
-    height: 30,
+    width: ROW_WIDTH,
+    height: ROW_HEIGHT,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.divider.divider2,
@@ -284,11 +289,11 @@ const S = StyleSheet.create({
   listTrailingAbsolute: {
     position: 'absolute',
     right: 0,
-    width: 56,
+    width: TRAILING_WIDTH,
     alignItems: 'flex-end',
   },
   sectionHeaderRow: {
-    width: 310,
+    width: ROW_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 28,
@@ -305,13 +310,13 @@ const S = StyleSheet.create({
     backgroundColor: colors.divider.divider1,
   },
   timelineRow: {
-    width: 310,
-    height: 30,
+    width: ROW_WIDTH,
+    height: ROW_HEIGHT,
     marginBottom: 8,
   },
   timelineBox: {
-    width: 310,
-    height: 30,
+    width: ROW_WIDTH,
+    height: ROW_HEIGHT,
     borderRadius: 8,
     backgroundColor: 'transparent',
     flexDirection: 'row',
@@ -376,7 +381,7 @@ const S = StyleSheet.create({
   timelineTrailingAbsolute: {
     position: 'absolute',
     right: 0,
-    width: 56,
+    width: TRAILING_WIDTH,
     alignItems: 'flex-end',
   },
 })

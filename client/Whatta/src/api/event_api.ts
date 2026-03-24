@@ -46,16 +46,11 @@ export async function createEvent(payload: CreateEventPayload) {
     (raw as any)?._id ??
     (raw as any)?.eventId
 
-  //console.log('✅ createEvent response:', JSON.stringify(raw, null, 2))
-  if (!eventId) {
-    //console.warn('⚠️ eventId를 응답에서 찾지 못했습니다. 응답 구조를 확인해주세요.')
-  }
   return { eventId, raw }
 }
 
 export async function getEvent(eventId: string) {
   const res = await http.get(`/event/${eventId}`)
-  //console.log('📥 getEvent detail:', JSON.stringify(res.data, null, 2))
   return res.data
 }
 

@@ -3,8 +3,6 @@ export type AssistantNewsBannerSlide = {
   title: string
   body: string
   badge: string
-  eyebrow: string
-  accentLabel: string
 }
 
 export type AssistantNewsBanner = {
@@ -54,15 +52,12 @@ export type AssistantWeatherCard = {
 export type AssistantBriefingItem = {
   id: string
   title: string
-  timeLabel: string
 }
 
 export type AssistantBriefingTimelineItem = {
   id: string
   title: string
   timeRange: string
-  accentColor: string
-  status: 'past' | 'current' | 'upcoming'
 }
 
 export type AssistantTaskSummary = {

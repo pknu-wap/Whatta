@@ -169,6 +169,7 @@ const S = StyleSheet.create({
     right: 14,
     bottom: 8,
     alignItems: 'flex-end',
+    pointerEvents: 'none',
   },
   heroTextMain: {
     ...ts('titleL'),

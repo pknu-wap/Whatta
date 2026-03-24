@@ -1,4 +1,3 @@
-import React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Pressable,
@@ -23,12 +22,8 @@ import {
 } from '@/api/task'
 import colors from '@/styles/colors'
 import type { RootStackParamList } from '@/navigation/RootStack'
-import {
-  assistantNews,
-  assistantQuickActions,
-} from '@/screens/Home/assistantHome/mockData'
+import { assistantNews } from '@/screens/Home/assistantHome/mockData'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
-import QuickActionGrid from '@/screens/Home/assistantHome/components/QuickActionGrid'
 import BriefingCard from '@/screens/Home/assistantHome/components/BriefingCard'
 import TaskBriefingCard from '@/screens/Home/assistantHome/components/TaskBriefingCard'
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
@@ -67,6 +62,22 @@ const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
   dustDetailLabel: '공기 정보를 확인하고 있어요',
   noPermissionMessage: '위치 권한이 없으면 현재 위치 기반 날씨를 불러올 수 없어요.',
   highlights: [],
+}
+
+function createEmptyBriefing(dateLabel: string): AssistantBriefing {
+  return {
+    dateLabel,
+    schedules: [],
+    timeline: [],
+  }
+}
+
+function createEmptyTaskBriefing(dateLabel: string): AssistantTaskBriefing {
+  return {
+    dateLabel,
+    tasks: [],
+    timeline: [],
+  }
 }
 
 function toDisplayTime(time: string | null | undefined) {
@@ -132,7 +143,6 @@ function buildBriefing(dateLabel: string, items: EventSummaryItem[]): AssistantB
       .map((item, index) => ({
         id: `schedule-${index}-${item.title}`,
         title: item.title,
-        timeLabel: '',
       })),
     timeline: items
       .filter((item) => item.startTime && item.endTime && !isAllDaySummaryItem(item))
@@ -140,10 +150,45 @@ function buildBriefing(dateLabel: string, items: EventSummaryItem[]): AssistantB
         id: `timeline-${index}-${item.title}`,
         title: item.title,
         timeRange: `${toDisplayTime(item.startTime)} ~ ${toDisplayTime(item.endTime)}`,
-        accentColor: '',
-        status: 'upcoming',
       })),
   }
+}
+
+function getWeatherFallbackHeadline(permissionDenied: boolean, isLoading: boolean) {
+  if (isLoading) {
+    return permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요'
+  }
+
+  return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
+}
+
+function buildRotatingHeadlines(
+  weatherCard: AssistantWeatherCard | null,
+  weatherError: string | null,
+  permissionDenied: boolean,
+  weatherLoading: boolean,
+) {
+  if (weatherLoading) {
+    return [getWeatherFallbackHeadline(permissionDenied, true)]
+  }
+
+  if (weatherError) return [weatherError]
+
+  if (!weatherCard) {
+    return [getWeatherFallbackHeadline(permissionDenied, false)]
+  }
+
+  const weatherMessage = weatherCard.headline
+    .split(/그리고\s*미세먼지|미세먼지가/)
+    .map((text) => text.trim())
+    .find(Boolean) ?? weatherCard.headline
+
+  const dustMessage =
+    weatherCard.dustDetailLabel?.trim()
+      ? weatherCard.dustDetailLabel
+      : `미세먼지 ${weatherCard.dustGradeLabel}`
+
+  return [appendHeadlineEmoji(weatherMessage), appendHeadlineEmoji(dustMessage)]
 }
 
 function buildTaskBriefing(
@@ -191,16 +236,10 @@ export default function HomeScreen() {
   const [isTransportActive, setIsTransportActive] = useState(false)
   const [tickerNow, setTickerNow] = useState(Date.now())
   const todayLabel = useToday('YYYY.MM.DD (dd)')
-  const [briefing, setBriefing] = useState<AssistantBriefing>({
-    dateLabel: todayLabel,
-    schedules: [],
-    timeline: [],
-  })
-  const [taskBriefing, setTaskBriefing] = useState<AssistantTaskBriefing>({
-    dateLabel: todayLabel,
-    tasks: [],
-    timeline: [],
-  })
+  const [briefing, setBriefing] = useState<AssistantBriefing>(() => createEmptyBriefing(todayLabel))
+  const [taskBriefing, setTaskBriefing] = useState<AssistantTaskBriefing>(() =>
+    createEmptyTaskBriefing(todayLabel),
+  )
   const {
     permissionDenied,
     coords,
@@ -223,51 +262,32 @@ export default function HomeScreen() {
     useCallback(() => {
       let active = true
 
-      const loadBriefing = async () => {
-        try {
-          const summaryItems = await fetchEventSummary()
-          if (!active) return
-          setBriefing(buildBriefing(todayLabel, summaryItems))
-        } catch (error) {
-          console.warn('event summary get error', error)
-          if (!active) return
-          setBriefing({
-            dateLabel: todayLabel,
-            schedules: [],
-            timeline: [],
-          })
+      const loadHomeSummaries = async () => {
+        const [eventResult, taskResult] = await Promise.allSettled([
+          fetchEventSummary(),
+          fetchTaskSummary(),
+        ])
+
+        if (!active) return
+
+        if (eventResult.status === 'fulfilled') {
+          setBriefing(buildBriefing(todayLabel, eventResult.value))
+        } else {
+          console.warn('event summary get error', eventResult.reason)
+          setBriefing(createEmptyBriefing(todayLabel))
+        }
+
+        if (taskResult.status === 'fulfilled') {
+          setTaskBriefing(
+            buildTaskBriefing(todayLabel, taskResult.value.placedToday, taskResult.value.dueToday),
+          )
+        } else {
+          console.warn('task summary get error', taskResult.reason)
+          setTaskBriefing(createEmptyTaskBriefing(todayLabel))
         }
       }
 
-      loadBriefing()
-
-      return () => {
-        active = false
-      }
-    }, [todayLabel]),
-  )
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true
-
-      const loadTaskBriefing = async () => {
-        try {
-          const summary = await fetchTaskSummary()
-          if (!active) return
-          setTaskBriefing(buildTaskBriefing(todayLabel, summary.placedToday, summary.dueToday))
-        } catch (error) {
-          console.warn('task summary get error', error)
-          if (!active) return
-          setTaskBriefing({
-            dateLabel: todayLabel,
-            tasks: [],
-            timeline: [],
-          })
-        }
-      }
-
-      loadTaskBriefing()
+      loadHomeSummaries()
 
       return () => {
         active = false
@@ -301,37 +321,16 @@ export default function HomeScreen() {
   }, [coords, fetchWeather, permissionDenied])
 
   const weatherHeadline = useMemo(() => {
-    if (weatherLoading) {
-      return permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요'
-    }
+    if (weatherLoading) return getWeatherFallbackHeadline(permissionDenied, true)
     if (weatherError) return weatherError
     if (weatherCard) return weatherCard.headline
-    return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
+    return getWeatherFallbackHeadline(permissionDenied, false)
   }, [permissionDenied, weatherCard, weatherError, weatherLoading])
 
-  const rotatingHeadlines = useMemo(() => {
-    if (weatherLoading) {
-      return [permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요']
-    }
-
-    if (weatherError) return [weatherError]
-
-    if (!weatherCard) {
-      return [permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요']
-    }
-
-    const weatherMessage = weatherCard.headline
-      .split(/그리고\s*미세먼지|미세먼지가/)
-      .map((text) => text.trim())
-      .find(Boolean) ?? weatherHeadline
-
-    const dustMessage =
-      weatherCard.dustDetailLabel?.trim()
-        ? weatherCard.dustDetailLabel
-        : `미세먼지 ${weatherCard.dustGradeLabel}`
-
-    return [appendHeadlineEmoji(weatherMessage), appendHeadlineEmoji(dustMessage)]
-  }, [permissionDenied, weatherCard, weatherError, weatherHeadline, weatherLoading])
+  const rotatingHeadlines = useMemo(
+    () => buildRotatingHeadlines(weatherCard, weatherError, permissionDenied, weatherLoading),
+    [permissionDenied, weatherCard, weatherError, weatherLoading],
+  )
 
   useEffect(() => {
     if (rotatingHeadlines.length <= 1) return
@@ -499,14 +498,6 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
             </View>
-
-            {assistantQuickActions.length > 0 ? (
-              <QuickActionGrid
-                items={assistantQuickActions}
-                onPress={() => {}}
-                iconMap={{}}
-              />
-            ) : null}
           </View>
         </ScrollView>
       </View>

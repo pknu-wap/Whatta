@@ -37,8 +37,12 @@ export default function TaskBriefingCard({
   onPressTaskArea,
   onToggleTask,
 }: Props) {
-  const timelineItems = [...briefing.timeline].sort(
-    (left, right) => getStartMinutes(left.timeRange) - getStartMinutes(right.timeRange),
+  const timelineItems = React.useMemo(
+    () =>
+      [...briefing.timeline].sort(
+        (left, right) => getStartMinutes(left.timeRange) - getStartMinutes(right.timeRange),
+      ),
+    [briefing.timeline],
   )
   const isEmpty = briefing.tasks.length === 0 && timelineItems.length === 0
 
@@ -55,7 +59,7 @@ export default function TaskBriefingCard({
                 title={item.title}
                 bordered={false}
                 leadingAccessory={(
-                  <Pressable onPress={() => onToggleTask?.(item.id, !item.completed)}>
+                  <Pressable hitSlop={8} onPress={() => onToggleTask?.(item.id, !item.completed)}>
                     <TaskCheckbox checked={item.completed} />
                   </Pressable>
                 )}
@@ -77,7 +81,7 @@ export default function TaskBriefingCard({
                 state={getTimelineState(item.timeRange)}
                 showConnector={index !== timelineItems.length - 1}
                 beforeTitleAccessory={(
-                  <Pressable onPress={() => onToggleTask?.(item.id, !item.completed)}>
+                  <Pressable hitSlop={8} onPress={() => onToggleTask?.(item.id, !item.completed)}>
                     <TaskCheckbox checked={item.completed} />
                   </Pressable>
                 )}

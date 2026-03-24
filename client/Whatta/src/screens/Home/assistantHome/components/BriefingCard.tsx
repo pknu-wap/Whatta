@@ -1,5 +1,5 @@
 import React from 'react'
-import { View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import type { AssistantBriefing } from '@/screens/Home/assistantHome/types'
 import {
   BriefingCardFrame,
@@ -17,8 +17,12 @@ type Props = {
 }
 
 export default function BriefingCard({ briefing, onPressScheduleArea }: Props) {
-  const timelineItems = [...briefing.timeline].sort(
-    (left, right) => getStartMinutes(left.timeRange) - getStartMinutes(right.timeRange),
+  const timelineItems = React.useMemo(
+    () =>
+      [...briefing.timeline].sort(
+        (left, right) => getStartMinutes(left.timeRange) - getStartMinutes(right.timeRange),
+      ),
+    [briefing.timeline],
   )
   const isEmpty = briefing.schedules.length === 0 && timelineItems.length === 0
 
@@ -31,7 +35,7 @@ export default function BriefingCard({ briefing, onPressScheduleArea }: Props) {
       {isEmpty ? (
         <BriefingEmptyState title="오늘 일정이 없어요." description="일정을 만들어보세요!" />
       ) : (
-        <View style={{ marginTop: 18 }}>
+        <View style={S.content}>
           <View>
             {briefing.schedules.map((item, index) => (
               <BriefingListRow
@@ -60,3 +64,9 @@ export default function BriefingCard({ briefing, onPressScheduleArea }: Props) {
     </BriefingCardFrame>
   )
 }
+
+const S = StyleSheet.create({
+  content: {
+    marginTop: 18,
+  },
+})
