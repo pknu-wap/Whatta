@@ -1,6 +1,8 @@
 package whatta.Whatta.ocr.util;
 
 import org.bytedeco.opencv.opencv_core.Point;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import whatta.Whatta.ocr.payload.dto.BoundingPoly;
 import whatta.Whatta.ocr.payload.dto.DetectedBlock;
 import whatta.Whatta.ocr.payload.dto.MatchedScheduleBlock;
@@ -12,14 +14,30 @@ import java.util.stream.Collectors;
 
 public class ScheduleMatcher {
 
+    private static final Logger log = LoggerFactory.getLogger(ScheduleMatcher.class);
+
     public static List<MatchedScheduleBlock> matchAll(DetectedBlock blocks, List<OcrText> ocrTexts) {
+        int blockCount = blocks == null || blocks.blocks() == null ? -1 : blocks.blocks().size();
+        int ocrTextCount = ocrTexts == null ? -1 : ocrTexts.size();
+        log.info("[OCR_MATCH] stage=start detectedBlockCount={} ocrTextCount={}", blockCount, ocrTextCount);
+
         int[] gridRange = computeGridYRange(blocks);
+        if (gridRange == null) {
+            log.warn("[OCR_MATCH] stage=grid-range status=null detectedBlockCount={}", blockCount);
+        } else {
+            log.info("[OCR_MATCH] stage=grid-range topY={} bottomY={}", gridRange[0], gridRange[1]);
+        }
         int gridTopY = gridRange[0];
         int gridBottomY = gridRange[1];
 
         //x, y축 앵커 수집
         Map<String, Integer> weekDayX = extractWeekdayAnchors(ocrTexts);
         NavigableMap<Integer, Integer> hourY = extractHourAnchors(ocrTexts, gridTopY, gridBottomY, weekDayX);
+        log.info(
+                "[OCR_MATCH] stage=anchors weekdayCount={} hourAnchorCount={}",
+                weekDayX.size(),
+                hourY.size()
+        );
         //System.out.println("[hourAnchors] " + hourY);
 
         final int headerBandMaxY = computeHeaderBandMaxY(ocrTexts, 80);

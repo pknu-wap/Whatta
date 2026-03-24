@@ -1,6 +1,8 @@
 package whatta.Whatta.ocr.service;
 
 import lombok.AllArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.ocr.mapper.ClovaOcrMapper;
 import whatta.Whatta.ocr.mapper.ScheduleBlockMapper;
@@ -21,6 +23,7 @@ import java.util.regex.Pattern;
 @AllArgsConstructor
 public class OcrService {
 
+    private static final Logger log = LoggerFactory.getLogger(OcrService.class);
     private static final Pattern NUMERIC_ONLY_TITLE = Pattern.compile("^[0-9\\s./%|+\\-]+$");
 
     private final ClovaOcrClient ocrClient;
@@ -30,10 +33,13 @@ public class OcrService {
 
         //ocr로 텍스트 가져옴
         ClovaOcrResponse ocrResponse = ocrClient.callApi(request);
+        List<whatta.Whatta.ocr.payload.dto.OcrText> ocrTexts = ClovaOcrMapper.toOcrTextList(ocrResponse);
         //opencv로 각 시간표 범위 좌표 추출
         DetectedBlock detectedBlock = scheduleBlockDetector.findTimeBox(request.image().data());
+        int blockCount = detectedBlock == null || detectedBlock.blocks() == null ? -1 : detectedBlock.blocks().size();
+        log.info("[OCR_PIPELINE] stage=post-detect ocrTextCount={} detectedBlockCount={}", ocrTexts.size(), blockCount);
         //ocr로 받은 텍스트와 색깔 범위 매칭
-        List<MatchedScheduleBlock> matches = ScheduleMatcher.matchAll(detectedBlock, ClovaOcrMapper.toOcrTextList(ocrResponse));
+        List<MatchedScheduleBlock> matches = ScheduleMatcher.matchAll(detectedBlock, ocrTexts);
         //요일 순 정렬
         matches.sort(new Comparator<MatchedScheduleBlock>() {
             @Override

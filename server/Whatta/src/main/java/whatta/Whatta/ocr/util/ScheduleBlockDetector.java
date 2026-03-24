@@ -8,12 +8,20 @@ import static org.bytedeco.opencv.global.opencv_core.*;
 import static org.bytedeco.opencv.global.opencv_imgproc.*;
 
 import org.opencv.imgproc.Imgproc;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.ocr.mapper.ScheduleBlockMapper;
 import whatta.Whatta.ocr.payload.dto.DetectedBlock;
 
 @Component
 public class ScheduleBlockDetector {
+
+    private static final Logger log = LoggerFactory.getLogger(ScheduleBlockDetector.class);
+    private static final double LIGHT_MODE_V_THRESHOLD_SCALE = 0.7;
+    private static final double DARK_MODE_V_THRESHOLD_SCALE = 0.3;
+    private static final int LIGHT_MODE_V_THRESHOLD_MIN = 80;
+    private static final int DARK_MODE_V_THRESHOLD_MIN = 40;
 
     public DetectedBlock findTimeBox (String imageData) {
         //TODO: imageData 검증 필요
@@ -30,6 +38,13 @@ public class ScheduleBlockDetector {
         cvtColor(bgrImage, gray, COLOR_BGR2GRAY);
         Scalar gMean = mean(gray);
         boolean darkMode = gMean.get(0) < 70; //평균 밝기가 낮으면 다크모드로 간주
+        log.info(
+                "[OCR_DETECT] stage=image-preprocess width={} height={} grayMean={} darkMode={}",
+                bgrImage.cols(),
+                bgrImage.rows(),
+                String.format("%.2f", gMean.get(0)),
+                darkMode
+        );
 
         //다크모드라면 전체 이미지를 반전해서, 흰 배경 기준으로 처리
         Mat workBgr = new Mat();
@@ -61,17 +76,31 @@ public class ScheduleBlockDetector {
         //V채널 하한
         Mat vMask = new Mat();
         double vOtsu = threshold(V, new Mat(), 0, 255, THRESH_BINARY | THRESH_OTSU);
-        threshold(V, vMask, Math.max(80, vOtsu * 0.7), 255, THRESH_BINARY);
+        double vThreshold = darkMode
+                ? Math.max(DARK_MODE_V_THRESHOLD_MIN, vOtsu * DARK_MODE_V_THRESHOLD_SCALE)
+                : Math.max(LIGHT_MODE_V_THRESHOLD_MIN, vOtsu * LIGHT_MODE_V_THRESHOLD_SCALE);
+        threshold(V, vMask, vThreshold, 255, THRESH_BINARY);
 
         //최종 마스크 S + V
         Mat mask = new Mat();
         bitwise_and(sMask, vMask, mask);
+        log.info(
+                "[OCR_DETECT] stage=mask-build sNonZero={} vNonZero={} finalNonZero={} totalPixels={} vOtsu={} vThreshold={}",
+                countNonZero(sMask),
+                countNonZero(vMask),
+                countNonZero(mask),
+                bgrImage.rows() * bgrImage.cols(),
+                String.format("%.2f", vOtsu),
+                String.format("%.2f", vThreshold)
+        );
 
         //모폴로지 OPEN -> CLOSE (사각형 붙음 방지 후 구멍 및 텍스트 메우기)
         morphologyRefine(mask);
+        log.info("[OCR_DETECT] stage=post-morph nonZero={}", countNonZero(mask));
 
         //컨투어 -> 사각 근사/보정 -> 네 점 정렬 -> dto로 변환
         List<DetectedBlock.Block> blocks = extractBoxesAsResults(mask, bgrImage.size());
+        log.info("[OCR_DETECT] stage=extract-boxes acceptedBlocks={}", blocks.size());
 
         //리소스 해제
         smooth.release(); hsv.release();
@@ -98,6 +127,11 @@ public class ScheduleBlockDetector {
 
         int minArea = Math.max(600, ((originalSize.height() * originalSize.width()) / 12000)); //해상도 기반 최소 면적
         int idx = 0;
+        log.info(
+                "[OCR_DETECT] stage=contours contourCount={} minArea={}",
+                contours.size(),
+                minArea
+        );
 
         List<DetectedBlock.Block> blocks = new ArrayList<>();
         for (long i = 0; i < contours.size(); i++) {
