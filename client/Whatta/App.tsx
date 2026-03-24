@@ -1,12 +1,12 @@
 import 'react-native-gesture-handler'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import {
-  ActivityIndicator,
   View,
   Text,
   StyleSheet,
   Animated,
-  StatusBar,
+  Alert,
+  Linking,
 } from 'react-native'
 import React, { useState, useEffect, useRef } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
@@ -19,6 +19,17 @@ import messaging from '@react-native-firebase/messaging'
 import CustomSplash from '@/screens/CustomSplash'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Font from 'expo-font'
+import {
+  deleteEventFromAppleCalendar,
+  ensureAppleCalendarConnected,
+  exportFutureWhattaEventsIfNeeded,
+  exportFutureWhattaEventsToAppleCalendar,
+  importAppleCalendarChangesToWhatta,
+  refreshAppleCalendarPermissionState,
+  syncEventToAppleCalendar,
+} from '@/lib/appleCalendar'
+import { shouldShowAppleCalendarPrompt } from '@/lib/appleCalendarSync'
+import { bus } from '@/lib/eventBus'
 
 // 포그라운드 메시지 핸들러
 // messaging().onMessage(async (remoteMessage) => {
@@ -134,6 +145,125 @@ export default function App() {
         Righteous: require('./assets/fonts/Righteous-Regular.ttf'),
       })
     })()
+  }, [])
+
+  useEffect(() => {
+    if (!ready || !splashDone) return
+
+    ;(async () => {
+      await refreshAppleCalendarPermissionState()
+      if (await shouldShowAppleCalendarPrompt()) {
+        const result = await ensureAppleCalendarConnected()
+        if (!result.ok) {
+          if (result.reason !== 'permission_denied') {
+            Alert.alert('애플 캘린더 연동', result.message)
+          }
+          return
+        }
+
+        const exportResult = await exportFutureWhattaEventsToAppleCalendar()
+        if (!exportResult.skipped) {
+          Alert.alert(
+            '애플 캘린더 연동 완료',
+            `오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
+          )
+        }
+        return
+      }
+
+      const exportResult = await exportFutureWhattaEventsIfNeeded()
+      if (!exportResult.skipped) {
+        Alert.alert(
+          '애플 캘린더 동기화',
+          `연동 전에 있던 오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
+        )
+      }
+
+      await importAppleCalendarChangesToWhatta()
+    })()
+  }, [ready, splashDone])
+
+  useEffect(() => {
+    const openPrompt = async () => {
+      const result = await ensureAppleCalendarConnected()
+      if (!result.ok) {
+        if (result.reason === 'permission_denied') {
+          Alert.alert(
+            '애플 캘린더 연동',
+            `${result.message}\n\n이미 권한을 거부한 상태라면 설정 앱에서 다시 허용해야 합니다.`,
+            [
+              { text: '취소', style: 'cancel' },
+              { text: '설정 열기', onPress: () => Linking.openSettings() },
+            ]
+          )
+          return
+        }
+        Alert.alert('애플 캘린더 연동', result.message)
+        return
+      }
+
+      const exportResult = await exportFutureWhattaEventsToAppleCalendar()
+      if (!exportResult.skipped) {
+        Alert.alert(
+          '애플 캘린더 연동 완료',
+          `오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
+        )
+      }
+    }
+
+    bus.on('appleCalendar:open-prompt', openPrompt)
+    return () => bus.off('appleCalendar:open-prompt', openPrompt)
+  }, [])
+
+  useEffect(() => {
+    const extractEventId = (payload?: {
+      id?: string
+      item?: {
+        id?: string
+        _id?: string
+        eventId?: string
+        data?: { id?: string; _id?: string; eventId?: string }
+      }
+    }) => {
+      return (
+        payload?.id ??
+        payload?.item?.id ??
+        payload?.item?._id ??
+        payload?.item?.eventId ??
+        payload?.item?.data?.id ??
+        payload?.item?.data?._id ??
+        payload?.item?.data?.eventId ??
+        null
+      )
+    }
+
+    const onCalendarMutated = async (payload?: {
+      op?: 'create' | 'update' | 'delete'
+      id?: string
+      item?: {
+        id?: string
+        _id?: string
+        eventId?: string
+        isTask?: boolean
+        data?: { id?: string; _id?: string; eventId?: string }
+      }
+    }) => {
+      if (!payload) return
+
+      const eventId = extractEventId(payload)
+      const isTask = payload.item?.isTask === true
+      if (!eventId || isTask) return
+
+      if (payload.op === 'delete') {
+        await deleteEventFromAppleCalendar(eventId)
+        return
+      }
+
+      await syncEventToAppleCalendar(eventId)
+    }
+
+    bus.on('calendar:mutated', onCalendarMutated)
+    return () => bus.off('calendar:mutated', onCalendarMutated)
   }, [])
 
   if (!ready || !splashDone) {

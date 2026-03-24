@@ -7,6 +7,7 @@ import RemainderScreen from '@/screens/MyPage/RemainderTimeScreen'
 import SummaryScreean from '@/screens/MyPage/SummaryTimeScreen'
 import TrafficAlertStack from '@/navigation/TrafficAlertStack'
 import AiChatScreen from '@/screens/MyPage/Ai/AiChatScreen'
+import AppleCalendarScreen from '@/screens/MyPage/AppleCalendarScreen'
 
 export type MyPageStackList = {
   MyPageList: undefined
@@ -22,6 +23,7 @@ export type MyPageStackList = {
   UsageReminders: undefined
   TrafficAlertsRoot: undefined
   AiChat: undefined
+  AppleCalendar: undefined
 }
 
 const Stack = createNativeStackNavigator<MyPageStackList>()
@@ -41,6 +43,11 @@ export default function MyPageStack({ initialRouteName = 'MyPageList' }: MyPageS
         name="AiChat"
         component={AiChatScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="AppleCalendar"
+        component={AppleCalendarScreen}
+        options={{ title: '애플 캘린더 연동' }}
       />
       <Stack.Screen
         name="Profile"
