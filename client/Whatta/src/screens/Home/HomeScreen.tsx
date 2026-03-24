@@ -1,5 +1,5 @@
 import React from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -30,6 +30,7 @@ import TopicSlidesSection from '@/screens/Home/assistantHome/components/TopicSli
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
 import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
+import useHomeWeather from '@/hooks/useHomeWeather'
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
@@ -40,6 +41,12 @@ export default function HomeScreen() {
     error,
     fetchCurrentLocation,
   } = useCurrentLocation()
+  const {
+    weatherCard,
+    loading: weatherLoading,
+    error: weatherError,
+    fetchWeather,
+  } = useHomeWeather()
 
   useFocusEffect(
     useCallback(() => {
@@ -47,15 +54,24 @@ export default function HomeScreen() {
     }, [fetchCurrentLocation]),
   )
 
+  useEffect(() => {
+    if (!coords) return
+
+    fetchWeather({
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    })
+  }, [coords, fetchWeather])
+
   const locationStatusText = useMemo(() => {
     if (loading) return '위치 확인 중'
-    if (coords) {
-      return `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`
-    }
+    if (weatherLoading) return '날씨 불러오는 중'
     if (permissionDenied) return '위치 권한 필요'
+    if (weatherError) return weatherError
+    if (coords) return `${coords.latitude}, ${coords.longitude}`
     if (error) return error
     return undefined
-  }, [coords, error, loading, permissionDenied])
+  }, [coords, error, loading, permissionDenied, weatherError, weatherLoading])
 
   const handleQuickActionPress = (action: AssistantQuickAction) => {
     switch (action.id) {
@@ -84,7 +100,7 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
         >
           <WeatherSummaryCard
-            weather={assistantWeather}
+            weather={weatherCard ?? assistantWeather}
             locationStatusText={locationStatusText}
           />
 
