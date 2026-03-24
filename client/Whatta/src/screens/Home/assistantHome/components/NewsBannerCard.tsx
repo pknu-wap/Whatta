@@ -22,16 +22,17 @@ export default function NewsBannerCard({ item }: Props) {
 
 const S = StyleSheet.create({
   card: {
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#17324D',
     marginBottom: 16,
   },
   badge: {
     alignSelf: 'flex-start',
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     backgroundColor: 'rgba(255,255,255,0.14)',
   },
   badgeText: {
@@ -39,13 +40,13 @@ const S = StyleSheet.create({
     color: colors.text.text1w,
   },
   title: {
-    ...ts('titleM'),
+    ...ts('titleS'),
     color: colors.text.text1w,
-    marginTop: 12,
+    marginTop: 10,
   },
   body: {
-    ...ts('body1'),
+    ...ts('body2'),
     color: '#D7E5F1',
-    marginTop: 10,
+    marginTop: 8,
   },
 })

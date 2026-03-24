@@ -32,9 +32,13 @@ export type AssistantWeatherCard = {
   locationLabel: string
   headline: string
   currentTemperatureLabel: string
+  feelsLikeLabel: string
   highLowLabel: string
-  comparedToYesterdayLabel: string
   conditionEmoji: string
+  conditionLabel: string
+  weatherTheme: 'sunny' | 'cloudy' | 'overcast' | 'rainy'
+  dustGradeLabel: string
+  dustDetailLabel: string
   highlights: AssistantWeatherHighlight[]
   noPermissionMessage: string
   compactSummary: string
@@ -44,6 +48,14 @@ export type AssistantBriefingItem = {
   id: string
   title: string
   timeLabel: string
+}
+
+export type AssistantBriefingTimelineItem = {
+  id: string
+  title: string
+  timeRange: string
+  accentColor: string
+  status: 'past' | 'current' | 'upcoming'
 }
 
 export type AssistantTaskSummary = {
@@ -65,7 +77,6 @@ export type AssistantTopicSlide = {
 
 export type AssistantBriefing = {
   dateLabel: string
-  summary: string
   schedules: AssistantBriefingItem[]
-  todos: AssistantBriefingItem[]
+  timeline: AssistantBriefingTimelineItem[]
 }

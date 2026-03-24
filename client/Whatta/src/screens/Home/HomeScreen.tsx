@@ -20,7 +20,6 @@ import {
   assistantQuickActions,
   assistantTopicSlides,
   assistantTransitStatus,
-  assistantWeather,
 } from '@/screens/Home/assistantHome/mockData'
 import type { AssistantQuickAction } from '@/screens/Home/assistantHome/types'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
@@ -31,6 +30,11 @@ import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherS
 import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
+
+const SEOUL_COORDS = {
+  latitude: 37.5665,
+  longitude: 126.978,
+}
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
@@ -55,23 +59,27 @@ export default function HomeScreen() {
   )
 
   useEffect(() => {
+    if (permissionDenied) {
+      fetchWeather(SEOUL_COORDS)
+      return
+    }
+
     if (!coords) return
 
     fetchWeather({
       latitude: coords.latitude,
       longitude: coords.longitude,
     })
-  }, [coords, fetchWeather])
+  }, [coords, fetchWeather, permissionDenied])
 
-  const locationStatusText = useMemo(() => {
-    if (loading) return '위치 확인 중'
-    if (weatherLoading) return '날씨 불러오는 중'
-    if (permissionDenied) return '위치 권한 필요'
+  const weatherHeadline = useMemo(() => {
+    if (weatherLoading) {
+      return permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요'
+    }
     if (weatherError) return weatherError
-    if (coords) return `${coords.latitude}, ${coords.longitude}`
-    if (error) return error
-    return undefined
-  }, [coords, error, loading, permissionDenied, weatherError, weatherLoading])
+    if (weatherCard) return weatherCard.headline
+    return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
+  }, [permissionDenied, weatherCard, weatherError, weatherLoading])
 
   const handleQuickActionPress = (action: AssistantQuickAction) => {
     switch (action.id) {
@@ -85,9 +93,9 @@ export default function HomeScreen() {
     <SafeAreaView style={S.safeArea} edges={['top']}>
       <View style={S.container}>
         <View style={S.headerRow}>
-          <View>
-            <Text style={S.eyebrow}>WHATTA ASSISTANT</Text>
-            <Text style={S.title}>비서홈</Text>
+          <View style={S.headerTextBlock}>
+            <Text style={S.eyebrow}>안녕하세요, 사용자님</Text>
+            <Text style={S.title}>{weatherHeadline}</Text>
           </View>
 
           <Pressable style={S.iconButton} onPress={() => navigation.navigate('MyPage')}>
@@ -99,12 +107,13 @@ export default function HomeScreen() {
           contentContainerStyle={S.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <WeatherSummaryCard
-            weather={weatherCard ?? assistantWeather}
-            locationStatusText={locationStatusText}
-          />
+          {weatherCard ? (
+            <WeatherSummaryCard weather={weatherCard} />
+          ) : null}
 
           <BriefingCard briefing={assistantBriefing} />
+
+          <NewsBannerCard item={assistantNews} />
 
           <TransitStatusCard
             item={assistantTransitStatus}
@@ -118,9 +127,6 @@ export default function HomeScreen() {
               mypage: <MypageIcon width={18} height={18} color={colors.text.text1} />,
             }}
           />
-
-          <NewsBannerCard item={assistantNews} />
-
           <TopicSlidesSection
             items={assistantTopicSlides}
             onPressItem={(topicId) => navigation.navigate('AssistantTopicTasks', { topicId })}
@@ -142,21 +148,30 @@ const S = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 10,
+    paddingBottom: 14,
+  },
+  headerTextBlock: {
+    flex: 1,
+    paddingRight: 16,
   },
   eyebrow: {
-    ...ts('body3'),
-    color: colors.brand.secondary,
-    letterSpacing: 0.8,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: '#7D858C',
   },
   title: {
-    ...ts('titleL'),
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: '700',
     color: colors.text.text1,
-    marginTop: 6,
+    marginTop: 8,
+    maxWidth: 280,
+    letterSpacing: -0.2,
   },
   iconButton: {
     width: 42,
@@ -170,6 +185,7 @@ const S = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
+    marginTop: -2,
   },
   scrollContent: {
     paddingHorizontal: 20,

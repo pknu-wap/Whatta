@@ -35,9 +35,13 @@ export const assistantWeather: AssistantWeatherCard = {
   headline: '현재는 맑지만 오후 4시에 비 소식이 있어요. 우산 챙기세요.',
   compactSummary: '오후 4시에 비 소식',
   currentTemperatureLabel: '현재 17도',
+  feelsLikeLabel: '체감 15도',
   highLowLabel: '최고 21도 · 최저 15도',
-  comparedToYesterdayLabel: '어제보다 2도 높아요',
   conditionEmoji: '☀️',
+  conditionLabel: '맑음',
+  weatherTheme: 'sunny',
+  dustGradeLabel: '좋음',
+  dustDetailLabel: '공기가 맑은 편이에요',
   noPermissionMessage: '위치 권한이 없으면 오늘 하루도 힘내세요 메시지로 대체할 수 있어요.',
   highlights: [
     {
@@ -68,16 +72,33 @@ export const assistantWeather: AssistantWeatherCard = {
 }
 
 export const assistantBriefing: AssistantBriefing = {
-  dateLabel: '3월 23일 월요일',
-  summary: '오늘은 수업 2개와 마감 임박 할 일 3개가 있습니다.',
+  dateLabel: '2026.03.24 (화)',
   schedules: [
-    { id: 's1', title: '운영체제 수업', timeLabel: '09:00' },
-    { id: 's2', title: '팀 프로젝트 회의', timeLabel: '14:00' },
+    { id: 's1', title: '친구랑 약속', timeLabel: '#4E7CF3' },
+    { id: 's2', title: '교수님 미팅', timeLabel: '#B357FF' },
   ],
-  todos: [
-    { id: 't1', title: '교통알림 정류장 재확인', timeLabel: '오늘 마감' },
-    { id: 't2', title: '과제 제출 파일 정리', timeLabel: '18:00 전' },
-    { id: 't3', title: '세미나 준비물 체크', timeLabel: 'D-1' },
+  timeline: [
+    {
+      id: 't1',
+      title: '교수님 미팅',
+      timeRange: '09:00 ~ 10:00',
+      accentColor: '#A7B0B8',
+      status: 'past',
+    },
+    {
+      id: 't2',
+      title: '점심 약속',
+      timeRange: '11:00 ~ 12:00',
+      accentColor: '#B357FF',
+      status: 'current',
+    },
+    {
+      id: 't3',
+      title: '과제',
+      timeRange: '13:00 ~ 15:00',
+      accentColor: '#A7B0B8',
+      status: 'upcoming',
+    },
   ],
 }
 

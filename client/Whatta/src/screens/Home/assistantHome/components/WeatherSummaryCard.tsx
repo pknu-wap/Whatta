@@ -1,247 +1,268 @@
-import React, { useEffect, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import React from 'react'
+import { StyleSheet, Text, View } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
-import type {
-  AssistantWeatherCard,
-  AssistantWeatherHighlight,
-} from '@/screens/Home/assistantHome/types'
+import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
 
 type Props = {
   weather: AssistantWeatherCard
-  locationStatusText?: string
 }
 
-const toneStyles: Record<
-  AssistantWeatherHighlight['tone'],
-  { backgroundColor: string; textColor: string }
-> = {
-  sunny: { backgroundColor: '#FFF3D6', textColor: '#A65A00' },
-  rain: { backgroundColor: '#E1EEFF', textColor: '#235B9C' },
-  wind: { backgroundColor: '#E8F7F1', textColor: '#18785A' },
-  dust: { backgroundColor: '#EEF1D9', textColor: '#5B6A00' },
-  neutral: { backgroundColor: '#EEF3F7', textColor: '#4F5B66' },
+const dustIndicatorOffset: Record<string, number> = {
+  '알 수 없음': 10,
+  좋음: 18,
+  보통: 42,
+  나쁨: 68,
+  '매우 나쁨': 88,
 }
 
-export default function WeatherSummaryCard({ weather, locationStatusText }: Props) {
-  const [activeIndex, setActiveIndex] = useState(0)
+const dustAccentColor: Record<string, string> = {
+  '알 수 없음': '#8CA0B3',
+  좋음: '#4E7CF3',
+  보통: '#67C73D',
+  나쁨: '#FFAF38',
+  '매우 나쁨': '#FF534B',
+}
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % weather.highlights.length)
-    }, 2600)
+const weatherPanelTheme = {
+  sunny: {
+    colors: ['#4D89F7', '#7ECDF8'] as const,
+    glow: 'rgba(255,255,255,0.20)',
+  },
+  cloudy: {
+    colors: ['#7B9CB8', '#B9CBDA'] as const,
+    glow: 'rgba(255,255,255,0.14)',
+  },
+  overcast: {
+    colors: ['#7C8D9A', '#B1BDC7'] as const,
+    glow: 'rgba(255,255,255,0.10)',
+  },
+  rainy: {
+    colors: ['#77879A', '#AAB6C3'] as const,
+    glow: 'rgba(255,255,255,0.08)',
+  },
+}
 
-    return () => clearInterval(timer)
-  }, [weather.highlights.length])
+const dustPanelTheme: Record<string, string> = {
+  '알 수 없음': '#F2F5F8',
+  좋음: '#EEF2FF',
+  보통: '#EFF7F1',
+  나쁨: '#FFF3E8',
+  '매우 나쁨': '#FFECEC',
+}
 
-  const activeItem = weather.highlights[activeIndex]
-  const activeTone = toneStyles[activeItem.tone]
-  const compactTemperature = weather.currentTemperatureLabel.replace('현재 ', '')
+export default function WeatherSummaryCard({ weather }: Props) {
+  const indicatorLeft = dustIndicatorOffset[weather.dustGradeLabel] ?? 10
+  const indicatorColor = dustAccentColor[weather.dustGradeLabel] ?? '#8CA0B3'
+  const weatherTheme = weatherPanelTheme[weather.weatherTheme]
+  const dustPanelColor = dustPanelTheme[weather.dustGradeLabel] ?? '#F2F5F8'
+  const currentTemperature = weather.currentTemperatureLabel.replace('현재 ', '')
+  const feelsLike = weather.feelsLikeLabel.replace('체감 ', '체감 ')
+  const [, highText = '--°', lowText = '--°'] =
+    weather.highLowLabel.match(/최고\s([^/]+)\s\/\s최저\s(.+)/) ?? []
 
   return (
-    <View style={S.card}>
-      <View style={S.topAccent} />
-      <View style={S.bottomAccent} />
+    <View style={S.wrap}>
+      <View style={S.card}>
+        <LinearGradient
+          colors={weatherTheme.colors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={S.weatherPanel}
+        >
+          <View style={[S.weatherGlow, { backgroundColor: weatherTheme.glow }]} />
+          <View style={S.weatherInfo}>
+            <View style={S.temperatureRow}>
+              <Text style={S.currentTemperature}>{currentTemperature}</Text>
+              <Text style={S.emoji}>{weather.conditionEmoji}</Text>
+            </View>
 
-      <View style={S.topRow}>
-        <View style={S.leftBlock}>
-          <View style={S.identityRow}>
-            <Text style={S.emoji}>{weather.conditionEmoji}</Text>
-            <Text style={S.locationLabel}>{weather.locationLabel}</Text>
+            <View style={S.metricsBlock}>
+              <Text style={S.metricText}>{feelsLike}</Text>
+              <Text style={S.metricText}>
+                최고 {highText} / 최저 {lowText}
+              </Text>
+            </View>
           </View>
-          <Text style={S.summary} numberOfLines={2}>
-            {weather.compactSummary}
-          </Text>
-        </View>
+        </LinearGradient>
 
-        <View style={S.rightBlock}>
-          <Text style={S.currentTemperature}>{compactTemperature}</Text>
-          <Text style={S.temperatureMeta}>{weather.highLowLabel}</Text>
-        </View>
-      </View>
+        <View style={S.divider} />
 
-      <View style={S.infoRow}>
-        <View style={[S.infoChip, { backgroundColor: activeTone.backgroundColor }]}>
-          <Text style={[S.infoChipLabel, { color: activeTone.textColor }]}>
-            {activeItem.label}
-          </Text>
-          <Text style={S.infoChipValue} numberOfLines={1}>
-            {activeItem.value}
-          </Text>
-        </View>
+        <View style={[S.dustPanel, { backgroundColor: dustPanelColor }]}>
+          <View>
+            <Text style={S.dustTitle}>미세먼지</Text>
+            <Text style={S.dustGrade}>{weather.dustGradeLabel}</Text>
+            <Text style={S.dustDescription}>{weather.dustDetailLabel}</Text>
+          </View>
 
-        <View style={S.deltaChip}>
-          <Text style={S.deltaChipText}>{weather.comparedToYesterdayLabel}</Text>
-        </View>
-      </View>
-
-      <View style={S.footerRow}>
-        <View style={S.paginationRow}>
-          {weather.highlights.map((item, index) => (
+          <View style={S.dustBarTrack}>
+            <View style={[S.dustBarSegment, S.dustBarBlue]} />
+            <View style={[S.dustBarSegment, S.dustBarGreen]} />
+            <View style={[S.dustBarSegment, S.dustBarOrange]} />
+            <View style={[S.dustBarSegment, S.dustBarRed]} />
+            <View style={[S.dustIndicator, { left: `${indicatorLeft}%` }]} />
             <View
-              key={item.id}
-              style={[S.paginationDot, index === activeIndex && S.paginationDotActive]}
+              style={[
+                S.dustIndicatorInner,
+                { left: `${indicatorLeft}%`, backgroundColor: indicatorColor },
+              ]}
             />
-          ))}
+          </View>
         </View>
-
-        {locationStatusText ? (
-          <Pressable style={S.permissionHint}>
-            <Text style={S.permissionHintText} numberOfLines={1}>
-              {locationStatusText}
-            </Text>
-          </Pressable>
-        ) : null}
       </View>
     </View>
   )
 }
 
 const S = StyleSheet.create({
-  card: {
-    overflow: 'hidden',
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
-    backgroundColor: '#F5FAFF',
-    borderWidth: 1,
-    borderColor: '#E1EEF8',
+  wrap: {
     marginBottom: 14,
-    shadowColor: '#90AFC9',
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
   },
-  topAccent: {
+  card: {
+    flexDirection: 'row',
+    borderRadius: 26,
+    padding: 8,
+    backgroundColor: '#F9FBFC',
+    borderWidth: 1,
+    borderColor: '#EDF1F4',
+    shadowColor: '#121A22',
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 2,
+  },
+  weatherPanel: {
+    flex: 1.18,
+    borderRadius: 20,
+    padding: 16,
+    minHeight: 140,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  weatherGlow: {
     position: 'absolute',
-    top: -10,
-    right: -4,
+    top: -14,
+    right: -10,
     width: 110,
-    height: 66,
-    borderRadius: 999,
-    backgroundColor: '#DDEFFD',
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  bottomAccent: {
-    position: 'absolute',
-    bottom: -18,
-    left: -12,
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    backgroundColor: 'rgba(194, 227, 255, 0.35)',
+  divider: {
+    width: 8,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  leftBlock: {
+  dustPanel: {
     flex: 1,
-    marginRight: 10,
-  },
-  rightBlock: {
-    alignItems: 'flex-end',
-    flexShrink: 0,
-  },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locationLabel: {
-    ...ts('body3'),
-    color: '#6B8AA6',
-    marginLeft: 4,
-  },
-  summary: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700',
-    color: '#183B56',
-    marginTop: 6,
-    maxWidth: 196,
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: '#F5F7FC',
+    minHeight: 140,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   emoji: {
-    fontSize: 16,
-    lineHeight: 18,
+    fontSize: 48,
+    lineHeight: 52,
+    marginLeft: 8,
+    marginTop: 2,
   },
-  currentTemperature: {
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '700',
-    color: '#183B56',
-    textAlign: 'right',
-    letterSpacing: -0.8,
-  },
-  temperatureMeta: {
-    ...ts('body3'),
-    color: '#7D98B2',
-    marginTop: 4,
-    textAlign: 'right',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginTop: 12,
-  },
-  infoChip: {
+  weatherInfo: {
     flex: 1,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginRight: 8,
-    minWidth: 0,
-  },
-  deltaChip: {
-    maxWidth: 104,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#EAF3FB',
     justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginLeft: -6,
   },
-  infoChipLabel: {
-    ...ts('body3'),
-    opacity: 0.95,
-  },
-  infoChipValue: {
-    ...ts('body1'),
-    color: colors.text.text1,
-    marginTop: 5,
-  },
-  deltaChipText: {
-    ...ts('body3'),
-    color: '#4E6A85',
-  },
-  footerRow: {
+  temperatureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+  },
+  currentTemperature: {
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  metricsBlock: {
     marginTop: 10,
   },
-  paginationRow: {
+  metricText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: 'rgba(248,252,255,0.86)',
+    marginTop: 5,
+  },
+  dustTitle: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: '#50555B',
+  },
+  dustGrade: {
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: '700',
+    color: '#3D64D7',
+    letterSpacing: -0.6,
+    marginTop: 8,
+  },
+  dustDescription: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#6C7580',
+    minHeight: 28,
+    marginTop: 6,
+  },
+  dustBarTrack: {
+    width: '100%',
+    height: 10,
+    borderRadius: 999,
+    overflow: 'hidden',
     flexDirection: 'row',
+    position: 'relative',
+    marginTop: 10,
   },
-  paginationDot: {
-    width: 5,
-    height: 5,
+  dustBarSegment: {
+    flex: 1,
+  },
+  dustBarBlue: {
+    backgroundColor: '#4E83F1',
+  },
+  dustBarGreen: {
+    backgroundColor: '#75D33D',
+  },
+  dustBarOrange: {
+    backgroundColor: '#FFB039',
+  },
+  dustBarRed: {
+    backgroundColor: '#FF4C46',
+  },
+  dustIndicator: {
+    position: 'absolute',
+    top: -3,
+    marginLeft: -7,
+    width: 14,
+    height: 14,
     borderRadius: 999,
-    backgroundColor: '#BCD2E5',
-    marginRight: 5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#101828',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  paginationDotActive: {
-    width: 16,
-    backgroundColor: '#3B82C4',
-  },
-  permissionHint: {
+  dustIndicatorInner: {
+    position: 'absolute',
+    top: 1,
+    marginLeft: -4,
+    width: 8,
+    height: 8,
     borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    backgroundColor: '#EEF5FB',
-  },
-  permissionHintText: {
-    ...ts('body3'),
-    color: '#7B95AD',
   },
 })
