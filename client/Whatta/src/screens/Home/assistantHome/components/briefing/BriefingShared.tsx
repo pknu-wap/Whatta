@@ -109,13 +109,14 @@ export function BriefingListRow({
         !bordered && S.listRowBorderless,
         compact && S.listRowCompact,
         isLast && S.listRowLast,
+        trailingAccessory && S.rowWithTrailing,
       ]}
     >
       {leadingAccessory ? <View style={S.listLeading}>{leadingAccessory}</View> : null}
       <Text style={S.listTitle} numberOfLines={1}>
         {title}
       </Text>
-      {trailingAccessory ? <View style={S.listTrailing}>{trailingAccessory}</View> : null}
+      {trailingAccessory ? <View style={S.listTrailingAbsolute}>{trailingAccessory}</View> : null}
     </View>
   )
 }
@@ -145,7 +146,13 @@ export function BriefingTimelineRow({
 }: BriefingTimelineRowProps) {
   return (
     <View style={S.timelineRow}>
-      <View style={[S.timelineBox, state === 'current' && S.timelineBoxCurrent]}>
+      <View
+        style={[
+          S.timelineBox,
+          state === 'current' && S.timelineBoxCurrent,
+          trailingAccessory && S.rowWithTrailing,
+        ]}
+      >
         <View style={S.timelineIconSlot}>
           {state === 'past' ? (
             <BeforeIcon width={8} height={8} />
@@ -181,7 +188,9 @@ export function BriefingTimelineRow({
           {title}
         </Text>
 
-        {trailingAccessory ? <View style={S.timelineTrailing}>{trailingAccessory}</View> : null}
+        {trailingAccessory ? (
+          <View style={S.timelineTrailingAbsolute}>{trailingAccessory}</View>
+        ) : null}
       </View>
     </View>
   )
@@ -259,6 +268,9 @@ const S = StyleSheet.create({
   listRowLast: {
     marginBottom: 0,
   },
+  rowWithTrailing: {
+    paddingRight: 60,
+  },
   listLeading: {
     marginRight: 12,
   },
@@ -269,8 +281,11 @@ const S = StyleSheet.create({
     color: colors.text.text1,
     flex: 1,
   },
-  listTrailing: {
-    marginLeft: 12,
+  listTrailingAbsolute: {
+    position: 'absolute',
+    right: 0,
+    width: 56,
+    alignItems: 'flex-end',
   },
   sectionHeaderRow: {
     width: 310,
@@ -302,7 +317,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 8,
-    paddingRight: 8,
+    paddingRight: 12,
   },
   timelineBoxCurrent: {
     backgroundColor: '#B04FFF0D',
@@ -358,7 +373,10 @@ const S = StyleSheet.create({
   timelineTitleActive: {
     color: colors.text.text1,
   },
-  timelineTrailing: {
-    marginLeft: 12,
+  timelineTrailingAbsolute: {
+    position: 'absolute',
+    right: 0,
+    width: 56,
+    alignItems: 'flex-end',
   },
 })

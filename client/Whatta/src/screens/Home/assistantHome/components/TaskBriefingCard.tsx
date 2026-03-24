@@ -1,5 +1,5 @@
 import React from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import CheckOffIcon from '@/assets/icons/check_off.svg'
 import CheckOnIcon from '@/assets/icons/check_on.svg'
 import type { AssistantTaskBriefing } from '@/screens/Home/assistantHome/types'
@@ -18,19 +18,25 @@ import { ts } from '@/styles/typography'
 type Props = {
   briefing: AssistantTaskBriefing
   onPressTaskArea?: () => void
+  onToggleTask?: (taskId: string, nextCompleted: boolean) => void
 }
 
 function TaskCheckbox({ checked }: { checked: boolean }) {
   return checked ? <CheckOnIcon width={24} height={24} /> : <CheckOffIcon width={24} height={24} />
 }
 
-function DueLabel({ label }: { label: string }) {
+function DueLabel({ label }: { label?: string }) {
+  if (!label) return null
   const isToday = label.trim().toLowerCase() === 'd-day'
 
   return <Text style={[S.dueLabel, isToday && S.dueLabelToday]}>{label}</Text>
 }
 
-export default function TaskBriefingCard({ briefing, onPressTaskArea }: Props) {
+export default function TaskBriefingCard({
+  briefing,
+  onPressTaskArea,
+  onToggleTask,
+}: Props) {
   const timelineItems = [...briefing.timeline].sort(
     (left, right) => getStartMinutes(left.timeRange) - getStartMinutes(right.timeRange),
   )
@@ -48,7 +54,11 @@ export default function TaskBriefingCard({ briefing, onPressTaskArea }: Props) {
                 key={item.id}
                 title={item.title}
                 bordered={false}
-                leadingAccessory={<TaskCheckbox checked={item.completed} />}
+                leadingAccessory={(
+                  <Pressable onPress={() => onToggleTask?.(item.id, !item.completed)}>
+                    <TaskCheckbox checked={item.completed} />
+                  </Pressable>
+                )}
                 trailingAccessory={<DueLabel label={item.dueLabel} />}
                 isLast={index === briefing.tasks.length - 1}
                 compact
@@ -66,9 +76,13 @@ export default function TaskBriefingCard({ briefing, onPressTaskArea }: Props) {
                 timeRange={item.timeRange}
                 state={getTimelineState(item.timeRange)}
                 showConnector={index !== timelineItems.length - 1}
-                beforeTitleAccessory={<TaskCheckbox checked={item.completed} />}
+                beforeTitleAccessory={(
+                  <Pressable onPress={() => onToggleTask?.(item.id, !item.completed)}>
+                    <TaskCheckbox checked={item.completed} />
+                  </Pressable>
+                )}
                 trailingAccessory={<DueLabel label={item.dueLabel} />}
-                timeTextWidth={83}
+                timeTextWidth={86}
                 timeTextMarginRight={2}
                 accessoryGap={8}
               />
@@ -92,6 +106,8 @@ const S = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     color: colors.text.text3,
+    textAlign: 'right',
+    width: '100%',
   },
   dueLabelToday: {
     color: '#FF5A54',

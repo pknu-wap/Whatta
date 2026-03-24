@@ -15,12 +15,17 @@ import MypageYesIcon from '@/assets/icons/mypage_yes.svg'
 import TransportNoIcon from '@/assets/icons/transport_no.svg'
 import TransportYesIcon from '@/assets/icons/transport_yes.svg'
 import { fetchEventSummary, type EventSummaryItem } from '@/api/event_api'
+import {
+  fetchTaskSummary,
+  type TaskSummaryDueTodayItem,
+  type TaskSummaryPlacedTodayItem,
+  updateTask,
+} from '@/api/task'
 import colors from '@/styles/colors'
 import type { RootStackParamList } from '@/navigation/RootStack'
 import {
   assistantNews,
   assistantQuickActions,
-  assistantTaskBriefing,
   assistantTopicSlides,
 } from '@/screens/Home/assistantHome/mockData'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
@@ -35,7 +40,10 @@ import useToday from '@/hooks/useToday'
 import { bus } from '@/lib/eventBus'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
-import type { AssistantBriefing } from '@/screens/Home/assistantHome/types'
+import type {
+  AssistantBriefing,
+  AssistantTaskBriefing,
+} from '@/screens/Home/assistantHome/types'
 
 const SEOUL_COORDS = {
   latitude: 37.5665,
@@ -69,6 +77,26 @@ function getLocalDateIso(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function parseDateTime(dateTime: string | null | undefined) {
+  if (!dateTime) return null
+  const normalized = dateTime.replace(' ', 'T')
+  const parsed = new Date(normalized)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDueLabel(dueDateTime: string | null | undefined) {
+  const dueDate = parseDateTime(dueDateTime)
+  if (!dueDate) return undefined
+
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const startOfDue = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+  const diffDays = Math.round((startOfDue.getTime() - startOfToday.getTime()) / 86400000)
+
+  if (diffDays <= 0) return 'D-day'
+  return `D-${diffDays}`
 }
 
 function isAllDaySummaryItem(item: EventSummaryItem) {
@@ -106,6 +134,45 @@ function buildBriefing(dateLabel: string, items: EventSummaryItem[]): AssistantB
   }
 }
 
+function buildTaskBriefing(
+  dateLabel: string,
+  placedToday: TaskSummaryPlacedTodayItem[],
+  dueToday: TaskSummaryDueTodayItem[],
+): AssistantTaskBriefing {
+  return {
+    dateLabel,
+    tasks: [
+      ...placedToday
+        .filter((item) => !item.placementTime)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          completed: item.complete,
+          dueLabel: formatDueLabel(item.dueDateTime),
+        })),
+      ...dueToday.map((item) => ({
+        id: item.id,
+        title: item.title,
+        completed: item.complete,
+        dueLabel: formatDueLabel(item.dueDateTime),
+      })),
+    ],
+    timeline: placedToday
+      .filter((item) => !!item.placementTime)
+      .map((item) => {
+        const displayTime = toDisplayTime(item.placementTime) ?? '--:--'
+
+        return {
+          id: item.id,
+          title: item.title,
+          timeRange: `${displayTime} ~ ${displayTime}`,
+          completed: item.complete,
+          dueLabel: formatDueLabel(item.dueDateTime),
+        }
+      }),
+  }
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [isMypageActive, setIsMypageActive] = useState(false)
@@ -114,6 +181,11 @@ export default function HomeScreen() {
   const [briefing, setBriefing] = useState<AssistantBriefing>({
     dateLabel: todayLabel,
     schedules: [],
+    timeline: [],
+  })
+  const [taskBriefing, setTaskBriefing] = useState<AssistantTaskBriefing>({
+    dateLabel: todayLabel,
+    tasks: [],
     timeline: [],
   })
   const {
@@ -162,8 +234,40 @@ export default function HomeScreen() {
     }, [todayLabel]),
   )
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true
+
+      const loadTaskBriefing = async () => {
+        try {
+          const summary = await fetchTaskSummary()
+          if (!active) return
+          setTaskBriefing(buildTaskBriefing(todayLabel, summary.placedToday, summary.dueToday))
+        } catch (error) {
+          console.warn('task summary get error', error)
+          if (!active) return
+          setTaskBriefing({
+            dateLabel: todayLabel,
+            tasks: [],
+            timeline: [],
+          })
+        }
+      }
+
+      loadTaskBriefing()
+
+      return () => {
+        active = false
+      }
+    }, [todayLabel]),
+  )
+
   useEffect(() => {
     setBriefing((prev) => ({
+      ...prev,
+      dateLabel: todayLabel,
+    }))
+    setTaskBriefing((prev) => ({
       ...prev,
       dateLabel: todayLabel,
     }))
@@ -213,6 +317,33 @@ export default function HomeScreen() {
     }, 0)
   }
 
+  const handleToggleTaskBriefingItem = useCallback(async (taskId: string, nextCompleted: boolean) => {
+    setTaskBriefing((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((item) =>
+        item.id === taskId ? { ...item, completed: nextCompleted } : item,
+      ),
+      timeline: prev.timeline.map((item) =>
+        item.id === taskId ? { ...item, completed: nextCompleted } : item,
+      ),
+    }))
+
+    try {
+      await updateTask(taskId, { completed: nextCompleted })
+    } catch (error) {
+      console.warn('task briefing toggle error', error)
+      setTaskBriefing((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((item) =>
+          item.id === taskId ? { ...item, completed: !nextCompleted } : item,
+        ),
+        timeline: prev.timeline.map((item) =>
+          item.id === taskId ? { ...item, completed: !nextCompleted } : item,
+        ),
+      }))
+    }
+  }, [])
+
   return (
     <SafeAreaView style={S.safeArea} edges={['top']}>
       <View style={S.container}>
@@ -261,7 +392,10 @@ export default function HomeScreen() {
 
           <NewsBannerCard item={assistantNews} />
 
-          <TaskBriefingCard briefing={assistantTaskBriefing} />
+          <TaskBriefingCard
+            briefing={taskBriefing}
+            onToggleTask={handleToggleTaskBriefingItem}
+          />
 
           {assistantQuickActions.length > 0 ? (
             <QuickActionGrid

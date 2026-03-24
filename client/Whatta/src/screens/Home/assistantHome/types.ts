@@ -85,7 +85,7 @@ export type AssistantTaskBriefingItem = {
   id: string
   title: string
   completed: boolean
-  dueLabel: string
+  dueLabel?: string
 }
 
 export type AssistantTaskBriefingTimelineItem = {
@@ -93,7 +93,7 @@ export type AssistantTaskBriefingTimelineItem = {
   title: string
   timeRange: string
   completed: boolean
-  dueLabel: string
+  dueLabel?: string
 }
 
 export type AssistantTaskBriefing = {
