@@ -76,8 +76,6 @@ const parseTime = (t?: string) => {
   const [startDate, setStartDate] = useState(parseTime(startTime))
   const [endDate, setEndDate] = useState(parseTime(endTime))
 
-  const [openCalendar, setOpenCalendar] = useState(false)
-
   const [editDatePicking, setEditDatePicking] = useState(false)
 
 
@@ -94,9 +92,6 @@ const parseTime = (t?: string) => {
 
 const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
 
-// 🔥 1) 일정이 멀티데이 span인지 여부 (지금은 false 고정)
-const isMultiDaySpan = false
-
 // 🔥 2) 알림 on/off 토글
 const [remindOn, setRemindOn] = useState(false)
 
@@ -107,36 +102,29 @@ const [remindOpen, setRemindOpen] = useState(false)
 const [customOpen, setCustomOpen] = useState(false)
 
 // 🔥 5) 맞춤설정 hour/minute 피커
-const [customHour, setCustomHour] = useState(1)
-const [customMinute, setCustomMinute] = useState(0)
+const [customHour, setCustomHour] = useState(0)
+const [customMinute, setCustomMinute] = useState(10)
 
 // 🔥 6) 현재 선택된 알림 값
-  const [remindValue, setRemindValue] = useState<RemindOpt>('정시')
+  const [remindValue, setRemindValue] = useState<RemindOpt>('당일 10분 전')
 
 // 🔥 7) 알림 옵션 리스트
 const REMIND_OPTIONS = [
-  '정시',
-  '5분 전',
-  '10분 전',
-  '30분 전',
-  '1시간 전',
+  '당일 10분 전',
   '맞춤 설정'
 ]
 type RemindOpt = (typeof REMIND_OPTIONS)[number]
 
 const remindOptions = [
-  { type: 'preset', id: '0m', day: 0, hour: 0, minute: 0, label: '정시' },
-  { type: 'preset', id: '5m', day: 0, hour: 0, minute: 5, label: '5분 전' },
-  { type: 'preset', id: '10m', day: 0, hour: 0, minute: 10, label: '10분 전' },
-  { type: 'preset', id: '30m', day: 0, hour: 0, minute: 30, label: '30분 전' },
-  { type: 'preset', id: '1h', day: 0, hour: 1, minute: 0, label: '1시간 전' },
   { type: 'custom', label: '맞춤 설정' },
 ]
 
 const remindDisplayText =
   remindValue === '맞춤 설정'
-    ? `${customHour > 0 ? `${customHour}시간 ` : ''}${customMinute}분 전`
-    : remindValue
+    ? `당일 ${customHour > 0 ? `${customHour}시간 ` : ''}${customMinute}분 전`
+    : remindValue === '10분 전'
+      ? '당일 10분 전'
+      : remindValue
 
     const remindSelectedKey =
   remindValue === '맞춤 설정'
@@ -154,7 +142,7 @@ const remindDisplayText =
 const handleSelectRemindOption = (opt: typeof remindOptions[number]) => {
   if (opt.type === 'custom') {
     setRemindValue('맞춤 설정')
-    setCustomOpen(true)
+    setCustomOpen((prev) => !prev)
     return
   }
 
@@ -169,8 +157,10 @@ const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5) // 0,5,10,...55
 // 🔥 9) 표시용 텍스트
 const displayRemind =
   remindValue === '맞춤 설정'
-    ? `${customHour > 0 ? `${customHour}시간 ` : ''}${customMinute}분 전`
-    : remindValue
+    ? `당일 ${customHour > 0 ? `${customHour}시간 ` : ''}${customMinute}분 전`
+    : remindValue === '10분 전'
+      ? '당일 10분 전'
+      : remindValue
 
 // 🔥 10) Picker 터치 중인지 확인 (드롭다운 닫힘 방지)
 const pickerTouchingRef = React.useRef(false)
@@ -296,27 +286,23 @@ const buildEventPayload = () => {
     }
   }
 
-  let reminderNoti = { day: 0, hour: 0, minute: 0 }
+let reminderNoti = { day: 0, hour: 0, minute: 0 }
 
-  if (remindOn) {
-    if (remindValue === '정시') {
-      reminderNoti = { day: 0, hour: 0, minute: 0 }
-    } else if (remindValue === '5분 전') {
-      reminderNoti = { day: 0, hour: 0, minute: 5 }
-    } else if (remindValue === '10분 전') {
-      reminderNoti = { day: 0, hour: 0, minute: 10 }
-    } else if (remindValue === '30분 전') {
-      reminderNoti = { day: 0, hour: 0, minute: 30 }
-    } else if (remindValue === '1시간 전') {
-      reminderNoti = { day: 0, hour: 1, minute: 0 }
-    } else if (remindValue === '맞춤 설정') {
-      reminderNoti = {
-        day: 0,
-        hour: customHour,
-        minute: customMinute,
-      }
+if (remindOn) {
+  if (remindValue === '맞춤 설정') {
+    reminderNoti = {
+      day: 0,
+      hour: customHour,
+      minute: customMinute,
+    }
+  } else {
+    reminderNoti = {
+      day: 0,
+      hour: 0,
+      minute: 10,
     }
   }
+}
 
   return {
     title: titleInput,
