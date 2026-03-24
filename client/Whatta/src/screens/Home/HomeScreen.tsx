@@ -345,79 +345,81 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={S.safeArea} edges={['top']}>
       <View style={S.container}>
-        <View style={S.headerRow}>
-          <View style={S.headerTextBlock}>
-            <Text style={S.eyebrow}>안녕하세요, 사용자님</Text>
-            <Text style={S.title}>{weatherHeadline}</Text>
-          </View>
-
-          <View style={S.headerActionRow}>
-            <Pressable
-              style={S.iconButton}
-              onPress={handlePressTrafficAlerts}
-              onPressIn={() => setIsTransportActive(true)}
-              onPressOut={() => setIsTransportActive(false)}
-            >
-              {isTransportActive ? (
-                <TransportYesIcon width={28} height={28} />
-              ) : (
-                <TransportNoIcon width={28} height={28} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={S.iconButton}
-              onPress={handlePressMypage}
-              onPressIn={() => setIsMypageActive(true)}
-              onPressOut={() => setIsMypageActive(false)}
-            >
-              {isMypageActive ? (
-                <MypageYesIcon width={28} height={28} />
-              ) : (
-                <MypageNoIcon width={28} height={28} />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
         <ScrollView
           contentContainerStyle={S.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <WeatherSummaryCard weather={weatherCardToRender} />
+          <View style={S.contentBody}>
+            <View style={S.headerRow}>
+              <View style={S.headerTextBlock}>
+                <Text style={S.eyebrow}>안녕하세요, 사용자님</Text>
+                <Text style={S.title}>{weatherHeadline}</Text>
+              </View>
 
-          <BriefingCard briefing={briefing} onPressScheduleArea={handlePressBriefing} />
+              <View style={S.headerActionRow}>
+                <Pressable
+                  style={S.iconButton}
+                  onPress={handlePressTrafficAlerts}
+                  onPressIn={() => setIsTransportActive(true)}
+                  onPressOut={() => setIsTransportActive(false)}
+                >
+                  {isTransportActive ? (
+                    <TransportYesIcon width={28} height={28} />
+                  ) : (
+                    <TransportNoIcon width={28} height={28} />
+                  )}
+                </Pressable>
 
-          <NewsBannerCard item={assistantNews} />
+                <Pressable
+                  style={S.iconButton}
+                  onPress={handlePressMypage}
+                  onPressIn={() => setIsMypageActive(true)}
+                  onPressOut={() => setIsMypageActive(false)}
+                >
+                  {isMypageActive ? (
+                    <MypageYesIcon width={28} height={28} />
+                  ) : (
+                    <MypageNoIcon width={28} height={28} />
+                  )}
+                </Pressable>
+              </View>
+            </View>
 
-          <TaskBriefingCard
-            briefing={taskBriefing}
-            onToggleTask={handleToggleTaskBriefingItem}
-          />
+            <WeatherSummaryCard weather={weatherCardToRender} />
 
-          <View style={S.projectSection}>
-            <Text style={S.projectSectionTitle}>프로젝트 스케줄</Text>
+            <BriefingCard briefing={briefing} onPressScheduleArea={handlePressBriefing} />
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={S.projectSliderContent}
-            >
-              {[0, 1, 2].map((item) => (
-                <View key={item} style={S.projectCard}>
-                  <Text style={S.projectCardText}>준비중</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+            <NewsBannerCard item={assistantNews} />
 
-          {assistantQuickActions.length > 0 ? (
-            <QuickActionGrid
-              items={assistantQuickActions}
-              onPress={() => {}}
-              iconMap={{}}
+            <TaskBriefingCard
+              briefing={taskBriefing}
+              onToggleTask={handleToggleTaskBriefingItem}
             />
-          ) : null}
+
+            <View style={S.projectSection}>
+              <Text style={S.projectSectionTitle}>프로젝트 스케줄</Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={S.projectSliderContent}
+              >
+                {[0, 1, 2].map((item) => (
+                  <View key={item} style={S.projectCard}>
+                    <Text style={S.projectCardText}>준비중</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+
+            {assistantQuickActions.length > 0 ? (
+              <QuickActionGrid
+                items={assistantQuickActions}
+                onPress={() => {}}
+                iconMap={{}}
+              />
+            ) : null}
+          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -437,7 +439,6 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 14,
   },
@@ -474,9 +475,11 @@ const S = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingHorizontal: 20,
     paddingTop: 6,
-    paddingBottom: 120,
+    paddingBottom: 48,
+  },
+  contentBody: {
+    paddingHorizontal: 17.5,
   },
   projectSection: {
     marginTop: 12,
