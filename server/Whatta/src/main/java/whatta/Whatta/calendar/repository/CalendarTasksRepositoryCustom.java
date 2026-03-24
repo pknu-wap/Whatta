@@ -87,6 +87,7 @@ public class CalendarTasksRepositoryCustom {
         placedOperations.add(Aggregation.match(
                 Criteria.where("placementDate").is(date)));
         placedOperations.add(Aggregation.project()
+                .and("_id").as("id")
                 .and("title").as("title")
                 .and("completed").as("completed")
                 .and("placementTime").as("placementTime")
@@ -100,6 +101,7 @@ public class CalendarTasksRepositoryCustom {
         dueOperations.add(Aggregation.match(
                 Criteria.where("dueDateTime").gte(startOfDay).lt(startOfTomorrow)));
         dueOperations.add(Aggregation.project()
+                .and("_id").as("id")
                 .and("title").as("title")
                 .and("completed").as("completed")
                 .and("dueDateTime").as("dueDateTime"));

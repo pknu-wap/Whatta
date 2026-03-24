@@ -12,6 +12,7 @@ public record TodayTaskSummaryResponse(
 ) {
     @Builder
     public record TaskPlacedToday(
+            String id,
             String title,
             String placementTime,
             boolean complete,
@@ -19,6 +20,7 @@ public record TodayTaskSummaryResponse(
     ) { }
     @Builder
     public record TaskDueToday(
+            String id,
             String title,
             boolean complete,
             String dueDateTime
