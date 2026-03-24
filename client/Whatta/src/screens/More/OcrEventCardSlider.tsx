@@ -44,10 +44,17 @@ export default function OCREventCardSlider({
 
   const [selectedColor, setSelectedColor] = useState(resolveScheduleColor(colorKey))
 
-  const { width } = Dimensions.get('window')
-  const ITEM_WIDTH = width * 0.88
-  const SPACING = 6
-  const SIDE_PADDING = (width - ITEM_WIDTH) / 1.55
+const { width: W } = Dimensions.get('window')
+
+const CARD_BASE_W = 350
+const CARD_BASE_H = 569
+const CARD_RATIO = CARD_BASE_H / CARD_BASE_W
+
+const ITEM_WIDTH = Math.min(W - 56, 350) 
+const ITEM_HEIGHT = ITEM_WIDTH * CARD_RATIO
+
+const SPACING = 12
+const SIDE_PADDING = (W - ITEM_WIDTH) / 2
 
   /** 📌 요일 반복 */
   const mapWeekDayToRepeat = (w?: string) => {
@@ -164,6 +171,7 @@ const AnimatedCard = ({
   children,
   isLast,
   itemWidth,
+  itemHeight,
   spacing,
   onRemove,
   id,
@@ -171,6 +179,7 @@ const AnimatedCard = ({
   children: (animateRemove: () => void) => React.ReactNode
   isLast: boolean
   itemWidth: number
+  itemHeight: number
   spacing: number
   onRemove: (id: string) => void
   id: string
@@ -194,15 +203,19 @@ const AnimatedCard = ({
   }
 
   return (
-    <Animated.View
-      style={[
-        {
-          width: itemWidth,
-          marginRight: isLast ? 0 : spacing,
-        },
-        animStyle,
-      ]}
-    >
+<Animated.View
+  style={[
+    {
+      width: itemWidth,
+      height: itemHeight,
+      marginRight: isLast ? 0 : spacing,
+      marginTop: 32,
+      justifyContent: 'flex-start',
+      alignItems: 'center',
+    },
+    animStyle,
+  ]}
+>
       {children(animateRemove)}
     </Animated.View>
   )
@@ -210,106 +223,118 @@ const AnimatedCard = ({
 
   return (
     <Modal transparent visible={visible} animationType="fade">
-      <View style={styles.overlay}>
-        <View style={styles.centerWrap}>
-          
-          <FlatList
-            data={editedEvents}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={ITEM_WIDTH + SPACING}
-            ListHeaderComponent={<View style={{ width: SIDE_PADDING }} />}
-            ListFooterComponent={<View style={{ width: SIDE_PADDING }} />}
+     <View style={styles.overlay}>
+<View style={styles.cardArea}>
+  <View style={styles.sliderBox}>
+    <FlatList
+      data={editedEvents}
+      keyExtractor={(item) => item.id}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      decelerationRate="fast"
+      snapToInterval={ITEM_WIDTH + SPACING}
+      contentContainerStyle={styles.sliderContent}
+      ListHeaderComponent={<View style={{ width: SIDE_PADDING }} />}
+      ListFooterComponent={<View style={{ width: SIDE_PADDING }} />}
+      renderItem={({ item, index }) => {
+        const isLast = index === editedEvents.length - 1
 
-renderItem={({ item, index }) => {
-  const isLast = index === editedEvents.length - 1
+        return (
+          <AnimatedCard
+            id={item.id}
+            isLast={isLast}
+            itemWidth={ITEM_WIDTH}
+            itemHeight={ITEM_HEIGHT}
+            spacing={SPACING}
+            onRemove={handleRemoveCard}
+          >
+            {(animateRemove) => (
+              <OCREventCard
+                title={item.title}
+                date={item.startDate}
+                startTime={item.startTime?.slice(0, 5)}
+                endTime={item.endTime?.slice(0, 5)}
+                registerPayloadGetter={(getter) => registerPayloadGetter(item.id, getter)}
+                unregisterPayloadGetter={() => unregisterPayloadGetter(item.id)}
+                onSubmit={async (finalPayload) => {
+                  try {
+                    const handleUpdateEditedEvent = (id: string, payload: CreateEventPayload) => {
+                      setEditedEvents(prev =>
+                        prev.map(ev => (ev.id === id ? { ...ev, ...payload } : ev))
+                      )
+                    }
 
-  return (
-    <AnimatedCard
-      id={item.id}
-      isLast={isLast}
-      itemWidth={ITEM_WIDTH}
-      spacing={SPACING}
-      onRemove={handleRemoveCard}
-    >
-      {(animateRemove) => (
-        <OCREventCard
-          title={item.title}
-          date={item.startDate}
-          startTime={item.startTime?.slice(0, 5)}
-          endTime={item.endTime?.slice(0, 5)}
-          registerPayloadGetter={(getter) => registerPayloadGetter(item.id, getter)}
-          unregisterPayloadGetter={() => unregisterPayloadGetter(item.id)}
+                    const savedPayload = {
+                      ...finalPayload,
+                    }
 
-onSubmit={async (finalPayload) => {
-  try {
-    const handleUpdateEditedEvent = (id: string, payload: CreateEventPayload) => {
-  setEditedEvents(prev =>
-    prev.map(ev => (ev.id === id ? { ...ev, ...payload } : ev))
-  )
-}
-//console.log('finalPayload.repeat', finalPayload.repeat)
+                    handleUpdateEditedEvent(item.id, savedPayload)
+                    await createEvent(savedPayload)
 
-    const savedPayload = {
-      ...finalPayload,
-    }
+                    onAddEvent(savedPayload)
+                    animateRemove()
+                  } catch (e) {
+                    console.error('❌ 일정 저장 실패:', e)
+                    Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
+                  }
+                }}
+                onClose={animateRemove}
+              />
+            )}
+          </AnimatedCard>
+        )
+      }}
+    />
+  </View>
 
-handleUpdateEditedEvent(item.id, savedPayload)
-    await createEvent(savedPayload)
-
-    onAddEvent(savedPayload) // 부모에서는 상태 추가만
-    animateRemove()
-  } catch (e) {
-    console.error('❌ 일정 저장 실패:', e)
-    Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
-  }
-}}
-
-          onClose={animateRemove}
-        />
-      )}
-    </AnimatedCard>
-  )
-}}
-          />
-
-          <Pressable style={styles.saveAllBtn} onPress={handleSaveAll}>
-            <Text style={styles.saveAllText}>모두 저장</Text>
-          </Pressable>
-
-        </View>
+  <Pressable style={styles.saveAllBtn} onPress={handleSaveAll}>
+    <Text style={styles.saveAllText}>모두 저장</Text>
+  </Pressable>
+</View>
       </View>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
+  
   overlay: {
     flex: 1,
-    backgroundColor: '#000000B2',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.62)',
   },
-  centerWrap: {
-    width: '100%',
-    maxWidth: 420,
-    alignItems: 'center',
-  },
-  saveAllBtn: {
-    marginTop: 20,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    borderRadius: 64,
-    width: 100,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
+cardArea: {
+  width: '100%',
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+
+saveAllBtn: {
+  position: 'absolute',
+  bottom: 90,
+  alignSelf: 'center',
+
+  backgroundColor: '#FFFFFF',
+  paddingVertical: 14,
+  borderRadius: 64,
+  width: 100,
+  height: 44,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
   saveAllText: {
     color: colors.primary.main,
     fontSize: 12,
     fontWeight: '700',
   },
+  sliderBox: {
+  justifyContent: 'center',
+},
+
+sliderContent: {
+  alignItems: 'center',
+  paddingVertical: 16,
+},
 })
