@@ -25,11 +25,12 @@ public class WeatherService {
     public WeatherResponse getWeather(double latitude, double longitude) {
         WeatherApiForecastResponse response = weatherApiClient.getTodayWeather(latitude, longitude);
 
+        WeatherApiForecastResponse.Location location = response.location();
         WeatherApiForecastResponse.Current current = response.current();
         WeatherApiForecastResponse.ForecastDay todayForecast = extractTodayForecast(response);
         WeatherApiForecastResponse.Day today = todayForecast.day();
 
-        if (current == null || today == null || today.condition() == null) {
+        if (location == null || current == null || today == null || today.condition() == null) {
             throw new RestApiException(ErrorCode.WEATHER_API_INVALID_RESPONSE);
         }
 
@@ -40,6 +41,7 @@ public class WeatherService {
         WeatherApiForecastResponse.Hour firstSnowHour = findFirstSnowHour(todayForecast.hour());
 
         return WeatherResponse.builder()
+                .locationName(location.name())
                 .todayMinTemperatureC(today.minTempC())
                 .todayMaxTemperatureC(today.maxTempC())
                 .todayWeather(condition.text())
