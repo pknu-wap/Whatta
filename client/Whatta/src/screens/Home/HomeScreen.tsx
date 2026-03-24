@@ -21,15 +21,12 @@ import {
   assistantNews,
   assistantQuickActions,
   assistantTopicSlides,
-  assistantTransitStatus,
 } from '@/screens/Home/assistantHome/mockData'
-import type { AssistantQuickAction } from '@/screens/Home/assistantHome/types'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
 import QuickActionGrid from '@/screens/Home/assistantHome/components/QuickActionGrid'
 import BriefingCard from '@/screens/Home/assistantHome/components/BriefingCard'
 import TopicSlidesSection from '@/screens/Home/assistantHome/components/TopicSlidesSection'
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
-import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
 import useToday from '@/hooks/useToday'
@@ -194,21 +191,6 @@ export default function HomeScreen() {
   }, [permissionDenied, weatherCard, weatherError, weatherLoading])
 
   const weatherCardToRender = weatherCard ?? DEFAULT_WEATHER_CARD
-  const quickActionIconMap = useMemo(
-    () => ({
-      mypage: <MypageNoIcon width={18} height={18} />,
-    }),
-    [],
-  )
-
-  const handleQuickActionPress = (action: AssistantQuickAction) => {
-    switch (action.id) {
-      case 'mypage':
-        navigation.navigate('MyPage')
-        return
-    }
-  }
-
   const handlePressTrafficAlerts = () => {
     navigation.navigate('TrafficAlerts')
   }
@@ -277,16 +259,13 @@ export default function HomeScreen() {
 
           <NewsBannerCard item={assistantNews} />
 
-          <TransitStatusCard
-            item={assistantTransitStatus}
-            onPress={() => navigation.navigate('TrafficAlerts')}
-          />
-
-          <QuickActionGrid
-            items={assistantQuickActions}
-            onPress={handleQuickActionPress}
-            iconMap={quickActionIconMap}
-          />
+          {assistantQuickActions.length > 0 ? (
+            <QuickActionGrid
+              items={assistantQuickActions}
+              onPress={() => {}}
+              iconMap={{}}
+            />
+          ) : null}
           <TopicSlidesSection
             items={assistantTopicSlides}
             onPressItem={(topicId) => navigation.navigate('AssistantTopicTasks', { topicId })}

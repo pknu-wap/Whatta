@@ -35,7 +35,7 @@ const S = StyleSheet.create({
     borderRadius: 24,
     padding: 18,
     backgroundColor: '#EEF6F3',
-    marginBottom: 18,
+    marginBottom: 12,
   },
   headerRow: {
     flexDirection: 'row',

@@ -14,11 +14,6 @@ export const assistantNews: AssistantNewsBanner = {
 }
 
 export const assistantQuickActions: AssistantQuickAction[] = [
-  {
-    id: 'mypage',
-    title: '마이페이지',
-    description: '설정 바로가기',
-  },
 ]
 
 export const assistantTransitStatus: AssistantTransitStatus = {

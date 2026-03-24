@@ -22,11 +22,13 @@ export default function NewsBannerCard({ item }: Props) {
 
 const S = StyleSheet.create({
   card: {
+    width: 358,
+    height: 80,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: '#17324D',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   badge: {
     alignSelf: 'flex-start',
