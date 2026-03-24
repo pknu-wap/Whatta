@@ -311,6 +311,19 @@ const {
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
+  useEffect(() => {
+    const onResetView = () => {
+      setPopupVisible(false)
+      setEventPopupVisible(false)
+      setTaskPopupVisible(false)
+      setImagePopupVisible(false)
+      setOcrModalVisible(false)
+    }
+
+    bus.on('calendar:reset-view', onResetView)
+    return () => bus.off('calendar:reset-view', onResetView)
+  }, [setImagePopupVisible, setOcrModalVisible])
+
   const { items: filterLabels } = useLabelFilter()
   const labelTitleById = useMemo(() => {
     const map = new Map<string, string>()

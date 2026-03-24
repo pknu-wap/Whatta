@@ -214,6 +214,18 @@ export default function DayView({ active = true }: { active?: boolean }) {
     return () => bus.off('scheduleColorSet:changed', onColorSetChanged)
   }, [])
 
+  useEffect(() => {
+    const onResetView = () => {
+      setEventPopupVisible(false)
+      setTaskPopupVisible(false)
+      setImagePopupVisible(false)
+      setOcrModalVisible(false)
+    }
+
+    bus.on('calendar:reset-view', onResetView)
+    return () => bus.off('calendar:reset-view', onResetView)
+  }, [setImagePopupVisible, setOcrModalVisible])
+
   const [taskPopupMode, setTaskPopupMode] = useState<'create' | 'edit'>('create')
 
   const taskBoxRef = useRef<View>(null)

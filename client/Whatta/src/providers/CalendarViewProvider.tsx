@@ -2,6 +2,7 @@ type CalendarViewMode = 'day' | 'week' | 'month'
 
 // 내부 상태
 let _currentView: CalendarViewMode = 'month'
+let _tabLaunchView: CalendarViewMode = 'month'
 let _suppressNextViewEntrance = false
 
 // 구독자 저장용
@@ -23,6 +24,16 @@ export const currentCalendarView = {
     return () => {
       listeners.delete(fn)
     }
+  },
+}
+
+export const calendarTabLaunchView = {
+  get(): CalendarViewMode {
+    return _tabLaunchView
+  },
+
+  set(mode: CalendarViewMode) {
+    _tabLaunchView = mode
   },
 }
 

@@ -26,6 +26,7 @@ import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatSched
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { resolveScheduleColor } from '@/styles/scheduleColorSets'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 const DETAIL_ITEM_WIDTH = 302
 const DETAIL_RIGHT_EXTENSION = 24
@@ -427,6 +428,7 @@ export default function MonthlyDetailPopup({
         S.modalHost,
         {
           top: APP_HEADER_HEIGHT + insets.top,
+          bottom: CUSTOM_TAB_BAR_HEIGHT + 4,
         },
       ]}
       pointerEvents="box-none"

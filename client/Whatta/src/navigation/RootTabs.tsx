@@ -12,14 +12,21 @@ import HomeIcon from '@/assets/icons/home_no.svg'
 import HomeIconActive from '@/assets/icons/home_yes.svg'
 import MonthIcon from '@/assets/icons/month.svg'
 import PillMonthIcon from '@/assets/icons/pill_month.svg'
+import { bus } from '@/lib/eventBus'
+import {
+  calendarTabLaunchView,
+  calendarViewTransition,
+  currentCalendarView,
+} from '@/providers/CalendarViewProvider'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import HomeScreen from '@/screens/Home/HomeScreen'
 import MyPageStack from '@/navigation/MyPageStack'
 import CalendarScreen from '@/screens/Calender/CalendarScreen'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 const Tab = createBottomTabNavigator()
-const TAB_BAR_H = 83
+const TAB_BAR_H = CUSTOM_TAB_BAR_HEIGHT
 const TAB_BAR_RADIUS = 20
 const TAB_ACTIVE_COLOR = '#464A4D'
 const AI_BUBBLE_W = 112
@@ -36,6 +43,14 @@ const TAB_BAR_SHADOW_STYLE = {
 }
 const TAB_BAR_HIDDEN_STYLE = {
   display: 'none' as const,
+}
+
+const getTodayISO = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function AiTabStack() {
@@ -95,6 +110,23 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               target: route.key,
               canPreventDefault: true,
             })
+
+            if (route.name === 'Calendar' && !event.defaultPrevented) {
+              const todayISO = getTodayISO()
+              const launchMode = calendarTabLaunchView.get()
+
+              calendarViewTransition.markNextEntranceSuppressed()
+              currentCalendarView.set(launchMode)
+              bus.emit('filter:popup', false)
+              bus.emit('calendar:reset-view', { date: todayISO, mode: launchMode })
+              bus.emit('calendar:state', { date: todayISO, mode: launchMode })
+              bus.emit('calendar:set-date', todayISO)
+
+              if (!isFocused) {
+                navigation.navigate(route.name)
+              }
+              return
+            }
 
             if (!isFocused && !event.defaultPrevented) {
               navigation.navigate(route.name)
