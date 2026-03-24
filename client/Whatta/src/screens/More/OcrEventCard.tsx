@@ -116,6 +116,7 @@ const REMIND_OPTIONS = [
 type RemindOpt = (typeof REMIND_OPTIONS)[number]
 
 const remindOptions = [
+  { type: 'preset', id: '10m', day: 0, hour: 0, minute: 10, label: '당일 10분 전' },
   { type: 'custom', label: '맞춤 설정' },
 ]
 
@@ -129,15 +130,17 @@ const remindDisplayText =
     const remindSelectedKey =
   remindValue === '맞춤 설정'
     ? 'custom'
-    : remindValue === '정시'
-      ? '0m'
-      : remindValue === '5분 전'
-        ? '5m'
-        : remindValue === '10분 전'
-          ? '10m'
-          : remindValue === '30분 전'
-            ? '30m'
-            : '1h'
+    : remindValue === '당일 10분 전'
+      ? '10m'
+      : remindValue === '정시'
+        ? '0m'
+        : remindValue === '5분 전'
+          ? '5m'
+          : remindValue === '10분 전'
+            ? '10m'
+            : remindValue === '30분 전'
+              ? '30m'
+              : '1h'
 
 const handleSelectRemindOption = (opt: typeof remindOptions[number]) => {
   if (opt.type === 'custom') {
