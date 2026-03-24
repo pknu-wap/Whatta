@@ -423,7 +423,7 @@ return (
   onPressDateBox={() => setOpenCalendar((prev) => !prev)}
   onChangeStartTime={setStartDate}
   onChangeEndTime={setEndDate}
-  invalidEndTime={endDate.getTime() <= startDate.getTime()}
+  invalidEndTime={endDate.getTime() < startDate.getTime()}
   timeOn={hasTime}
   timeDisabled={false}
   onToggleTime={setHasTime}
