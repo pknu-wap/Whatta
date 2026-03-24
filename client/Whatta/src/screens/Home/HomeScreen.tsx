@@ -102,6 +102,15 @@ function formatDueLabel(dueDateTime: string | null | undefined) {
   return `D-${diffDays}`
 }
 
+function appendHeadlineEmoji(message: string) {
+  const trimmed = message.trim()
+  if (!trimmed) return trimmed
+  if (trimmed.includes('마스크')) return `${trimmed} 😷`
+  if (trimmed.includes('우산') || trimmed.includes('비')) return `${trimmed} ☔️`
+  if (trimmed.includes('눈')) return `${trimmed} ❄️`
+  return trimmed
+}
+
 function isAllDaySummaryItem(item: EventSummaryItem) {
   const start = item.startTime ?? ''
   const end = item.endTime ?? ''
@@ -321,7 +330,7 @@ export default function HomeScreen() {
         ? weatherCard.dustDetailLabel
         : `미세먼지 ${weatherCard.dustGradeLabel}`
 
-    return [weatherMessage, dustMessage]
+    return [appendHeadlineEmoji(weatherMessage), appendHeadlineEmoji(dustMessage)]
   }, [permissionDenied, weatherCard, weatherError, weatherHeadline, weatherLoading])
 
   useEffect(() => {
@@ -423,19 +432,6 @@ export default function HomeScreen() {
                 <View style={S.headerActionRow}>
                   <Pressable
                     style={S.iconButton}
-                    onPress={handlePressTrafficAlerts}
-                    onPressIn={() => setIsTransportActive(true)}
-                    onPressOut={() => setIsTransportActive(false)}
-                  >
-                    {isTransportActive ? (
-                      <TransportYesIcon width={28} height={28} />
-                    ) : (
-                      <TransportNoIcon width={28} height={28} />
-                    )}
-                  </Pressable>
-
-                  <Pressable
-                    style={S.iconButton}
                     onPress={handlePressMypage}
                     onPressIn={() => setIsMypageActive(true)}
                     onPressOut={() => setIsMypageActive(false)}
@@ -444,6 +440,19 @@ export default function HomeScreen() {
                       <MypageYesIcon width={28} height={28} />
                     ) : (
                       <MypageNoIcon width={28} height={28} />
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    style={S.iconButton}
+                    onPress={handlePressTrafficAlerts}
+                    onPressIn={() => setIsTransportActive(true)}
+                    onPressOut={() => setIsTransportActive(false)}
+                  >
+                    {isTransportActive ? (
+                      <TransportYesIcon width={28} height={28} />
+                    ) : (
+                      <TransportNoIcon width={28} height={28} />
                     )}
                   </Pressable>
                 </View>
@@ -505,11 +514,11 @@ export default function HomeScreen() {
 const S = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F6FAFC',
+    backgroundColor: colors.background.bg3,
   },
   container: {
     flex: 1,
-    backgroundColor: '#F6FAFC',
+    backgroundColor: colors.background.bg3,
   },
   headerRow: {
     paddingTop: 8,
@@ -528,6 +537,7 @@ const S = StyleSheet.create({
   },
   headerMessageBlock: {
     marginTop: 4,
+    width: '100%',
   },
   eyebrow: {
     ...ts('label2'),
@@ -539,7 +549,6 @@ const S = StyleSheet.create({
     ...ts('titleL'),
     lineHeight: 28,
     color: colors.text.text1,
-    maxWidth: 280,
     letterSpacing: -0.4,
   },
   titleTickerWrap: {
