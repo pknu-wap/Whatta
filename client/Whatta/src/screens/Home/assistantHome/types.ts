@@ -80,3 +80,24 @@ export type AssistantBriefing = {
   schedules: AssistantBriefingItem[]
   timeline: AssistantBriefingTimelineItem[]
 }
+
+export type AssistantTaskBriefingItem = {
+  id: string
+  title: string
+  completed: boolean
+  dueLabel: string
+}
+
+export type AssistantTaskBriefingTimelineItem = {
+  id: string
+  title: string
+  timeRange: string
+  completed: boolean
+  dueLabel: string
+}
+
+export type AssistantTaskBriefing = {
+  dateLabel: string
+  tasks: AssistantTaskBriefingItem[]
+  timeline: AssistantTaskBriefingTimelineItem[]
+}

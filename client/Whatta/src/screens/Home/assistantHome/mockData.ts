@@ -2,6 +2,7 @@ import type {
   AssistantBriefing,
   AssistantNewsBanner,
   AssistantQuickAction,
+  AssistantTaskBriefing,
   AssistantTransitStatus,
   AssistantTopicSlide,
   AssistantWeatherCard,
@@ -93,6 +94,37 @@ export const assistantBriefing: AssistantBriefing = {
       timeRange: '13:00 ~ 15:00',
       accentColor: '#A7B0B8',
       status: 'upcoming',
+    },
+  ],
+}
+
+export const assistantTaskBriefing: AssistantTaskBriefing = {
+  dateLabel: '2026.03.24 (화)',
+  tasks: [
+    { id: 'task-1', title: '회의록 정리', completed: false, dueLabel: 'D-3' },
+    { id: 'task-2', title: '발표 자료 제출', completed: true, dueLabel: 'D-day' },
+  ],
+  timeline: [
+    {
+      id: 'task-t1',
+      title: '교수님 미팅 준비',
+      timeRange: '09:00 ~ 10:00',
+      completed: true,
+      dueLabel: 'D-3',
+    },
+    {
+      id: 'task-t2',
+      title: '점심 전 자료 점검',
+      timeRange: '11:00 ~ 12:00',
+      completed: false,
+      dueLabel: 'D-day',
+    },
+    {
+      id: 'task-t3',
+      title: '문서 마무리',
+      timeRange: '13:00 ~ 15:00',
+      completed: false,
+      dueLabel: 'D-1',
     },
   ],
 }

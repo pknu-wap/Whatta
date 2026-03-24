@@ -20,11 +20,13 @@ import type { RootStackParamList } from '@/navigation/RootStack'
 import {
   assistantNews,
   assistantQuickActions,
+  assistantTaskBriefing,
   assistantTopicSlides,
 } from '@/screens/Home/assistantHome/mockData'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
 import QuickActionGrid from '@/screens/Home/assistantHome/components/QuickActionGrid'
 import BriefingCard from '@/screens/Home/assistantHome/components/BriefingCard'
+import TaskBriefingCard from '@/screens/Home/assistantHome/components/TaskBriefingCard'
 import TopicSlidesSection from '@/screens/Home/assistantHome/components/TopicSlidesSection'
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
@@ -258,6 +260,8 @@ export default function HomeScreen() {
           <BriefingCard briefing={briefing} onPressScheduleArea={handlePressBriefing} />
 
           <NewsBannerCard item={assistantNews} />
+
+          <TaskBriefingCard briefing={assistantTaskBriefing} />
 
           {assistantQuickActions.length > 0 ? (
             <QuickActionGrid
