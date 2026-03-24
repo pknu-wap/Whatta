@@ -2,6 +2,7 @@ package whatta.Whatta.weather.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.weather.client.WeatherApiClient;
@@ -30,7 +31,11 @@ public class WeatherService {
         WeatherApiForecastResponse.ForecastDay todayForecast = extractTodayForecast(response);
         WeatherApiForecastResponse.Day today = todayForecast.day();
 
-        if (location == null || current == null || today == null || today.condition() == null) {
+        if (location == null
+                || !StringUtils.hasText(location.name())
+                || current == null
+                || today == null
+                || today.condition() == null) {
             throw new RestApiException(ErrorCode.WEATHER_API_INVALID_RESPONSE);
         }
 
