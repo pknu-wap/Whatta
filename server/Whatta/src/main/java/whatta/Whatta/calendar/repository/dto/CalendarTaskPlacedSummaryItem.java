@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 public record CalendarTaskPlacedSummaryItem(
+        String id,
         String title,
         boolean completed,
         LocalTime placementTime,
