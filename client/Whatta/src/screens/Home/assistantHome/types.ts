@@ -1,7 +1,14 @@
-export type AssistantNewsBanner = {
+export type AssistantNewsBannerSlide = {
+  id: string
   title: string
   body: string
   badge: string
+  eyebrow: string
+  accentLabel: string
+}
+
+export type AssistantNewsBanner = {
+  slides: AssistantNewsBannerSlide[]
 }
 
 export type AssistantQuickActionId = 'mypage' | 'traffic'

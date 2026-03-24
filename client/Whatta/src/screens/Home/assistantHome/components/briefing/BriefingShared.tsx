@@ -109,7 +109,7 @@ export function BriefingListRow({
         !bordered && S.listRowBorderless,
         compact && S.listRowCompact,
         isLast && S.listRowLast,
-        trailingAccessory && S.rowWithTrailing,
+        Boolean(trailingAccessory) ? S.rowWithTrailing : null,
       ]}
     >
       {leadingAccessory ? <View style={S.listLeading}>{leadingAccessory}</View> : null}
@@ -150,7 +150,7 @@ export function BriefingTimelineRow({
         style={[
           S.timelineBox,
           state === 'current' && S.timelineBoxCurrent,
-          trailingAccessory && S.rowWithTrailing,
+          Boolean(trailingAccessory) ? S.rowWithTrailing : null,
         ]}
       >
         <View style={S.timelineIconSlot}>

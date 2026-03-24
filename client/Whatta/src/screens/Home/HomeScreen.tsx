@@ -427,7 +427,10 @@ export default function HomeScreen() {
           <View style={S.contentBody}>
             <View style={S.headerRow}>
               <View style={S.headerTopRow}>
-                <Text style={S.eyebrow}>안녕하세요, 사용자님</Text>
+                <View style={S.brandRow}>
+                  <Text style={S.brandText}>WHATTA</Text>
+                </View>
+                {/* <Text style={S.eyebrow}>안녕하세요, 사용자님</Text> */}
 
                 <View style={S.headerActionRow}>
                   <Pressable
@@ -538,6 +541,17 @@ const S = StyleSheet.create({
   headerMessageBlock: {
     marginTop: 4,
     width: '100%',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandText: {
+    fontSize: 24,
+    lineHeight: 24,
+    fontWeight: '600',
+    color: colors.brand.primary,
+    fontFamily: 'Righteous',
   },
   eyebrow: {
     ...ts('label2'),

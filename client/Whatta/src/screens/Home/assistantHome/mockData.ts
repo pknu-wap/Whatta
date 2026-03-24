@@ -9,9 +9,24 @@ import type {
 } from '@/screens/Home/assistantHome/types'
 
 export const assistantNews: AssistantNewsBanner = {
-  badge: '왓타 소식',
-  title: '새 학기 비서홈 초안',
-  body: '배너, 빠른 액션, 오늘 브리핑, 주제별 슬라이드까지 한 화면에서 볼 수 있게 구조를 먼저 잡았습니다.',
+  slides: [
+    {
+      id: 'assistant-home',
+      badge: 'NEW',
+      eyebrow: '비서홈 오픈',
+      title: '날씨와 오늘 요약',
+      body: '일정과 할 일 브리핑을 한 화면에서 확인해요',
+      accentLabel: '둘러보기',
+    },
+    {
+      id: 'ai-chat',
+      badge: 'AI',
+      eyebrow: 'AI 채팅 추가',
+      title: 'AI가 바로 등록해줘요',
+      body: '채팅으로 말하면 일정과 할 일을 바로 만들어요',
+      accentLabel: '지금 써보기',
+    },
+  ],
 }
 
 export const assistantQuickActions: AssistantQuickAction[] = [
