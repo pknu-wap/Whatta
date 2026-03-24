@@ -13,5 +13,7 @@ public record BusFavoriteCreateRequest(
         String busRouteId,
 
         @NotBlank
-        String busRouteNo
+        String busRouteNo,
+
+        String cityCode
 ) {}

@@ -6,6 +6,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.service.NotificationSendService;
+import whatta.Whatta.traffic.TrafficConstants;
 import whatta.Whatta.traffic.entity.BusFavorite;
 import whatta.Whatta.traffic.entity.TrafficNotification;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
@@ -48,8 +49,9 @@ public class BusNotiProcessor {
         for(Map.Entry<String, List<BusFavorite>> entry : favoritesByStation.entrySet()) {
             String busStationId = entry.getKey();
             List<BusFavorite> stationItems = entry.getValue();
+            String cityCode = resolveCityCode(stationItems.get(0).getCityCode());
 
-            List<BusArrivalResponse> allArrivals = trafficService.searchArrivalsByStation(busStationId);
+            List<BusArrivalResponse> allArrivals = trafficService.searchArrivalsByStation(busStationId, cityCode);
 
             for (BusArrivalResponse arrival : allArrivals) {
                 // 현재 아이템 목록에 이 버스가 포함되어 있는지 확인
@@ -131,6 +133,13 @@ public class BusNotiProcessor {
 
         alarmRepository.save(disabledAlarm);
         log.info("Traffic alarm disabled. alarmId={}, reason={}", alarm.getId(), reason);
+    }
+
+    private String resolveCityCode(String cityCode) {
+        if (cityCode == null || cityCode.isBlank()) {
+            return TrafficConstants.DEFAULT_CITY_CODE;
+        }
+        return cityCode.trim();
     }
 
 }

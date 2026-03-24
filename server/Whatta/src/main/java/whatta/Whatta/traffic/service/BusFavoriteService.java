@@ -7,10 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
+import whatta.Whatta.traffic.TrafficConstants;
 import whatta.Whatta.traffic.entity.BusFavorite;
 import whatta.Whatta.traffic.payload.request.BusFavoriteCreateRequest;
 import whatta.Whatta.traffic.payload.response.BusFavoriteResponse;
 import whatta.Whatta.traffic.repository.BusFavoriteRepository;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +26,7 @@ import java.util.stream.Collectors;
 public class BusFavoriteService {
 
     private final BusFavoriteRepository busFavoriteRepository;
+    private final UserSettingRepository userSettingRepository;
 
     public BusFavoriteResponse createBusFavorite(String userId, BusFavoriteCreateRequest request) {
         Optional<BusFavorite> existingFavorite = busFavoriteRepository.findByUserIdAndBusStationIdAndBusRouteId(
@@ -43,6 +47,7 @@ public class BusFavoriteService {
                 .busStationName(request.busStationName())
                 .busRouteId(request.busRouteId())
                 .busRouteNo(request.busRouteNo())
+                .cityCode(resolveCityCode(userId, request.cityCode()))
                 .build();
         try {
             BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
@@ -72,5 +77,23 @@ public class BusFavoriteService {
         return busFavoriteRepository.findByUserId(userId).stream()
                 .map(BusFavoriteResponse::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    private String resolveCityCode(String cityCode) {
+        if (cityCode == null || cityCode.isBlank()) {
+            return TrafficConstants.DEFAULT_CITY_CODE;
+        }
+        return cityCode.trim();
+    }
+
+    private String resolveCityCode(String userId, String cityCode) {
+        if (cityCode != null && !cityCode.isBlank()) {
+            return cityCode.trim();
+        }
+
+        return userSettingRepository.findByUserId(userId)
+                .map(UserSetting::getCityCode)
+                .map(this::resolveCityCode)
+                .orElse(TrafficConstants.DEFAULT_CITY_CODE);
     }
 }

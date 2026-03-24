@@ -3,12 +3,16 @@ package whatta.Whatta.traffic.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import whatta.Whatta.traffic.TrafficConstants;
 import whatta.Whatta.traffic.client.bus.BusApiClient;
 import whatta.Whatta.traffic.client.bus.dto.BusApiResponse;
 import whatta.Whatta.traffic.client.bus.dto.BusArrivalItem;
 import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
+import whatta.Whatta.traffic.payload.response.BusCityResponse;
 import whatta.Whatta.traffic.payload.response.BusRouteResponse;
 import whatta.Whatta.traffic.payload.response.BusStationResponse;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
 import java.util.Collections;
 import java.util.List;
@@ -21,7 +25,18 @@ import java.util.stream.Collectors;
 public class TrafficService {
 
     private final BusApiClient busApiClient;
-    private static final String FIXED_CITY_CODE = "21";//시티코드 구현 전까지 부산으로 가정하고 구현
+    private final UserSettingRepository userSettingRepository;
+
+    public List<BusCityResponse> searchCities() {
+        BusApiResponse rawResponse = busApiClient.getCityCode();
+
+        if (isInvalidResponse(rawResponse)) return Collections.emptyList();
+
+        return rawResponse.getBody().getItems().getItem().stream()
+                .map(this::parseToCityResponse)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
 
     public List<BusStationResponse> searchStationsByGps(Double latitude, Double longitude) {
 
@@ -30,26 +45,36 @@ public class TrafficService {
         if(isInvalidResponse(rawResponse)) return Collections.emptyList();
 
         return rawResponse.getBody().getItems().getItem().stream()
-                .map(this::parseToStationResponse)
+                .map(item -> parseToStationResponse(item, resolveCityCode(item.getCitycode())))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
-    public List<BusStationResponse> searchStationsByName(String keyword) {
-        
-        BusApiResponse rawResponse = busApiClient.getStationList(keyword, FIXED_CITY_CODE);
+    public List<BusStationResponse> searchStationsByName(String userId, String keyword, String cityCode) {
+        return searchStationsByName(keyword, resolveCityCode(userId, cityCode));
+    }
+
+    public List<BusStationResponse> searchStationsByName(String keyword, String cityCode) {
+        String resolvedCityCode = resolveCityCode(cityCode);
+
+        BusApiResponse rawResponse = busApiClient.getStationList(keyword, resolvedCityCode);
 
         if(isInvalidResponse(rawResponse)) return Collections.emptyList();
 
         return rawResponse.getBody().getItems().getItem().stream()
-                .map(this::parseToStationResponse)
+                .map(item -> parseToStationResponse(item, resolvedCityCode))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
-    public List<BusRouteResponse> searchRouteByStation(String busStationId) {
+    public List<BusRouteResponse> searchRouteByStation(String userId, String busStationId, String cityCode) {
+        return searchRouteByStation(busStationId, resolveCityCode(userId, cityCode));
+    }
 
-        BusApiResponse rawResponse = busApiClient.getRouteListByStation(busStationId, FIXED_CITY_CODE);
+    public List<BusRouteResponse> searchRouteByStation(String busStationId, String cityCode) {
+        String resolvedCityCode = resolveCityCode(cityCode);
+
+        BusApiResponse rawResponse = busApiClient.getRouteListByStation(busStationId, resolvedCityCode);
 
         if(isInvalidResponse(rawResponse)) return Collections.emptyList();
 
@@ -58,9 +83,14 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
-    public List<BusArrivalResponse> searchArrivalsByStation(String busStationId) {
+    public List<BusArrivalResponse> searchArrivalsByStation(String userId, String busStationId, String cityCode) {
+        return searchArrivalsByStation(busStationId, resolveCityCode(userId, cityCode));
+    }
 
-        BusApiResponse rawResponse = busApiClient.getArrivalInfoByStation(busStationId, FIXED_CITY_CODE);
+    public List<BusArrivalResponse> searchArrivalsByStation(String busStationId, String cityCode) {
+        String resolvedCityCode = resolveCityCode(cityCode);
+
+        BusApiResponse rawResponse = busApiClient.getArrivalInfoByStation(busStationId, resolvedCityCode);
 
         if(isInvalidResponse(rawResponse)) return Collections.emptyList();
 
@@ -70,9 +100,14 @@ public class TrafficService {
                 .collect(Collectors.toList());
     }
 
-    public List<BusArrivalResponse> searchArrivalsByRoute(String busStationId, String busRouteId) {
+    public List<BusArrivalResponse> searchArrivalsByRoute(String userId, String busStationId, String busRouteId, String cityCode) {
+        return searchArrivalsByRoute(busStationId, busRouteId, resolveCityCode(userId, cityCode));
+    }
 
-        BusApiResponse rawResponse = busApiClient.getArrivalInfoByRoute(busStationId, FIXED_CITY_CODE, busRouteId);
+    public List<BusArrivalResponse> searchArrivalsByRoute(String busStationId, String busRouteId, String cityCode) {
+        String resolvedCityCode = resolveCityCode(cityCode);
+
+        BusApiResponse rawResponse = busApiClient.getArrivalInfoByRoute(busStationId, resolvedCityCode, busRouteId);
 
         if(isInvalidResponse(rawResponse)) return Collections.emptyList();
 
@@ -84,7 +119,7 @@ public class TrafficService {
 
 
 
-    private BusStationResponse parseToStationResponse(BusArrivalItem item) {
+    private BusStationResponse parseToStationResponse(BusArrivalItem item, String cityCode) {
         try {
             Double lat = (item.getGpslati() != null) ? Double.parseDouble(item.getGpslati()) : null;
             Double lng = (item.getGpslong() != null) ? Double.parseDouble(item.getGpslong()) : null;
@@ -95,12 +130,23 @@ public class TrafficService {
                     item.getNodeid(),
                     item.getNodenm(),
                     item.getNodeno(),
-                    FIXED_CITY_CODE
+                    cityCode
             );
         } catch (NumberFormatException e) {
             log.warn("정류장 좌표 파싱 실패: {}", item);
             return null;
         }
+    }
+
+    private BusCityResponse parseToCityResponse(BusArrivalItem item) {
+        if (item.getCitycode() == null || item.getCitycode().isBlank()) {
+            return null;
+        }
+
+        return new BusCityResponse(
+                item.getCitycode().trim(),
+                item.getCityname()
+        );
     }
 
     private BusRouteResponse parseToRouteResponse(BusArrivalItem item) {
@@ -138,5 +184,23 @@ public class TrafficService {
                 response.getBody().getItems() == null ||
                 response.getBody().getItems().getItem() == null;
 
+    }
+
+    private String resolveCityCode(String cityCode) {
+        if (cityCode == null || cityCode.isBlank()) {
+            return TrafficConstants.DEFAULT_CITY_CODE;
+        }
+        return cityCode.trim();
+    }
+
+    private String resolveCityCode(String userId, String cityCode) {
+        if (cityCode != null && !cityCode.isBlank()) {
+            return cityCode.trim();
+        }
+
+        return userSettingRepository.findByUserId(userId)
+                .map(UserSetting::getCityCode)
+                .map(this::resolveCityCode)
+                .orElse(TrafficConstants.DEFAULT_CITY_CODE);
     }
 }
