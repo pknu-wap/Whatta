@@ -24,6 +24,7 @@ import {
   ensureAppleCalendarConnected,
   exportFutureWhattaEventsIfNeeded,
   exportFutureWhattaEventsToAppleCalendar,
+  importAppleCalendarChangesToWhatta,
   refreshAppleCalendarPermissionState,
   syncEventToAppleCalendar,
 } from '@/lib/appleCalendar'
@@ -177,6 +178,8 @@ export default function App() {
           `연동 전에 있던 오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
         )
       }
+
+      await importAppleCalendarChangesToWhatta()
     })()
   }, [ready, splashDone])
 

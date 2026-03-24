@@ -2,14 +2,20 @@ import { Platform } from 'react-native'
 import * as Calendar from 'expo-calendar'
 import {
   clearAppleCalendarEventLinks,
+  clearAppleCalendarEventMirrors,
+  findAppleCalendarEventMirrorByWhattaId,
   getAppleCalendarEventLinksByPrefix,
   getAppleCalendarEventLink,
+  getAppleCalendarEventMirrors,
   getAppleCalendarSyncState,
+  removeAppleCalendarEventMirror,
   removeAppleCalendarEventLinksByPrefix,
   removeAppleCalendarEventLink,
+  setAppleCalendarEventMirror,
   setAppleCalendarEventLink,
   setAppleCalendarPromptDismissed,
   setAppleCalendarSyncState,
+  type AppleCalendarEventSnapshot,
 } from '@/lib/appleCalendarSync'
 import { http } from '@/lib/http'
 
@@ -78,6 +84,13 @@ type DailyCalendarResponse = {
     startTime?: string | null
     endTime?: string | null
   }>
+}
+
+type ReverseSyncResult = {
+  created: number
+  updated: number
+  deleted: number
+  skipped: number
 }
 
 function isICloudLikeSource(source: Calendar.Source) {
@@ -361,8 +374,102 @@ function buildAppleEventDetails(event: WhattaEventDetail, options?: { disableRec
     startDate: toDate(event.startDate, event.startTime),
     endDate: toDate(event.endDate, event.endTime ?? event.startTime ?? '23:59:59'),
     timeZone: 'Asia/Seoul',
+    url: `whatta://event/${event.id}`,
     recurrenceRule,
   }
+}
+
+function buildWhattaSnapshot(event: WhattaEventDetail): AppleCalendarEventSnapshot {
+  return {
+    title: event.title ?? '',
+    content: event.content ?? '',
+    startDate: event.startDate,
+    endDate: event.endDate,
+    startTime: event.startTime ?? null,
+    endTime: event.endTime ?? null,
+    allDay: !event.startTime && !event.endTime,
+  }
+}
+
+function toISODateTimeText(value: string | Date | undefined) {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  const ss = String(date.getSeconds()).padStart(2, '0')
+  return `${hh}:${mm}:${ss}`
+}
+
+function toISODateText(value: string | Date | undefined) {
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function minusOneDay(value: string | Date | undefined) {
+  if (!value) return null
+  const date = value instanceof Date ? new Date(value) : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  date.setDate(date.getDate() - 1)
+  return toISODateText(date)
+}
+
+function normalizeAppleEventSnapshot(event: Calendar.Event): AppleCalendarEventSnapshot | null {
+  const startDate = toISODateText(event.startDate)
+  if (!startDate) return null
+
+  if (event.allDay) {
+    const inclusiveEndDate = minusOneDay(event.endDate) ?? startDate
+    return {
+      title: event.title ?? '',
+      content: event.notes ?? '',
+      startDate,
+      endDate: inclusiveEndDate,
+      startTime: null,
+      endTime: null,
+      allDay: true,
+    }
+  }
+
+  return {
+    title: event.title ?? '',
+    content: event.notes ?? '',
+    startDate,
+    endDate: toISODateText(event.endDate) ?? startDate,
+    startTime: toISODateTimeText(event.startDate),
+    endTime: toISODateTimeText(event.endDate),
+    allDay: false,
+  }
+}
+
+function snapshotsEqual(left: AppleCalendarEventSnapshot, right: AppleCalendarEventSnapshot) {
+  return (
+    left.title === right.title &&
+    left.content === right.content &&
+    left.startDate === right.startDate &&
+    left.endDate === right.endDate &&
+    left.startTime === right.startTime &&
+    left.endTime === right.endTime &&
+    left.allDay === right.allDay
+  )
+}
+
+async function upsertMirrorForWhattaEvent(
+  whattaEventId: string,
+  appleEventId: string,
+  snapshot: AppleCalendarEventSnapshot,
+) {
+  await setAppleCalendarEventLink(whattaEventId, appleEventId)
+  await setAppleCalendarEventMirror({
+    appleEventId,
+    whattaEventId,
+    snapshot,
+  })
 }
 
 async function fetchWhattaEventDetail(eventId: string): Promise<WhattaEventDetail | null> {
@@ -555,18 +662,20 @@ export async function syncEventToAppleCalendar(whattaEventId: string) {
 
   const linkedAppleEventId = await getAppleCalendarEventLink(whattaEventId)
   const details = buildAppleEventDetails(event)
+  const snapshot = buildWhattaSnapshot(event)
 
   try {
     if (linkedAppleEventId) {
       try {
         await Calendar.updateEventAsync(linkedAppleEventId, details)
+        await upsertMirrorForWhattaEvent(whattaEventId, linkedAppleEventId, snapshot)
       } catch {
         const appleEventId = await Calendar.createEventAsync(calendarId, details)
-        await setAppleCalendarEventLink(whattaEventId, appleEventId)
+        await upsertMirrorForWhattaEvent(whattaEventId, appleEventId, snapshot)
       }
     } else {
       const appleEventId = await Calendar.createEventAsync(calendarId, details)
-      await setAppleCalendarEventLink(whattaEventId, appleEventId)
+      await upsertMirrorForWhattaEvent(whattaEventId, appleEventId, snapshot)
     }
 
     await setAppleCalendarSyncState({
@@ -603,6 +712,7 @@ export async function deleteEventFromAppleCalendar(whattaEventId: string) {
     console.log('Apple calendar event delete failed', error)
   } finally {
     await removeAppleCalendarEventLink(whattaEventId)
+    await removeAppleCalendarEventMirror(linkedAppleEventId)
     await setAppleCalendarSyncState({
       lastSyncedAt: new Date().toISOString(),
     })
@@ -669,6 +779,7 @@ async function exportFutureWhattaEvents(daysAhead = 180, force = false) {
   if (force) {
     calendarId = await recreateWhattaCalendar()
     await clearAppleCalendarEventLinks()
+    await clearAppleCalendarEventMirrors()
   }
 
   const start = new Date(`${todayISO()}T00:00:00`)
@@ -708,4 +819,99 @@ export async function exportFutureWhattaEventsIfNeeded(daysAhead = 180) {
   }
 
   return exportFutureWhattaEvents(daysAhead, false)
+}
+
+export async function importAppleCalendarChangesToWhatta(daysAhead = 180): Promise<ReverseSyncResult> {
+  const calendarId = await ensureConnectedCalendarId()
+  if (!calendarId) return { created: 0, updated: 0, deleted: 0, skipped: 0 }
+
+  const start = new Date(`${todayISO()}T00:00:00`)
+  const end = addDays(start, daysAhead)
+  const events = await Calendar.getEventsAsync([calendarId], start, end)
+  const mirrors = await getAppleCalendarEventMirrors()
+
+  const result: ReverseSyncResult = {
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    skipped: 0,
+  }
+
+  const seenAppleIds = new Set<string>()
+
+  for (const event of events) {
+    seenAppleIds.add(event.id)
+
+    if (event.recurrenceRule) {
+      result.skipped += 1
+      continue
+    }
+
+    const snapshot = normalizeAppleEventSnapshot(event)
+    if (!snapshot) {
+      result.skipped += 1
+      continue
+    }
+
+    const mirror = mirrors[event.id]
+    if (mirror) {
+      if (!snapshotsEqual(snapshot, mirror.snapshot)) {
+        try {
+          await http.patch(`/event/${mirror.whattaEventId}`, {
+            title: snapshot.title,
+            content: snapshot.content,
+            startDate: snapshot.startDate,
+            endDate: snapshot.endDate,
+            startTime: snapshot.allDay ? null : snapshot.startTime,
+            endTime: snapshot.allDay ? null : snapshot.endTime,
+            fieldsToClear: snapshot.allDay ? ['startTime', 'endTime'] : [],
+          })
+          await upsertMirrorForWhattaEvent(mirror.whattaEventId, event.id, snapshot)
+          result.updated += 1
+        } catch (error) {
+          console.log('Apple -> Whatta update failed', error)
+        }
+      }
+      continue
+    }
+
+    try {
+      const res = await http.post('/event', {
+        title: snapshot.title,
+        content: snapshot.content,
+        startDate: snapshot.startDate,
+        endDate: snapshot.endDate,
+        startTime: snapshot.allDay ? null : snapshot.startTime,
+        endTime: snapshot.allDay ? null : snapshot.endTime,
+      })
+      const whattaEventId =
+        res.data?.data?.id ?? res.data?.id ?? res.data?.eventId ?? res.data?._id ?? null
+      if (whattaEventId) {
+        await upsertMirrorForWhattaEvent(String(whattaEventId), event.id, snapshot)
+        result.created += 1
+      }
+    } catch (error) {
+      console.log('Apple -> Whatta create failed', error)
+    }
+  }
+
+  for (const mirror of Object.values(mirrors)) {
+    if (seenAppleIds.has(mirror.appleEventId)) continue
+
+    try {
+      await http.delete(`/event/${mirror.whattaEventId}`)
+    } catch (error) {
+      console.log('Apple -> Whatta delete failed', error)
+    }
+
+    await removeAppleCalendarEventMirror(mirror.appleEventId)
+    await removeAppleCalendarEventLink(mirror.whattaEventId)
+    result.deleted += 1
+  }
+
+  await setAppleCalendarSyncState({
+    lastSyncedAt: new Date().toISOString(),
+  })
+
+  return result
 }

@@ -4,6 +4,7 @@ import { bus } from '@/lib/eventBus'
 const APPLE_CALENDAR_SYNC_STATE_KEY = 'whatta_apple_calendar_sync_state'
 const APPLE_CALENDAR_PROMPT_DISMISSED_KEY = 'whatta_apple_calendar_prompt_dismissed'
 const APPLE_CALENDAR_EVENT_LINKS_KEY = 'whatta_apple_calendar_event_links'
+const APPLE_CALENDAR_EVENT_MIRRORS_KEY = 'whatta_apple_calendar_event_mirrors'
 
 export type AppleCalendarPermissionState = 'unknown' | 'granted' | 'denied'
 
@@ -142,4 +143,62 @@ export async function removeAppleCalendarEventLinksByPrefix(prefix: string) {
 
 export async function clearAppleCalendarEventLinks() {
   await SecureStore.setItemAsync(APPLE_CALENDAR_EVENT_LINKS_KEY, JSON.stringify({}))
+}
+
+export type AppleCalendarEventSnapshot = {
+  title: string
+  content: string
+  startDate: string
+  endDate: string
+  startTime: string | null
+  endTime: string | null
+  allDay: boolean
+}
+
+export type AppleCalendarEventMirror = {
+  appleEventId: string
+  whattaEventId: string
+  snapshot: AppleCalendarEventSnapshot
+}
+
+export async function getAppleCalendarEventMirrors() {
+  const raw = await SecureStore.getItemAsync(APPLE_CALENDAR_EVENT_MIRRORS_KEY)
+  if (!raw) return {} as Record<string, AppleCalendarEventMirror>
+
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, AppleCalendarEventMirror>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+export async function getAppleCalendarEventMirror(appleEventId: string) {
+  const mirrors = await getAppleCalendarEventMirrors()
+  return mirrors[appleEventId] ?? null
+}
+
+export async function setAppleCalendarEventMirror(mirror: AppleCalendarEventMirror) {
+  const mirrors = await getAppleCalendarEventMirrors()
+  mirrors[mirror.appleEventId] = mirror
+  await SecureStore.setItemAsync(APPLE_CALENDAR_EVENT_MIRRORS_KEY, JSON.stringify(mirrors))
+}
+
+export async function removeAppleCalendarEventMirror(appleEventId: string) {
+  const mirrors = await getAppleCalendarEventMirrors()
+  delete mirrors[appleEventId]
+  await SecureStore.setItemAsync(APPLE_CALENDAR_EVENT_MIRRORS_KEY, JSON.stringify(mirrors))
+}
+
+export async function findAppleCalendarEventMirrorByWhattaId(whattaEventId: string) {
+  const mirrors = await getAppleCalendarEventMirrors()
+  return (
+    Object.values(mirrors).find((mirror) => mirror.whattaEventId === whattaEventId) ?? null
+  )
+}
+
+export async function clearAppleCalendarEventMirrors() {
+  await SecureStore.setItemAsync(APPLE_CALENDAR_EVENT_MIRRORS_KEY, JSON.stringify({}))
 }

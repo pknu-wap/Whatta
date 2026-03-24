@@ -17,6 +17,7 @@ import {
   disconnectAppleCalendarLocally,
   ensureAppleCalendarConnected,
   forceExportFutureWhattaEventsToAppleCalendar,
+  importAppleCalendarChangesToWhatta,
 } from '@/lib/appleCalendar'
 
 type Props = NativeStackScreenProps<MyPageStackList, 'AppleCalendar'>
@@ -34,6 +35,7 @@ export default function AppleCalendarScreen({ navigation }: Props) {
   const state = useAppleCalendarSync()
   const [connecting, setConnecting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const statusText = useMemo(() => {
     if (Platform.OS !== 'ios') return 'iPhone에서만 지원'
@@ -95,6 +97,20 @@ export default function AppleCalendarScreen({ navigation }: Props) {
     }
   }
 
+  const onPressImport = async () => {
+    if (importing) return
+    setImporting(true)
+    try {
+      const result = await importAppleCalendarChangesToWhatta()
+      Alert.alert(
+        'Apple 변경 가져오기',
+        `생성 ${result.created}개, 수정 ${result.updated}개, 삭제 ${result.deleted}개를 Whatta에 반영했습니다.`,
+      )
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <ScrollView contentContainerStyle={S.content} style={S.screen}>
       <View style={S.card}>
@@ -148,6 +164,15 @@ export default function AppleCalendarScreen({ navigation }: Props) {
             >
               <Text style={S.secondaryButtonText}>
                 {exporting ? '내보내는 중...' : '오늘 이후 일정 다시 내보내기'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[S.secondaryButton, importing && S.buttonDisabled]}
+              onPress={onPressImport}
+            >
+              <Text style={S.secondaryButtonText}>
+                {importing ? '가져오는 중...' : 'Apple 변경 가져오기'}
               </Text>
             </Pressable>
 
