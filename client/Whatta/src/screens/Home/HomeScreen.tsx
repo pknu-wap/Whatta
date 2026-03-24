@@ -26,13 +26,11 @@ import type { RootStackParamList } from '@/navigation/RootStack'
 import {
   assistantNews,
   assistantQuickActions,
-  assistantTopicSlides,
 } from '@/screens/Home/assistantHome/mockData'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
 import QuickActionGrid from '@/screens/Home/assistantHome/components/QuickActionGrid'
 import BriefingCard from '@/screens/Home/assistantHome/components/BriefingCard'
 import TaskBriefingCard from '@/screens/Home/assistantHome/components/TaskBriefingCard'
-import TopicSlidesSection from '@/screens/Home/assistantHome/components/TopicSlidesSection'
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
@@ -397,6 +395,22 @@ export default function HomeScreen() {
             onToggleTask={handleToggleTaskBriefingItem}
           />
 
+          <View style={S.projectSection}>
+            <Text style={S.projectSectionTitle}>프로젝트 스케줄</Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={S.projectSliderContent}
+            >
+              {[0, 1, 2].map((item) => (
+                <View key={item} style={S.projectCard}>
+                  <Text style={S.projectCardText}>준비중</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
           {assistantQuickActions.length > 0 ? (
             <QuickActionGrid
               items={assistantQuickActions}
@@ -404,10 +418,6 @@ export default function HomeScreen() {
               iconMap={{}}
             />
           ) : null}
-          <TopicSlidesSection
-            items={assistantTopicSlides}
-            onPressItem={(topicId) => navigation.navigate('AssistantTopicTasks', { topicId })}
-          />
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -467,5 +477,34 @@ const S = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 6,
     paddingBottom: 120,
+  },
+  projectSection: {
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  projectSectionTitle: {
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: colors.text.text1,
+  },
+  projectSliderContent: {
+    paddingTop: 12,
+    paddingRight: 20,
+  },
+  projectCard: {
+    width: 300,
+    height: 200,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  projectCardText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: colors.text.text3,
   },
 })
