@@ -108,6 +108,19 @@ export type EventItem = {
   repeat?: RepeatRule | null
 }
 
+export type EventSummaryItem = {
+  title: string
+  content: string
+  startTime: string | null
+  endTime: string | null
+}
+
+type EventSummaryResponse = {
+  statusCode: string
+  message: string
+  data: EventSummaryItem[]
+}
+
 // 3. Task → MonthView용 ScheduleData로 변환
 export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
   const raw = await fetchTasksRaw(ym)
@@ -131,6 +144,11 @@ export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
   })
 
   return normalized
+}
+
+export async function fetchEventSummary(): Promise<EventSummaryItem[]> {
+  const res = await http.get<EventSummaryResponse>('/event/summary')
+  return Array.isArray(res.data?.data) ? res.data.data : []
 }
 
 export async function updateEvent(

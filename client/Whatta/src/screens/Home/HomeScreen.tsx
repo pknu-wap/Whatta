@@ -14,10 +14,10 @@ import MypageNoIcon from '@/assets/icons/mypage_no.svg'
 import MypageYesIcon from '@/assets/icons/mypage_yes.svg'
 import TransportNoIcon from '@/assets/icons/transport_no.svg'
 import TransportYesIcon from '@/assets/icons/transport_yes.svg'
+import { fetchEventSummary, type EventSummaryItem } from '@/api/event_api'
 import colors from '@/styles/colors'
 import type { RootStackParamList } from '@/navigation/RootStack'
 import {
-  assistantBriefing,
   assistantNews,
   assistantQuickActions,
   assistantTopicSlides,
@@ -32,7 +32,11 @@ import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherS
 import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
+import useToday from '@/hooks/useToday'
+import { bus } from '@/lib/eventBus'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
+import type { AssistantBriefing } from '@/screens/Home/assistantHome/types'
 
 const SEOUL_COORDS = {
   latitude: 37.5665,
@@ -55,10 +59,64 @@ const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
   highlights: [],
 }
 
+function toDisplayTime(time: string | null | undefined) {
+  if (!time) return null
+  const [hours = '00', minutes = '00'] = time.split(':')
+  return `${hours}:${minutes}`
+}
+
+function getLocalDateIso(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function isAllDaySummaryItem(item: EventSummaryItem) {
+  const start = item.startTime ?? ''
+  const end = item.endTime ?? ''
+
+  return (
+    (start === '00:00:00' || start === '00:00') &&
+    (end === '24:00:00' ||
+      end === '24:00' ||
+      end === '23:59:59' ||
+      end === '23:59')
+  )
+}
+
+function buildBriefing(dateLabel: string, items: EventSummaryItem[]): AssistantBriefing {
+  return {
+    dateLabel,
+    schedules: items
+      .filter((item) => !item.startTime || !item.endTime || isAllDaySummaryItem(item))
+      .map((item, index) => ({
+        id: `schedule-${index}-${item.title}`,
+        title: item.title,
+        timeLabel: '',
+      })),
+    timeline: items
+      .filter((item) => item.startTime && item.endTime && !isAllDaySummaryItem(item))
+      .map((item, index) => ({
+        id: `timeline-${index}-${item.title}`,
+        title: item.title,
+        timeRange: `${toDisplayTime(item.startTime)} ~ ${toDisplayTime(item.endTime)}`,
+        accentColor: '',
+        status: 'upcoming',
+      })),
+  }
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [isMypageActive, setIsMypageActive] = useState(false)
   const [isTransportActive, setIsTransportActive] = useState(false)
+  const todayLabel = useToday('YYYY.MM.DD (dd)')
+  const [briefing, setBriefing] = useState<AssistantBriefing>({
+    dateLabel: todayLabel,
+    schedules: [],
+    timeline: [],
+  })
   const {
     permissionDenied,
     coords,
@@ -76,6 +134,41 @@ export default function HomeScreen() {
       fetchCurrentLocation()
     }, [fetchCurrentLocation]),
   )
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true
+
+      const loadBriefing = async () => {
+        try {
+          const summaryItems = await fetchEventSummary()
+          if (!active) return
+          setBriefing(buildBriefing(todayLabel, summaryItems))
+        } catch (error) {
+          console.warn('event summary get error', error)
+          if (!active) return
+          setBriefing({
+            dateLabel: todayLabel,
+            schedules: [],
+            timeline: [],
+          })
+        }
+      }
+
+      loadBriefing()
+
+      return () => {
+        active = false
+      }
+    }, [todayLabel]),
+  )
+
+  useEffect(() => {
+    setBriefing((prev) => ({
+      ...prev,
+      dateLabel: todayLabel,
+    }))
+  }, [todayLabel])
 
   useEffect(() => {
     if (permissionDenied) {
@@ -124,6 +217,18 @@ export default function HomeScreen() {
     navigation.navigate('MyPage')
   }
 
+  const handlePressBriefing = () => {
+    const todayIso = getLocalDateIso()
+
+    currentCalendarView.set('day')
+    ;(navigation as any).navigate('Calendar')
+
+    setTimeout(() => {
+      bus.emit('calendar:state', { date: todayIso, mode: 'day' })
+      bus.emit('calendar:set-date', todayIso)
+    }, 0)
+  }
+
   return (
     <SafeAreaView style={S.safeArea} edges={['top']}>
       <View style={S.container}>
@@ -168,7 +273,7 @@ export default function HomeScreen() {
         >
           <WeatherSummaryCard weather={weatherCardToRender} />
 
-          <BriefingCard briefing={assistantBriefing} />
+          <BriefingCard briefing={briefing} onPressScheduleArea={handlePressBriefing} />
 
           <NewsBannerCard item={assistantNews} />
 

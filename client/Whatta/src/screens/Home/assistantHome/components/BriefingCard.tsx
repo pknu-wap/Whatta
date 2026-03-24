@@ -1,5 +1,5 @@
 import React from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import BeforeIcon from '@/assets/icons/before.svg'
 import CurrentIcon from '@/assets/icons/current.svg'
 import AfterIcon from '@/assets/icons/after.svg'
@@ -9,6 +9,7 @@ import type { AssistantBriefing } from '@/screens/Home/assistantHome/types'
 
 type Props = {
   briefing: AssistantBriefing
+  onPressScheduleArea?: () => void
 }
 
 type TimelineState = 'past' | 'current' | 'upcoming'
@@ -37,81 +38,99 @@ function getStartMinutes(timeRange: string) {
   return parseTimeValue(startText)
 }
 
-export default function BriefingCard({ briefing }: Props) {
+export default function BriefingCard({ briefing, onPressScheduleArea }: Props) {
   const timelineItems = [...briefing.timeline].sort(
     (left, right) => getStartMinutes(left.timeRange) - getStartMinutes(right.timeRange),
   )
+  const isEmpty = briefing.schedules.length === 0 && timelineItems.length === 0
 
   return (
     <View style={S.card}>
       <Text style={S.dateLabel}>{briefing.dateLabel}</Text>
-      <Text style={S.heading}>오늘의 일정</Text>
+      <Pressable style={S.scheduleContent} onPress={onPressScheduleArea}>
+        <Text style={S.heading}>오늘의 일정</Text>
 
-      <View style={S.scheduleList}>
-        {briefing.schedules.map((item) => (
-          <View key={item.id} style={S.scheduleCard}>
-            <Text style={S.scheduleTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
+        {isEmpty ? (
+          <View style={S.emptyCard}>
+            <Text style={S.emptyTitle}>오늘 일정이 없어요.</Text>
+            <Text style={S.emptyDescription}>일정을 만들어보세요!</Text>
           </View>
-        ))}
-      </View>
+        ) : null}
 
-      <View style={S.sectionHeaderRow}>
-        <Text style={S.sectionTitle}>시간별 일정</Text>
-        <View style={S.sectionDivider} />
-      </View>
-
-      <View style={S.timelineList}>
-        {timelineItems.map((item, index) => {
-          const timelineState = getTimelineState(item.timeRange)
-
-          return (
-            <View
-              key={item.id}
-              style={[
-                S.timelineRow,
-                index === 0 && S.timelineRowFirst,
-                index === timelineItems.length - 1 && S.timelineRowLast,
-              ]}
-            >
-              <View style={[S.timelineBox, timelineState === 'current' && S.timelineBoxCurrent]}>
-                <View style={S.timelineIconSlot}>
-                  {timelineState === 'past' ? (
-                    <BeforeIcon width={8} height={8} />
-                  ) : timelineState === 'current' ? (
-                    <CurrentIcon width={8} height={8} />
-                  ) : (
-                    <AfterIcon width={8} height={8} />
-                  )}
-                  {index !== timelineItems.length - 1 ? <View style={S.timelineConnector} /> : null}
+        {!isEmpty ? (
+          <View>
+            <View style={S.scheduleList}>
+              {briefing.schedules.map((item) => (
+                <View key={item.id} style={S.scheduleCard}>
+                  <Text style={S.scheduleTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
                 </View>
-
-                <Text
-                  style={[
-                    S.timelineTime,
-                    timelineState === 'current'
-                      ? S.timelineTimeCurrent
-                      : S.timelineTimeInactive,
-                  ]}
-                >
-                  {item.timeRange}
-                </Text>
-
-                <Text
-                  style={[
-                    S.timelineTitle,
-                    timelineState === 'past' ? S.timelineTitlePast : S.timelineTitleActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.title}
-                </Text>
-              </View>
+              ))}
             </View>
-          )
-        })}
-      </View>
+
+            <View style={S.sectionHeaderRow}>
+              <Text style={S.sectionTitle}>시간별 일정</Text>
+              <View style={S.sectionDivider} />
+            </View>
+
+            <View style={S.timelineList}>
+              {timelineItems.map((item, index) => {
+                const timelineState = getTimelineState(item.timeRange)
+
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      S.timelineRow,
+                      index === 0 && S.timelineRowFirst,
+                      index === timelineItems.length - 1 && S.timelineRowLast,
+                    ]}
+                  >
+                    <View
+                      style={[S.timelineBox, timelineState === 'current' && S.timelineBoxCurrent]}
+                    >
+                      <View style={S.timelineIconSlot}>
+                        {timelineState === 'past' ? (
+                          <BeforeIcon width={8} height={8} />
+                        ) : timelineState === 'current' ? (
+                          <CurrentIcon width={8} height={8} />
+                        ) : (
+                          <AfterIcon width={8} height={8} />
+                        )}
+                        {index !== timelineItems.length - 1 ? (
+                          <View style={S.timelineConnector} />
+                        ) : null}
+                      </View>
+
+                      <Text
+                        style={[
+                          S.timelineTime,
+                          timelineState === 'current'
+                            ? S.timelineTimeCurrent
+                            : S.timelineTimeInactive,
+                        ]}
+                      >
+                        {item.timeRange}
+                      </Text>
+
+                      <Text
+                        style={[
+                          S.timelineTitle,
+                          timelineState === 'past' ? S.timelineTitlePast : S.timelineTitleActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.title}
+                      </Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          </View>
+        ) : null}
+      </Pressable>
     </View>
   )
 }
@@ -139,6 +158,34 @@ const S = StyleSheet.create({
     ...ts('titleM'),
     color: colors.text.text1,
     marginTop: 12,
+  },
+  emptyCard: {
+    marginTop: 18,
+    borderRadius: 18,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    backgroundColor: '#F7FAFD',
+    borderWidth: 1,
+    borderColor: colors.divider.divider2,
+    alignItems: 'center',
+  },
+  emptyEyebrow: {
+    ...ts('body3'),
+    color: colors.text.text4,
+    letterSpacing: 1,
+  },
+  emptyTitle: {
+    ...ts('titleS'),
+    lineHeight: 24,
+    color: colors.text.text1,
+  },
+  emptyDescription: {
+    ...ts('body1'),
+    color: colors.text.text3,
+    marginTop: 8,
+  },
+  scheduleContent: {
+    marginTop: 0,
   },
   scheduleList: {
     marginTop: 18,
@@ -227,7 +274,6 @@ const S = StyleSheet.create({
     marginRight: 16,
   },
   timelineTimeCurrent: {
-    ...ts('label4'),
     color: colors.primary.main,
   },
   timelineTimeInactive: {
