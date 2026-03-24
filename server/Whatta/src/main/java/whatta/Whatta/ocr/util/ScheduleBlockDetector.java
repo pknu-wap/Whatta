@@ -8,8 +8,6 @@ import static org.bytedeco.opencv.global.opencv_core.*;
 import static org.bytedeco.opencv.global.opencv_imgproc.*;
 
 import org.opencv.imgproc.Imgproc;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import whatta.Whatta.ocr.mapper.ScheduleBlockMapper;
 import whatta.Whatta.ocr.payload.dto.DetectedBlock;
@@ -17,9 +15,10 @@ import whatta.Whatta.ocr.payload.dto.DetectedBlock;
 @Component
 public class ScheduleBlockDetector {
 
-    private static final Logger log = LoggerFactory.getLogger(ScheduleBlockDetector.class);
+    private static final double COLOR_VIVIDNESS_S_GAMMA = 0.55; //선명도 보정을 위한 감마(1보다 작을수록 끌어올림)
+    private static final double COLOR_VIVIDNESS_V_GAMMA = 0.92;
     private static final double LIGHT_MODE_V_THRESHOLD_SCALE = 0.7;
-    private static final double DARK_MODE_V_THRESHOLD_SCALE = 0.3;
+    private static final double DARK_MODE_V_THRESHOLD_SCALE = 0.3; //다크모드일 때 라이트모드보다 임계점을 더 낮춤
     private static final int LIGHT_MODE_V_THRESHOLD_MIN = 80;
     private static final int DARK_MODE_V_THRESHOLD_MIN = 40;
 
@@ -38,21 +37,17 @@ public class ScheduleBlockDetector {
         cvtColor(bgrImage, gray, COLOR_BGR2GRAY);
         Scalar gMean = mean(gray);
         boolean darkMode = gMean.get(0) < 70; //평균 밝기가 낮으면 다크모드로 간주
-        log.info(
-                "[OCR_DETECT] stage=image-preprocess width={} height={} grayMean={} darkMode={}",
-                bgrImage.cols(),
-                bgrImage.rows(),
-                String.format("%.2f", gMean.get(0)),
-                darkMode
-        );
+
+        //색 선명도 높임
+        Mat vividBgr = new Mat();
+        applyColorVividnessApproximation(bgrImage, vividBgr);
 
         //다크모드라면 전체 이미지를 반전해서, 흰 배경 기준으로 처리
         Mat workBgr = new Mat();
         if (darkMode) {
-            bitwise_not(bgrImage, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
-            //System.out.println("darkMode");
+            bitwise_not(vividBgr, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
         } else {
-            workBgr = bgrImage.clone();
+            workBgr = vividBgr.clone();
         }
         gray.release();
 
@@ -84,31 +79,61 @@ public class ScheduleBlockDetector {
         //최종 마스크 S + V
         Mat mask = new Mat();
         bitwise_and(sMask, vMask, mask);
-        log.info(
-                "[OCR_DETECT] stage=mask-build sNonZero={} vNonZero={} finalNonZero={} totalPixels={} vOtsu={} vThreshold={}",
-                countNonZero(sMask),
-                countNonZero(vMask),
-                countNonZero(mask),
-                bgrImage.rows() * bgrImage.cols(),
-                String.format("%.2f", vOtsu),
-                String.format("%.2f", vThreshold)
-        );
 
         //모폴로지 OPEN -> CLOSE (사각형 붙음 방지 후 구멍 및 텍스트 메우기)
         morphologyRefine(mask);
-        log.info("[OCR_DETECT] stage=post-morph nonZero={}", countNonZero(mask));
 
         //컨투어 -> 사각 근사/보정 -> 네 점 정렬 -> dto로 변환
         List<DetectedBlock.Block> blocks = extractBoxesAsResults(mask, bgrImage.size());
-        log.info("[OCR_DETECT] stage=extract-boxes acceptedBlocks={}", blocks.size());
 
         //리소스 해제
         smooth.release(); hsv.release();
         S.release(); V.release();
         sMask.release(); vMask.release(); mask.release();
+        vividBgr.release();
         workBgr.release();
 
         return ScheduleBlockMapper.toDetectedBlock(bgrImage.size(), blocks);
+    }
+
+    private void applyColorVividnessApproximation(Mat sourceBgr, Mat destinationBgr) {
+        Mat hsv = new Mat();
+        cvtColor(sourceBgr, hsv, COLOR_BGR2HSV);
+
+        MatVector hsvSplit = new MatVector();
+        split(hsv, hsvSplit);
+        Mat vividS = new Mat();
+        Mat vividV = new Mat();
+        Mat sTable = buildGammaTable(COLOR_VIVIDNESS_S_GAMMA);
+        Mat vTable = buildGammaTable(COLOR_VIVIDNESS_V_GAMMA);
+        LUT(hsvSplit.get(1), sTable, vividS);
+        LUT(hsvSplit.get(2), vTable, vividV);
+        vividS.copyTo(hsvSplit.get(1));
+        vividV.copyTo(hsvSplit.get(2));
+        merge(hsvSplit, hsv);
+        cvtColor(hsv, destinationBgr, COLOR_HSV2BGR);
+
+        hsvSplit.get(0).release();
+        hsvSplit.get(1).release();
+        hsvSplit.get(2).release();
+        hsvSplit.close();
+        vividS.release();
+        vividV.release();
+        sTable.release();
+        vTable.release();
+        hsv.release();
+    }
+
+    //감마 값 변환 테이블(약한 채도 값을 더 큰 값으로 올려줌)
+    private Mat buildGammaTable(double gamma) {
+        Mat lut = new Mat(1, 256, CV_8U);
+        byte[] values = new byte[256];
+        for (int i = 0; i < 256; i++) {
+            int adjusted = (int) Math.round(255.0 * Math.pow(i / 255.0, gamma));
+            values[i] = (byte) Math.max(0, Math.min(255, adjusted));
+        }
+        lut.data().put(values);
+        return lut;
     }
 
     private void morphologyRefine(Mat mask) {
@@ -127,11 +152,6 @@ public class ScheduleBlockDetector {
 
         int minArea = Math.max(600, ((originalSize.height() * originalSize.width()) / 12000)); //해상도 기반 최소 면적
         int idx = 0;
-        log.info(
-                "[OCR_DETECT] stage=contours contourCount={} minArea={}",
-                contours.size(),
-                minArea
-        );
 
         List<DetectedBlock.Block> blocks = new ArrayList<>();
         for (long i = 0; i < contours.size(); i++) {
