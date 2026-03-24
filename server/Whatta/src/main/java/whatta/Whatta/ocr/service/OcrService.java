@@ -30,10 +30,11 @@ public class OcrService {
 
         //ocr로 텍스트 가져옴
         ClovaOcrResponse ocrResponse = ocrClient.callApi(request);
+        List<whatta.Whatta.ocr.payload.dto.OcrText> ocrTexts = ClovaOcrMapper.toOcrTextList(ocrResponse);
         //opencv로 각 시간표 범위 좌표 추출
         DetectedBlock detectedBlock = scheduleBlockDetector.findTimeBox(request.image().data());
         //ocr로 받은 텍스트와 색깔 범위 매칭
-        List<MatchedScheduleBlock> matches = ScheduleMatcher.matchAll(detectedBlock, ClovaOcrMapper.toOcrTextList(ocrResponse));
+        List<MatchedScheduleBlock> matches = ScheduleMatcher.matchAll(detectedBlock, ocrTexts);
         //요일 순 정렬
         matches.sort(new Comparator<MatchedScheduleBlock>() {
             @Override
