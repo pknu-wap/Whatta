@@ -29,7 +29,8 @@
         "NSCalendarsFullAccessUsageDescription": "Whatta 일정을 Apple Calendar와 동기화하기 위해 캘린더 접근 권한이 필요합니다.",
         "NSRemindersUsageDescription": "Whatta의 일정 연동 기능을 안정적으로 제공하기 위해 리마인더 접근 권한이 필요합니다.",
         "NSRemindersFullAccessUsageDescription": "Whatta의 일정 연동 기능을 안정적으로 제공하기 위해 리마인더 접근 권한이 필요합니다."
-      }
+      },
+       "appleTeamId": "3J4FWYSAF3"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
