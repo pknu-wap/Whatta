@@ -16,6 +16,7 @@ export const MY_SECTIONS: MySection[] = [
     size: 'small',
     data: [
       { key: '라벨 관리', route: 'Labels' },
+      { key: '시간표 추가하기', route: 'vibration' },
       { key: '애플 캘린더 연동', route: 'AppleCalendar' },
     ],
   },
