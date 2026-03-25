@@ -1202,6 +1202,18 @@ const {
   }, [])
 
   useEffect(() => {
+    const onResetView = () => {
+      setEventPopupVisible(false)
+      setTaskPopupVisible(false)
+      setImagePopupVisible(false)
+      setOcrModalVisible(false)
+    }
+
+    bus.on('calendar:reset-view', onResetView)
+    return () => bus.off('calendar:reset-view', onResetView)
+  }, [setImagePopupVisible, setOcrModalVisible])
+
+  useEffect(() => {
     if (isZoomed) {
       // 5일뷰: anchorDate 기준 -2 ~ +2
       const centerDate = anchorDate

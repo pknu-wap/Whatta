@@ -1,4 +1,5 @@
 import { StyleSheet, Dimensions } from 'react-native'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
 
@@ -10,7 +11,7 @@ export const cellWidth = Math.min(60, dynamicCellWidth)
 export const S = StyleSheet.create({
   contentContainerWrapper: { flex: 1, paddingBottom: 0, paddingTop: 0 },
   contentArea: { flex: 1, paddingHorizontal: 7, paddingTop: 0 },
-  scrollContentContainer: { paddingBottom: 0, flexGrow: 1 },
+  scrollContentContainer: { paddingBottom: CUSTOM_TAB_BAR_HEIGHT - 10, flexGrow: 1 },
 
   dayHeader: {
     flexDirection: 'row',

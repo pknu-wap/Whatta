@@ -5,6 +5,24 @@ import type {
   AssistantWeatherHighlight,
 } from '@/screens/Home/assistantHome/types'
 
+const WEATHER_REFETCH_DISTANCE_METERS = 500
+const WEATHER_CACHE_TTL_MS = 30 * 60 * 1000
+
+type WeatherCache = {
+  data: HomeWeatherApiData | null
+  coords: {
+    latitude: number
+    longitude: number
+  } | null
+  fetchedAt: number | null
+}
+
+let weatherCache: WeatherCache = {
+  data: null,
+  coords: null,
+  fetchedAt: null,
+}
+
 function formatTemperatureLabel(value: number | null, prefix: string) {
   if (value == null) return `${prefix} --°`
   return `${prefix} ${Math.round(value)}°`
@@ -255,6 +273,27 @@ function buildHighlights(data: HomeWeatherApiData): AssistantWeatherHighlight[] 
   return items
 }
 
+function toRadians(value: number) {
+  return (value * Math.PI) / 180
+}
+
+function getDistanceMeters(
+  left: { latitude: number; longitude: number },
+  right: { latitude: number; longitude: number },
+) {
+  const earthRadius = 6371000
+  const dLat = toRadians(right.latitude - left.latitude)
+  const dLng = toRadians(right.longitude - left.longitude)
+  const lat1 = toRadians(left.latitude)
+  const lat2 = toRadians(right.latitude)
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+
+  return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 export function mapWeatherApiToCard(data: HomeWeatherApiData): AssistantWeatherCard {
   const weatherMessage = buildWeatherHeadline(data)
   const dustGrade = Math.max(data.pm25Grade, data.pm10Grade)
@@ -282,11 +321,30 @@ export default function useHomeWeather() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchWeather = useCallback(async (params: { latitude: number; longitude: number }) => {
+    if (weatherCache.data && weatherCache.coords && weatherCache.fetchedAt != null) {
+      const distance = getDistanceMeters(weatherCache.coords, params)
+      const age = Date.now() - weatherCache.fetchedAt
+      if (distance < WEATHER_REFETCH_DISTANCE_METERS && age < WEATHER_CACHE_TTL_MS) {
+        setData(weatherCache.data)
+        setError(null)
+        setLoading(false)
+        return
+      }
+    }
+
     setLoading(true)
     setError(null)
 
     try {
       const next = await fetchHomeWeather(params)
+      weatherCache = {
+        data: next,
+        coords: {
+          latitude: params.latitude,
+          longitude: params.longitude,
+        },
+        fetchedAt: Date.now(),
+      }
       setData(next)
     } catch (e) {
       console.log('[weather] fetch failed:', e)

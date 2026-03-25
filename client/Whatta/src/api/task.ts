@@ -63,3 +63,35 @@ export async function createTask(
 export async function deleteTask(taskId: string): Promise<void> {
   await http.delete(`/task/${taskId}`)
 }
+
+export type TaskSummaryPlacedTodayItem = {
+  id: string
+  title: string
+  placementTime: string | null
+  complete: boolean
+  dueDateTime: string | null
+}
+
+export type TaskSummaryDueTodayItem = {
+  id: string
+  title: string
+  complete: boolean
+  dueDateTime: string
+}
+
+type TaskSummaryResponse = {
+  statusCode: string
+  message: string
+  data: {
+    placedToday: TaskSummaryPlacedTodayItem[]
+    dueToday: TaskSummaryDueTodayItem[]
+  }
+}
+
+export async function fetchTaskSummary() {
+  const res = await http.get<TaskSummaryResponse>('/task/summary')
+  return {
+    placedToday: Array.isArray(res.data?.data?.placedToday) ? res.data.data.placedToday : [],
+    dueToday: Array.isArray(res.data?.data?.dueToday) ? res.data.data.dueToday : [],
+  }
+}

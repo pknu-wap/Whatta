@@ -39,6 +39,7 @@ import {
   slotKey,
 } from '@/styles/scheduleColorSets'
 import { ts } from '@/styles/typography'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 type Panel = 'calendar' | 'start' | 'end' | null
 
@@ -85,11 +86,14 @@ export default function EventDetailPopup({
 
   const insets = useSafeAreaInsets()
   const MARGIN = 10
+  const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
+  const bottomSheetInset =
+    insets.bottom + MARGIN + (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
 
   const scrollRef = useRef<ScrollView>(null)
   const { width: W, height: H } = Dimensions.get('window')
   const SHEET_W = Math.min(W - MARGIN, 350)
-  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
@@ -1594,7 +1598,7 @@ export default function EventDetailPopup({
           <View
             style={[
               styles.overlay,
-              { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
+              { paddingTop: insets.top + MARGIN, paddingBottom: bottomSheetInset },
             ]}
             pointerEvents="box-none"
           >

@@ -128,7 +128,7 @@ export default function WeatherSummaryCard({ weather }: Props) {
 
 const S = StyleSheet.create({
   wrap: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   card: {
     flexDirection: 'row',

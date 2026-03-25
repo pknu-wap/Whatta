@@ -23,6 +23,7 @@ import CreateModeTypeStep from '@/screens/More/CreateModeTypeStep'
 import CreateEventDetailStep from '@/screens/More/CreateEventDetailStep'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 const H_PAD = 18
 
@@ -96,8 +97,11 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const insets = useSafeAreaInsets()
   const { width: W, height: H } = Dimensions.get('window')
   const MARGIN = 10
+  const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
+  const bottomSheetInset =
+    insets.bottom + MARGIN + (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
   const SHEET_W = Math.min(W - MARGIN, 350)
-  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
@@ -522,7 +526,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
         <View
           style={[
             styles.overlay,
-            { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
+            { paddingTop: insets.top + MARGIN, paddingBottom: bottomSheetInset },
           ]}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />

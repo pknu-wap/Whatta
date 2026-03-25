@@ -29,7 +29,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   card: {
     width: '48.8%',

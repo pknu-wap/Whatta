@@ -1,4 +1,3 @@
-import React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Pressable,
@@ -14,29 +13,44 @@ import MypageNoIcon from '@/assets/icons/mypage_no.svg'
 import MypageYesIcon from '@/assets/icons/mypage_yes.svg'
 import TransportNoIcon from '@/assets/icons/transport_no.svg'
 import TransportYesIcon from '@/assets/icons/transport_yes.svg'
+import { fetchEventSummary, type EventSummaryItem } from '@/api/event_api'
+import {
+  fetchTaskSummary,
+  type TaskSummaryDueTodayItem,
+  type TaskSummaryPlacedTodayItem,
+  updateTask,
+} from '@/api/task'
 import colors from '@/styles/colors'
 import type { RootStackParamList } from '@/navigation/RootStack'
-import {
-  assistantBriefing,
-  assistantNews,
-  assistantQuickActions,
-  assistantTopicSlides,
-  assistantTransitStatus,
-} from '@/screens/Home/assistantHome/mockData'
-import type { AssistantQuickAction } from '@/screens/Home/assistantHome/types'
+import { assistantNews } from '@/screens/Home/assistantHome/mockData'
 import NewsBannerCard from '@/screens/Home/assistantHome/components/NewsBannerCard'
-import QuickActionGrid from '@/screens/Home/assistantHome/components/QuickActionGrid'
 import BriefingCard from '@/screens/Home/assistantHome/components/BriefingCard'
-import TopicSlidesSection from '@/screens/Home/assistantHome/components/TopicSlidesSection'
+import TaskBriefingCard from '@/screens/Home/assistantHome/components/TaskBriefingCard'
 import WeatherSummaryCard from '@/screens/Home/assistantHome/components/WeatherSummaryCard'
-import TransitStatusCard from '@/screens/Home/assistantHome/components/TransitStatusCard'
 import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
+import useToday from '@/hooks/useToday'
+import { bus } from '@/lib/eventBus'
+import { calendarViewTransition, currentCalendarView } from '@/providers/CalendarViewProvider'
 import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
+import type {
+  AssistantBriefing,
+  AssistantTaskBriefing,
+} from '@/screens/Home/assistantHome/types'
+import { ts } from '@/styles/typography'
 
 const SEOUL_COORDS = {
   latitude: 37.5665,
   longitude: 126.978,
+}
+const HEADLINE_HOLD_MS = 3000
+const HEADLINE_TRANSITION_MS = 380
+const HEADLINE_TOTAL_MS = HEADLINE_HOLD_MS + HEADLINE_TRANSITION_MS
+let headlineTickerOriginMs = Date.now()
+
+type HeadlineTickerProps = {
+  headlines: string[]
+  fallbackHeadline: string
 }
 
 const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
@@ -55,10 +69,226 @@ const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
   highlights: [],
 }
 
+function createEmptyBriefing(dateLabel: string): AssistantBriefing {
+  return {
+    dateLabel,
+    schedules: [],
+    timeline: [],
+  }
+}
+
+function createEmptyTaskBriefing(dateLabel: string): AssistantTaskBriefing {
+  return {
+    dateLabel,
+    tasks: [],
+    timeline: [],
+  }
+}
+
+function toDisplayTime(time: string | null | undefined) {
+  if (!time) return null
+  const [hours = '00', minutes = '00'] = time.split(':')
+  return `${hours}:${minutes}`
+}
+
+function getLocalDateIso(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseDateTime(dateTime: string | null | undefined) {
+  if (!dateTime) return null
+  const normalized = dateTime.replace(' ', 'T')
+  const parsed = new Date(normalized)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDueLabel(dueDateTime: string | null | undefined) {
+  const dueDate = parseDateTime(dueDateTime)
+  if (!dueDate) return undefined
+
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const startOfDue = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+  const diffDays = Math.round((startOfDue.getTime() - startOfToday.getTime()) / 86400000)
+
+  if (diffDays <= 0) return 'D-day'
+  return `D-${diffDays}`
+}
+
+function appendHeadlineEmoji(message: string) {
+  const trimmed = message.trim()
+  if (!trimmed) return trimmed
+  if (trimmed.includes('마스크')) return `${trimmed} 😷`
+  if (trimmed.includes('우산') || trimmed.includes('비')) return `${trimmed} ☔️`
+  if (trimmed.includes('눈')) return `${trimmed} ❄️`
+  return trimmed
+}
+
+function isAllDaySummaryItem(item: EventSummaryItem) {
+  const start = item.startTime ?? ''
+  const end = item.endTime ?? ''
+
+  return (
+    (start === '00:00:00' || start === '00:00') &&
+    (end === '24:00:00' ||
+      end === '24:00' ||
+      end === '23:59:59' ||
+      end === '23:59')
+  )
+}
+
+function buildBriefing(dateLabel: string, items: EventSummaryItem[]): AssistantBriefing {
+  return {
+    dateLabel,
+    schedules: items
+      .filter((item) => !item.startTime || !item.endTime || isAllDaySummaryItem(item))
+      .map((item, index) => ({
+        id: `schedule-${index}-${item.title}`,
+        title: item.title,
+      })),
+    timeline: items
+      .filter((item) => item.startTime && item.endTime && !isAllDaySummaryItem(item))
+      .map((item, index) => ({
+        id: `timeline-${index}-${item.title}`,
+        title: item.title,
+        timeRange: `${toDisplayTime(item.startTime)} ~ ${toDisplayTime(item.endTime)}`,
+      })),
+  }
+}
+
+function getWeatherFallbackHeadline(permissionDenied: boolean, isLoading: boolean) {
+  if (isLoading) {
+    return permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요'
+  }
+
+  return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
+}
+
+function buildRotatingHeadlines(
+  weatherCard: AssistantWeatherCard | null,
+  weatherError: string | null,
+  permissionDenied: boolean,
+  weatherLoading: boolean,
+) {
+  if (weatherLoading) {
+    return [getWeatherFallbackHeadline(permissionDenied, true)]
+  }
+
+  if (weatherError) return [weatherError]
+
+  if (!weatherCard) {
+    return [getWeatherFallbackHeadline(permissionDenied, false)]
+  }
+
+  const weatherMessage = weatherCard.headline
+    .split(/그리고\s*미세먼지|미세먼지가/)
+    .map((text) => text.trim())
+    .find(Boolean) ?? weatherCard.headline
+
+  const dustMessage =
+    weatherCard.dustDetailLabel?.trim()
+      ? weatherCard.dustDetailLabel
+      : `미세먼지 ${weatherCard.dustGradeLabel}`
+
+  return [appendHeadlineEmoji(weatherMessage), appendHeadlineEmoji(dustMessage)]
+}
+
+function buildTaskBriefing(
+  dateLabel: string,
+  placedToday: TaskSummaryPlacedTodayItem[],
+  dueToday: TaskSummaryDueTodayItem[],
+): AssistantTaskBriefing {
+  return {
+    dateLabel,
+    tasks: [
+      ...placedToday
+        .filter((item) => !item.placementTime)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          completed: item.complete,
+          dueLabel: formatDueLabel(item.dueDateTime),
+        })),
+      ...dueToday.map((item) => ({
+        id: item.id,
+        title: item.title,
+        completed: item.complete,
+        dueLabel: formatDueLabel(item.dueDateTime),
+      })),
+    ],
+    timeline: placedToday
+      .filter((item) => !!item.placementTime)
+      .map((item) => {
+        const displayTime = toDisplayTime(item.placementTime) ?? '--:--'
+
+        return {
+          id: item.id,
+          title: item.title,
+          timeRange: `${displayTime} ~ ${displayTime}`,
+          completed: item.complete,
+          dueLabel: formatDueLabel(item.dueDateTime),
+        }
+      }),
+  }
+}
+
+function HeadlineTicker({ headlines, fallbackHeadline }: HeadlineTickerProps) {
+  const [tickerNow, setTickerNow] = useState(Date.now())
+
+  useEffect(() => {
+    if (headlines.length <= 1) return
+
+    const timer = setInterval(() => {
+      setTickerNow(Date.now())
+    }, 50)
+
+    return () => clearInterval(timer)
+  }, [headlines.length])
+
+  const elapsedMs = Math.max(0, tickerNow - headlineTickerOriginMs)
+  const cycleIndex =
+    headlines.length > 1 ? Math.floor(elapsedMs / HEADLINE_TOTAL_MS) % headlines.length : 0
+  const phaseMs = headlines.length > 1 ? elapsedMs % HEADLINE_TOTAL_MS : 0
+  const transitionProgress =
+    phaseMs <= HEADLINE_HOLD_MS
+      ? 0
+      : Math.min(1, (phaseMs - HEADLINE_HOLD_MS) / HEADLINE_TRANSITION_MS)
+
+  const currentHeadline = headlines[cycleIndex] ?? fallbackHeadline
+  const nextHeadline = headlines[(cycleIndex + 1) % headlines.length] ?? fallbackHeadline
+  const currentHeadlineStyle = {
+    transform: [{ translateY: -52 * transitionProgress }],
+    opacity: 1 - transitionProgress,
+  }
+  const nextHeadlineStyle = {
+    transform: [{ translateY: 52 * (1 - transitionProgress) }],
+    opacity: transitionProgress,
+  }
+
+  return (
+    <View style={S.titleTickerWrap}>
+      <View style={[S.titleTickerText, currentHeadlineStyle]}>
+        <Text style={S.title}>{currentHeadline}</Text>
+      </View>
+      <View style={[S.titleTickerText, nextHeadlineStyle]}>
+        <Text style={S.title}>{nextHeadline}</Text>
+      </View>
+    </View>
+  )
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [isMypageActive, setIsMypageActive] = useState(false)
   const [isTransportActive, setIsTransportActive] = useState(false)
+  const todayLabel = useToday('YYYY.MM.DD (dd)')
+  const [briefing, setBriefing] = useState<AssistantBriefing>(() => createEmptyBriefing(todayLabel))
+  const [taskBriefing, setTaskBriefing] = useState<AssistantTaskBriefing>(() =>
+    createEmptyTaskBriefing(todayLabel),
+  )
   const {
     permissionDenied,
     coords,
@@ -77,6 +307,54 @@ export default function HomeScreen() {
     }, [fetchCurrentLocation]),
   )
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true
+
+      const loadHomeSummaries = async () => {
+        const [eventResult, taskResult] = await Promise.allSettled([
+          fetchEventSummary(),
+          fetchTaskSummary(),
+        ])
+
+        if (!active) return
+
+        if (eventResult.status === 'fulfilled') {
+          setBriefing(buildBriefing(todayLabel, eventResult.value))
+        } else {
+          console.warn('event summary get error', eventResult.reason)
+          setBriefing(createEmptyBriefing(todayLabel))
+        }
+
+        if (taskResult.status === 'fulfilled') {
+          setTaskBriefing(
+            buildTaskBriefing(todayLabel, taskResult.value.placedToday, taskResult.value.dueToday),
+          )
+        } else {
+          console.warn('task summary get error', taskResult.reason)
+          setTaskBriefing(createEmptyTaskBriefing(todayLabel))
+        }
+      }
+
+      loadHomeSummaries()
+
+      return () => {
+        active = false
+      }
+    }, [todayLabel]),
+  )
+
+  useEffect(() => {
+    setBriefing((prev) => ({
+      ...prev,
+      dateLabel: todayLabel,
+    }))
+    setTaskBriefing((prev) => ({
+      ...prev,
+      dateLabel: todayLabel,
+    }))
+  }, [todayLabel])
+
   useEffect(() => {
     if (permissionDenied) {
       fetchWeather(SEOUL_COORDS)
@@ -92,30 +370,18 @@ export default function HomeScreen() {
   }, [coords, fetchWeather, permissionDenied])
 
   const weatherHeadline = useMemo(() => {
-    if (weatherLoading) {
-      return permissionDenied ? '서울 날씨를 불러오고 있어요' : '오늘 날씨를 불러오고 있어요'
-    }
+    if (weatherLoading) return getWeatherFallbackHeadline(permissionDenied, true)
     if (weatherError) return weatherError
     if (weatherCard) return weatherCard.headline
-    return permissionDenied ? '서울 날씨를 준비하고 있어요' : '오늘 날씨를 준비하고 있어요'
+    return getWeatherFallbackHeadline(permissionDenied, false)
   }, [permissionDenied, weatherCard, weatherError, weatherLoading])
 
-  const weatherCardToRender = weatherCard ?? DEFAULT_WEATHER_CARD
-  const quickActionIconMap = useMemo(
-    () => ({
-      mypage: <MypageNoIcon width={18} height={18} />,
-    }),
-    [],
+  const rotatingHeadlines = useMemo(
+    () => buildRotatingHeadlines(weatherCard, weatherError, permissionDenied, weatherLoading),
+    [permissionDenied, weatherCard, weatherError, weatherLoading],
   )
 
-  const handleQuickActionPress = (action: AssistantQuickAction) => {
-    switch (action.id) {
-      case 'mypage':
-        navigation.navigate('MyPage')
-        return
-    }
-  }
-
+  const weatherCardToRender = weatherCard ?? DEFAULT_WEATHER_CARD
   const handlePressTrafficAlerts = () => {
     navigation.navigate('TrafficAlerts')
   }
@@ -124,68 +390,132 @@ export default function HomeScreen() {
     navigation.navigate('MyPage')
   }
 
+  const handlePressBriefing = () => {
+    const todayIso = getLocalDateIso()
+
+    calendarViewTransition.markNextEntranceSuppressed()
+    currentCalendarView.set('day')
+    bus.emit('filter:popup', false)
+    bus.emit('calendar:reset-view', { date: todayIso, mode: 'day' })
+    ;(navigation as any).navigate('Calendar')
+
+    setTimeout(() => {
+      bus.emit('calendar:state', { date: todayIso, mode: 'day' })
+      bus.emit('calendar:set-date', todayIso)
+    }, 0)
+  }
+
+  const handleToggleTaskBriefingItem = useCallback(async (taskId: string, nextCompleted: boolean) => {
+    setTaskBriefing((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((item) =>
+        item.id === taskId ? { ...item, completed: nextCompleted } : item,
+      ),
+      timeline: prev.timeline.map((item) =>
+        item.id === taskId ? { ...item, completed: nextCompleted } : item,
+      ),
+    }))
+
+    try {
+      await updateTask(taskId, { completed: nextCompleted })
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: {
+          id: taskId,
+          isTask: true,
+          isCompleted: nextCompleted,
+        },
+      })
+    } catch (error) {
+      console.warn('task briefing toggle error', error)
+      setTaskBriefing((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((item) =>
+          item.id === taskId ? { ...item, completed: !nextCompleted } : item,
+        ),
+        timeline: prev.timeline.map((item) =>
+          item.id === taskId ? { ...item, completed: !nextCompleted } : item,
+        ),
+      }))
+    }
+  }, [])
+
   return (
     <SafeAreaView style={S.safeArea} edges={['top']}>
       <View style={S.container}>
-        <View style={S.headerRow}>
-          <View style={S.headerTextBlock}>
-            <Text style={S.eyebrow}>안녕하세요, 사용자님</Text>
-            <Text style={S.title}>{weatherHeadline}</Text>
-          </View>
-
-          <View style={S.headerActionRow}>
-            <Pressable
-              style={S.iconButton}
-              onPress={handlePressTrafficAlerts}
-              onPressIn={() => setIsTransportActive(true)}
-              onPressOut={() => setIsTransportActive(false)}
-            >
-              {isTransportActive ? (
-                <TransportYesIcon width={28} height={28} />
-              ) : (
-                <TransportNoIcon width={28} height={28} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={S.iconButton}
-              onPress={handlePressMypage}
-              onPressIn={() => setIsMypageActive(true)}
-              onPressOut={() => setIsMypageActive(false)}
-            >
-              {isMypageActive ? (
-                <MypageYesIcon width={28} height={28} />
-              ) : (
-                <MypageNoIcon width={28} height={28} />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
         <ScrollView
           contentContainerStyle={S.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <WeatherSummaryCard weather={weatherCardToRender} />
+          <View style={S.contentBody}>
+            <View style={S.headerRow}>
+              <View style={S.headerTopRow}>
+                <View style={S.brandRow}>
+                  <Text style={S.brandText}>WHATTA</Text>
+                </View>
+                {/* <Text style={S.eyebrow}>안녕하세요, 사용자님</Text> */}
 
-          <BriefingCard briefing={assistantBriefing} />
+                <View style={S.headerActionRow}>
+                  <Pressable
+                    style={S.iconButton}
+                    onPress={handlePressMypage}
+                    onPressIn={() => setIsMypageActive(true)}
+                    onPressOut={() => setIsMypageActive(false)}
+                  >
+                    {isMypageActive ? (
+                      <MypageYesIcon width={28} height={28} />
+                    ) : (
+                      <MypageNoIcon width={28} height={28} />
+                    )}
+                  </Pressable>
 
-          <NewsBannerCard item={assistantNews} />
+                  <Pressable
+                    style={S.iconButton}
+                    onPress={handlePressTrafficAlerts}
+                    onPressIn={() => setIsTransportActive(true)}
+                    onPressOut={() => setIsTransportActive(false)}
+                  >
+                    {isTransportActive ? (
+                      <TransportYesIcon width={28} height={28} />
+                    ) : (
+                      <TransportNoIcon width={28} height={28} />
+                    )}
+                  </Pressable>
+                </View>
+              </View>
 
-          <TransitStatusCard
-            item={assistantTransitStatus}
-            onPress={() => navigation.navigate('TrafficAlerts')}
-          />
+              <View style={S.headerMessageBlock}>
+                <HeadlineTicker headlines={rotatingHeadlines} fallbackHeadline={weatherHeadline} />
+              </View>
+            </View>
 
-          <QuickActionGrid
-            items={assistantQuickActions}
-            onPress={handleQuickActionPress}
-            iconMap={quickActionIconMap}
-          />
-          <TopicSlidesSection
-            items={assistantTopicSlides}
-            onPressItem={(topicId) => navigation.navigate('AssistantTopicTasks', { topicId })}
-          />
+            <WeatherSummaryCard weather={weatherCardToRender} />
+
+            <BriefingCard briefing={briefing} onPressScheduleArea={handlePressBriefing} />
+
+            <NewsBannerCard item={assistantNews} />
+
+            <TaskBriefingCard
+              briefing={taskBriefing}
+              onToggleTask={handleToggleTaskBriefingItem}
+            />
+
+            <View style={S.projectSection}>
+              <Text style={S.projectSectionTitle}>프로젝트 스케줄</Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={S.projectSliderContent}
+              >
+                {[0, 1, 2].map((item) => (
+                  <View key={item} style={S.projectCard}>
+                    <Text style={S.projectCardText}>준비중</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -195,19 +525,20 @@ export default function HomeScreen() {
 const S = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F6FAFC',
+    backgroundColor: colors.background.bg3,
   },
   container: {
     flex: 1,
-    backgroundColor: '#F6FAFC',
+    backgroundColor: colors.background.bg3,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 14,
+    paddingBottom: 0,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerActionRow: {
     flexDirection: 'row',
@@ -215,24 +546,42 @@ const S = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 4,
   },
-  headerTextBlock: {
-    flex: 1,
-    paddingRight: 16,
+  headerMessageBlock: {
+    marginTop: 4,
+    width: '100%',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandText: {
+    fontSize: 24,
+    lineHeight: 24,
+    fontWeight: '600',
+    color: colors.brand.primary,
+    fontFamily: 'Righteous',
   },
   eyebrow: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '700',
-    color: '#7D858C',
+    ...ts('label2'),
+    fontSize: 17,
+    lineHeight: 21,
+    color: colors.text.text2,
   },
   title: {
-    fontSize: 21,
-    lineHeight: 26,
-    fontWeight: '700',
+    ...ts('titleL'),
+    lineHeight: 28,
     color: colors.text.text1,
-    marginTop: 8,
-    maxWidth: 280,
     letterSpacing: -0.4,
+  },
+  titleTickerWrap: {
+    height: 30,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  titleTickerText: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   iconButton: {
     width: 48,
@@ -242,8 +591,39 @@ const S = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingHorizontal: 20,
     paddingTop: 6,
-    paddingBottom: 120,
+    paddingBottom: 98,
+  },
+  contentBody: {
+    paddingHorizontal: 17.5,
+  },
+  projectSection: {
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  projectSectionTitle: {
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: colors.text.text1,
+  },
+  projectSliderContent: {
+    paddingTop: 12,
+    paddingRight: 20,
+  },
+  projectCard: {
+    width: 300,
+    height: 200,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  projectCardText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: colors.text.text3,
   },
 })

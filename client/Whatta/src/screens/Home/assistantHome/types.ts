@@ -1,7 +1,12 @@
-export type AssistantNewsBanner = {
+export type AssistantNewsBannerSlide = {
+  id: string
   title: string
   body: string
   badge: string
+}
+
+export type AssistantNewsBanner = {
+  slides: AssistantNewsBannerSlide[]
 }
 
 export type AssistantQuickActionId = 'mypage' | 'traffic'
@@ -47,15 +52,12 @@ export type AssistantWeatherCard = {
 export type AssistantBriefingItem = {
   id: string
   title: string
-  timeLabel: string
 }
 
 export type AssistantBriefingTimelineItem = {
   id: string
   title: string
   timeRange: string
-  accentColor: string
-  status: 'past' | 'current' | 'upcoming'
 }
 
 export type AssistantTaskSummary = {
@@ -79,4 +81,25 @@ export type AssistantBriefing = {
   dateLabel: string
   schedules: AssistantBriefingItem[]
   timeline: AssistantBriefingTimelineItem[]
+}
+
+export type AssistantTaskBriefingItem = {
+  id: string
+  title: string
+  completed: boolean
+  dueLabel?: string
+}
+
+export type AssistantTaskBriefingTimelineItem = {
+  id: string
+  title: string
+  timeRange: string
+  completed: boolean
+  dueLabel?: string
+}
+
+export type AssistantTaskBriefing = {
+  dateLabel: string
+  tasks: AssistantTaskBriefingItem[]
+  timeline: AssistantTaskBriefingTimelineItem[]
 }

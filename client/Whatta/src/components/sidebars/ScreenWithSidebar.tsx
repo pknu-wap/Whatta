@@ -14,6 +14,7 @@ import FabHybrid from '@/components/FloatingButton'
 import { bus } from '@/lib/eventBus'
 import { useNavigation } from '@react-navigation/native'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 import colors from '@/styles/colors'
 
 type Props = {
@@ -315,6 +316,9 @@ export default function ScreenWithSidebar({
     width: sbWidth,
   }))
   const showFloating = floatingVisible && !isOpen && !filterOpen
+  const floatingBottomOffset = Math.max(CUSTOM_TAB_BAR_HEIGHT + insets.bottom - 18, 0)
+  const viewModeBottomOffset = Math.max(CUSTOM_TAB_BAR_HEIGHT + insets.bottom - 7, 11)
+
   return (
     <View
       style={{
@@ -436,7 +440,7 @@ export default function ScreenWithSidebar({
       {showFloating ? (
         <>
           <FabHybrid
-            bottomOffset={Math.max(insets.bottom - 8, 0)}
+            bottomOffset={floatingBottomOffset}
             rightOffset={20}
             onPressTop1={() => {
               bus.emit('popup:schedule:create', { source: activeCalendarSource, createType: 'task' })
@@ -453,7 +457,7 @@ export default function ScreenWithSidebar({
               S.viewModeWrap,
               {
                 left: 16,
-                bottom: Math.max(insets.bottom + 3, 11),
+                bottom: viewModeBottomOffset,
               },
             ]}
           >

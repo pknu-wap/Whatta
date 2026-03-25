@@ -1,103 +1,21 @@
 import type {
-  AssistantBriefing,
   AssistantNewsBanner,
-  AssistantQuickAction,
-  AssistantTransitStatus,
   AssistantTopicSlide,
-  AssistantWeatherCard,
 } from '@/screens/Home/assistantHome/types'
 
 export const assistantNews: AssistantNewsBanner = {
-  badge: '왓타 소식',
-  title: '새 학기 비서홈 초안',
-  body: '배너, 빠른 액션, 오늘 브리핑, 주제별 슬라이드까지 한 화면에서 볼 수 있게 구조를 먼저 잡았습니다.',
-}
-
-export const assistantQuickActions: AssistantQuickAction[] = [
-  {
-    id: 'mypage',
-    title: '마이페이지',
-    description: '설정 바로가기',
-  },
-]
-
-export const assistantTransitStatus: AssistantTransitStatus = {
-  title: '교통 알림',
-  routeLabel: '14:00 팀 프로젝트 회의 · 학생회관',
-  departureStatusLabel: '12:55에 출발하면 여유 있어요',
-  leaveByLabel: '출발까지 38분',
-  summary: '지금 기준 버스 2정거장 여유가 있고, 도보 8분 포함 경로예요.',
-  ctaLabel: '교통알림 페이지 이동',
-}
-
-export const assistantWeather: AssistantWeatherCard = {
-  locationLabel: '지금 있는 곳 기준',
-  headline: '현재는 맑지만 오후 4시에 비 소식이 있어요. 우산 챙기세요.',
-  compactSummary: '오후 4시에 비 소식',
-  currentTemperatureLabel: '현재 17도',
-  feelsLikeLabel: '체감 15도',
-  highLowLabel: '최고 21도 · 최저 15도',
-  conditionEmoji: '☀️',
-  conditionLabel: '맑음',
-  weatherTheme: 'sunny',
-  dustGradeLabel: '좋음',
-  dustDetailLabel: '공기가 맑은 편이에요',
-  noPermissionMessage: '위치 권한이 없으면 오늘 하루도 힘내세요 메시지로 대체할 수 있어요.',
-  highlights: [
+  slides: [
     {
-      id: 'rain',
-      label: '강수 예보',
-      value: '오후 4시에 비 와요 ☔',
-      tone: 'rain',
+      id: 'assistant-home',
+      badge: 'NEW',
+      title: '날씨와 오늘 요약',
+      body: '일정과 할 일 브리핑을 한 화면에서 확인해요',
     },
     {
-      id: 'temp',
-      label: '기온',
-      value: '최고 21도, 최저 15도',
-      tone: 'sunny',
-    },
-    {
-      id: 'wind',
-      label: '바람',
-      value: '저녁에 바람이 강해져요',
-      tone: 'wind',
-    },
-    {
-      id: 'dust',
-      label: '미세먼지',
-      value: '좋음 🍀',
-      tone: 'dust',
-    },
-  ],
-}
-
-export const assistantBriefing: AssistantBriefing = {
-  dateLabel: '2026.03.24 (화)',
-  schedules: [
-    { id: 's1', title: '친구랑 약속', timeLabel: '#4E7CF3' },
-    { id: 's2', title: '교수님 미팅', timeLabel: '#B357FF' },
-  ],
-  timeline: [
-    {
-      id: 't1',
-      title: '교수님 미팅',
-      timeRange: '09:00 ~ 10:00',
-      accentColor: '#A7B0B8',
-      status: 'past',
-    },
-    {
-      id: 't2',
-      title: '점심 약속',
-      timeRange: '11:00 ~ 12:00',
-      accentColor: '#B357FF',
-      status: 'current',
-    },
-    {
-      id: 't3',
-      title: '과제',
-      timeRange: '13:00 ~ 15:00',
-      accentColor: '#A7B0B8',
-      status: 'upcoming',
+      id: 'ai-chat',
+      badge: 'AI',
+      title: 'AI가 바로 등록해줘요',
+      body: '채팅으로 말하면 일정과 할 일을 바로 만들어요',
     },
   ],
 }
