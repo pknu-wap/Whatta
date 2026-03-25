@@ -78,6 +78,7 @@ type Props = {
   taskDueTime: Date
   onChangeTaskDueTime: (next: Date) => void
   contentWidth?: number
+  paletteWidth?: number
   contentPaddingHorizontal?: number
   eventDateInline?: React.ReactNode
 }
@@ -234,10 +235,10 @@ export default function CreateEventDetailStep({
   taskDueTime,
   onChangeTaskDueTime,
   contentWidth = 302,
+  paletteWidth = 320,
   contentPaddingHorizontal = 24,
   eventDateInline = null,
 }: Props) {
-  const paletteWidth = contentWidth + 18
   const typeButtonWidth = (contentWidth - 16) / 2
   const timeBoxWidth = contentWidth - 76
   const eventEnd = end ?? start
@@ -438,7 +439,7 @@ export default function CreateEventDetailStep({
           </View>
         )}
         <View style={styles.divider} />
-        <View style={styles.typeRow}>
+        <View style={[styles.typeRow, { width: contentWidth }]}>
           <Pressable
             style={[
               styles.typeButton,
@@ -1700,14 +1701,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     position: 'absolute',
-    top: 58,
-    left: -9,
+    top: 54,
+    left: -17,
     zIndex: 30,
     shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 15,
-    elevation: 8,
+    shadowOpacity: 0.55,
+    shadowRadius: 9,
+    elevation: 4,
     justifyContent: 'center',
   },
   colorPaletteGrid: {
@@ -1731,7 +1732,9 @@ const styles = StyleSheet.create({
   typeRow: {
     marginTop: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignSelf: 'center',
+    justifyContent: 'flex-start',
+    gap: 16,
   },
   typeButton: {
     width: 143,
