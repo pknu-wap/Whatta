@@ -62,6 +62,8 @@ const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
 const MONTH_ITEM_SLOT_HEIGHT = MONTH_ITEM_HEIGHT + MONTH_ITEM_GAP
+const MONTH_WEEK_MIN_HEIGHT = 120
+const MONTH_DATE_HEADER_HEIGHT = 32
 const HOLIDAY_HEADER_BASE_OFFSET = 13
 const HOLIDAY_EVENT_OFFSET = Math.max(
   0,
@@ -568,11 +570,6 @@ const {
   const [days, setDays] = useState<MonthlyDay[]>(() => initialCache?.days ?? [])
   const [loading, setLoading] = useState(!initialCache)
   const [hasHydratedMonth, setHasHydratedMonth] = useState(!!initialCache)
-  const [calendarBodyHeight, setCalendarBodyHeight] = useState(
-    Math.max(SCREEN_H - 260, 360),
-  )
-
-  
   // Memo로 캐싱
   const weeks = useMemo(() => {
     const result: CalendarDateItem[][] = []
@@ -610,10 +607,46 @@ const holidayIsoByWeek = useMemo(() => {
   })
 }, [weeks])
 
-  const weekRowHeight = useMemo(() => {
-    if (calendarBodyHeight <= 0 || weeks.length === 0) return undefined
-    return calendarBodyHeight / weeks.length
-  }, [calendarBodyHeight, weeks.length])
+  const weekRowHeights = useMemo(() => {
+    return weeks.map((week, weekIndex) => {
+      let maxContentRows = 0
+
+      week.forEach((_, dayIndex) => {
+        const itemsToRender = displayItemsByWeek[weekIndex]?.[dayIndex] ?? []
+        const scheduleItems = itemsToRender.filter(
+          (it) => !(it as any).isTaskSummary && !(it as any).isTask,
+        ) as ScheduleData[]
+        const taskItems = itemsToRender.filter(
+          (it) => !(it as any).isTaskSummary && !!(it as any).isTask,
+        ) as ScheduleData[]
+        const taskSummary = itemsToRender.find((it) => (it as any).isTaskSummary)
+
+        const scheduleMaxLane = Math.max(-1, ...scheduleItems.map((it: any) => it.__lane ?? -1))
+        const laneCount = Math.max(0, scheduleMaxLane + 1)
+        const taskCount = taskItems.length + (taskSummary ? 1 : 0)
+        const needsHolidayReserve =
+          !week[dayIndex]?.holidayName &&
+          scheduleItems.some((it) => {
+            const schedule = it as UISchedule
+            if (!schedule.multiDayStart || !schedule.multiDayEnd) return false
+
+            return Array.from(holidayIsoByWeek[weekIndex] ?? []).some(
+              (holidayISO) =>
+                schedule.multiDayStart! <= holidayISO &&
+                holidayISO <= schedule.multiDayEnd!,
+            )
+          })
+
+        const reserveRows = needsHolidayReserve ? 1 : 0
+        maxContentRows = Math.max(maxContentRows, laneCount + taskCount + reserveRows)
+      })
+
+      return Math.max(
+        MONTH_WEEK_MIN_HEIGHT,
+        MONTH_DATE_HEADER_HEIGHT + maxContentRows * MONTH_ITEM_SLOT_HEIGHT + 8,
+      )
+    })
+  }, [weeks, displayItemsByWeek, holidayIsoByWeek])
 
 
   type ExtendedScheduleData = ScheduleData & {
@@ -1038,14 +1071,6 @@ const holidayIsoByWeek = useMemo(() => {
   </View>
 )
 
-  const handleCalendarBodyLayout = useCallback((nextHeight: number) => {
-    if (nextHeight <= 0) return
-    setCalendarBodyHeight((prev) => {
-      if (Math.abs(prev - nextHeight) < 8) return prev
-      return nextHeight
-    })
-  }, [])
-
   const renderDateCell = (dateItem: CalendarDateItem, weekIndex: number, dayIndex: number, ) => { 
     const itemsToRender = displayItemsByWeek[weekIndex][dayIndex]
     const isCurrentMonth = dateItem.isCurrentMonth
@@ -1223,7 +1248,7 @@ const holidayIsoByWeek = useMemo(() => {
           key={dateItem.fullDate.toISOString()}
           style={[
             S.dateCell,
-            weekRowHeight ? { minHeight: weekRowHeight } : null,
+            { minHeight: weekRowHeights[weekIndex] ?? MONTH_WEEK_MIN_HEIGHT },
             dayIndex === 6 ? { borderRightWidth: 0 } : null,
             { zIndex: 100 - dayIndex },
           ]}
@@ -1537,7 +1562,6 @@ const handleOcrAddEvent = useCallback(
             <ScrollView
               style={S.contentArea}
               contentContainerStyle={S.scrollContentContainer}
-              onLayout={(e) => handleCalendarBodyLayout(e.nativeEvent.layout.height)}
             >
               <View
                 style={[
@@ -1551,7 +1575,7 @@ const handleOcrAddEvent = useCallback(
                         key={`week-${weekIndex}`}
                         style={[
                           S.weekRow,
-                          weekRowHeight ? { height: weekRowHeight } : null,
+                          { minHeight: weekRowHeights[weekIndex] ?? MONTH_WEEK_MIN_HEIGHT },
                           { zIndex: weeks.length - weekIndex },
                         ]}
                       >
