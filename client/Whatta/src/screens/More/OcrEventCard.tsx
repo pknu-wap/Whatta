@@ -475,6 +475,7 @@ return (
     onChangeTaskDueTime={() => {}}
     contentWidth={286}
     paletteWidth={320}
+    paletteBoxStyle={styles.ocrPaletteBox}
   />
 )}
     </View>
@@ -507,6 +508,14 @@ card: {
   backgroundColor: '#ffffff',
   borderRadius: 20,
   overflow: 'hidden',
+},
+
+ocrPaletteBox: {
+  top: 54,
+  left: -17,
+  shadowOpacity: 0.55,
+  shadowRadius: 9,
+  elevation: 4,
 },
 
 })

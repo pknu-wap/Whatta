@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, type ViewStyle } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
 import PagerView from 'react-native-pager-view'
 
@@ -79,6 +79,7 @@ type Props = {
   onChangeTaskDueTime: (next: Date) => void
   contentWidth?: number
   paletteWidth?: number
+  paletteBoxStyle?: ViewStyle
   contentPaddingHorizontal?: number
   eventDateInline?: React.ReactNode
 }
@@ -236,6 +237,7 @@ export default function CreateEventDetailStep({
   onChangeTaskDueTime,
   contentWidth = 302,
   paletteWidth = 320,
+  paletteBoxStyle,
   contentPaddingHorizontal = 24,
   eventDateInline = null,
 }: Props) {
@@ -423,7 +425,7 @@ export default function CreateEventDetailStep({
           )}
         </View>
         {selectedType === 'event' && colorPaletteOpen && (
-          <View style={[styles.colorPaletteBox, { width: paletteWidth }]}>
+          <View style={[styles.colorPaletteBox, { width: paletteWidth }, paletteBoxStyle]}>
             <View style={styles.colorPaletteGrid}>
               {paletteColors.slice(0, 12).map((c, idx) => (
                 <Pressable
@@ -1701,14 +1703,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     position: 'absolute',
-    top: 54,
-    left: -17,
+    top: 58,
+    left: -9,
     zIndex: 30,
     shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 9,
-    elevation: 4,
+    shadowOpacity: 1,
+    shadowRadius: 15,
+    elevation: 8,
     justifyContent: 'center',
   },
   colorPaletteGrid: {
