@@ -14,6 +14,7 @@ type Props = {
   value: string
   previewText: string
   previewActive: boolean
+  focusSignal?: number
   plusActive: boolean
   attachmentMenuOpen?: boolean
   imagePreviewUri?: string | null
@@ -36,6 +37,7 @@ export default function AiChatInput({
   value,
   previewText,
   previewActive,
+  focusSignal = 0,
   plusActive,
   attachmentMenuOpen = false,
   imagePreviewUri = null,
@@ -56,6 +58,20 @@ export default function AiChatInput({
       setTextHeight(TEXT_MIN_HEIGHT)
     }
   }, [value])
+
+  React.useEffect(() => {
+    if (previewActive) {
+      setTextHeight(TEXT_MIN_HEIGHT)
+    }
+  }, [previewActive])
+
+  React.useEffect(() => {
+    if (focusSignal <= 0) return
+    const frame = requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusSignal])
 
   const displayPreview = previewActive && value.length === 0
   const visibleTextHeight = Math.max(TEXT_MIN_HEIGHT, Math.min(TEXT_MAX_HEIGHT, textHeight))
@@ -115,9 +131,6 @@ export default function AiChatInput({
           <TextInput
             ref={inputRef}
             value={value}
-            onFocus={() => {
-              if (displayPreview) onClearPreview()
-            }}
             onChangeText={(text) => {
               if (displayPreview) onClearPreview()
               onChangeText(text)

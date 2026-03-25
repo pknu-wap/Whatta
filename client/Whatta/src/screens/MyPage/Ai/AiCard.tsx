@@ -158,7 +158,11 @@ export default function AiCard({
   )
 
   return (
-    <View style={[S.cardBlock, isLocked && S.cardBlockLocked]}>
+    <Pressable
+      style={[S.cardBlock, isLocked && S.cardBlockLocked]}
+      onPress={onEdit}
+      disabled={isLocked}
+    >
       <View
         style={[
           S.card,
@@ -268,7 +272,7 @@ export default function AiCard({
           ) : null}
         </View>
       </View>
-    </View>
+    </Pressable>
   )
 }
 

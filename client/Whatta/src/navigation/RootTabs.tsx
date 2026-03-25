@@ -338,7 +338,7 @@ const S = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -56,
+    marginTop: 7,
   },
   tabLabel: {
     ...ts('body3'),
