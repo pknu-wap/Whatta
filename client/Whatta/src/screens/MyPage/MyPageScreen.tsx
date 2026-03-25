@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react'
-import { View, Text, SectionList, StyleSheet, Pressable, Alert, Linking } from 'react-native'
+import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import Constants from 'expo-constants'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
@@ -8,16 +8,10 @@ import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import LeftIcon from '@/assets/icons/left.svg'
-import { useAppleCalendarSync } from '@/hooks/useAppleCalendarSync'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { useOCR } from '@/hooks/useOCR'
 import OcrSplash from '@/screens/More/OcrSplash'
-
-import {
-  ensureAppleCalendarConnected,
-  exportFutureWhattaEventsToAppleCalendar,
-} from '@/lib/appleCalendar'
 import {
   getActiveScheduleColorSetId,
   SCHEDULE_COLOR_SET_IDS,
@@ -115,7 +109,6 @@ function SimpleHeader({
 }
 
 export default function MyPageScreen({ navigation }: Props) {
-  const appleCalendarState = useAppleCalendarSync()
   const variant = String(Constants.expoConfig?.extra?.variant ?? 'unknown').toUpperCase()
   const apiBaseUrl = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '')
   const serverLabel = apiBaseUrl.includes('-dev-') ? 'DEV' : 'PROD'
@@ -129,20 +122,19 @@ export default function MyPageScreen({ navigation }: Props) {
   }, [activeColorSet])
 
   const onPressColorSetChip = () => {
-    const changed = setActiveScheduleColorSetId(nextColorSet)
-    setActiveColorSet(changed)
-    bus.emit('scheduleColorSet:changed', { setId: changed })
+  const changed = setActiveScheduleColorSetId(nextColorSet)
+  setActiveColorSet(changed)
+  bus.emit('scheduleColorSet:changed', { setId: changed })
   }
 
-const [showOcrSheet, setShowOcrSheet] = useState(false)
-
-const {
-  ocrSplashVisible,
-  ocrModalVisible,
-  ocrEvents,
-  setOcrModalVisible,
-  sendToOCR,
-} = useOCR()
+  const [showOcrSheet, setShowOcrSheet] = useState(false)
+  const {
+    ocrSplashVisible,
+    ocrModalVisible,
+    ocrEvents,
+    setOcrModalVisible,
+    sendToOCR,
+  } = useOCR()
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -157,150 +149,108 @@ const {
     })
   }, [navigation])
 
-  const appleCalendarStatus = useMemo(() => {
-    if (!appleCalendarState) return '상태 확인 중'
-    if (appleCalendarState.isConnected) return '연동 중'
-    if (appleCalendarState.permissionStatus === 'denied') return '권한 필요'
-    return '연동 안 됨'
-  }, [appleCalendarState])
-
-const onPressMyItem = async (route: keyof MyPageStackList) => {
-  if (route === 'AppleCalendar') {
-    if (appleCalendarState?.isConnected) {
-      navigation.navigate('AppleCalendar')
+  const onPressMyItem = (route: keyof MyPageStackList) => {
+    if (route === 'vibration') {
+      setShowOcrSheet(true)
       return
     }
 
-    const result = await ensureAppleCalendarConnected()
-    if (!result.ok) {
-      if (result.reason === 'permission_denied') {
-        Alert.alert(
-          '애플 캘린더 연동',
-          `${result.message}\n\n이미 권한을 거부한 상태라면 설정 앱에서 다시 허용해야 합니다.`,
-          [
-            { text: '취소', style: 'cancel' },
-            { text: '설정 열기', onPress: () => Linking.openSettings() },
-          ]
-        )
-        return
-      }
-      Alert.alert('애플 캘린더 연동', result.message)
-      return
-    }
-
-    const exportResult = await exportFutureWhattaEventsToAppleCalendar()
-    if (!exportResult.skipped) {
-      Alert.alert(
-        '애플 캘린더 연동 완료',
-        `오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
-      )
-    }
-    return
+    navigation.navigate(route)
   }
 
-  if (route === 'vibration') {
-    setShowOcrSheet(true)
-    return
-  }
-
-  navigation.navigate(route)
-}
-
-return (
-  <View style={{ flex: 1 }}>
-    <SectionList<MyItem, MySection>
-      sections={MY_SECTIONS}
-      keyExtractor={(item) => item.key}
-      renderItem={() => null}
-      renderSectionHeader={({ section }) =>
-        section.size === 'small' ? (
-          <>
-            {section.data.map((d, i) => (
-              <SmallCard
-                key={i}
-                label={d.key}
-                status={d.route === 'AppleCalendar' ? appleCalendarStatus : undefined}
-                onPress={() => onPressMyItem(d.route)}
-              />
-            ))}
-          </>
-        ) : (
-          <SectionCard
-            title={section.title}
-            actions={section.data.map((d) => ({ label: d.key, route: d.route }))}
-            onPress={onPressMyItem}
-          />
-        )
-      }
-      ListHeaderComponent={
-        <View
-          style={{
-            paddingTop: 2,
-            paddingBottom: 2,
-            backgroundColor: colors.neutral.background,
-          }}
-        >
-          {/* 프로필 카드 */}
-          <View style={S.profileCard}>
-            <View style={S.avatar} />
-            <View style={{ flex: 1 }}>
-              <View style={S.profileNameRow}>
-                <Text style={S.profileName}>사용자님</Text>
-                {showEnvBadge ? (
-                  <View style={[S.envBadge, S.envBadgeDev]}>
-                    <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
-                  </View>
-                ) : null}
-                {showColorSetChip ? (
-                  <Pressable style={[S.envBadge, S.colorSetBadge]} onPress={onPressColorSetChip}>
-                    <Text style={S.envBadgeText}>{`SET:${activeColorSet}`}</Text>
-                  </Pressable>
-                ) : null}
+  return (
+    <View style={{ flex: 1 }}>
+      <SectionList<MyItem, MySection>
+        sections={MY_SECTIONS}
+        keyExtractor={(item) => item.key}
+        renderItem={() => null}
+        renderSectionHeader={({ section }) =>
+          section.size === 'small' ? (
+            <>
+              {section.data.map((d, i) => (
+                <SmallCard
+                  key={i}
+                  label={d.key}
+                  onPress={() => onPressMyItem(d.route)}
+                />
+              ))}
+            </>
+          ) : (
+            <SectionCard
+              title={section.title}
+              actions={section.data.map((d) => ({ label: d.key, route: d.route }))}
+              onPress={onPressMyItem}
+            />
+          )
+        }
+        ListHeaderComponent={
+          <View
+            style={{
+              paddingTop: 2,
+              paddingBottom: 2,
+              backgroundColor: colors.neutral.background,
+            }}
+          >
+            {/* 프로필 카드 */}
+            <View style={S.profileCard}>
+              <View style={S.avatar} />
+              <View style={{ flex: 1 }}>
+                <View style={S.profileNameRow}>
+                  <Text style={S.profileName}>사용자님</Text>
+                  {showEnvBadge ? (
+                    <View style={[S.envBadge, S.envBadgeDev]}>
+                      <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
+                    </View>
+                  ) : null}
+                  {showColorSetChip ? (
+                    <Pressable style={[S.envBadge, S.colorSetBadge]} onPress={onPressColorSetChip}>
+                      <Text style={S.envBadgeText}>{`SET:${activeColorSet}`}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
               </View>
-              {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
+              {/* <Text style={S.editLink}>편집</Text> */}
             </View>
-            {/* <Text style={S.editLink}>편집</Text> */}
           </View>
-        </View>
-      }
-      ItemSeparatorComponent={null}
-      SectionSeparatorComponent={() => <View style={{ height: 2 }} />}
-      stickySectionHeadersEnabled
-      contentInsetAdjustmentBehavior="automatic"
-      contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
-      scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
-    />
+        }
+        ItemSeparatorComponent={null}
+        SectionSeparatorComponent={() => <View style={{ height: 2 }} />}
+        stickySectionHeadersEnabled
+        contentInsetAdjustmentBehavior="automatic"
+        contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
+        scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
+      />
 
-    <AddImageSheet
-      visible={showOcrSheet}
-      onClose={() => setShowOcrSheet(false)}
-onPickImage={async (uri, base64, ext) => {
-  setShowOcrSheet(false)
-  await sendToOCR(base64, ext)
-}}
+      <AddImageSheet
+        visible={showOcrSheet}
+        onClose={() => setShowOcrSheet(false)}
+        onPickImage={async (_uri, base64, ext) => {
+          setShowOcrSheet(false)
+          await sendToOCR(base64, ext)
+        }}
+        onTakePhoto={async (_uri, base64, ext) => {
+          setShowOcrSheet(false)
+          await sendToOCR(base64, ext)
+        }}
+      />
+      <OcrSplash visible={ocrSplashVisible} />
 
-onTakePhoto={async (uri, base64, ext) => {
-  setShowOcrSheet(false)
-  await sendToOCR(base64, ext)
-}}
-    />
-    <OcrSplash visible={ocrSplashVisible} />
-
-<OCREventCardSlider
-  visible={ocrModalVisible}
-  events={ocrEvents}
-  onClose={() => {
-    setOcrModalVisible(false)
-  }}
-  onAddEvent={(ev) => {
-    console.log('[OCR saved event]', ev)
-  }}
-  onSaveAll={() => {
-    console.log('[OCR save all complete]')
-  }}
-/>
-  </View>
-)
+      <OCREventCardSlider
+        visible={ocrModalVisible}
+        events={ocrEvents}
+        onClose={() => {
+          setOcrModalVisible(false)
+        }}
+        onAddEvent={(ev) => {
+          console.log('[OCR saved event]', ev)
+        }}
+        onSaveAll={() => {
+          console.log('[OCR save all complete]')
+        }}
+      />
+    </View>
+  )
 }
 
 const S = StyleSheet.create({
