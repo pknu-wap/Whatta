@@ -8,6 +8,10 @@ import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import LeftIcon from '@/assets/icons/left.svg'
+import AddImageSheet from '@/screens/More/Ocr'
+import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
+import { useOCR } from '@/hooks/useOCR'
+import OcrSplash from '@/screens/More/OcrSplash'
 import {
   getActiveScheduleColorSetId,
   SCHEDULE_COLOR_SET_IDS,
@@ -118,10 +122,19 @@ export default function MyPageScreen({ navigation }: Props) {
   }, [activeColorSet])
 
   const onPressColorSetChip = () => {
-    const changed = setActiveScheduleColorSetId(nextColorSet)
-    setActiveColorSet(changed)
-    bus.emit('scheduleColorSet:changed', { setId: changed })
+  const changed = setActiveScheduleColorSetId(nextColorSet)
+  setActiveColorSet(changed)
+  bus.emit('scheduleColorSet:changed', { setId: changed })
   }
+
+  const [showOcrSheet, setShowOcrSheet] = useState(false)
+  const {
+    ocrSplashVisible,
+    ocrModalVisible,
+    ocrEvents,
+    setOcrModalVisible,
+    sendToOCR,
+  } = useOCR()
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -137,71 +150,106 @@ export default function MyPageScreen({ navigation }: Props) {
   }, [navigation])
 
   const onPressMyItem = (route: keyof MyPageStackList) => {
+    if (route === 'vibration') {
+      setShowOcrSheet(true)
+      return
+    }
+
     navigation.navigate(route)
   }
 
   return (
-    <SectionList<MyItem, MySection>
-      sections={MY_SECTIONS}
-      keyExtractor={(item) => item.key}
-      renderItem={() => null}
-      renderSectionHeader={({ section }) =>
-        section.size === 'small' ? (
-          <>
-            {section.data.map((d, i) => (
-              <SmallCard
-                key={i}
-                label={d.key}
-                onPress={() => onPressMyItem(d.route)}
-              />
-            ))}
-          </>
-        ) : (
-          <SectionCard
-            title={section.title}
-            actions={section.data.map((d) => ({ label: d.key, route: d.route }))}
-            onPress={onPressMyItem}
-          />
-        )
-      }
-      ListHeaderComponent={
-        <View
-          style={{
-            paddingTop: 2,
-            paddingBottom: 2,
-            backgroundColor: colors.neutral.background,
-          }}
-        >
-          {/* 프로필 카드 */}
-          <View style={S.profileCard}>
-            <View style={S.avatar} />
-            <View style={{ flex: 1 }}>
-              <View style={S.profileNameRow}>
-                <Text style={S.profileName}>사용자님</Text>
-                {showEnvBadge ? (
-                  <View style={[S.envBadge, S.envBadgeDev]}>
-                    <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
-                  </View>
-                ) : null}
-                {showColorSetChip ? (
-                  <Pressable style={[S.envBadge, S.colorSetBadge]} onPress={onPressColorSetChip}>
-                    <Text style={S.envBadgeText}>{`SET:${activeColorSet}`}</Text>
-                  </Pressable>
-                ) : null}
+    <View style={{ flex: 1 }}>
+      <SectionList<MyItem, MySection>
+        sections={MY_SECTIONS}
+        keyExtractor={(item) => item.key}
+        renderItem={() => null}
+        renderSectionHeader={({ section }) =>
+          section.size === 'small' ? (
+            <>
+              {section.data.map((d, i) => (
+                <SmallCard
+                  key={i}
+                  label={d.key}
+                  onPress={() => onPressMyItem(d.route)}
+                />
+              ))}
+            </>
+          ) : (
+            <SectionCard
+              title={section.title}
+              actions={section.data.map((d) => ({ label: d.key, route: d.route }))}
+              onPress={onPressMyItem}
+            />
+          )
+        }
+        ListHeaderComponent={
+          <View
+            style={{
+              paddingTop: 2,
+              paddingBottom: 2,
+              backgroundColor: colors.neutral.background,
+            }}
+          >
+            {/* 프로필 카드 */}
+            <View style={S.profileCard}>
+              <View style={S.avatar} />
+              <View style={{ flex: 1 }}>
+                <View style={S.profileNameRow}>
+                  <Text style={S.profileName}>사용자님</Text>
+                  {showEnvBadge ? (
+                    <View style={[S.envBadge, S.envBadgeDev]}>
+                      <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
+                    </View>
+                  ) : null}
+                  {showColorSetChip ? (
+                    <Pressable style={[S.envBadge, S.colorSetBadge]} onPress={onPressColorSetChip}>
+                      <Text style={S.envBadgeText}>{`SET:${activeColorSet}`}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
               </View>
-              {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
+              {/* <Text style={S.editLink}>편집</Text> */}
             </View>
-            {/* <Text style={S.editLink}>편집</Text> */}
           </View>
-        </View>
-      }
-      ItemSeparatorComponent={null}
-      SectionSeparatorComponent={() => <View style={{ height: 2 }} />}
-      stickySectionHeadersEnabled
-      contentInsetAdjustmentBehavior="automatic"
-      contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
-      scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
-    />
+        }
+        ItemSeparatorComponent={null}
+        SectionSeparatorComponent={() => <View style={{ height: 2 }} />}
+        stickySectionHeadersEnabled
+        contentInsetAdjustmentBehavior="automatic"
+        contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
+        scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
+      />
+
+      <AddImageSheet
+        visible={showOcrSheet}
+        onClose={() => setShowOcrSheet(false)}
+        onPickImage={async (_uri, base64, ext) => {
+          setShowOcrSheet(false)
+          await sendToOCR(base64, ext)
+        }}
+        onTakePhoto={async (_uri, base64, ext) => {
+          setShowOcrSheet(false)
+          await sendToOCR(base64, ext)
+        }}
+      />
+      <OcrSplash visible={ocrSplashVisible} />
+
+      <OCREventCardSlider
+        visible={ocrModalVisible}
+        events={ocrEvents}
+        onClose={() => {
+          setOcrModalVisible(false)
+        }}
+        onAddEvent={(ev) => {
+          console.log('[OCR saved event]', ev)
+        }}
+        onSaveAll={() => {
+          console.log('[OCR save all complete]')
+        }}
+      />
+    </View>
   )
 }
 
