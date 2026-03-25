@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
-import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Easing } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -127,7 +126,6 @@ export default function MonthlyDetailPopup({
   onSwipeDate,
   dayData,
 }: MonthlyDetailPopupProps) {
-  const navigation = useNavigation<any>()
   const insets = useSafeAreaInsets()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current
@@ -401,11 +399,9 @@ export default function MonthlyDetailPopup({
     if (!iso) return
 
     bus.emit('calendar:set-date', iso)
+    bus.emit('calendar:set-mode', 'day')
     onClose()
-    requestAnimationFrame(() => {
-      navigation.navigate('Day')
-    })
-  }, [dayData.dateISO, interactionLocked, navigation, onClose])
+  }, [dayData.dateISO, interactionLocked, onClose])
 
   const contentSwipeGesture = React.useMemo(
     () =>

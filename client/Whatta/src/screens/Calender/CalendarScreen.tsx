@@ -1,5 +1,5 @@
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Animated, Easing, StyleSheet, View } from 'react-native'
 import { bus } from '@/lib/eventBus'
 import MonthView from '@/screens/Calender/Month/MonthView'
 import WeekView from '@/screens/Calender/Week/WeekView'
@@ -12,7 +12,58 @@ const layerZIndex = (active: boolean, order: number) => (active ? 10 + order : o
 
 export default function CalendarScreen() {
   const [mode, setMode] = React.useState<CalendarMode>(currentCalendarView.get())
+  const [outgoingMode, setOutgoingMode] = React.useState<CalendarMode | null>(null)
   const anchorDateRef = React.useRef<string | null>(null)
+  const prevModeRef = React.useRef<CalendarMode>(currentCalendarView.get())
+  const transitionProgress = React.useRef(new Animated.Value(1)).current
+
+  React.useEffect(() => {
+    const prevMode = prevModeRef.current
+    if (prevMode === mode) return
+
+    setOutgoingMode(prevMode)
+    transitionProgress.setValue(0)
+    Animated.timing(transitionProgress, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setOutgoingMode(null)
+    })
+    prevModeRef.current = mode
+  }, [mode, transitionProgress])
+
+  const getLayerStyle = React.useCallback(
+    (layerMode: CalendarMode) => {
+      if (mode === layerMode) {
+        return {
+          opacity: transitionProgress,
+          transform: [
+            {
+              translateY: transitionProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [10, 0],
+              }),
+            },
+            {
+              scale: transitionProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.985, 1],
+              }),
+            },
+          ],
+        }
+      }
+
+      if (outgoingMode === layerMode) {
+        return null
+      }
+
+      return null
+    },
+    [mode, outgoingMode, transitionProgress],
+  )
 
   React.useEffect(() => {
     const unsubscribe = currentCalendarView.subscribe(() => {
@@ -57,36 +108,39 @@ export default function CalendarScreen() {
   return (
     <View style={S.root}>
       <View style={S.layer}>
-        <View
+        <Animated.View
           style={[
             S.absoluteLayer,
-            { zIndex: layerZIndex(mode === 'month', 1) },
-            mode !== 'month' ? S.hiddenLayer : null,
+            { zIndex: layerZIndex(mode === 'month' || outgoingMode === 'month', 1) },
+            mode !== 'month' && outgoingMode !== 'month' ? S.hiddenLayer : null,
+            getLayerStyle('month'),
           ]}
           pointerEvents={mode === 'month' ? 'auto' : 'none'}
         >
           <MonthView active={mode === 'month'} initialDateISO={anchorDateRef.current} />
-        </View>
-        <View
+        </Animated.View>
+        <Animated.View
           style={[
             S.absoluteLayer,
-            { zIndex: layerZIndex(mode === 'week', 2) },
-            mode !== 'week' ? S.hiddenLayer : null,
+            { zIndex: layerZIndex(mode === 'week' || outgoingMode === 'week', 2) },
+            mode !== 'week' && outgoingMode !== 'week' ? S.hiddenLayer : null,
+            getLayerStyle('week'),
           ]}
           pointerEvents={mode === 'week' ? 'auto' : 'none'}
         >
           <WeekView active={mode === 'week'} />
-        </View>
-        <View
+        </Animated.View>
+        <Animated.View
           style={[
             S.absoluteLayer,
-            { zIndex: layerZIndex(mode === 'day', 3) },
-            mode !== 'day' ? S.hiddenLayer : null,
+            { zIndex: layerZIndex(mode === 'day' || outgoingMode === 'day', 3) },
+            mode !== 'day' && outgoingMode !== 'day' ? S.hiddenLayer : null,
+            getLayerStyle('day'),
           ]}
           pointerEvents={mode === 'day' ? 'auto' : 'none'}
         >
           <DayView active={mode === 'day'} />
-        </View>
+        </Animated.View>
       </View>
     </View>
   )
