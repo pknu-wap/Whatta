@@ -234,6 +234,15 @@ export default function Header() {
     return () => bus.off('filter:close', closeHandler)
   }, [])
 
+  useEffect(() => {
+    const popupHandler = (open: boolean) => {
+      if (open) return
+      closeFilterPopup()
+    }
+    bus.on('filter:popup', popupHandler)
+    return () => bus.off('filter:popup', popupHandler)
+  }, [])
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>

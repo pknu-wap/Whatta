@@ -21,6 +21,7 @@ type Props = {
   mode: 'push' | 'overlay'
   children: React.ReactNode
   floatingVisible?: boolean
+  overlayChildren?: React.ReactNode
 }
 
 const BASE_HEADER_H = 48
@@ -30,6 +31,7 @@ export default function ScreenWithSidebar({
   mode,
   children,
   floatingVisible = true,
+  overlayChildren,
 }: Props) {
   const SIDEBAR_GHOST_W = 155
   const SIDEBAR_GHOST_H = 60
@@ -343,6 +345,18 @@ export default function ScreenWithSidebar({
           }}
         />
       </Animated.View>
+      <View
+        style={[S.filterCatcher, { top: headerTotalH, zIndex: 45 }]}
+        pointerEvents={filterOpen ? 'auto' : 'none'}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => {
+            bus.emit('filter:close')
+            bus.emit('filter:popup', false)
+          }}
+        />
+      </View>
 
       {dragActive && (
         // 오버레이 자체가 PanResponder를 “직접” 받습니다.
@@ -437,6 +451,11 @@ export default function ScreenWithSidebar({
       >
         <Header />
       </SafeAreaView>
+      {overlayChildren ? (
+        <View style={S.overlaySlot} pointerEvents="box-none">
+          {overlayChildren}
+        </View>
+      ) : null}
       {showFloating ? (
         <>
           <FabHybrid
@@ -498,6 +517,11 @@ const S = StyleSheet.create({
     right: 0,
     backgroundColor: colors.neutral.surface,
   },
+  overlaySlot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 55,
+    elevation: 55,
+  },
   content: {
     flex: 1,
     backgroundColor: colors.neutral.surface,
@@ -508,6 +532,13 @@ const S = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0)',
+  },
+  filterCatcher: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
   },
   viewModeWrap: {
     position: 'absolute',

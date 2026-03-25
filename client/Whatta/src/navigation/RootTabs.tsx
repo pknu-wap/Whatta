@@ -32,9 +32,11 @@ const TAB_ACTIVE_COLOR = '#464A4D'
 const AI_BUBBLE_W = 112
 const AI_BUBBLE_H = 110
 const AI_BUBBLE_RISE = 10
-const AI_TOUCH_TOP = 56
+const AI_TOUCH_TOP = 30
 const AI_ICON_W = 130
 const AI_ICON_H = 68
+const AI_TOUCH_W = 136
+const AI_TOUCH_H = 82
 const TAB_BAR_SHADOW_STYLE = {
   shadowColor: '#17191A',
   shadowOpacity: 0.08,
@@ -45,6 +47,7 @@ const TAB_BAR_SHADOW_STYLE = {
 const TAB_BAR_HIDDEN_STYLE = {
   display: 'none' as const,
 }
+const HOME_DOUBLE_TAP_MS = 280
 
 const getTodayISO = () => {
   const now = new Date()
@@ -86,6 +89,7 @@ function getAiTabOptions(route: { key: string; name: string; params?: object | u
 }
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const lastHomeTapRef = React.useRef(0)
   const focusedRoute = state.routes[state.index]
   const aiIndex = state.routes.findIndex((route) => route.name === 'AI')
   const aiRoute = aiIndex >= 0 ? state.routes[aiIndex] : null
@@ -121,6 +125,15 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       if (!isFocused) {
         navigation.navigate(route.name)
       }
+      return
+    }
+
+    if (route.name === 'Home' && isFocused && !event.defaultPrevented) {
+      const now = Date.now()
+      if (now - lastHomeTapRef.current <= HOME_DOUBLE_TAP_MS) {
+        bus.emit('home:scroll-to-top')
+      }
+      lastHomeTapRef.current = now
       return
     }
 
@@ -326,19 +339,18 @@ const S = StyleSheet.create({
   aiTabButton: {
     position: 'absolute',
     top: 0,
-    bottom: 0,
     left: '50%',
-    marginLeft: -72,
-    width: 144,
+    marginLeft: -(AI_TOUCH_W / 2),
+    width: AI_TOUCH_W,
+    height: AI_TOUCH_H,
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     overflow: 'visible',
   },
   aiIconWrap: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -56,
+    marginTop: 25,
   },
   tabLabel: {
     ...ts('body3'),

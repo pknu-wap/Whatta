@@ -27,6 +27,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated'
+import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
 import DownIcon from '@/assets/icons/down.svg'
@@ -118,6 +119,11 @@ const STARTER_PROMPTS = [
 
 const EMPTY_GUIDE = '자유 대화는 지원하지 않아요. 일정이나 할 일을 생성할 문장을 입력해 주세요.'
 const AI_FREE_COUNT_STORE_KEY = 'whatta_ai_free_count'
+const INITIAL_ASSISTANT_MESSAGE: ChatMessage = {
+  id: makeId('assistant'),
+  role: 'assistant',
+  text: '안녕하세요.\n무엇을 도와드릴까요?',
+}
 const LOADING_STEPS = [
   '요청을 이해하고 있어요...',
   '정보를 정리하고 있어요...',
@@ -510,13 +516,7 @@ export default function AiChatScreen({ navigation }: Props) {
     [],
   )
   const [freeCountHydrated, setFreeCountHydrated] = React.useState(false)
-  const [messages, setMessages] = React.useState<ChatMessage[]>([
-    {
-      id: makeId('assistant'),
-      role: 'assistant',
-      text: '안녕하세요.\n무엇을 도와드릴까요?',
-    },
-  ])
+  const [messages, setMessages] = React.useState<ChatMessage[]>([INITIAL_ASSISTANT_MESSAGE])
   const [hasStartedChat, setHasStartedChat] = React.useState(false)
   const [input, setInput] = React.useState('')
   const [draftGroups, setDraftGroups] = React.useState<DraftGroup[]>([])
@@ -531,6 +531,7 @@ export default function AiChatScreen({ navigation }: Props) {
   const [attachedImageName, setAttachedImageName] = React.useState('')
   const [selectedStarterPrompt, setSelectedStarterPrompt] = React.useState<string | null>(null)
   const [isStarterPreviewActive, setIsStarterPreviewActive] = React.useState(false)
+  const [inputFocusSignal, setInputFocusSignal] = React.useState(0)
   const [usageDayKey, setUsageDayKey] = React.useState(() => getDayKey())
   const [serverFreeCount, setServerFreeCount] = React.useState<number | null>(null)
   const [deletedDraftToast, setDeletedDraftToast] = React.useState<DeletedDraftToast | null>(null)
@@ -540,6 +541,30 @@ export default function AiChatScreen({ navigation }: Props) {
   const effectiveInput = isStarterPreviewActive ? starterPreviewText : input
   const plusActive = attachmentMenuOpen || !!attachedImage
   const freeRemainingCount = serverFreeCount
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setMessages([{ ...INITIAL_ASSISTANT_MESSAGE, id: makeId('assistant') }])
+      setHasStartedChat(false)
+      setInput('')
+      setDraftGroups([])
+      setTimeline([])
+      setEditingDraftId(null)
+      setLoading(false)
+      setKeyboardHeight(0)
+      setAttachmentMenuOpen(false)
+      setAttachedImage(null)
+      setAttachedImageName('')
+      setImageUploading(false)
+      setPreviewImageUri(null)
+      setSelectedStarterPrompt(null)
+      setIsStarterPreviewActive(false)
+      setInputFocusSignal(0)
+      setDeletedDraftToast(null)
+      setLoadingStepIndex(0)
+      scrollRef.current?.scrollTo({ y: 0, animated: false })
+    }, []),
+  )
 
   React.useEffect(() => {
     let mounted = true
@@ -1143,11 +1168,14 @@ export default function AiChatScreen({ navigation }: Props) {
                         setSelectedStarterPrompt(null)
                         setIsStarterPreviewActive(false)
                         setInput('')
+                        setInputFocusSignal((prev) => prev + 1)
                         return
                       }
                       setSelectedStarterPrompt(prompt.label)
                       setInput('')
                       setIsStarterPreviewActive(true)
+                      setAttachmentMenuOpen(false)
+                      setInputFocusSignal((prev) => prev + 1)
                     }}
                   >
                     <View
@@ -1206,6 +1234,7 @@ export default function AiChatScreen({ navigation }: Props) {
               value={input}
               previewText={starterPreviewText}
               previewActive={isStarterPreviewActive}
+              focusSignal={inputFocusSignal}
               plusActive={plusActive}
               attachmentMenuOpen={attachmentMenuOpen}
               imagePreviewUri={attachedImage?.url ?? null}

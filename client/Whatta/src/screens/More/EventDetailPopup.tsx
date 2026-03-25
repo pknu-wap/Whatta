@@ -51,6 +51,7 @@ const MemoCalendar = memo(
 )
 
 const H_PAD = 18
+const DETAIL_POPUP_LIFT = 49
 
 type Anchor = { x: number; y: number; w: number; h: number }
 
@@ -88,7 +89,10 @@ export default function EventDetailPopup({
   const MARGIN = 10
   const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
   const bottomSheetInset =
-    insets.bottom + MARGIN + (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
+    insets.bottom +
+    MARGIN +
+    DETAIL_POPUP_LIFT +
+    (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
 
   const scrollRef = useRef<ScrollView>(null)
   const { width: W, height: H } = Dimensions.get('window')
@@ -611,6 +615,39 @@ export default function EventDetailPopup({
   const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
   const [taskDueTimeOn, setTaskDueTimeOn] = useState(false)
   const [taskDueTime, setTaskDueTime] = useState<Date>(new Date())
+
+  const applyDefaultTimesPreservingRange = React.useCallback(() => {
+    const now = new Date()
+    const snapMin = now.getMinutes() - (now.getMinutes() % 5)
+
+    const newStart = new Date(start)
+    newStart.setHours(now.getHours(), snapMin, 0, 0)
+    setStart(newStart)
+
+    if (createTypeSelected === 'task') {
+      const newEnd = new Date(newStart)
+      newEnd.setHours((newStart.getHours() + 1) % 24, newStart.getMinutes(), 0, 0)
+      const wrappedPastMidnight = newEnd.getTime() < newStart.getTime()
+      setEnd(newEnd)
+      setInvalidEndTime(wrappedPastMidnight)
+      setInvalidEndPreview(wrappedPastMidnight ? newEnd : null)
+      return
+    }
+
+    const isSameDate = ymdLocal(start) === ymdLocal(end)
+    if (isSameDate) {
+      const autoEnd = buildAutoEndForEvent(newStart, false)
+      setEnd(autoEnd)
+    } else {
+      const newEnd = new Date(end)
+      const endHour = now.getHours() === 23 ? 23 : now.getHours() + 1
+      newEnd.setHours(endHour, snapMin, 0, 0)
+      setEnd(newEnd)
+    }
+
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+  }, [createTypeSelected, end, start])
 
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
   const saveNormal = async (opts?: { clearRepeat?: boolean }) => {
@@ -1775,30 +1812,7 @@ export default function EventDetailPopup({
                         }
                         setTimeOn(next)
                         if (next) {
-                          const now = new Date()
-                          const snapMin = now.getMinutes() - (now.getMinutes() % 5)
-
-                          const newStart = new Date(start)
-                          newStart.setHours(now.getHours())
-                          newStart.setMinutes(snapMin)
-                          newStart.setSeconds(0)
-                          newStart.setMilliseconds(0)
-                          setStart(newStart)
-
-                          const newEnd = new Date(newStart)
-                          if (createTypeSelected === 'task') {
-                            newEnd.setHours((newStart.getHours() + 1) % 24, newStart.getMinutes(), 0, 0)
-                            const wrappedPastMidnight = newEnd.getTime() < newStart.getTime()
-                            setInvalidEndTime(wrappedPastMidnight)
-                            setInvalidEndPreview(wrappedPastMidnight ? newEnd : null)
-                          } else {
-                            const allowNextDay = ymdLocal(start) !== ymdLocal(end)
-                            const autoEnd = buildAutoEndForEvent(newStart, allowNextDay)
-                            newEnd.setTime(autoEnd.getTime())
-                            setInvalidEndTime(false)
-                            setInvalidEndPreview(null)
-                          }
-                          setEnd(newEnd)
+                          applyDefaultTimesPreservingRange()
                         } else {
                           setInvalidEndTime(false)
                           setInvalidEndPreview(null)
@@ -2274,18 +2288,7 @@ export default function EventDetailPopup({
                       onChange={(v) => {
                         setTimeOn(v)
                         if (v) {
-                          const now = new Date()
-                          const snapMin = now.getMinutes() - (now.getMinutes() % 5)
-
-                          // 날짜 유지 → 기존 start의 날짜 사용
-                          const newStart = new Date(start)
-                          newStart.setHours(now.getHours())
-                          newStart.setMinutes(snapMin)
-                          setStart(newStart)
-
-                          const allowNextDay = ymdLocal(start) !== ymdLocal(end)
-                          const newEnd = buildAutoEndForEvent(newStart, allowNextDay)
-                          setEnd(newEnd)
+                          applyDefaultTimesPreservingRange()
                         } else {
                           setOpenTime(false)
                           // 알림 관련 상태 초기화
