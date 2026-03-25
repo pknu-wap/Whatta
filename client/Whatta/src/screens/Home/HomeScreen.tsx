@@ -46,6 +46,7 @@ const SEOUL_COORDS = {
 const HEADLINE_HOLD_MS = 3000
 const HEADLINE_TRANSITION_MS = 380
 const HEADLINE_TOTAL_MS = HEADLINE_HOLD_MS + HEADLINE_TRANSITION_MS
+const SHOW_PROJECT_SCHEDULE_SECTION = false
 let headlineTickerOriginMs = Date.now()
 
 type HeadlineTickerProps = {
@@ -510,21 +511,23 @@ export default function HomeScreen() {
               onToggleTask={handleToggleTaskBriefingItem}
             />
 
-            <View style={S.projectSection}>
-              <Text style={S.projectSectionTitle}>프로젝트 스케줄</Text>
+            {SHOW_PROJECT_SCHEDULE_SECTION ? (
+              <View style={S.projectSection}>
+                <Text style={S.projectSectionTitle}>프로젝트 스케줄</Text>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={S.projectSliderContent}
-              >
-                {[0, 1, 2].map((item) => (
-                  <View key={item} style={S.projectCard}>
-                    <Text style={S.projectCardText}>준비중</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={S.projectSliderContent}
+                >
+                  {[0, 1, 2].map((item) => (
+                    <View key={item} style={S.projectCard}>
+                      <Text style={S.projectCardText}>준비중</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
           </View>
         </ScrollView>
       </View>
@@ -558,6 +561,7 @@ const S = StyleSheet.create({
   },
   headerMessageBlock: {
     marginTop: 4,
+    marginBottom: 10,
     width: '100%',
   },
   brandRow: {

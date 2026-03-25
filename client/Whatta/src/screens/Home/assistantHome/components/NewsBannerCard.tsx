@@ -21,7 +21,7 @@ type Props = {
 
 const CARD_WIDTH = 358
 const CARD_GAP = 10
-const AUTO_SCROLL_MS = 3000
+const AUTO_SCROLL_MS = 5000
 
 const slideThemes: Record<
   string,

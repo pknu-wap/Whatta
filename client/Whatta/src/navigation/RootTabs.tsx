@@ -287,7 +287,7 @@ export default function RootTabs() {
       <Modal
         visible={aiModalVisible}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={handleAiClose}
       >
         <View style={S.aiModalOverlay}>

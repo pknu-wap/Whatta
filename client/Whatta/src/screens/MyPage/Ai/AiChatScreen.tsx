@@ -79,6 +79,8 @@ type DraftGroup = {
   items: DraftItem[]
 }
 
+const SHOW_MORE_CHAT_TAG = false
+
 type TimelineItem =
   | { id: string; type: 'message'; messageId: string }
   | { id: string; type: 'draft-group'; groupId: string }
@@ -1106,9 +1108,11 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
                         </Text>
                       </View>
                       <View style={S.headerRight}>
-                        <View style={S.headerTag}>
-                          <Text style={S.headerTagText}>더 대화하기</Text>
-                        </View>
+                        {SHOW_MORE_CHAT_TAG ? (
+                          <View style={S.headerTag}>
+                            <Text style={S.headerTagText}>더 대화하기</Text>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   </View>
@@ -1125,9 +1129,11 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
                     </Text>
                   </View>
                   <View style={S.headerRight}>
-                    <View style={S.headerTag}>
-                      <Text style={S.headerTagText}>더 대화하기</Text>
-                    </View>
+                    {SHOW_MORE_CHAT_TAG ? (
+                      <View style={S.headerTag}>
+                        <Text style={S.headerTagText}>더 대화하기</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               )}
