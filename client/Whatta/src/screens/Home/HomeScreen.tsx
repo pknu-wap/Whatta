@@ -31,7 +31,7 @@ import useCurrentLocation from '@/hooks/useCurrentLocation'
 import useHomeWeather from '@/hooks/useHomeWeather'
 import useToday from '@/hooks/useToday'
 import { bus } from '@/lib/eventBus'
-import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import { calendarViewTransition, currentCalendarView } from '@/providers/CalendarViewProvider'
 import type { AssistantWeatherCard } from '@/screens/Home/assistantHome/types'
 import type {
   AssistantBriefing,
@@ -47,6 +47,11 @@ const HEADLINE_HOLD_MS = 3000
 const HEADLINE_TRANSITION_MS = 380
 const HEADLINE_TOTAL_MS = HEADLINE_HOLD_MS + HEADLINE_TRANSITION_MS
 let headlineTickerOriginMs = Date.now()
+
+type HeadlineTickerProps = {
+  headlines: string[]
+  fallbackHeadline: string
+}
 
 const DEFAULT_WEATHER_CARD: AssistantWeatherCard = {
   locationLabel: '지금 있는 곳 기준',
@@ -230,11 +235,55 @@ function buildTaskBriefing(
   }
 }
 
+function HeadlineTicker({ headlines, fallbackHeadline }: HeadlineTickerProps) {
+  const [tickerNow, setTickerNow] = useState(Date.now())
+
+  useEffect(() => {
+    if (headlines.length <= 1) return
+
+    const timer = setInterval(() => {
+      setTickerNow(Date.now())
+    }, 50)
+
+    return () => clearInterval(timer)
+  }, [headlines.length])
+
+  const elapsedMs = Math.max(0, tickerNow - headlineTickerOriginMs)
+  const cycleIndex =
+    headlines.length > 1 ? Math.floor(elapsedMs / HEADLINE_TOTAL_MS) % headlines.length : 0
+  const phaseMs = headlines.length > 1 ? elapsedMs % HEADLINE_TOTAL_MS : 0
+  const transitionProgress =
+    phaseMs <= HEADLINE_HOLD_MS
+      ? 0
+      : Math.min(1, (phaseMs - HEADLINE_HOLD_MS) / HEADLINE_TRANSITION_MS)
+
+  const currentHeadline = headlines[cycleIndex] ?? fallbackHeadline
+  const nextHeadline = headlines[(cycleIndex + 1) % headlines.length] ?? fallbackHeadline
+  const currentHeadlineStyle = {
+    transform: [{ translateY: -52 * transitionProgress }],
+    opacity: 1 - transitionProgress,
+  }
+  const nextHeadlineStyle = {
+    transform: [{ translateY: 52 * (1 - transitionProgress) }],
+    opacity: transitionProgress,
+  }
+
+  return (
+    <View style={S.titleTickerWrap}>
+      <View style={[S.titleTickerText, currentHeadlineStyle]}>
+        <Text style={S.title}>{currentHeadline}</Text>
+      </View>
+      <View style={[S.titleTickerText, nextHeadlineStyle]}>
+        <Text style={S.title}>{nextHeadline}</Text>
+      </View>
+    </View>
+  )
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [isMypageActive, setIsMypageActive] = useState(false)
   const [isTransportActive, setIsTransportActive] = useState(false)
-  const [tickerNow, setTickerNow] = useState(Date.now())
   const todayLabel = useToday('YYYY.MM.DD (dd)')
   const [briefing, setBriefing] = useState<AssistantBriefing>(() => createEmptyBriefing(todayLabel))
   const [taskBriefing, setTaskBriefing] = useState<AssistantTaskBriefing>(() =>
@@ -332,42 +381,6 @@ export default function HomeScreen() {
     [permissionDenied, weatherCard, weatherError, weatherLoading],
   )
 
-  useEffect(() => {
-    if (rotatingHeadlines.length <= 1) return
-
-    const timer = setInterval(() => {
-      setTickerNow(Date.now())
-    }, 50)
-
-    return () => clearInterval(timer)
-  }, [rotatingHeadlines.length])
-
-  const elapsedMs = Math.max(0, tickerNow - headlineTickerOriginMs)
-  const cycleIndex =
-    rotatingHeadlines.length > 1
-      ? Math.floor(elapsedMs / HEADLINE_TOTAL_MS) % rotatingHeadlines.length
-      : 0
-  const phaseMs =
-    rotatingHeadlines.length > 1
-      ? elapsedMs % HEADLINE_TOTAL_MS
-      : 0
-  const transitionProgress =
-    phaseMs <= HEADLINE_HOLD_MS
-      ? 0
-      : Math.min(1, (phaseMs - HEADLINE_HOLD_MS) / HEADLINE_TRANSITION_MS)
-
-  const currentHeadline = rotatingHeadlines[cycleIndex] ?? weatherHeadline
-  const nextHeadline =
-    rotatingHeadlines[(cycleIndex + 1) % rotatingHeadlines.length] ?? weatherHeadline
-  const currentHeadlineStyle = {
-    transform: [{ translateY: -52 * transitionProgress }],
-    opacity: 1 - transitionProgress,
-  }
-  const nextHeadlineStyle = {
-    transform: [{ translateY: 52 * (1 - transitionProgress) }],
-    opacity: transitionProgress,
-  }
-
   const weatherCardToRender = weatherCard ?? DEFAULT_WEATHER_CARD
   const handlePressTrafficAlerts = () => {
     navigation.navigate('TrafficAlerts')
@@ -380,7 +393,10 @@ export default function HomeScreen() {
   const handlePressBriefing = () => {
     const todayIso = getLocalDateIso()
 
+    calendarViewTransition.markNextEntranceSuppressed()
     currentCalendarView.set('day')
+    bus.emit('filter:popup', false)
+    bus.emit('calendar:reset-view', { date: todayIso, mode: 'day' })
     ;(navigation as any).navigate('Calendar')
 
     setTimeout(() => {
@@ -402,6 +418,14 @@ export default function HomeScreen() {
 
     try {
       await updateTask(taskId, { completed: nextCompleted })
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: {
+          id: taskId,
+          isTask: true,
+          isCompleted: nextCompleted,
+        },
+      })
     } catch (error) {
       console.warn('task briefing toggle error', error)
       setTaskBriefing((prev) => ({
@@ -461,14 +485,7 @@ export default function HomeScreen() {
               </View>
 
               <View style={S.headerMessageBlock}>
-                <View style={S.titleTickerWrap}>
-                  <View style={[S.titleTickerText, currentHeadlineStyle]}>
-                    <Text style={S.title}>{currentHeadline}</Text>
-                  </View>
-                  <View style={[S.titleTickerText, nextHeadlineStyle]}>
-                    <Text style={S.title}>{nextHeadline}</Text>
-                  </View>
-                </View>
+                <HeadlineTicker headlines={rotatingHeadlines} fallbackHeadline={weatherHeadline} />
               </View>
             </View>
 

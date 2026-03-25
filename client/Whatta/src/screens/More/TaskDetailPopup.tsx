@@ -101,7 +101,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const bottomSheetInset =
     insets.bottom + MARGIN + (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
   const SHEET_W = Math.min(W - MARGIN, 350)
-  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H

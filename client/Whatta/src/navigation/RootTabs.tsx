@@ -32,6 +32,7 @@ const TAB_ACTIVE_COLOR = '#464A4D'
 const AI_BUBBLE_W = 112
 const AI_BUBBLE_H = 110
 const AI_BUBBLE_RISE = 10
+const AI_TOUCH_TOP = 56
 const AI_ICON_W = 130
 const AI_ICON_H = 68
 const TAB_BAR_SHADOW_STYLE = {
@@ -61,6 +62,7 @@ function AiTabButton({ accessibilityState, onPress, onLongPress }: BottomTabBarB
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel="AI"
       accessibilityState={accessibilityState}
       onPress={onPress}
       onLongPress={onLongPress}
@@ -85,11 +87,54 @@ function getAiTabOptions(route: { key: string; name: string; params?: object | u
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const focusedRoute = state.routes[state.index]
+  const aiIndex = state.routes.findIndex((route) => route.name === 'AI')
+  const aiRoute = aiIndex >= 0 ? state.routes[aiIndex] : null
+  const aiFocused = aiIndex >= 0 && state.index === aiIndex
   const focusedStyle = descriptors[focusedRoute.key]?.options.tabBarStyle as
     | { display?: 'none' }
     | undefined
 
   if (focusedStyle?.display === 'none') return null
+
+  const handleTabPress = (route: (typeof state.routes)[number], index: number) => {
+    const isFocused = state.index === index
+    const event = navigation.emit({
+      type: 'tabPress',
+      target: route.key,
+      canPreventDefault: true,
+    })
+
+    if (route.name === 'Calendar' && !event.defaultPrevented) {
+      const todayISO = getTodayISO()
+      const launchMode = calendarTabLaunchView.get()
+
+      if (!isFocused) {
+        calendarViewTransition.markNextEntranceSuppressed()
+      }
+
+      currentCalendarView.set(launchMode)
+      bus.emit('filter:popup', false)
+      bus.emit('calendar:reset-view', { date: todayISO, mode: launchMode })
+      bus.emit('calendar:state', { date: todayISO, mode: launchMode })
+      bus.emit('calendar:set-date', todayISO)
+
+      if (!isFocused) {
+        navigation.navigate(route.name)
+      }
+      return
+    }
+
+    if (!isFocused && !event.defaultPrevented) {
+      navigation.navigate(route.name)
+    }
+  }
+
+  const handleTabLongPress = (route: (typeof state.routes)[number]) => {
+    navigation.emit({
+      type: 'tabLongPress',
+      target: route.key,
+    })
+  }
 
   return (
     <View style={S.shell} pointerEvents="box-none">
@@ -104,57 +149,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           const isFocused = state.index === index
           const { options } = descriptors[route.key]
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            })
-
-            if (route.name === 'Calendar' && !event.defaultPrevented) {
-              const todayISO = getTodayISO()
-              const launchMode = calendarTabLaunchView.get()
-
-              calendarViewTransition.markNextEntranceSuppressed()
-              currentCalendarView.set(launchMode)
-              bus.emit('filter:popup', false)
-              bus.emit('calendar:reset-view', { date: todayISO, mode: launchMode })
-              bus.emit('calendar:state', { date: todayISO, mode: launchMode })
-              bus.emit('calendar:set-date', todayISO)
-
-              if (!isFocused) {
-                navigation.navigate(route.name)
-              }
-              return
-            }
-
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name)
-            }
-          }
-
-          const onLongPress = () => {
-            navigation.emit({
-              type: 'tabLongPress',
-              target: route.key,
-            })
-          }
-
           if (route.name === 'AI') {
-            return (
-              <Pressable
-                key={route.key}
-                accessibilityRole="button"
-                accessibilityState={isFocused ? { selected: true } : {}}
-                onPress={onPress}
-                onLongPress={onLongPress}
-                style={S.aiTabButton}
-              >
-                <View style={S.aiIconWrap}>
-                  <AiIcon width={AI_ICON_W} height={AI_ICON_H} />
-                </View>
-              </Pressable>
-            )
+            return <View key={route.key} style={S.aiSlot} />
           }
 
           const label =
@@ -169,8 +165,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               key={route.key}
               accessibilityRole="button"
               accessibilityState={isFocused ? { selected: true } : {}}
-              onPress={onPress}
-              onLongPress={onLongPress}
+              onPress={() => handleTabPress(route, index)}
+              onLongPress={() => handleTabLongPress(route)}
               style={S.sideTabButton}
             >
               <View style={S.sideTabInner}>
@@ -199,6 +195,21 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           )
         })}
       </View>
+
+      {aiRoute ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="AI"
+          accessibilityState={aiFocused ? { selected: true } : {}}
+          onPress={() => handleTabPress(aiRoute, aiIndex)}
+          onLongPress={() => handleTabLongPress(aiRoute)}
+          style={S.aiTabButton}
+        >
+          <View style={S.aiIconWrap}>
+            <AiIcon width={AI_ICON_W} height={AI_ICON_H} />
+          </View>
+        </Pressable>
+      ) : null}
     </View>
   )
 }
@@ -246,7 +257,7 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: TAB_BAR_H + AI_BUBBLE_RISE,
+    height: TAB_BAR_H + AI_BUBBLE_RISE + AI_TOUCH_TOP,
   },
   bgWrap: {
     position: 'absolute',
@@ -303,6 +314,9 @@ const S = StyleSheet.create({
   sideTabButton: {
     flex: 1,
   },
+  aiSlot: {
+    flex: 1,
+  },
   sideTabInner: {
     flex: 1,
     alignItems: 'center',
@@ -310,7 +324,12 @@ const S = StyleSheet.create({
     paddingTop: 9,
   },
   aiTabButton: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    marginLeft: -72,
+    width: 144,
     alignItems: 'center',
     justifyContent: 'flex-start',
     overflow: 'visible',

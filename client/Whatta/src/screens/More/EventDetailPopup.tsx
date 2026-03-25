@@ -93,7 +93,7 @@ export default function EventDetailPopup({
   const scrollRef = useRef<ScrollView>(null)
   const { width: W, height: H } = Dimensions.get('window')
   const SHEET_W = Math.min(W - MARGIN, 350)
-  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H

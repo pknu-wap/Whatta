@@ -316,7 +316,7 @@ export function mapWeatherApiToCard(data: HomeWeatherApiData): AssistantWeatherC
 }
 
 export default function useHomeWeather() {
-  const [data, setData] = useState<HomeWeatherApiData | null>(weatherCache.data)
+  const [data, setData] = useState<HomeWeatherApiData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

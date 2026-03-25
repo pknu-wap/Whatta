@@ -63,35 +63,39 @@ export default function TaskBriefingCard({
                     <TaskCheckbox checked={item.completed} />
                   </Pressable>
                 )}
-                trailingAccessory={<DueLabel label={item.dueLabel} />}
+                trailingAccessory={item.dueLabel ? <DueLabel label={item.dueLabel} /> : undefined}
                 isLast={index === briefing.tasks.length - 1}
                 compact
               />
             ))}
           </View>
 
-          <BriefingSectionHeader marginTop={24} title="시간별 할 일" />
+          {timelineItems.length > 0 ? (
+            <>
+              <BriefingSectionHeader marginTop={24} title="시간별 할 일" />
 
-          <View>
-            {timelineItems.map((item, index) => (
-              <BriefingTimelineRow
-                key={item.id}
-                title={item.title}
-                timeRange={item.timeRange}
-                state={getTimelineState(item.timeRange)}
-                showConnector={index !== timelineItems.length - 1}
-                beforeTitleAccessory={(
-                  <Pressable hitSlop={8} onPress={() => onToggleTask?.(item.id, !item.completed)}>
-                    <TaskCheckbox checked={item.completed} />
-                  </Pressable>
-                )}
-                trailingAccessory={<DueLabel label={item.dueLabel} />}
-                timeTextWidth={86}
-                timeTextMarginRight={2}
-                accessoryGap={8}
-              />
-            ))}
-          </View>
+              <View>
+                {timelineItems.map((item, index) => (
+                  <BriefingTimelineRow
+                    key={item.id}
+                    title={item.title}
+                    timeRange={item.timeRange}
+                    state={getTimelineState(item.timeRange)}
+                    showConnector={index !== timelineItems.length - 1}
+                    beforeTitleAccessory={(
+                      <Pressable hitSlop={8} onPress={() => onToggleTask?.(item.id, !item.completed)}>
+                        <TaskCheckbox checked={item.completed} />
+                      </Pressable>
+                    )}
+                    trailingAccessory={item.dueLabel ? <DueLabel label={item.dueLabel} /> : undefined}
+                    timeTextWidth={86}
+                    timeTextMarginRight={2}
+                    accessoryGap={8}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
         </View>
       )}
     </BriefingCardFrame>

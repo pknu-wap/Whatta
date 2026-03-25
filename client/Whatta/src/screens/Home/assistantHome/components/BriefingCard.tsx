@@ -46,19 +46,23 @@ export default function BriefingCard({ briefing, onPressScheduleArea }: Props) {
             ))}
           </View>
 
-          <BriefingSectionHeader />
+          {timelineItems.length > 0 ? (
+            <>
+              <BriefingSectionHeader />
 
-          <View>
-            {timelineItems.map((item, index) => (
-              <BriefingTimelineRow
-                key={item.id}
-                title={item.title}
-                timeRange={item.timeRange}
-                state={getTimelineState(item.timeRange)}
-                showConnector={index !== timelineItems.length - 1}
-              />
-            ))}
-          </View>
+              <View>
+                {timelineItems.map((item, index) => (
+                  <BriefingTimelineRow
+                    key={item.id}
+                    title={item.title}
+                    timeRange={item.timeRange}
+                    state={getTimelineState(item.timeRange)}
+                    showConnector={index !== timelineItems.length - 1}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
         </View>
       )}
     </BriefingCardFrame>

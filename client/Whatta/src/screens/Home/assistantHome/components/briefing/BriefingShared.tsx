@@ -63,8 +63,14 @@ export function getTimelineState(timeRange: string): TimelineState {
   const now = new Date()
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
 
-  if (nowMinutes > startMinutes && nowMinutes < endMinutes) return 'current'
-  if (nowMinutes < startMinutes && nowMinutes < endMinutes) return 'upcoming'
+  if (startMinutes === endMinutes) {
+    if (nowMinutes === startMinutes) return 'current'
+    if (nowMinutes < startMinutes) return 'upcoming'
+    return 'past'
+  }
+
+  if (nowMinutes >= startMinutes && nowMinutes < endMinutes) return 'current'
+  if (nowMinutes < startMinutes) return 'upcoming'
   return 'past'
 }
 
