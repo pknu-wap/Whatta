@@ -4,8 +4,8 @@ import {
   type BottomTabBarButtonProps,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs'
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import AiIcon from '@/assets/icons/ai.svg'
 import HomeIcon from '@/assets/icons/home_no.svg'
@@ -21,8 +21,8 @@ import {
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import HomeScreen from '@/screens/Home/HomeScreen'
-import MyPageStack from '@/navigation/MyPageStack'
 import CalendarScreen from '@/screens/Calender/CalendarScreen'
+import { AiChatView } from '@/screens/MyPage/Ai/AiChatScreen'
 import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 const Tab = createBottomTabNavigator()
@@ -44,9 +44,6 @@ const TAB_BAR_SHADOW_STYLE = {
   shadowOffset: { width: 0, height: -6 } as const,
   elevation: 18,
 }
-const TAB_BAR_HIDDEN_STYLE = {
-  display: 'none' as const,
-}
 const HOME_DOUBLE_TAP_MS = 280
 
 const getTodayISO = () => {
@@ -57,8 +54,8 @@ const getTodayISO = () => {
   return `${year}-${month}-${day}`
 }
 
-function AiTabStack() {
-  return <MyPageStack initialRouteName="AiChat" />
+function AiTabPlaceholder() {
+  return <View style={S.aiPlaceholder} />
 }
 
 function AiTabButton({ accessibilityState, onPress, onLongPress }: BottomTabBarButtonProps) {
@@ -78,22 +75,28 @@ function AiTabButton({ accessibilityState, onPress, onLongPress }: BottomTabBarB
   )
 }
 
-function getAiTabOptions(route: { key: string; name: string; params?: object | undefined }) {
-  const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'AiChat'
-
+function getAiTabOptions() {
   return {
     tabBarLabel: '',
     tabBarButton: (props: BottomTabBarButtonProps) => <AiTabButton {...props} />,
-    tabBarStyle: focusedRouteName === 'AiChat' ? TAB_BAR_HIDDEN_STYLE : undefined,
   }
 }
 
-function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+function CustomTabBar({
+  state,
+  descriptors,
+  navigation,
+  aiModalVisible,
+  onPressAi,
+}: BottomTabBarProps & {
+  aiModalVisible: boolean
+  onPressAi: () => void
+}) {
   const lastHomeTapRef = React.useRef(0)
   const focusedRoute = state.routes[state.index]
   const aiIndex = state.routes.findIndex((route) => route.name === 'AI')
   const aiRoute = aiIndex >= 0 ? state.routes[aiIndex] : null
-  const aiFocused = aiIndex >= 0 && state.index === aiIndex
+  const aiFocused = aiModalVisible || (aiIndex >= 0 && state.index === aiIndex)
   const focusedStyle = descriptors[focusedRoute.key]?.options.tabBarStyle as
     | { display?: 'none' }
     | undefined
@@ -125,6 +128,11 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       if (!isFocused) {
         navigation.navigate(route.name)
       }
+      return
+    }
+
+    if (route.name === 'AI' && !event.defaultPrevented) {
+      onPressAi()
       return
     }
 
@@ -228,39 +236,74 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 }
 
 export default function RootTabs() {
+  const insets = useSafeAreaInsets()
+  const [aiModalVisible, setAiModalVisible] = React.useState(false)
+
+  const handleAiClose = React.useCallback(() => {
+    setAiModalVisible(false)
+  }, [])
+
   return (
-    <Tab.Navigator
-      initialRouteName="Home"
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: {
-          backgroundColor: 'transparent',
-        },
-      }}
-      tabBar={(props) => <CustomTabBar {...props} />}
-    >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          tabBarLabel: 'HOME',
+    <>
+      <Tab.Navigator
+        initialRouteName="Home"
+        screenOptions={{
+          headerShown: false,
+          sceneStyle: {
+            backgroundColor: 'transparent',
+          },
         }}
-      />
+        tabBar={(props) => (
+          <CustomTabBar
+            {...props}
+            aiModalVisible={aiModalVisible}
+            onPressAi={() => setAiModalVisible(true)}
+          />
+        )}
+      >
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{
+            tabBarLabel: 'HOME',
+          }}
+        />
 
-      <Tab.Screen
-        name="AI"
-        component={AiTabStack}
-        options={({ route }) => getAiTabOptions(route)}
-      />
+        <Tab.Screen
+          name="AI"
+          component={AiTabPlaceholder}
+          options={getAiTabOptions}
+        />
 
-      <Tab.Screen
-        name="Calendar"
-        component={CalendarScreen}
-        options={{
-          tabBarLabel: '캘린더',
-        }}
-      />
-    </Tab.Navigator>
+        <Tab.Screen
+          name="Calendar"
+          component={CalendarScreen}
+          options={{
+            tabBarLabel: '캘린더',
+          }}
+        />
+      </Tab.Navigator>
+
+      <Modal
+        visible={aiModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={handleAiClose}
+      >
+        <View style={S.aiModalOverlay}>
+          <View
+            style={[
+              S.aiModalSheet,
+              {
+                marginTop: Math.max(insets.top + 4, 14),
+              },
+            ]}
+          >
+            <AiChatView onClose={handleAiClose} modal />
+          </View>
+        </View>
+      </Modal>
+    </>
   )
 }
 
@@ -351,6 +394,22 @@ const S = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 25,
+  },
+  aiPlaceholder: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  aiModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(11,14,20,0.04)',
+  },
+  aiModalSheet: {
+    flex: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   tabLabel: {
     ...ts('body3'),

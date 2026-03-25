@@ -373,7 +373,11 @@ export default function EventDetailPopup({
     return days.length > 0 && !days.includes(start.getDay())
   }
 
-  const emitSavedEvent = (saved: any, fallback: { startDate: string; endDate: string }, colorHex: string) => {
+  const emitSavedEvent = (
+    saved: any,
+    fallback: { startDate: string; endDate: string } & Record<string, any>,
+    colorHex: string,
+  ) => {
     const enriched = {
       ...(saved ?? {}),
       colorKey: colorHex,
@@ -409,12 +413,14 @@ export default function EventDetailPopup({
 
     const deltaDays = diffDays(startDateIso, repeatStartDate)
 
-    const singlePayload = {
+    const singlePayload: { startDate: string; endDate: string } & Record<string, any> = {
       ...payload,
+      startDate: startDateIso,
+      endDate: String(payload.endDate),
       repeat: null,
     }
 
-    const repeatPayload = {
+    const repeatPayload: { startDate: string; endDate: string } & Record<string, any> = {
       ...payload,
       startDate: repeatStartDate,
       endDate: shiftYmd(startDateIso, deltaDays + durationDays),

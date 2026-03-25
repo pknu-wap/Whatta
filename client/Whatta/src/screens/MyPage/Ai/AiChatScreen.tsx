@@ -17,10 +17,12 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { LinearGradient } from 'expo-linear-gradient'
 import Animated, {
   Easing,
   interpolateColor,
+  runOnJS,
   type SharedValue,
   useAnimatedStyle,
   useSharedValue,
@@ -56,6 +58,10 @@ import {
 import { requestSignedUpload, uploadToSignedUrl } from '@/api/upload'
 
 type Props = NativeStackScreenProps<MyPageStackList, 'AiChat'>
+type AiChatViewProps = {
+  onClose: () => void
+  modal?: boolean
+}
 
 type ChatRole = 'user' | 'assistant' | 'system'
 
@@ -505,7 +511,11 @@ function LoadingChar({
   )
 }
 
-export default function AiChatScreen({ navigation }: Props) {
+export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
+  const closeY = SCREEN_HEIGHT
+  const collapsedY = Math.min(SCREEN_HEIGHT * 0.42, 360)
+  const translateY = useSharedValue(0)
+  const gestureStartY = useSharedValue(0)
   const scrollRef = React.useRef<ScrollView | null>(null)
   const editingDraftOpenRef = React.useRef(false)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
@@ -1013,49 +1023,134 @@ export default function AiChatScreen({ navigation }: Props) {
     [attachedImage, defaultScheduleColor, effectiveInput, imageUploading, labels, pushMessage],
   )
 
-  return (
-    <LinearGradient colors={['#B04FFF', '#5273FF']} style={S.gradient}>
-      <SafeAreaView style={S.safeArea} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          style={S.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <View style={S.header}>
-            <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
-              <XIcon width={20} height={20} color={colors.icon.default} />
-            </Pressable>
-            <View style={S.headerCenter}>
-              <Text style={S.headerCaption}>오늘 남은 무료 생성</Text>
-              <Text style={S.headerCount}>
-                {typeof freeRemainingCount === 'number' ? `${freeRemainingCount}회` : '무제한'}
-              </Text>
-            </View>
-            <View style={S.headerRight}>
-              <View style={S.headerTag}>
-                <Text style={S.headerTagText}>더 대화하기</Text>
-              </View>
-            </View>
-          </View>
+  React.useEffect(() => {
+    if (!modal) return
+    translateY.value = 36
+    translateY.value = withTiming(0, { duration: 260 })
+  }, [modal, translateY])
 
-          <ScrollView
-            ref={scrollRef}
-            style={S.flex}
-            contentContainerStyle={[
-              S.scrollContent,
-              hasStartedChat && S.scrollContentStarted,
-              { paddingBottom: 96 },
-              hasStartedChat && keyboardHeight > 0 && { paddingBottom: keyboardHeight * 0.25 },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-            onScroll={(event) => {
-              const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
-              const distanceFromBottom =
-                contentSize.height - (contentOffset.y + layoutMeasurement.height)
-              setShowScrollToBottom(distanceFromBottom > 120)
-            }}
-          >
+  const closeSheet = React.useCallback(() => {
+    if (!modal) {
+      onClose()
+      return
+    }
+    translateY.value = withTiming(closeY, { duration: 220 }, (finished) => {
+      if (finished) {
+        runOnJS(onClose)()
+      }
+    })
+  }, [closeY, modal, onClose, translateY])
+
+  const snapTo = React.useCallback(
+    (nextY: number) => {
+      translateY.value = withTiming(nextY, { duration: 220 })
+    },
+    [translateY],
+  )
+
+  const panGesture = React.useMemo(
+    () =>
+      Gesture.Pan()
+        .onBegin(() => {
+          gestureStartY.value = translateY.value
+        })
+        .onUpdate((event) => {
+          const next = Math.max(0, Math.min(closeY, gestureStartY.value + event.translationY))
+          translateY.value = next
+        })
+        .onEnd((event) => {
+          if (event.velocityY > 1100 || translateY.value > collapsedY + 140) {
+            runOnJS(closeSheet)()
+            return
+          }
+
+          if (event.velocityY < -700 || translateY.value < collapsedY * 0.45) {
+            runOnJS(snapTo)(0)
+            return
+          }
+
+          runOnJS(snapTo)(collapsedY)
+        }),
+    [closeSheet, closeY, collapsedY, gestureStartY, snapTo, translateY],
+  )
+
+  const modalAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }))
+
+  return (
+      <Animated.View style={[S.modalRoot, modal ? modalAnimatedStyle : null]}>
+        <LinearGradient
+          colors={['#B04FFF', '#5273FF']}
+          style={[S.gradient, modal && S.gradientModal]}
+        >
+          <SafeAreaView style={S.safeArea} edges={['top', 'bottom']}>
+            <KeyboardAvoidingView
+              style={S.flex}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              {modal ? (
+                <GestureDetector gesture={panGesture}>
+                  <View style={S.dragHandleArea}>
+                    <View style={S.handleWrap}>
+                      <View style={S.handleBar} />
+                    </View>
+                    <View style={S.header}>
+                      <Pressable onPress={closeSheet} hitSlop={12}>
+                        <XIcon width={20} height={20} color={colors.icon.default} />
+                      </Pressable>
+                      <View style={S.headerCenter}>
+                        <Text style={S.headerCaption}>오늘 남은 무료 생성</Text>
+                        <Text style={S.headerCount}>
+                          {typeof freeRemainingCount === 'number' ? `${freeRemainingCount}회` : '무제한'}
+                        </Text>
+                      </View>
+                      <View style={S.headerRight}>
+                        <View style={S.headerTag}>
+                          <Text style={S.headerTagText}>더 대화하기</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </GestureDetector>
+              ) : (
+                <View style={S.header}>
+                  <Pressable onPress={onClose} hitSlop={12}>
+                    <XIcon width={20} height={20} color={colors.icon.default} />
+                  </Pressable>
+                  <View style={S.headerCenter}>
+                    <Text style={S.headerCaption}>오늘 남은 무료 생성</Text>
+                    <Text style={S.headerCount}>
+                      {typeof freeRemainingCount === 'number' ? `${freeRemainingCount}회` : '무제한'}
+                    </Text>
+                  </View>
+                  <View style={S.headerRight}>
+                    <View style={S.headerTag}>
+                      <Text style={S.headerTagText}>더 대화하기</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              <ScrollView
+                ref={scrollRef}
+                style={S.flex}
+                contentContainerStyle={[
+                  S.scrollContent,
+                  hasStartedChat && S.scrollContentStarted,
+                  { paddingBottom: 96 },
+                  hasStartedChat && keyboardHeight > 0 && { paddingBottom: keyboardHeight * 0.25 },
+                ]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                scrollEventThrottle={16}
+                onScroll={(event) => {
+                  const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
+                  const distanceFromBottom =
+                    contentSize.height - (contentOffset.y + layoutMeasurement.height)
+                  setShowScrollToBottom(distanceFromBottom > 120)
+                }}
+              >
             {!hasStartedChat ? <IntroTitle text={messages[0].text} /> : null}
 
             {timeline.map((entry, index) => {
@@ -1201,16 +1296,17 @@ export default function AiChatScreen({ navigation }: Props) {
 
             {loading ? <LoadingText text={LOADING_STEPS[loadingStepIndex]} /> : null}
 
-          </ScrollView>
+              </ScrollView>
 
-          <View
-            style={[
-              S.inputOverlay,
-              keyboardHeight > 0
-                ? { bottom: keyboardHeight * 0.9 }
-                : null,
-            ]}
-          >
+              <View
+                style={[
+                  S.inputOverlay,
+                  modal && S.inputOverlayModal,
+                  keyboardHeight > 0
+                    ? { bottom: keyboardHeight * 0.9 + (modal ? 10 : 0) }
+                    : null,
+                ]}
+              >
             {deletedDraftToast ? (
               <View style={S.deleteToastWrap}>
                 <View style={S.deleteToast}>
@@ -1260,23 +1356,24 @@ export default function AiChatScreen({ navigation }: Props) {
               }}
               onSubmit={() => submit()}
             />
-          </View>
+              </View>
 
-          {showScrollToBottom && !editingDraft ? (
-            <Pressable
-              style={[
-                S.scrollToBottomButton,
-                keyboardHeight > 0 ? { bottom: keyboardHeight * 0.9 + 76 } : null,
-              ]}
-              onPress={scrollToBottom}
-            >
-              <DownIcon width={14} height={10} color={colors.icon.selected} />
-            </Pressable>
-          ) : null}
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+              {showScrollToBottom && !editingDraft ? (
+                <Pressable
+                  style={[
+                    S.scrollToBottomButton,
+                    modal && S.scrollToBottomButtonModal,
+                    keyboardHeight > 0 ? { bottom: keyboardHeight * 0.9 + 76 } : null,
+                  ]}
+                  onPress={scrollToBottom}
+                >
+                  <DownIcon width={14} height={10} color={colors.icon.selected} />
+                </Pressable>
+              ) : null}
+            </KeyboardAvoidingView>
+          </SafeAreaView>
 
-      <AiEditSheet
+          <AiEditSheet
         visible={!!editingDraft}
         item={editingDraft}
         onChange={(patch) => {
@@ -1286,7 +1383,7 @@ export default function AiChatScreen({ navigation }: Props) {
         onClose={() => setEditingDraftId(null)}
       />
 
-      <Modal
+          <Modal
         transparent
         visible={!!previewImageUri}
         animationType="fade"
@@ -1311,14 +1408,27 @@ export default function AiChatScreen({ navigation }: Props) {
             ) : null}
           </SafeAreaView>
         </View>
-      </Modal>
-    </LinearGradient>
+          </Modal>
+        </LinearGradient>
+      </Animated.View>
   )
 }
 
+export default function AiChatScreen({ navigation }: Props) {
+  return <AiChatView onClose={() => navigation.goBack()} />
+}
+
 const S = StyleSheet.create({
+  modalRoot: {
+    flex: 1,
+  },
   gradient: {
     flex: 1,
+  },
+  gradientModal: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
   },
   safeArea: {
     flex: 1,
@@ -1331,6 +1441,9 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  inputOverlayModal: {
+    bottom: 10,
   },
   scrollToBottomButton: {
     position: 'absolute',
@@ -1348,6 +1461,9 @@ const S = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  scrollToBottomButtonModal: {
+    bottom: 96,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1356,6 +1472,20 @@ const S = StyleSheet.create({
     paddingBottom: 8,
     position: 'relative',
     minHeight: 40,
+  },
+  handleWrap: {
+    alignItems: 'center',
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  dragHandleArea: {
+    paddingBottom: 2,
+  },
+  handleBar: {
+    width: 56,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   headerCenter: {
     position: 'absolute',
