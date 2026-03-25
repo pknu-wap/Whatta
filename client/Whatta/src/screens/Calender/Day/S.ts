@@ -244,7 +244,7 @@ const S = StyleSheet.create({
 
   gridOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 10,
+    zIndex: 9999,
   },
 
   liveBar: {
