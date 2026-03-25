@@ -287,7 +287,7 @@ export default function RootTabs() {
       <Modal
         visible={aiModalVisible}
         transparent
-        animationType="none"
+        animationType="slide"
         onRequestClose={handleAiClose}
       >
         <View style={S.aiModalOverlay}>
@@ -402,7 +402,7 @@ const S = StyleSheet.create({
   aiModalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(11,14,20,0.04)',
+    backgroundColor: 'transparent',
   },
   aiModalSheet: {
     flex: 1,

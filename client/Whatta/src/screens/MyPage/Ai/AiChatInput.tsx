@@ -72,9 +72,12 @@ export default function AiChatInput({
   const measureText =
     value.length === 0 ? ' ' : value.endsWith('\n') ? `${value} ` : value
   const visibleTextHeight = Math.max(TEXT_MIN_HEIGHT, textHeight)
-  const inputWrapHeight = Math.max(34, visibleTextHeight + WRAP_TOP_PADDING + WRAP_BOTTOM_PADDING)
+  const isSingleLine = visibleTextHeight <= TEXT_MIN_HEIGHT
+  const topPadding = isSingleLine ? 8 : WRAP_TOP_PADDING
+  const bottomPadding = isSingleLine ? 2 : WRAP_BOTTOM_PADDING
+  const inputWrapHeight = Math.max(34, visibleTextHeight + topPadding + bottomPadding)
   const barHeight = Math.max(MIN_INPUT_BAR_HEIGHT, inputWrapHeight + 8)
-  const barRadius = visibleTextHeight <= TEXT_MIN_HEIGHT ? 50 : 20
+  const barRadius = isSingleLine ? 50 : 20
   const hasInput = (displayPreview ? previewText : value).trim().length > 0 || !!imagePreviewUri
   const canSubmit = hasInput && !disabled
   const attachmentMenuBottom = barHeight + (imagePreviewUri ? 96 : 24)
@@ -113,7 +116,7 @@ export default function AiChatInput({
         </Pressable>
 
         <Pressable
-          style={[S.inputWrap, { minHeight: inputWrapHeight }]}
+          style={[S.inputWrap, { minHeight: inputWrapHeight, paddingTop: topPadding, paddingBottom: bottomPadding }]}
           onPress={() => {
             if (displayPreview) onClearPreview()
             inputRef.current?.focus()
@@ -138,7 +141,7 @@ export default function AiChatInput({
           </Text>
 
           {displayPreview ? (
-            <Text style={S.previewText} numberOfLines={1}>
+            <Text style={[S.previewText, { top: topPadding }]} numberOfLines={1}>
               {previewText}
             </Text>
           ) : null}
@@ -153,6 +156,7 @@ export default function AiChatInput({
             style={[
               S.input,
               {
+                top: topPadding,
                 height: visibleTextHeight,
                 color: colors.text.text1,
               },
@@ -272,8 +276,6 @@ const S = StyleSheet.create({
     minWidth: 0,
     justifyContent: 'flex-start',
     position: 'relative',
-    paddingTop: WRAP_TOP_PADDING,
-    paddingBottom: WRAP_BOTTOM_PADDING,
   },
   measureText: {
     minHeight: TEXT_MIN_HEIGHT,
@@ -288,7 +290,6 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: WRAP_TOP_PADDING,
     color: colors.text.text4,
     fontSize: 14,
     fontWeight: '400',
@@ -297,7 +298,6 @@ const S = StyleSheet.create({
   },
   input: {
     position: 'absolute',
-    top: WRAP_TOP_PADDING,
     left: 0,
     right: 0,
     paddingTop: 0,

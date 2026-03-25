@@ -1027,8 +1027,7 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
 
   React.useEffect(() => {
     if (!modal) return
-    translateY.value = 36
-    translateY.value = withTiming(0, { duration: 260 })
+    translateY.value = 0
   }, [modal, translateY])
 
   const closeSheet = React.useCallback(() => {
@@ -1036,16 +1035,15 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
       onClose()
       return
     }
-    translateY.value = withTiming(closeY, { duration: 220 }, (finished) => {
-      if (finished) {
-        runOnJS(onClose)()
-      }
-    })
+    onClose()
   }, [closeY, modal, onClose, translateY])
 
   const snapTo = React.useCallback(
     (nextY: number) => {
-      translateY.value = withTiming(nextY, { duration: 220 })
+      translateY.value = withTiming(nextY, {
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+      })
     },
     [translateY],
   )
