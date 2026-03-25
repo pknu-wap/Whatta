@@ -234,7 +234,17 @@ const S = StyleSheet.create({
   },
 
   gridContent: {
+    paddingTop: 8,
     paddingBottom: DAY_GRID_BOTTOM_SPACER,
+  },
+
+  gridLayer: {
+    position: 'relative',
+  },
+
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10,
   },
 
   liveBar: {

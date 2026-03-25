@@ -42,7 +42,7 @@ import {
   groupTasksByOverlap,
   type DayViewTask,
 } from './overlapUtils'
-import { createEvent, getEvent } from '@/api/event_api'
+import { getEvent } from '@/api/event_api'
 import { getTask, updateTask, createTask, deleteTask } from '@/api/task'
 import { today, getInstanceDates } from '../../../utils/dateUtils'
 import { getMyLabels } from '@/api/label_api'
@@ -52,8 +52,8 @@ import FixedScheduleCard from '@/components/calendar-items/schedule/FixedSchedul
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
-import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { SCREEN_H } from './constants'
+import DayTimeline from './DayTimeline'
 
 function FullBleed({
   children,
@@ -82,22 +82,10 @@ function FullBleed({
   )
 }
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const TIME_COL_W = 50
-const DAY_LEFT_OFFSET = TIME_COL_W + 18
 const TOP_ITEM_WIDTH = 308
-const EXPANDED_GROUP_WIDTH = TOP_ITEM_WIDTH
 
 let draggingEventId: string | null = null
-
-const formatHourLabel = (hour: number) =>
-  hour === 0
-    ? '오전 12시'
-    : hour < 12
-      ? `오전 ${hour}시`
-      : hour === 12
-        ? '오후 12시'
-        : `오후 ${hour - 12}시`
 
 const buildTaskGroupId = (group: { startMin: number; tasks: DayViewTask[] }) =>
   `day-group-${group.startMin}-${group.tasks
@@ -918,188 +906,29 @@ export default function DayView({ active = true }: { active?: boolean }) {
               <View style={S.fadeGap} />
             </FullBleed>
 
-            {/* ✅ 시간대 그리드 */}
-            <ScrollView
-              ref={gridScrollRef}
-              style={S.gridScroll}
-              contentContainerStyle={[S.gridContent, { position: 'relative' }]}
-              showsVerticalScrollIndicator={false}
-              onLayout={measureLayouts}
-              onScroll={(e) => {
-                setGridScrollY(e.nativeEvent.contentOffset.y)
-              }}
-              scrollEventThrottle={16}
-            >
-              <View ref={gridWrapRef}>
-                {HOURS.map((h, i) => {
-                  const isLast = i === HOURS.length - 1
-
-                  return (
-                    <View key={h} style={S.row}>
-                      <View style={S.timeCol}>
-                        <Text style={S.timeText}>{formatHourLabel(h)}</Text>
-                      </View>
-
-                      <View style={S.slotCol}></View>
-
-                      {!isLast && <View pointerEvents="none" style={S.guideLine} />}
-                    </View>
-                  )
-                })}
-              </View>
-
-              {/* ✅ 현재시간 라이브바 */}
-              {isToday && nowTop !== null && (
-                <>
-                  <View style={[S.liveBar, { top: nowTop }]} />
-                  <View style={[S.liveDot, { top: nowTop - 3 }]} />
-                </>
-              )}
-              {overlappedEvents.map((evt) => {
-                const [sh, sm] = evt.clippedStartTime.split(':').map(Number)
-                const [eh, em] = evt.clippedEndTime.split(':').map(Number)
-                const startMin = sh * 60 + sm
-                const endMin = eh * 60 + em
-
-                // 반복 일정이면 DraggableFixedEvent 사용
-                if (evt.isRepeat) {
-                  return (
-                    <DraggableFixedEvent
-                      key={evt.id}
-                      id={evt.id}
-                      title={evt.title}
-                      startMin={startMin}
-                      endMin={endMin}
-                      color={resolveScheduleColor(evt.colorKey)}
-                      anchorDate={anchorDate}
-                      onPress={() => openEventDetail(evt)}
-                    />
-                  )
-                }
-
-                // 일반 일정
-                return (
-                  <DraggableFlexibleEvent
-                    key={evt.id}
-                    id={evt.id}
-                    title={evt.title}
-                    place={getLabelName(evt.labels?.[0])}
-                    startMin={startMin}
-                    endMin={endMin}
-                    color={resolveScheduleColor(evt.colorKey)}
-                    anchorDate={anchorDate}
-                    isRepeat={!!evt.isRepeat}
-                    onPress={() => openEventDetail(evt)}
-                    events={events}
-                  />
-                )
-              })}
-
-              {/* ⭐ Task groups 적용 */}
-              {taskGroups.map((group) => {
-                const { tasks: list, startMin, groupId } = group
-
-                // 펼쳐진 그룹은 접힘 카드 렌더를 숨긴다.
-                if (openGroupId === groupId) return null
-
-                // 2개 이상 겹치면 그룹박스 1개로 표시
-                if (list.length >= 2) {
-                  return (
-                    <DraggableTaskGroupBox
-                      key={groupId}
-                      group={list}
-                      startMin={startMin}
-                      anchorDate={anchorDate}
-                      onPress={() => setOpenGroupId(groupId)}
-                    />
-                  )
-                }
-
-                // 1~3개 → 기존 개별 Task 렌더
-                return list.map((task) => {
-                  return (
-                    <DraggableTaskBox
-                      key={task.id}
-                      id={task.id}
-                      title={task.title}
-                      startHour={getTaskStartHour(task.placementTime)}
-                      anchorDate={anchorDate}
-                      done={task.completed}
-                      onPress={() => openTaskPopupFromApi(task.id)}
-                      events={events}
-                    />
-                  )
-                })
-              })}
-
-              {/* ⭐ 펼쳐지는 상세 UI는 map 밖에서 단 한 번만 렌더 */}
-              {openGroupId !== null &&
-                (() => {
-                  const group = taskGroups.find((item) => item.groupId === openGroupId)
-                  if (!group) return null
-                  const { tasks: list, startMin, groupId } = group
-
-                  return (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: startMin * PIXELS_PER_MIN + 2,
-                        left: DAY_LEFT_OFFSET,
-                        width: EXPANDED_GROUP_WIDTH,
-                        backgroundColor: 'transparent',
-                        zIndex: 500,
-                      }}
-                    >
-                      <TaskGroupCard
-                        groupId={`day-group-open-${groupId}`}
-                        density="day"
-                        expanded
-                        layoutWidthHint={EXPANDED_GROUP_WIDTH}
-                        tasks={list.map((task) => ({
-                          id: String(task.id),
-                          title: task.title ?? '',
-                          done: !!task.completed,
-                        }))}
-                        onToggleExpand={() => setOpenGroupId(null)}
-                        onPressTask={(taskId) => {
-                          void openTaskPopupFromApi(taskId)
-                        }}
-                        onToggleTask={(taskId, nextDone) => {
-                          setTasks((prev) =>
-                            prev.map((task) =>
-                              String(task.id) === String(taskId)
-                                ? { ...task, completed: nextDone }
-                                : task,
-                            ),
-                          )
-                          void updateTask(taskId, { completed: nextDone })
-                            .then(() => {
-                              bus.emit('calendar:mutated', {
-                                op: 'update',
-                                item: {
-                                  id: taskId,
-                                  isTask: true,
-                                  date: anchorDate,
-                                  completed: nextDone,
-                                },
-                              })
-                            })
-                            .catch((err) => {
-                              setTasks((prev) =>
-                                prev.map((task) =>
-                                  String(task.id) === String(taskId)
-                                    ? { ...task, completed: !nextDone }
-                                    : task,
-                                ),
-                              )
-                              console.error('❌ 그룹 테스크 상태 업데이트 실패:', err)
-                            })
-                        }}
-                      />
-                    </View>
-                  )
-                })()}
-            </ScrollView>
+            <DayTimeline
+              gridScrollRef={gridScrollRef}
+              gridWrapRef={gridWrapRef}
+              measureLayouts={measureLayouts}
+              setGridScrollY={setGridScrollY}
+              isToday={isToday}
+              nowTop={nowTop}
+              overlappedEvents={overlappedEvents}
+              anchorDate={anchorDate}
+              events={events}
+              getLabelName={getLabelName}
+              getTaskStartHour={getTaskStartHour}
+              openEventDetail={openEventDetail}
+              taskGroups={taskGroups}
+              openGroupId={openGroupId}
+              setOpenGroupId={setOpenGroupId}
+              setTasks={setTasks}
+              openTaskPopupFromApi={openTaskPopupFromApi}
+              DraggableFixedEvent={DraggableFixedEvent}
+              DraggableFlexibleEvent={DraggableFlexibleEvent}
+              DraggableTaskGroupBox={DraggableTaskGroupBox}
+              DraggableTaskBox={DraggableTaskBox}
+            />
           </Animated.View>
         </GestureDetector>
         <TaskDetailPopup
