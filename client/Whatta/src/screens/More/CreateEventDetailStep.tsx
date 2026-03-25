@@ -23,12 +23,13 @@ type Props = {
   selectedType: 'event' | 'task' | null
   onSelectType: (value: 'event' | 'task') => void
   start: Date
-  end: Date
+  end?: Date
   endDisplay?: Date | null
   onPressDateBox: () => void
   onChangeStartTime: (next: Date) => void
-  onChangeEndTime: (next: Date) => void
+  onChangeEndTime?: (next: Date) => void
   invalidEndTime?: boolean
+  showEndTime?: boolean
   timeOn: boolean
   timeDisabled?: boolean
   onToggleTime: (next: boolean) => void
@@ -184,6 +185,7 @@ export default function CreateEventDetailStep({
   onChangeStartTime,
   onChangeEndTime,
   invalidEndTime = false,
+  showEndTime = selectedType === 'event',
   timeOn,
   timeDisabled = false,
   onToggleTime,
@@ -238,7 +240,8 @@ export default function CreateEventDetailStep({
   const paletteWidth = contentWidth + 18
   const typeButtonWidth = (contentWidth - 16) / 2
   const timeBoxWidth = contentWidth - 76
-  const displayedEnd = endDisplay ?? end
+  const eventEnd = end ?? start
+  const displayedEnd = endDisplay ?? end ?? start
   const [openTimeTarget, setOpenTimeTarget] = React.useState<
     'start' | 'end' | 'due' | null
   >(null)
@@ -270,8 +273,8 @@ export default function CreateEventDetailStep({
   const isRange = useMemo(
     () =>
       new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime() !==
-      new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(),
-    [start, end],
+      new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate()).getTime(),
+    [start, eventEnd],
   )
   const WD_TXT = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
   const getWeekIndexOfMonth = (d: Date) => {
@@ -501,7 +504,7 @@ export default function CreateEventDetailStep({
                   style={[styles.dateText, styles.rangeDateText, styles.rangeDateEnd]}
                   numberOfLines={1}
                 >
-                  {formatKDate(end)}
+                  {formatKDate(eventEnd)}
                 </Text>
               </View>
             </View>
@@ -707,7 +710,7 @@ export default function CreateEventDetailStep({
             </View>
           )}
 
-          {selectedType === 'event' && (
+          {showEndTime && onChangeEndTime && (
             <>
               <View style={[styles.timeRow, { marginTop: 14 }]}>
                 <Text style={styles.timeRowLabel}>종료 시각</Text>

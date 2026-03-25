@@ -58,6 +58,7 @@ export default function BriefingCard({ briefing, onPressScheduleArea }: Props) {
                     timeRange={item.timeRange}
                     state={getTimelineState(item.timeRange)}
                     showConnector={index !== timelineItems.length - 1}
+                    timeTextWidth={86}
                   />
                 ))}
               </View>

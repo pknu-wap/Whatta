@@ -370,6 +370,9 @@ const S = StyleSheet.create({
     color: colors.text.text4,
   },
   timelineAccessory: {
+    height: ROW_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   timelineTitle: {
