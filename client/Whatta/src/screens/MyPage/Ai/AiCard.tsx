@@ -1,6 +1,7 @@
 import React from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
-import AlarmIcon from '@/assets/icons/alarm.svg'
+import AlarmNoIcon from '@/assets/icons/alarm_no.svg'
+import AlarmYesIcon from '@/assets/icons/alarm_yes.svg'
 import MonthIcon from '@/assets/icons/month.svg'
 import TimeIcon from '@/assets/icons/time.svg'
 import XIcon from '@/assets/icons/x.svg'
@@ -193,11 +194,11 @@ export default function AiCard({
           </View>
           <View style={S.topRightActions}>
             <View style={S.alarmBadge}>
-              <AlarmIcon
-                width={24}
-                height={24}
-                color={hasReminder ? colors.primary.main : colors.icon.default}
-              />
+              {hasReminder ? (
+                <AlarmYesIcon width={24} height={24} />
+              ) : (
+                <AlarmNoIcon width={24} height={24} />
+              )}
             </View>
             {showDelete ? (
               !isLocked ? (
@@ -364,9 +365,9 @@ const S = StyleSheet.create({
     backgroundColor: colors.icon.selected,
   },
   segmentText: {
-    ...ts('label4'),
+    ...ts('label3'),
+    fontSize: 13,
     color: colors.text.text1,
-    fontWeight: '600',
   },
   segmentTextActive: {
     color: colors.text.text1w,
