@@ -129,9 +129,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [taskDueTimeOn, setTaskDueTimeOn] = useState(false)
   const [taskDueTime, setTaskDueTime] = useState<Date>(new Date())
   const [detailStart, setDetailStart] = useState<Date>(new Date())
-  const [detailEnd, setDetailEnd] = useState<Date>(new Date(Date.now() + 60 * 60 * 1000))
-  const [invalidEndTime, setInvalidEndTime] = useState(false)
-  const [invalidEndPreview, setInvalidEndPreview] = useState<Date | null>(null)
   const [repeatOn, setRepeatOn] = useState(false)
   const [repeatMode, setRepeatMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>(
     'daily',
@@ -330,11 +327,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     } else {
       startAt.setHours(9, 0, 0, 0)
     }
-    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000)
     setDetailStart(startAt)
-    setDetailEnd(endAt)
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
   }, [visible, initialTask])
 
   // reminder preset 로딩/변경 시 리마인더 값만 동기화
@@ -395,9 +388,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       setTime(startAt)
     }
     setDetailStart(startAt)
-    setDetailEnd(new Date(startAt.getTime() + 60 * 60 * 1000))
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
     setTaskDueOn(false)
     setTaskDueDate(null)
     setTaskDueTimeOn(false)
@@ -447,11 +437,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       return
     }
 
-    if (hasTime && (invalidEndTime || detailEnd.getTime() < detailStart.getTime())) {
-      Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이후여야 합니다.')
-      return
-    }
-
     const value: TaskFormValue = {
       title,
       memo,
@@ -494,27 +479,14 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setRemindOpen(false)
   }
 
-  const clearInvalidEndState = () => {
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
-  }
-
-  const applyTaskTimeWindow = (nextStart: Date) => {
-    const nextEnd = new Date(nextStart)
-    nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
-    const wrappedPastMidnight = nextEnd.getTime() < nextStart.getTime()
-
+  const applyTaskStartTime = (nextStart: Date) => {
     setDetailStart(nextStart)
-    setDetailEnd(nextEnd)
-    setInvalidEndTime(wrappedPastMidnight)
-    setInvalidEndPreview(wrappedPastMidnight ? nextEnd : null)
     setTime(nextStart)
   }
 
   const clearTaskDateSelection = () => {
     setHasDate(false)
     setHasTime(false)
-    clearInvalidEndState()
     setRemindOn(false)
     setRemindOpen(false)
     setCustomOpen(false)
@@ -594,26 +566,13 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     selectedType={'task'}
                     onSelectType={() => {}}
                     start={detailStart}
-                    end={detailEnd}
-                    endDisplay={invalidEndPreview}
+                    showEndTime={false}
                     onPressDateBox={() => {}}
                     onChangeStartTime={(next) => {
                       const nextStart = withSameDay(hasDate ? date : detailStart, next)
                       setHasTime(true)
-                      applyTaskTimeWindow(nextStart)
+                      applyTaskStartTime(nextStart)
                     }}
-                    onChangeEndTime={(next) => {
-                      const nextEnd = withSameDay(hasDate ? date : detailStart, next)
-                      if (nextEnd.getTime() < detailStart.getTime()) {
-                        setInvalidEndTime(true)
-                        setInvalidEndPreview(nextEnd)
-                        return
-                      }
-                      setInvalidEndTime(false)
-                      setInvalidEndPreview(null)
-                      setDetailEnd(nextEnd)
-                    }}
-                    invalidEndTime={invalidEndTime}
                     timeOn={hasTime}
                     timeDisabled={!hasDate}
                     onToggleTime={(next) => {
@@ -625,9 +584,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       if (next) {
                         const t = new Date(detailStart)
                         t.setSeconds(0, 0)
-                        applyTaskTimeWindow(t)
-                      } else {
-                        clearInvalidEndState()
+                        applyTaskStartTime(t)
                       }
                     }}
                     repeatOn={repeatOn}
@@ -679,16 +636,12 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       if (next) {
                         const nextStart = new Date(detailStart)
                         nextStart.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
-                        const nextEnd = new Date(detailEnd)
-                        nextEnd.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
                         setHasDate(true)
                         setDate(next)
                         setDetailStart(nextStart)
-                        setDetailEnd(nextEnd)
                         if (hasTime) {
                           setTime(nextStart)
                         }
-                        clearInvalidEndState()
                         if (taskDueDate && taskDueDate.getTime() < next.getTime()) {
                           setTaskDueDate(next)
                         }

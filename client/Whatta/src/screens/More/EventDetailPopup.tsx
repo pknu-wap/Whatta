@@ -1034,14 +1034,16 @@ export default function EventDetailPopup({
       return
     }
 
-    if (timeOn && end.getTime() < start.getTime()) {
+    const isCreateTask = mode === 'create' && createTypeSelected === 'task'
+
+    if (!isCreateTask && timeOn && end.getTime() < start.getTime()) {
       setInvalidEndTime(true)
       Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이를 수 없습니다.')
       setSaving(false)
       return
     }
 
-    if (mode === 'create' && createTypeSelected === 'task') {
+    if (isCreateTask) {
       await saveTask()
       return
     }
@@ -1846,6 +1848,7 @@ export default function EventDetailPopup({
                       selectedColorIndex={selectedSlot}
                       onSelectColorIndex={setSelectedSlot}
                       selectedType={mode === 'edit' ? 'event' : createTypeSelected}
+                      showEndTime={mode === 'edit' ? true : createTypeSelected !== 'task'}
                       onSelectType={(value) => {
                         if (mode === 'edit') return
                         applyCreateTypeSelection(value)

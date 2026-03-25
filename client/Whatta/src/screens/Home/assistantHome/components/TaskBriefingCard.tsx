@@ -89,7 +89,7 @@ export default function TaskBriefingCard({
                     )}
                     trailingAccessory={item.dueLabel ? <DueLabel label={item.dueLabel} /> : undefined}
                     timeTextWidth={86}
-                    timeTextMarginRight={2}
+                    timeTextMarginRight={10}
                     accessoryGap={8}
                   />
                 ))}
