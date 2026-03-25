@@ -7,6 +7,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Dimensions,
   Platform,
@@ -36,6 +37,7 @@ import DownIcon from '@/assets/icons/down.svg'
 import XIcon from '@/assets/icons/xL.svg'
 import AiCard, { type AiCardDraftItem } from '@/screens/MyPage/Ai/AiCard'
 import AiChatInput from '@/screens/MyPage/Ai/AiChatInput'
+import AiDataConsentModal from '@/screens/MyPage/Ai/AiDataConsentModal'
 import AiEditSheet from '@/screens/MyPage/Ai/AiEditSheet'
 import { preprocessAiImage } from '@/screens/MyPage/Ai/aiImagePreprocess'
 import { createEvent, type RepeatRule } from '@/api/event_api'
@@ -78,6 +80,8 @@ type DraftGroup = {
   id: string
   items: DraftItem[]
 }
+
+const SHOW_MORE_CHAT_TAG = false
 
 type TimelineItem =
   | { id: string; type: 'message'; messageId: string }
@@ -125,6 +129,7 @@ const STARTER_PROMPTS = [
 
 const EMPTY_GUIDE = '자유 대화는 지원하지 않아요. 일정이나 할 일을 생성할 문장을 입력해 주세요.'
 const AI_FREE_COUNT_STORE_KEY = 'whatta_ai_free_count'
+const AI_DATA_CONSENT_STORE_KEY = 'whatta_ai_data_consent_v1'
 const INITIAL_ASSISTANT_MESSAGE: ChatMessage = {
   id: makeId('assistant'),
   role: 'assistant',
@@ -173,6 +178,15 @@ async function writeStoredFreeCount(dayKey: string, freeCount: number | null) {
     AI_FREE_COUNT_STORE_KEY,
     JSON.stringify({ dayKey, freeCount }),
   )
+}
+
+async function readAiDataConsent() {
+  const raw = await SecureStore.getItemAsync(AI_DATA_CONSENT_STORE_KEY)
+  return raw === 'agreed'
+}
+
+async function writeAiDataConsent(agreed: boolean) {
+  await SecureStore.setItemAsync(AI_DATA_CONSENT_STORE_KEY, agreed ? 'agreed' : 'declined')
 }
 
 async function base64ToBlob(base64: string, contentType: string) {
@@ -546,6 +560,8 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
   const [serverFreeCount, setServerFreeCount] = React.useState<number | null>(null)
   const [deletedDraftToast, setDeletedDraftToast] = React.useState<DeletedDraftToast | null>(null)
   const [loadingStepIndex, setLoadingStepIndex] = React.useState(0)
+  const [aiDataConsentVisible, setAiDataConsentVisible] = React.useState(false)
+  const [aiDataConsentGranted, setAiDataConsentGranted] = React.useState(false)
   const starterPreviewText =
     STARTER_PROMPTS.find((item) => item.label === selectedStarterPrompt)?.preview ?? ''
   const effectiveInput = isStarterPreviewActive ? starterPreviewText : input
@@ -575,6 +591,23 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
       scrollRef.current?.scrollTo({ y: 0, animated: false })
     }, []),
   )
+
+  React.useEffect(() => {
+    let mounted = true
+
+    ;(async () => {
+      const agreed = await readAiDataConsent()
+      if (!mounted) return
+      setAiDataConsentGranted(agreed)
+      if (!agreed) {
+        setAiDataConsentVisible(true)
+      }
+    })()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   React.useEffect(() => {
     let mounted = true
@@ -864,9 +897,22 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
   }, [saveDraft])
 
   const handleSelectImage = React.useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    const { status, canAskAgain } = permission
     if (status !== 'granted') {
-      Alert.alert('권한이 필요해요', '사진 앨범 접근 권한을 허용해 주세요.')
+      if (canAskAgain) {
+        Alert.alert('권한이 필요해요', '사진 앨범 접근 권한을 허용해 주세요.')
+        return
+      }
+
+      Alert.alert(
+        '앨범 권한이 꺼져 있어요',
+        '설정에서 사진 접근 권한을 허용해 주세요.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '설정 열기', onPress: () => Linking.openSettings() },
+        ],
+      )
       return
     }
 
@@ -936,6 +982,11 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
 
   const submit = React.useCallback(
     async (textOverride?: string) => {
+      if (!aiDataConsentGranted) {
+        setAiDataConsentVisible(true)
+        return
+      }
+
       const text = (textOverride ?? effectiveInput).trim()
       const submittedImage = attachedImage
 
@@ -1020,13 +1071,12 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
         setLoading(false)
       }
     },
-    [attachedImage, defaultScheduleColor, effectiveInput, imageUploading, labels, pushMessage],
+    [aiDataConsentGranted, attachedImage, defaultScheduleColor, effectiveInput, imageUploading, labels, pushMessage],
   )
 
   React.useEffect(() => {
     if (!modal) return
-    translateY.value = 36
-    translateY.value = withTiming(0, { duration: 260 })
+    translateY.value = 0
   }, [modal, translateY])
 
   const closeSheet = React.useCallback(() => {
@@ -1034,16 +1084,15 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
       onClose()
       return
     }
-    translateY.value = withTiming(closeY, { duration: 220 }, (finished) => {
-      if (finished) {
-        runOnJS(onClose)()
-      }
-    })
+    onClose()
   }, [closeY, modal, onClose, translateY])
 
   const snapTo = React.useCallback(
     (nextY: number) => {
-      translateY.value = withTiming(nextY, { duration: 220 })
+      translateY.value = withTiming(nextY, {
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+      })
     },
     [translateY],
   )
@@ -1106,9 +1155,11 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
                         </Text>
                       </View>
                       <View style={S.headerRight}>
-                        <View style={S.headerTag}>
-                          <Text style={S.headerTagText}>더 대화하기</Text>
-                        </View>
+                        {SHOW_MORE_CHAT_TAG ? (
+                          <View style={S.headerTag}>
+                            <Text style={S.headerTagText}>더 대화하기</Text>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   </View>
@@ -1125,9 +1176,11 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
                     </Text>
                   </View>
                   <View style={S.headerRight}>
-                    <View style={S.headerTag}>
-                      <Text style={S.headerTagText}>더 대화하기</Text>
-                    </View>
+                    {SHOW_MORE_CHAT_TAG ? (
+                      <View style={S.headerTag}>
+                        <Text style={S.headerTagText}>더 대화하기</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               )}
@@ -1303,7 +1356,7 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
                   S.inputOverlay,
                   modal && S.inputOverlayModal,
                   keyboardHeight > 0
-                    ? { bottom: keyboardHeight * 0.9 + (modal ? 10 : 0) }
+                    ? { bottom: keyboardHeight * 0.9 + (modal ? 40 : 24) }
                     : null,
                 ]}
               >
@@ -1383,6 +1436,20 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
         onClose={() => setEditingDraftId(null)}
       />
 
+          <AiDataConsentModal
+        visible={aiDataConsentVisible}
+        onAgree={() => {
+          setAiDataConsentGranted(true)
+          setAiDataConsentVisible(false)
+          writeAiDataConsent(true).catch(() => {})
+        }}
+        onDisagree={() => {
+          setAiDataConsentGranted(false)
+          setAiDataConsentVisible(false)
+          writeAiDataConsent(false).catch(() => {})
+        }}
+      />
+
           <Modal
         transparent
         visible={!!previewImageUri}
@@ -1440,10 +1507,10 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: 24,
   },
   inputOverlayModal: {
-    bottom: 10,
+    bottom: 40,
   },
   scrollToBottomButton: {
     position: 'absolute',
