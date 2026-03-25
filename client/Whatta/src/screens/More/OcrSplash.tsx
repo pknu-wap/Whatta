@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, StyleSheet, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, Dimensions, Modal } from 'react-native'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,7 +10,11 @@ import Animated, {
 
 const { width, height } = Dimensions.get('window')
 
-export default function OcrSplash() {
+interface Props {
+  visible: boolean
+}
+
+export default function OcrSplash({ visible }: Props) {
   // 별 애니메이션
   const star1 = useSharedValue(0)
   const star2 = useSharedValue(0)
@@ -48,19 +52,17 @@ export default function OcrSplash() {
 
   const [dots, setDots] = React.useState('');
 
-  return (
+return (
+  <Modal visible={visible} transparent animationType="none" statusBarTranslucent>
     <View style={S.fill}>
-      {/* 배경 */}
       <View style={S.background} />
 
-      {/* 오른쪽 큰 아크 PNG */}
       <Animated.Image
         source={require('@/assets/ocrsplash.png')}
         style={S.arc}
         resizeMode="cover"
       />
 
-      {/* ✦ 별들 */}
       <Animated.Image
         source={require('@/assets/star.png')}
         style={[S.star, S.star1, starStyle(star1)]}
@@ -79,17 +81,16 @@ export default function OcrSplash() {
         resizeMode="contain"
       />
 
-      {/* 로고 */}
       <Animated.Image
         source={require('@/assets/whatta_logo4.png')}
         style={S.logo}
         resizeMode="contain"
       />
 
-      {/* 텍스트 */}
-     <Text style={S.loadingText}>일정을 추가하는 중{dots}</Text>
+      <Text style={S.loadingText}>일정을 추가하는 중{dots}</Text>
     </View>
-  )
+  </Modal>
+)
 }
 
 const S = StyleSheet.create({

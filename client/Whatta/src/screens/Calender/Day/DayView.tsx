@@ -25,7 +25,6 @@ import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import AddImageSheet from '@/screens/More/Ocr'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
-import OcrSplash from '@/screens/More/OcrSplash'
 
 import { DraggableTaskBox } from './DayViewItems'
 import { DraggableTaskGroupBox } from './DayViewItems'
@@ -1223,7 +1222,6 @@ export default function DayView({ active = true }: { active?: boolean }) {
           animationType="fade"
           statusBarTranslucent={true}
         >
-          <OcrSplash />
         </Modal>
         <AddImageSheet
           visible={imagePopupVisible}

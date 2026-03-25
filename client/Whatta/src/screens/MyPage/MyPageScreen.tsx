@@ -9,6 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import LeftIcon from '@/assets/icons/left.svg'
 import { useAppleCalendarSync } from '@/hooks/useAppleCalendarSync'
+import AddImageSheet from '@/screens/More/Ocr'
+import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
+import { useOCR } from '@/hooks/useOCR'
+import OcrSplash from '@/screens/More/OcrSplash'
+
 import {
   ensureAppleCalendarConnected,
   exportFutureWhattaEventsToAppleCalendar,
@@ -129,6 +134,16 @@ export default function MyPageScreen({ navigation }: Props) {
     bus.emit('scheduleColorSet:changed', { setId: changed })
   }
 
+const [showOcrSheet, setShowOcrSheet] = useState(false)
+
+const {
+  ocrSplashVisible,
+  ocrModalVisible,
+  ocrEvents,
+  setOcrModalVisible,
+  sendToOCR,
+} = useOCR()
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
@@ -149,43 +164,50 @@ export default function MyPageScreen({ navigation }: Props) {
     return '연동 안 됨'
   }, [appleCalendarState])
 
-  const onPressMyItem = async (route: keyof MyPageStackList) => {
-    if (route === 'AppleCalendar') {
-      if (appleCalendarState?.isConnected) {
-        navigation.navigate('AppleCalendar')
-        return
-      }
-
-      const result = await ensureAppleCalendarConnected()
-      if (!result.ok) {
-        if (result.reason === 'permission_denied') {
-          Alert.alert(
-            '애플 캘린더 연동',
-            `${result.message}\n\n이미 권한을 거부한 상태라면 설정 앱에서 다시 허용해야 합니다.`,
-            [
-              { text: '취소', style: 'cancel' },
-              { text: '설정 열기', onPress: () => Linking.openSettings() },
-            ]
-          )
-          return
-        }
-        Alert.alert('애플 캘린더 연동', result.message)
-        return
-      }
-
-      const exportResult = await exportFutureWhattaEventsToAppleCalendar()
-      if (!exportResult.skipped) {
-        Alert.alert(
-          '애플 캘린더 연동 완료',
-          `오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
-        )
-      }
+const onPressMyItem = async (route: keyof MyPageStackList) => {
+  if (route === 'AppleCalendar') {
+    if (appleCalendarState?.isConnected) {
+      navigation.navigate('AppleCalendar')
       return
     }
-    navigation.navigate(route)
+
+    const result = await ensureAppleCalendarConnected()
+    if (!result.ok) {
+      if (result.reason === 'permission_denied') {
+        Alert.alert(
+          '애플 캘린더 연동',
+          `${result.message}\n\n이미 권한을 거부한 상태라면 설정 앱에서 다시 허용해야 합니다.`,
+          [
+            { text: '취소', style: 'cancel' },
+            { text: '설정 열기', onPress: () => Linking.openSettings() },
+          ]
+        )
+        return
+      }
+      Alert.alert('애플 캘린더 연동', result.message)
+      return
+    }
+
+    const exportResult = await exportFutureWhattaEventsToAppleCalendar()
+    if (!exportResult.skipped) {
+      Alert.alert(
+        '애플 캘린더 연동 완료',
+        `오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
+      )
+    }
+    return
   }
 
-  return (
+  if (route === 'vibration') {
+    setShowOcrSheet(true)
+    return
+  }
+
+  navigation.navigate(route)
+}
+
+return (
+  <View style={{ flex: 1 }}>
     <SectionList<MyItem, MySection>
       sections={MY_SECTIONS}
       keyExtractor={(item) => item.key}
@@ -248,7 +270,37 @@ export default function MyPageScreen({ navigation }: Props) {
       contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
       scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
     />
-  )
+
+    <AddImageSheet
+      visible={showOcrSheet}
+      onClose={() => setShowOcrSheet(false)}
+onPickImage={async (uri, base64, ext) => {
+  setShowOcrSheet(false)
+  await sendToOCR(base64, ext)
+}}
+
+onTakePhoto={async (uri, base64, ext) => {
+  setShowOcrSheet(false)
+  await sendToOCR(base64, ext)
+}}
+    />
+    <OcrSplash visible={ocrSplashVisible} />
+
+<OCREventCardSlider
+  visible={ocrModalVisible}
+  events={ocrEvents}
+  onClose={() => {
+    setOcrModalVisible(false)
+  }}
+  onAddEvent={(ev) => {
+    console.log('[OCR saved event]', ev)
+  }}
+  onSaveAll={() => {
+    console.log('[OCR save all complete]')
+  }}
+/>
+  </View>
+)
 }
 
 const S = StyleSheet.create({
