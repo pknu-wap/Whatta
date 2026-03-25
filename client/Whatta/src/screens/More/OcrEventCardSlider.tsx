@@ -266,6 +266,7 @@ useEffect(() => {
             {(animateRemove) => (
               <OCREventCard
                 title={item.title}
+                week={events.find((ev) => ev.id === item.id)?.weekDay}
                 date={item.startDate}
                 startTime={item.startTime?.slice(0, 5)}
                 endTime={item.endTime?.slice(0, 5)}
