@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
-import { ROW_H } from './constants'
+import { DAY_GRID_BOTTOM_SPACER, ROW_H } from './constants'
 
 const S = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.neutral.surface },
@@ -234,7 +234,7 @@ const S = StyleSheet.create({
   },
 
   gridContent: {
-    paddingBottom: 10,
+    paddingBottom: DAY_GRID_BOTTOM_SPACER,
   },
 
   liveBar: {
