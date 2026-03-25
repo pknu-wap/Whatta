@@ -26,6 +26,7 @@ import { ts } from '@/styles/typography'
 import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 const H_PAD = 18
+const DETAIL_POPUP_LIFT = 49
 
 type TaskFormValue = {
   title: string
@@ -99,7 +100,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const MARGIN = 10
   const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
   const bottomSheetInset =
-    insets.bottom + MARGIN + (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
+    insets.bottom +
+    MARGIN +
+    DETAIL_POPUP_LIFT +
+    (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
   const SHEET_W = Math.min(W - MARGIN, 350)
   const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)

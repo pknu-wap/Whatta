@@ -34,6 +34,7 @@ const DETAIL_ITEM_HEIGHT = 60
 const QUICK_INPUT_HEIGHT = 50
 const DETAIL_ITEM_RADIUS = 12
 const APP_HEADER_HEIGHT = 45
+const MONTH_DETAIL_LIFT = -49
 
 export interface DayEvent {
   id?: string | number
@@ -427,8 +428,7 @@ export default function MonthlyDetailPopup({
       style={[
         S.modalHost,
         {
-          top: APP_HEADER_HEIGHT + insets.top,
-          bottom: CUSTOM_TAB_BAR_HEIGHT + 4,
+          top: -(APP_HEADER_HEIGHT + insets.top),
         },
       ]}
       pointerEvents="box-none"
@@ -441,99 +441,108 @@ export default function MonthlyDetailPopup({
         style={S.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={24}
-        pointerEvents="box-none"
       >
-        <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
-          <Pressable onPress={(e) => e.stopPropagation()}>
+        <Animated.View
+          style={[
+            S.overlay,
+            {
+              opacity: fadeAnim,
+              paddingTop: APP_HEADER_HEIGHT + insets.top,
+              paddingBottom: CUSTOM_TAB_BAR_HEIGHT + 4 + MONTH_DETAIL_LIFT,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <View>
             <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
               <View style={S.container}>
-                <View style={S.headerRow}>
-                  <View style={S.headerLeft}>
-                    <Pressable onPress={interactionLocked ? undefined : handleHeaderPress}>
-                      <Text style={S.headerText}>{headerTitle}</Text>
+                  <View style={S.headerRow}>
+                    <View style={S.headerLeft}>
+                      <Pressable onPress={interactionLocked ? undefined : handleHeaderPress}>
+                        <Text style={S.headerText}>{headerTitle}</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable
+                      onPress={interactionLocked ? undefined : onClose}
+                      hitSlop={10}
+                      style={S.headerRightIconWrap}
+                    >
+                      <XIcon width={13} height={13} color={colors.icon.default} />
                     </Pressable>
                   </View>
-                  <Pressable
-                    onPress={interactionLocked ? undefined : onClose}
-                    hitSlop={10}
-                    style={S.headerRightIconWrap}
-                  >
-                    <XIcon width={13} height={13} color={colors.icon.default} />
-                  </Pressable>
+
+                  <GestureDetector gesture={contentSwipeGesture}>
+                    <View style={S.scrollGestureArea}>
+                      <ScrollView
+                        style={S.scroll}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={S.scrollContent}
+                      >
+                        {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
+
+                        {untimedDisplayEvents.map((ev, i) =>
+                          renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
+                        )}
+
+                        {untimedTasks.map((task, i) =>
+                          renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
+                        )}
+
+                        <View style={S.divider} />
+                        <Text style={S.sectionTitle}>시간별 일정</Text>
+
+                        {timedMerged.map((item, i) => {
+                          if (item.kind === 'task') {
+                            return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
+                          }
+                          const ev = item.ev
+                          const timeText = ev.time?.trim()
+                            ? ev.time
+                            : ev.startAt && ev.endAt
+                            ? formatTimeRange(ev.startAt, ev.endAt)
+                            : undefined
+
+                          return renderScheduleCard(
+                            ev,
+                            `timed-${String(ev.id ?? i)}`,
+                            timeText,
+                            false,
+                          )
+                        })}
+                      </ScrollView>
+                    </View>
+                  </GestureDetector>
+
+                  <View style={S.bottomReserved} />
+                  <View style={S.quickInputWrap}>
+                    <View style={S.quickInputBox}>
+                      <Pressable
+                        onPress={submitQuickAdd}
+                        hitSlop={8}
+                        disabled={quickSaving}
+                        style={S.quickPlusBtn}
+                      >
+                        <PlusBtn width={18} height={18} color={colors.icon.default} />
+                      </Pressable>
+                      <TextInput
+                        value={quickTitle}
+                        onChangeText={setQuickTitle}
+                        placeholder="일정 제목을 입력하세요..."
+                        placeholderTextColor={colors.brand.primary}
+                        style={S.quickInput}
+                        returnKeyType="done"
+                        onSubmitEditing={submitQuickAdd}
+                        editable={!quickSaving}
+                        blurOnSubmit={false}
+                      />
+                    </View>
+                  </View>
                 </View>
-
-              <GestureDetector gesture={contentSwipeGesture}>
-                <View style={S.scrollGestureArea}>
-                  <ScrollView
-                    style={S.scroll}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={S.scrollContent}
-                  >
-                    {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
-
-                    {untimedDisplayEvents.map((ev, i) =>
-                      renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
-                    )}
-
-                    {untimedTasks.map((task, i) =>
-                      renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
-                    )}
-
-                    <View style={S.divider} />
-                    <Text style={S.sectionTitle}>시간별 일정</Text>
-
-                    {timedMerged.map((item, i) => {
-                      if (item.kind === 'task') {
-                        return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
-                      }
-                      const ev = item.ev
-                      const timeText = ev.time?.trim()
-                        ? ev.time
-                        : ev.startAt && ev.endAt
-                        ? formatTimeRange(ev.startAt, ev.endAt)
-                        : undefined
-
-                      return renderScheduleCard(
-                        ev,
-                        `timed-${String(ev.id ?? i)}`,
-                        timeText,
-                        false,
-                      )
-                    })}
-                  </ScrollView>
-                </View>
-              </GestureDetector>
-
-              <View style={S.bottomReserved} />
-              <View style={S.quickInputWrap}>
-                <View style={S.quickInputBox}>
-                  <Pressable
-                    onPress={submitQuickAdd}
-                    hitSlop={8}
-                    disabled={quickSaving}
-                    style={S.quickPlusBtn}
-                  >
-                    <PlusBtn width={18} height={18} color={colors.icon.default} />
-                  </Pressable>
-                  <TextInput
-                    value={quickTitle}
-                    onChangeText={setQuickTitle}
-                    placeholder="일정 제목을 입력하세요..."
-                    placeholderTextColor={colors.brand.primary}
-                    style={S.quickInput}
-                    returnKeyType="done"
-                    onSubmitEditing={submitQuickAdd}
-                    editable={!quickSaving}
-                    blurOnSubmit={false}
-                  />
-                </View>
-              </View>
-              </View>
-            </Animated.View>
-          </Pressable>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </View>
+              </Animated.View>
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
   )
 }
 
@@ -550,7 +559,7 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFFB3',
+    backgroundColor: 'rgba(255,255,255,0.62)',
   },
   shadowWrap: {
     width: 350,
@@ -564,7 +573,7 @@ const S = StyleSheet.create({
   container: {
     width: 350,
     height: 569,
-    backgroundColor: colors.background.bg1,
+    backgroundColor: '#fff',
     borderRadius: 20,
     overflow: 'hidden',
   },
@@ -648,7 +657,7 @@ const S = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 94,
-    backgroundColor: colors.background.bg1,
+    backgroundColor: '#fff',
     shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.3,
@@ -670,7 +679,7 @@ const S = StyleSheet.create({
     borderRadius: DETAIL_ITEM_RADIUS,
     borderWidth: 0.5,
     borderColor: colors.brand.primary,
-    backgroundColor: colors.background.bg1,
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,

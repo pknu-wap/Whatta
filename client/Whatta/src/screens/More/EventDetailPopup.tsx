@@ -51,6 +51,7 @@ const MemoCalendar = memo(
 )
 
 const H_PAD = 18
+const DETAIL_POPUP_LIFT = 49
 
 type Anchor = { x: number; y: number; w: number; h: number }
 
@@ -88,7 +89,10 @@ export default function EventDetailPopup({
   const MARGIN = 10
   const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
   const bottomSheetInset =
-    insets.bottom + MARGIN + (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
+    insets.bottom +
+    MARGIN +
+    DETAIL_POPUP_LIFT +
+    (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
 
   const scrollRef = useRef<ScrollView>(null)
   const { width: W, height: H } = Dimensions.get('window')

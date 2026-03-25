@@ -32,9 +32,11 @@ const TAB_ACTIVE_COLOR = '#464A4D'
 const AI_BUBBLE_W = 112
 const AI_BUBBLE_H = 110
 const AI_BUBBLE_RISE = 10
-const AI_TOUCH_TOP = 56
+const AI_TOUCH_TOP = 30
 const AI_ICON_W = 130
 const AI_ICON_H = 68
+const AI_TOUCH_W = 136
+const AI_TOUCH_H = 82
 const TAB_BAR_SHADOW_STYLE = {
   shadowColor: '#17191A',
   shadowOpacity: 0.08,
@@ -326,19 +328,18 @@ const S = StyleSheet.create({
   aiTabButton: {
     position: 'absolute',
     top: 0,
-    bottom: 0,
     left: '50%',
-    marginLeft: -72,
-    width: 144,
+    marginLeft: -(AI_TOUCH_W / 2),
+    width: AI_TOUCH_W,
+    height: AI_TOUCH_H,
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     overflow: 'visible',
   },
   aiIconWrap: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 7,
+    marginTop: 25,
   },
   tabLabel: {
     ...ts('body3'),
