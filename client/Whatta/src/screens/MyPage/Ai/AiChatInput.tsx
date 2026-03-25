@@ -17,6 +17,7 @@ type Props = {
   focusSignal?: number
   plusActive: boolean
   attachmentMenuOpen?: boolean
+  showCameraOption?: boolean
   imagePreviewUri?: string | null
   disabled?: boolean
   onPressPlus: () => void
@@ -41,6 +42,7 @@ export default function AiChatInput({
   focusSignal = 0,
   plusActive,
   attachmentMenuOpen = false,
+  showCameraOption = true,
   imagePreviewUri = null,
   disabled = false,
   onPressPlus,
@@ -90,7 +92,11 @@ export default function AiChatInput({
             <PicIcon width={24} height={24} color={colors.icon.default} />
             <Text style={S.attachmentCardText}>앨범에서{'\n'}가져오기</Text>
           </Pressable>
-          <Pressable style={S.attachmentCard} onPress={onPressCamera}>
+          <Pressable
+            style={[S.attachmentCard, !showCameraOption && S.attachmentCardHidden]}
+            onPress={onPressCamera}
+            disabled={!showCameraOption}
+          >
             <CameraIcon width={24} height={24} color={colors.icon.default} />
             <Text style={S.attachmentCardText}>사진 촬영</Text>
           </Pressable>
@@ -204,6 +210,9 @@ const S = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+  },
+  attachmentCardHidden: {
+    display: 'none',
   },
   attachmentCardText: {
     ...ts('body1'),

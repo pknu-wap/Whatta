@@ -1386,6 +1386,7 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
               focusSignal={inputFocusSignal}
               plusActive={plusActive}
               attachmentMenuOpen={attachmentMenuOpen}
+              showCameraOption={false}
               imagePreviewUri={attachedImage?.url ?? null}
               disabled={loading || imageUploading}
               onPressPlus={() => {
