@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, ScrollView } from 'react-native'
+import { View, Text, ScrollView, useWindowDimensions } from 'react-native'
 
 import { PIXELS_PER_MIN } from './constants'
 import S from './S'
@@ -9,9 +9,8 @@ import { bus } from '@/lib/eventBus'
 import { updateTask } from '@/api/task'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const GRID_SIDE_PAD = 16
 const TIME_COL_W = 50
-const DAY_LEFT_OFFSET = TIME_COL_W + 18
-const EXPANDED_GROUP_WIDTH = 308
 
 const formatHourLabel = (hour: number) =>
   hour === 0
@@ -73,6 +72,10 @@ export default function DayTimeline({
   DraggableTaskGroupBox,
   DraggableTaskBox,
 }: DayTimelineProps) {
+  const { width: screenWidth } = useWindowDimensions()
+  const dayCardLeft = GRID_SIDE_PAD + TIME_COL_W
+  const dayCardWidth = Math.max(72, screenWidth - GRID_SIDE_PAD * 2 - TIME_COL_W)
+
   return (
     <ScrollView
       ref={gridScrollRef}
@@ -127,6 +130,8 @@ export default function DayTimeline({
               color={resolveScheduleColor(evt.colorKey)}
               anchorDate={anchorDate}
               onPress={() => openEventDetail(evt)}
+              cardLeft={dayCardLeft}
+              cardWidth={dayCardWidth}
             />
           )
         }
@@ -144,6 +149,8 @@ export default function DayTimeline({
             isRepeat={!!evt.isRepeat}
             onPress={() => openEventDetail(evt)}
             events={events}
+            cardLeft={dayCardLeft}
+            cardWidth={dayCardWidth}
           />
         )
       })}
@@ -161,6 +168,8 @@ export default function DayTimeline({
               startMin={startMin}
               anchorDate={anchorDate}
               onPress={() => setOpenGroupId(groupId)}
+              cardLeft={dayCardLeft}
+              cardWidth={dayCardWidth}
             />
           )
         }
@@ -175,6 +184,8 @@ export default function DayTimeline({
             done={task.completed}
             onPress={() => openTaskPopupFromApi(task.id)}
             events={events}
+            cardLeft={dayCardLeft}
+            cardWidth={dayCardWidth}
           />
         ))
       })}
@@ -190,8 +201,8 @@ export default function DayTimeline({
               style={{
                 position: 'absolute',
                 top: startMin * PIXELS_PER_MIN + 2,
-                left: DAY_LEFT_OFFSET,
-                width: EXPANDED_GROUP_WIDTH,
+                left: dayCardLeft,
+                width: dayCardWidth,
                 backgroundColor: 'transparent',
                 zIndex: 500,
               }}
@@ -200,7 +211,7 @@ export default function DayTimeline({
                 groupId={`day-group-open-${groupId}`}
                 density="day"
                 expanded
-                layoutWidthHint={EXPANDED_GROUP_WIDTH}
+                layoutWidthHint={dayCardWidth}
                 tasks={list.map((task) => ({
                   id: String(task.id),
                   title: task.title ?? '',

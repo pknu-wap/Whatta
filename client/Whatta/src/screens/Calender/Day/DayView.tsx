@@ -8,6 +8,7 @@ import {
   Dimensions,
   Alert,
   Modal,
+  useWindowDimensions,
 } from 'react-native'
 
 import { GestureDetector } from 'react-native-gesture-handler'
@@ -83,7 +84,7 @@ function FullBleed({
 }
 
 const TIME_COL_W = 50
-const TOP_ITEM_WIDTH = 308
+const HORIZONTAL_PAD = 16
 
 let draggingEventId: string | null = null
 
@@ -100,6 +101,7 @@ const getTaskStartHour = (placementTime?: string | null) => {
 }
 
 export default function DayView({ active = true }: { active?: boolean }) {
+  const { width: windowWidth } = useWindowDimensions()
   const suppressNextAutoScrollRef = useRef(false)
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
 
@@ -621,6 +623,7 @@ export default function DayView({ active = true }: { active?: boolean }) {
     setThumbTop(top)
   }
   const showScrollbar = contentH > wrapH
+  const topItemWidth = Math.max(72, windowWidth - HORIZONTAL_PAD * 2 - TIME_COL_W)
   const anchorDateMeta = useMemo(() => {
     const [yy, mm, dd] = anchorDate.split('-').map(Number)
     const d = new Date(yy, (mm || 1) - 1, dd || 1)
@@ -641,8 +644,8 @@ export default function DayView({ active = true }: { active?: boolean }) {
   }, [anchorDate])
   // 좌측 날짜 컬럼(50) 이후 시작하는 상단 아이템이 화면 오른쪽 끝까지 닿도록 하는 폭
   const TOP_PERIOD_SPAN_WIDTH = Math.max(
-    TOP_ITEM_WIDTH,
-    Dimensions.get('window').width - (16 + TIME_COL_W),
+    topItemWidth,
+    windowWidth - (HORIZONTAL_PAD + TIME_COL_W),
   )
   const topItems = useMemo(() => {
     type TopScheduleKind = 'basic' | 'period' | 'repeat'
@@ -833,7 +836,7 @@ export default function DayView({ active = true }: { active?: boolean }) {
                                   done={item.done}
                                   density="week"
                                   isUntimed
-                                  layoutWidthHint={TOP_ITEM_WIDTH}
+                                  layoutWidthHint={topItemWidth}
                                   style={S.topCard}
                                   onPress={() => openTaskPopupFromApi(item.id)}
                                   onToggle={(id, nextDone) => toggleCheck(id, nextDone)}
@@ -881,7 +884,7 @@ export default function DayView({ active = true }: { active?: boolean }) {
                                 color={item.color}
                                 density="day"
                                 isUntimed
-                                layoutWidthHint={TOP_ITEM_WIDTH}
+                                layoutWidthHint={topItemWidth}
                                 style={S.topCard}
                                 onPress={() => openEventDetail(item.raw)}
                               />

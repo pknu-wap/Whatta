@@ -63,10 +63,10 @@ const S = StyleSheet.create({
     alignSelf: 'stretch',
   },
   topCard: {
-    width: 308,
+    width: '100%',
     minHeight: 30,
     height: 30,
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
   },
   topCardFull: {
     width: '100%',
