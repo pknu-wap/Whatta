@@ -8,7 +8,7 @@ const S = StyleSheet.create({
 
   taskBox: {
     width: '100%',
-    height: 160,
+    height: 168,
     backgroundColor: '#FFFFFF',
     overflow: 'visible',
     borderRadius: 0,
