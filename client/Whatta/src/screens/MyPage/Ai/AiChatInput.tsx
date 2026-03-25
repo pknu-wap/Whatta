@@ -30,8 +30,9 @@ type Props = {
 
 const LINE_HEIGHT = 20
 const TEXT_MIN_HEIGHT = 20
-const TEXT_MAX_HEIGHT = 100
-const WRAP_VERTICAL_PADDING = 7
+const WRAP_TOP_PADDING = 7
+const WRAP_BOTTOM_PADDING = 4
+const MIN_INPUT_BAR_HEIGHT = 42
 
 export default function AiChatInput({
   value,
@@ -54,18 +55,6 @@ export default function AiChatInput({
   const [textHeight, setTextHeight] = React.useState(TEXT_MIN_HEIGHT)
 
   React.useEffect(() => {
-    if (!value) {
-      setTextHeight(TEXT_MIN_HEIGHT)
-    }
-  }, [value])
-
-  React.useEffect(() => {
-    if (previewActive) {
-      setTextHeight(TEXT_MIN_HEIGHT)
-    }
-  }, [previewActive])
-
-  React.useEffect(() => {
     if (focusSignal <= 0) return
     const frame = requestAnimationFrame(() => {
       inputRef.current?.focus()
@@ -73,11 +62,19 @@ export default function AiChatInput({
     return () => cancelAnimationFrame(frame)
   }, [focusSignal])
 
+  React.useEffect(() => {
+    if (!value || previewActive) {
+      setTextHeight(TEXT_MIN_HEIGHT)
+    }
+  }, [previewActive, value])
+
   const displayPreview = previewActive && value.length === 0
-  const visibleTextHeight = Math.max(TEXT_MIN_HEIGHT, Math.min(TEXT_MAX_HEIGHT, textHeight))
-  const inputWrapHeight = Math.max(34, visibleTextHeight + WRAP_VERTICAL_PADDING * 2)
-  const barHeight = Math.max(50, inputWrapHeight + 8)
-  const barRadius = barHeight > 50 ? 20 : 50
+  const measureText =
+    value.length === 0 ? ' ' : value.endsWith('\n') ? `${value} ` : value
+  const visibleTextHeight = Math.max(TEXT_MIN_HEIGHT, textHeight)
+  const inputWrapHeight = Math.max(34, visibleTextHeight + WRAP_TOP_PADDING + WRAP_BOTTOM_PADDING)
+  const barHeight = Math.max(MIN_INPUT_BAR_HEIGHT, inputWrapHeight + 8)
+  const barRadius = visibleTextHeight <= TEXT_MIN_HEIGHT ? 50 : 20
   const hasInput = (displayPreview ? previewText : value).trim().length > 0 || !!imagePreviewUri
   const canSubmit = hasInput && !disabled
   const attachmentMenuBottom = barHeight + (imagePreviewUri ? 96 : 24)
@@ -122,6 +119,24 @@ export default function AiChatInput({
             inputRef.current?.focus()
           }}
         >
+          <Text
+            style={S.measureText}
+            onTextLayout={(event) => {
+              const lines = event.nativeEvent.lines
+              const lastLine = lines[lines.length - 1]
+              const measuredHeight =
+                lastLine && typeof lastLine.y === 'number' && typeof lastLine.height === 'number'
+                  ? Math.ceil(lastLine.y + lastLine.height)
+                  : Math.max(1, lines.length) * LINE_HEIGHT
+              const nextHeight = Math.max(TEXT_MIN_HEIGHT, measuredHeight)
+              if (nextHeight !== textHeight) {
+                setTextHeight(nextHeight)
+              }
+            }}
+          >
+            {measureText}
+          </Text>
+
           {displayPreview ? (
             <Text style={S.previewText} numberOfLines={1}>
               {previewText}
@@ -138,7 +153,7 @@ export default function AiChatInput({
             style={[
               S.input,
               {
-                minHeight: visibleTextHeight,
+                height: visibleTextHeight,
                 color: colors.text.text1,
               },
             ]}
@@ -146,13 +161,6 @@ export default function AiChatInput({
             scrollEnabled={false}
             textAlignVertical="top"
             blurOnSubmit={false}
-            onContentSizeChange={(event) => {
-              const nextHeight = Math.max(
-                TEXT_MIN_HEIGHT,
-                Math.min(TEXT_MAX_HEIGHT, Math.ceil(event.nativeEvent.contentSize.height)),
-              )
-              setTextHeight(nextHeight)
-            }}
           />
         </Pressable>
 
@@ -232,17 +240,19 @@ const S = StyleSheet.create({
   },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     width: '100%',
     backgroundColor: colors.background.bg2,
     marginBottom: 10,
     paddingHorizontal: 8,
     paddingVertical: 8,
+    minHeight: MIN_INPUT_BAR_HEIGHT,
   },
   iconButton: {
     width: 34,
     height: 34,
     borderRadius: 17,
+    alignSelf: 'flex-end',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -250,6 +260,7 @@ const S = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
+    alignSelf: 'flex-end',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 4,
@@ -259,13 +270,25 @@ const S = StyleSheet.create({
     marginLeft: 8,
     marginRight: 4,
     minWidth: 0,
-    justifyContent: 'center',
-    paddingVertical: WRAP_VERTICAL_PADDING,
+    justifyContent: 'flex-start',
+    position: 'relative',
+    paddingTop: WRAP_TOP_PADDING,
+    paddingBottom: WRAP_BOTTOM_PADDING,
+  },
+  measureText: {
+    minHeight: TEXT_MIN_HEIGHT,
+    color: 'transparent',
+    fontSize: 14,
+    fontWeight: '400',
+    lineHeight: LINE_HEIGHT,
+    letterSpacing: 0,
+    includeFontPadding: false,
   },
   previewText: {
     position: 'absolute',
     left: 0,
     right: 0,
+    top: WRAP_TOP_PADDING,
     color: colors.text.text4,
     fontSize: 14,
     fontWeight: '400',
@@ -273,7 +296,10 @@ const S = StyleSheet.create({
     includeFontPadding: false,
   },
   input: {
-    width: '100%',
+    position: 'absolute',
+    top: WRAP_TOP_PADDING,
+    left: 0,
+    right: 0,
     paddingTop: 0,
     paddingBottom: 0,
     paddingHorizontal: 0,

@@ -1309,7 +1309,7 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
                   S.inputOverlay,
                   modal && S.inputOverlayModal,
                   keyboardHeight > 0
-                    ? { bottom: keyboardHeight * 0.9 + (modal ? 10 : 0) }
+                    ? { bottom: keyboardHeight * 0.9 + (modal ? 40 : 24) }
                     : null,
                 ]}
               >
@@ -1446,10 +1446,10 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: 24,
   },
   inputOverlayModal: {
-    bottom: 10,
+    bottom: 40,
   },
   scrollToBottomButton: {
     position: 'absolute',
