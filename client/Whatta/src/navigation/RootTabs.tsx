@@ -47,6 +47,7 @@ const TAB_BAR_SHADOW_STYLE = {
 const TAB_BAR_HIDDEN_STYLE = {
   display: 'none' as const,
 }
+const HOME_DOUBLE_TAP_MS = 280
 
 const getTodayISO = () => {
   const now = new Date()
@@ -88,6 +89,7 @@ function getAiTabOptions(route: { key: string; name: string; params?: object | u
 }
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const lastHomeTapRef = React.useRef(0)
   const focusedRoute = state.routes[state.index]
   const aiIndex = state.routes.findIndex((route) => route.name === 'AI')
   const aiRoute = aiIndex >= 0 ? state.routes[aiIndex] : null
@@ -123,6 +125,15 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       if (!isFocused) {
         navigation.navigate(route.name)
       }
+      return
+    }
+
+    if (route.name === 'Home' && isFocused && !event.defaultPrevented) {
+      const now = Date.now()
+      if (now - lastHomeTapRef.current <= HOME_DOUBLE_TAP_MS) {
+        bus.emit('home:scroll-to-top')
+      }
+      lastHomeTapRef.current = now
       return
     }
 

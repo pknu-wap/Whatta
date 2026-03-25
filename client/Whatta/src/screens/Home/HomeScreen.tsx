@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Pressable,
   ScrollView,
@@ -282,6 +282,7 @@ function HeadlineTicker({ headlines, fallbackHeadline }: HeadlineTickerProps) {
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  const scrollRef = useRef<ScrollView | null>(null)
   const [isMypageActive, setIsMypageActive] = useState(false)
   const [isTransportActive, setIsTransportActive] = useState(false)
   const todayLabel = useToday('YYYY.MM.DD (dd)')
@@ -369,6 +370,14 @@ export default function HomeScreen() {
     })
   }, [coords, fetchWeather, permissionDenied])
 
+  useEffect(() => {
+    const handler = () => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true })
+    }
+    bus.on('home:scroll-to-top', handler)
+    return () => bus.off('home:scroll-to-top', handler)
+  }, [])
+
   const weatherHeadline = useMemo(() => {
     if (weatherLoading) return getWeatherFallbackHeadline(permissionDenied, true)
     if (weatherError) return weatherError
@@ -444,6 +453,7 @@ export default function HomeScreen() {
     <SafeAreaView style={S.safeArea} edges={['top']}>
       <View style={S.container}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={S.scrollContent}
           showsVerticalScrollIndicator={false}
         >
