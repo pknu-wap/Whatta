@@ -33,7 +33,7 @@ import { DraggableFixedEvent } from './DayViewItems'
 import { DraggableFlexibleEvent } from './DayViewItems'
 import { PIXELS_PER_MIN } from './constants'
 import S from './S'
-import { useDayData } from './eventUtils'
+import { patchDayTaskCompletion, useDayData } from './eventUtils'
 import { useDaySwipe } from './swipeUtils'
 import { useOCR } from '@/hooks/useOCR'
 import { useDayDrag } from './dragUtils'
@@ -565,6 +565,8 @@ export default function DayView({ active = true }: { active?: boolean }) {
         const completed = payload.item.completed
         const itemId = String(payload.item.id)
 
+        patchDayTaskCompletion(anchorDate, itemId, completed)
+
         setTasks((prev) =>
           prev.map((task) =>
             String(task.id) === itemId ? { ...task, completed } : task,
@@ -703,32 +705,38 @@ export default function DayView({ active = true }: { active?: boolean }) {
     return [...scheduleItems, ...taskItems]
   }, [spanEvents, checks, anchorDate])
 
-  const toggleCheck = async (id: string) => {
+  const toggleCheck = async (id: string, nextDone?: boolean) => {
     const current = checks.find((c) => String(c.id) === String(id))
     if (!current) return
 
-    const nextDone = !(current.done ?? current.completed)
+    const resolvedNextDone = nextDone ?? !(current.done ?? current.completed)
+
+    patchDayTaskCompletion(anchorDate, id, resolvedNextDone)
 
     // UI 즉시 변경
     setChecks((prev) =>
       prev.map((c) =>
-        String(c.id) === String(id) ? { ...c, done: nextDone, completed: nextDone } : c,
+        String(c.id) === String(id)
+          ? { ...c, done: resolvedNextDone, completed: resolvedNextDone }
+          : c,
       ),
     )
 
     // 서버에 보낼 값도 nextDone 사용
     try {
-      await updateTask(id, { completed: nextDone })
+      await updateTask(id, { completed: resolvedNextDone })
 
       bus.emit('calendar:mutated', {
         op: 'update',
-        item: { id, completed: nextDone, date: anchorDate, isTask: true },
+        item: { id, completed: resolvedNextDone, date: anchorDate, isTask: true },
       })
+      bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
     } catch (err) {
+      patchDayTaskCompletion(anchorDate, id, !resolvedNextDone)
       setChecks((prev) =>
         prev.map((c) =>
           String(c.id) === String(id)
-            ? { ...c, done: !nextDone, completed: !nextDone }
+            ? { ...c, done: !resolvedNextDone, completed: !resolvedNextDone }
             : c,
         ),
       )
@@ -821,7 +829,7 @@ export default function DayView({ active = true }: { active?: boolean }) {
                                   layoutWidthHint={TOP_ITEM_WIDTH}
                                   style={S.topCard}
                                   onPress={() => openTaskPopupFromApi(item.id)}
-                                  onToggle={(id) => toggleCheck(id)}
+                                  onToggle={(id, nextDone) => toggleCheck(id, nextDone)}
                                 />
                               </View>
                             )

@@ -295,6 +295,13 @@ export default function CreateEventDetailStep({
               ? `매월 ${nth}번째 ${wd}에 반복`
               : `매월 마지막주 ${wd}에 반복`
           : `${repeatEvery}${repeatUnit === 'day' ? '일' : repeatUnit === 'week' ? '주' : '월'}마다`
+
+  const applyRepeatMode = (nextMode: Props['repeatMode']) => {
+    if (nextMode === 'weekly' && repeatMode !== 'weekly') {
+      onChangeRepeatWeekdays([start.getDay()])
+    }
+    onChangeRepeatMode(nextMode)
+  }
   React.useEffect(() => {
     if (!repeatOn) {
       setRepeatOpen(false)
@@ -314,7 +321,6 @@ export default function CreateEventDetailStep({
     { label: '토', value: 6 },
   ] as const
   const K_DAY = ['일', '월', '화', '수', '목', '금', '토'] as const
-  const disabledWeekday = start.getDay()
   const repeatEndSelected = repeatEndDate ?? start
   const repeatEndHeader = `${repeatEndMonthCursor.getFullYear()}년 ${repeatEndMonthCursor.getMonth() + 1}월`
   const repeatEndPages = useMemo(
@@ -348,13 +354,12 @@ export default function CreateEventDetailStep({
     return Array.from({ length: 101 }, (_, i) => now - 50 + i)
   }, [])
   const weekdayLabel = (() => {
-    const appliedDays = Array.from(new Set([disabledWeekday, ...repeatWeekdays])).sort(
-      (a, b) => a - b,
-    )
+    const appliedDays = Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
     const hasDay = (d: number) => appliedDays.includes(d)
     const isWeekendEvery = hasDay(0) && hasDay(6)
     const isWeekdayEvery = [1, 2, 3, 4, 5].every((d) => hasDay(d))
-    if (appliedDays.length === 1) return `${K_DAY[disabledWeekday]}요일마다`
+    if (appliedDays.length === 0) return '요일 추가 없음'
+    if (appliedDays.length === 1) return `${K_DAY[appliedDays[0]]}요일마다`
     if (isWeekendEvery) return '주말마다'
     if (isWeekdayEvery) return '평일마다'
     return appliedDays.map((d) => K_DAY[d]).join(', ')
@@ -796,7 +801,7 @@ export default function CreateEventDetailStep({
                         ]}
                         onPress={() => {
                           if (k === 'monthly') {
-                            onChangeRepeatMode('monthly')
+                            applyRepeatMode('monthly')
                             setMonthlyOpen((v) => !v)
                             setRepeatCustomOpen(false)
                             return
@@ -806,12 +811,12 @@ export default function CreateEventDetailStep({
                               onChangeRepeatEvery(1)
                               onChangeRepeatUnit('day')
                             }
-                            onChangeRepeatMode('custom')
+                            applyRepeatMode('custom')
                             setRepeatCustomOpen((v) => !v)
                             setMonthlyOpen(false)
                             return
                           }
-                          onChangeRepeatMode(k)
+                          applyRepeatMode(k)
                           setRepeatOpen(false)
                           setMonthlyOpen(false)
                           setRepeatCustomOpen(false)
@@ -977,13 +982,11 @@ export default function CreateEventDetailStep({
             {weekdayOpen && (
               <View style={[styles.weekdayWrap, { width: contentWidth }]}>
                 {WEEKDAY_OPTIONS.map(({ label, value }) => {
-                  const disabled = value === disabledWeekday
                   const selected = repeatWeekdays.includes(value)
                   return (
                     <Pressable
                       key={`${label}-${value}`}
                       style={[styles.weekdayItem, selected && styles.weekdayItemSelected]}
-                      disabled={disabled}
                       onPress={() => {
                         onChangeRepeatWeekdays(
                           selected
@@ -996,7 +999,6 @@ export default function CreateEventDetailStep({
                         style={[
                           styles.weekdayText,
                           selected && styles.weekdayTextSelected,
-                          disabled && styles.weekdayTextDisabled,
                         ]}
                       >
                         {label}

@@ -11,7 +11,7 @@ export const cellWidth = Math.min(60, dynamicCellWidth)
 export const S = StyleSheet.create({
   contentContainerWrapper: { flex: 1, paddingBottom: 0, paddingTop: 0 },
   contentArea: { flex: 1, paddingHorizontal: 7, paddingTop: 0 },
-  scrollContentContainer: { paddingBottom: CUSTOM_TAB_BAR_HEIGHT - 10, flexGrow: 1 },
+  scrollContentContainer: { paddingBottom: CUSTOM_TAB_BAR_HEIGHT + 96, flexGrow: 1 },
 
   dayHeader: {
     flexDirection: 'row',

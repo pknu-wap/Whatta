@@ -249,6 +249,13 @@ export default function EventDetailPopup({
   const formatRepeatCustom = (n: number, u: RepeatUnit) =>
     `${n}${u === 'day' ? '일' : u === 'week' ? '주' : '월'}마다`
 
+  const applyRepeatMode = (nextMode: RepeatMode) => {
+    if (nextMode === 'weekly' && repeatMode !== 'weekly') {
+      setRepeatWeekdays([start.getDay()])
+    }
+    setRepeatMode(nextMode)
+  }
+
   const repeatLabel = (m: RepeatMode) =>
     m === 'daily'
       ? '매일'
@@ -327,6 +334,114 @@ export default function EventDetailPopup({
     }
   }
 
+  const shiftYmd = (iso: string, deltaDays: number) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    const next = new Date(y, (m || 1) - 1, d || 1)
+    next.setDate(next.getDate() + deltaDays)
+    return ymdLocal(next)
+  }
+
+  const getWeeklyRepeatDays = () =>
+    Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
+
+  const findNextWeeklyRepeatDate = (baseDateIso: string, days: number[]) => {
+    const [y, m, d] = baseDateIso.split('-').map(Number)
+    const baseDate = new Date(y, (m || 1) - 1, d || 1)
+
+    for (let delta = 1; delta <= 14; delta += 1) {
+      const candidate = new Date(baseDate)
+      candidate.setDate(candidate.getDate() + delta)
+      if (days.includes(candidate.getDay())) {
+        return ymdLocal(candidate)
+      }
+    }
+
+    return null
+  }
+
+  const diffDays = (fromIso: string, toIso: string) => {
+    const [fromY, fromM, fromD] = fromIso.split('-').map(Number)
+    const [toY, toM, toD] = toIso.split('-').map(Number)
+    const fromDate = new Date(fromY, (fromM || 1) - 1, fromD || 1)
+    const toDate = new Date(toY, (toM || 1) - 1, toD || 1)
+    return Math.round((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000))
+  }
+
+  const shouldSplitWeeklyRepeat = () => {
+    if (repeatMode !== 'weekly') return false
+    const days = getWeeklyRepeatDays()
+    return days.length > 0 && !days.includes(start.getDay())
+  }
+
+  const emitSavedEvent = (
+    saved: any,
+    fallback: { startDate: string; endDate: string } & Record<string, any>,
+    colorHex: string,
+  ) => {
+    const enriched = {
+      ...(saved ?? {}),
+      colorKey: colorHex,
+      startDate: saved?.startDate ?? fallback.startDate,
+      endDate: saved?.endDate ?? fallback.endDate,
+    }
+
+    bus.emit('calendar:mutated', { op: 'create', item: enriched })
+    const ym = enriched.startDate?.slice(0, 7)
+    if (ym) bus.emit('calendar:invalidate', { ym })
+  }
+
+  const createDetachedWeeklyRepeat = async (
+    payload: Record<string, any>,
+    colorHex: string,
+    opts?: { preserveExistingEvent?: boolean },
+  ) => {
+    const startDateIso = String(payload.startDate)
+    const weeklyDays = getWeeklyRepeatDays()
+    const repeatStartDate = findNextWeeklyRepeatDate(startDateIso, weeklyDays)
+
+    if (!repeatStartDate) {
+      throw new Error('다음 반복 날짜를 계산하지 못했습니다.')
+    }
+
+    const [baseStartY, baseStartM, baseStartD] = String(payload.startDate).split('-').map(Number)
+    const [baseEndY, baseEndM, baseEndD] = String(payload.endDate).split('-').map(Number)
+    const baseStartDate = new Date(baseStartY, (baseStartM || 1) - 1, baseStartD || 1)
+    const baseEndDate = new Date(baseEndY, (baseEndM || 1) - 1, baseEndD || 1)
+    const durationDays = Math.round(
+      (baseEndDate.getTime() - baseStartDate.getTime()) / (24 * 60 * 60 * 1000),
+    )
+
+    const deltaDays = diffDays(startDateIso, repeatStartDate)
+
+    const singlePayload: { startDate: string; endDate: string } & Record<string, any> = {
+      ...payload,
+      startDate: startDateIso,
+      endDate: String(payload.endDate),
+      repeat: null,
+    }
+
+    const repeatPayload: { startDate: string; endDate: string } & Record<string, any> = {
+      ...payload,
+      startDate: repeatStartDate,
+      endDate: shiftYmd(startDateIso, deltaDays + durationDays),
+      repeat: payload.repeat ?? buildRepeatPayload(),
+    }
+
+    if (opts?.preserveExistingEvent && mode === 'edit' && eventId) {
+      const updatedSingle = await http.patch(`/event/${eventId}`, {
+        ...singlePayload,
+        repeat: null,
+      })
+      emitSavedEvent(updatedSingle?.data, singlePayload, colorHex)
+    } else {
+      const createdSingle = await http.post('/event', singlePayload)
+      emitSavedEvent(createdSingle?.data, singlePayload, colorHex)
+    }
+
+    const createdRepeat = await http.post('/event', repeatPayload)
+    emitSavedEvent(createdRepeat?.data, repeatPayload, colorHex)
+  }
+
   const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
 
   const buildRepeatPayload = (opts?: { includeExceptions?: boolean }) => {
@@ -350,10 +465,9 @@ export default function EventDetailPopup({
     let on: string[] | null = null
 
     if (unit === 'WEEK') {
-      // 추가 요일 선택은 "매주"에서만 허용
       const weekdays =
         repeatMode === 'weekly'
-          ? Array.from(new Set([start.getDay(), ...repeatWeekdays])).sort((a, b) => a - b)
+          ? Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
           : [start.getDay()]
       on = weekdays.map((day) => WEEKDAY_ENUM[day])
     } else if (unit === 'MONTH') {
@@ -417,23 +531,15 @@ export default function EventDetailPopup({
 
     // 2) WEEK
     if (r.unit === 'WEEK') {
-      const wd = WEEKDAY_ENUM[start.getDay()]
-      const isSimpleWeekly =
-        r.interval === 1 && Array.isArray(r.on) && r.on.length === 1 && r.on[0] === wd
       nextRepeatWeekdays = Array.isArray(r.on)
         ? r.on
             .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
-            .filter((day): day is number => day >= 0 && day !== start.getDay())
+            .filter((day): day is number => day >= 0)
         : []
 
-      if (isSimpleWeekly) {
-        // "매주" 패턴
+      if (r.interval === 1) {
+        // interval 1인 주간 반복은 선택 요일 수와 무관하게 "매주"로 취급
         nextRepeatMode = 'weekly'
-        nextRepeatWeekdays = Array.isArray(r.on)
-          ? r.on
-              .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
-              .filter((day): day is number => day >= 0 && day !== start.getDay())
-          : []
       } else {
         // 그 외는 "맞춤 설정 - 주"로 처리
         nextRepeatMode = 'custom'
@@ -841,20 +947,11 @@ export default function EventDetailPopup({
         repeat: newRepeat,
       }
 
-      const resNew = await http.post('/event', createPayload)
-      const saved = resNew?.data
-
-      if (saved) {
-        const enriched = {
-          ...(saved ?? {}),
-          colorKey: colorHex,
-          startDate: saved?.startDate ?? createPayload.startDate,
-          endDate: saved?.endDate ?? createPayload.endDate,
-        }
-
-        bus.emit('calendar:mutated', { op: 'create', item: enriched })
-        const ym = enriched.startDate?.slice(0, 7)
-        if (ym) bus.emit('calendar:invalidate', { ym })
+      if (shouldSplitWeeklyRepeat()) {
+        await createDetachedWeeklyRepeat(createPayload, colorHex)
+      } else {
+        const resNew = await http.post('/event', createPayload)
+        emitSavedEvent(resNew?.data, createPayload, colorHex)
       }
 
       onClose()
@@ -951,6 +1048,12 @@ export default function EventDetailPopup({
 
     // 1) 반복 토글이 켜진 경우에만 반복 저장
     if (repeatOn) {
+      if (repeatMode === 'weekly' && getWeeklyRepeatDays().length === 0) {
+        Alert.alert('저장 실패', '반복할 요일을 최소 1개 선택해주세요.')
+        setSaving(false)
+        return
+      }
+
       // 편집 모드 + 기존에 repeat 있는 일정 → 분기(이 일정만 / 이후 모두)
       if (mode === 'edit' && eventData?.repeat != null) {
         setSaving(false)
@@ -994,6 +1097,14 @@ export default function EventDetailPopup({
 
       try {
         let saved: any
+        if (shouldSplitWeeklyRepeat()) {
+          await createDetachedWeeklyRepeat(finalPayload, colorHex, {
+            preserveExistingEvent: mode === 'edit' && !!eventId,
+          })
+          onClose()
+          return
+        }
+
         if (mode === 'edit' && eventId) {
           const res = await http.patch(`/event/${eventId}`, finalPayload)
           saved = res?.data
@@ -1003,16 +1114,7 @@ export default function EventDetailPopup({
         }
 
         if (saved) {
-          const enriched = {
-            ...(saved ?? {}),
-            colorKey: colorHex,
-            startDate: saved?.startDate ?? finalPayload.startDate,
-            endDate: saved?.endDate ?? finalPayload.endDate,
-          }
-
-          bus.emit('calendar:mutated', { op: 'create', item: enriched })
-          const ym = enriched.startDate?.slice(0, 7)
-          if (ym) bus.emit('calendar:invalidate', { ym })
+          emitSavedEvent(saved, finalPayload, colorHex)
         }
 
         onClose()
@@ -2368,19 +2470,19 @@ export default function EventDetailPopup({
                                   onPress={() => {
                                     if (k === 'monthly') {
                                       // 매월은 리스트를 닫지 않고, 바로 아래에 인라인 옵션 토글
-                                      setRepeatMode('monthly')
+                                      applyRepeatMode('monthly')
                                       setRepeatCustomOpen(false) // 다른 서브 닫기
                                       setMonthlyOpen((v) => !v)
                                       return
                                     }
                                     if (k === 'custom') {
-                                      setRepeatMode('custom')
+                                      applyRepeatMode('custom')
                                       setMonthlyOpen(false)
                                       setRepeatCustomOpen((v) => !v) // 맞춤 설정 인라인 피커 토글
                                       return
                                     }
                                     // 다른 옵션은 접고 닫기
-                                    setRepeatMode(k as any)
+                                    applyRepeatMode(k)
                                     setMonthlyOpen(false)
                                     setRepeatCustomOpen(false)
                                     setRepeatOpen(false)

@@ -461,13 +461,7 @@ export default function ScreenWithSidebar({
           <FabHybrid
             bottomOffset={floatingBottomOffset}
             rightOffset={20}
-            onPressTop1={() => {
-              bus.emit('popup:schedule:create', { source: activeCalendarSource, createType: 'task' })
-            }}
-            onPressTop2={() => {
-              bus.emit('popup:image:create', { source: activeCalendarSource })
-            }}
-            onPressPrimaryWhenOpen={() => {
+            onPressPrimary={() => {
               bus.emit('popup:schedule:create', { source: activeCalendarSource })
             }}
           />

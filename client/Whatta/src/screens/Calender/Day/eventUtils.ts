@@ -15,6 +15,25 @@ type DailyRawData = {
 const dayCache = new Map<string, DailyRawData>()
 const dayInflight = new Map<string, Promise<DailyRawData>>()
 
+export function patchDayTaskCompletion(date: string, taskId: string, completed: boolean) {
+  const cached = dayCache.get(date)
+  if (!cached) return
+
+  const patchTaskList = (items: any[]) =>
+    items.map((item: any) =>
+      String(item?.id) === String(taskId)
+        ? { ...item, completed, done: completed }
+        : item,
+    )
+
+  dayCache.set(date, {
+    ...cached,
+    timedTasks: patchTaskList(cached.timedTasks),
+    allDayTasks: patchTaskList(cached.allDayTasks),
+    floatingTasks: patchTaskList(cached.floatingTasks),
+  })
+}
+
 function parseISODate(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, (m || 1) - 1, d || 1)
