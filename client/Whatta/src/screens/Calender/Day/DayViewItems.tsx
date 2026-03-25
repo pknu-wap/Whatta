@@ -377,7 +377,9 @@ export function DraggableFixedEvent({
   useEffect(() => {
     setDisplayedStartMin(startMin)
     setDisplayedEndMin(endMin)
-  }, [endMin, startMin])
+    translateY.value = 0
+    dragEnabled.value = false
+  }, [dragEnabled, endMin, startMin, translateY])
 
   const handleDrop = useCallback(
     async (movedY: number) => {

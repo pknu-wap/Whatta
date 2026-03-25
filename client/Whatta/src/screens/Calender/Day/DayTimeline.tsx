@@ -127,7 +127,7 @@ export default function DayTimeline({
               title={evt.title}
               startMin={startMin}
               endMin={endMin}
-              color={resolveScheduleColor(evt.colorKey)}
+              color={resolveScheduleColor(evt.colorKey || evt.color)}
               anchorDate={anchorDate}
               onPress={() => openEventDetail(evt)}
               cardLeft={dayCardLeft}
@@ -144,11 +144,11 @@ export default function DayTimeline({
             place={getLabelName(evt.labels?.[0])}
             startMin={startMin}
             endMin={endMin}
-            color={resolveScheduleColor(evt.colorKey)}
+            color={resolveScheduleColor(evt.colorKey || evt.color)}
             anchorDate={anchorDate}
             isRepeat={!!evt.isRepeat}
             onPress={() => openEventDetail(evt)}
-            events={events}
+            events={overlappedEvents}
             cardLeft={dayCardLeft}
             cardWidth={dayCardWidth}
           />
@@ -183,7 +183,7 @@ export default function DayTimeline({
             anchorDate={anchorDate}
             done={task.completed}
             onPress={() => openTaskPopupFromApi(task.id)}
-            events={events}
+            events={overlappedEvents}
             cardLeft={dayCardLeft}
             cardWidth={dayCardWidth}
           />

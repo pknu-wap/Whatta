@@ -14,11 +14,17 @@ type DailyRawData = {
 
 const dayCache = new Map<string, DailyRawData>()
 const dayInflight = new Map<string, Promise<DailyRawData>>()
+const dayRequestVersion = new Map<string, number>()
+
+function bumpDayRequestVersion(date: string) {
+  dayRequestVersion.set(date, (dayRequestVersion.get(date) ?? 0) + 1)
+}
 
 export function invalidateDayCache(target?: { date?: string; ym?: string }) {
   if (target?.date) {
     dayCache.delete(target.date)
     dayInflight.delete(target.date)
+    bumpDayRequestVersion(target.date)
     return
   }
 
@@ -28,6 +34,9 @@ export function invalidateDayCache(target?: { date?: string; ym?: string }) {
     }
     for (const key of Array.from(dayInflight.keys())) {
       if (key.startsWith(target.ym)) dayInflight.delete(key)
+    }
+    for (const key of Array.from(dayRequestVersion.keys())) {
+      if (key.startsWith(target.ym)) bumpDayRequestVersion(key)
     }
   }
 }
@@ -78,6 +87,7 @@ async function fetchDailyRaw(date: string, force = false): Promise<DailyRawData>
   const inflight = dayInflight.get(date)
   if (inflight) return inflight
 
+  const requestVersion = dayRequestVersion.get(date) ?? 0
   const req = (async () => {
     const res = await http.get('/calendar/daily', { params: { date } })
     const data = res?.data?.data ?? {}
@@ -89,7 +99,9 @@ async function fetchDailyRaw(date: string, force = false): Promise<DailyRawData>
       allDaySpanEvents: data?.allDaySpanEvents ?? [],
       allDayEvents: data?.allDayEvents ?? [],
     }
-    dayCache.set(date, normalized)
+    if ((dayRequestVersion.get(date) ?? 0) === requestVersion) {
+      dayCache.set(date, normalized)
+    }
     return normalized
   })()
 

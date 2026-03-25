@@ -1634,16 +1634,23 @@ export default function EventDetailPopup({
   const deleteNormal = async () => {
     try {
       await http.delete(`/event/${eventId}`)
-      const dateISO =
-        eventData?.startDate?.slice?.(0, 10) ??
+      const startDateISO =
         initial?.startDate?.slice?.(0, 10) ??
+        eventData?.startDate?.slice?.(0, 10) ??
         null
+      const endDateISO =
+        initial?.endDate?.slice?.(0, 10) ??
+        eventData?.endDate?.slice?.(0, 10) ??
+        startDateISO
 
-      if (dateISO) invalidateDayCache({ date: dateISO })
+      if (startDateISO) invalidateDayCache({ date: startDateISO })
 
       bus.emit('calendar:mutated', {
         op: 'delete',
-        item: dateISO ? { id: eventId, startDate: dateISO, endDate: dateISO } : { id: eventId },
+        item:
+          startDateISO != null
+            ? { id: eventId, startDate: startDateISO, endDate: endDateISO }
+            : { id: eventId },
       })
       onClose()
     } catch (e) {
