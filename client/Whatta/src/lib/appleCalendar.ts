@@ -21,6 +21,7 @@ import { http } from '@/lib/http'
 
 const WHATTA_CALENDAR_TITLE = 'Whatta'
 const WHATTA_CALENDAR_COLOR = '#B04FFF'
+const APPLE_IMPORT_COLOR_KEY = 'C00'
 
 export type AppleCalendarConnectResult =
   | { ok: true; calendarId: string; created: boolean }
@@ -883,6 +884,7 @@ export async function importAppleCalendarChangesToWhatta(daysAhead = 180): Promi
         endDate: snapshot.endDate,
         startTime: snapshot.allDay ? null : snapshot.startTime,
         endTime: snapshot.allDay ? null : snapshot.endTime,
+        colorKey: APPLE_IMPORT_COLOR_KEY,
       })
       const whattaEventId =
         res.data?.data?.id ?? res.data?.id ?? res.data?.eventId ?? res.data?._id ?? null

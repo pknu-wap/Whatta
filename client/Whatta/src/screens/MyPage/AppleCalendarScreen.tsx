@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
 import colors from '@/styles/colors'
@@ -44,6 +45,28 @@ export default function AppleCalendarScreen({ navigation }: Props) {
     if (state.permissionStatus === 'denied') return '권한 필요'
     return '연결 안 됨'
   }, [state])
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!state?.isConnected || importing) return
+
+      let cancelled = false
+      ;(async () => {
+        try {
+          setImporting(true)
+          await importAppleCalendarChangesToWhatta()
+        } finally {
+          if (!cancelled) {
+            setImporting(false)
+          }
+        }
+      })()
+
+      return () => {
+        cancelled = true
+      }
+    }, [state?.isConnected]),
+  )
 
   const onPressConnect = async () => {
     if (connecting) return
@@ -183,16 +206,6 @@ export default function AppleCalendarScreen({ navigation }: Props) {
         ) : null}
       </View>
 
-      <View style={S.card}>
-        <Text style={S.subTitle}>다음 단계</Text>
-        <Text style={S.bullet}>오늘 이후 Whatta 일정만 1회 일괄 export</Text>
-        <Text style={S.bullet}>일정 생성/수정/삭제 시 Apple Calendar 증분 반영</Text>
-        <Text style={S.bullet}>일정별 appleEventId 저장</Text>
-      </View>
-
-      <Pressable style={S.backLink} onPress={() => navigation.goBack()}>
-        <Text style={S.backLinkText}>마이페이지로 돌아가기</Text>
-      </Pressable>
     </ScrollView>
   )
 }
@@ -219,12 +232,6 @@ const S = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: colors.text.title,
-  },
-  subTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text.title,
-    marginBottom: 8,
   },
   description: {
     marginTop: 10,
@@ -288,22 +295,7 @@ const S = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  bullet: {
-    fontSize: 14,
-    color: colors.text.body,
-    marginTop: 8,
-    lineHeight: 20,
-  },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  backLink: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  backLinkText: {
-    color: colors.brand.secondary,
-    fontSize: 14,
-    fontWeight: '700',
   },
 })

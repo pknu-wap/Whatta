@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Animated,
   Alert,
+  AppState,
   Linking,
 } from 'react-native'
 import React, { useState, useEffect, useRef } from 'react'
@@ -102,6 +103,17 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false)
 
   const [fgMsg, setFgMsg] = useState<{ title: string; body: string } | null>(null)
+  const appleImportInFlightRef = useRef(false)
+
+  const runAppleImport = React.useCallback(async () => {
+    if (appleImportInFlightRef.current) return
+    appleImportInFlightRef.current = true
+    try {
+      await importAppleCalendarChangesToWhatta()
+    } finally {
+      appleImportInFlightRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     ;(async () => {
@@ -179,9 +191,21 @@ export default function App() {
         )
       }
 
-      await importAppleCalendarChangesToWhatta()
+      await runAppleImport()
     })()
-  }, [ready, splashDone])
+  }, [ready, splashDone, runAppleImport])
+
+  useEffect(() => {
+    if (!ready || !splashDone) return
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void runAppleImport()
+      }
+    })
+
+    return () => subscription.remove()
+  }, [ready, splashDone, runAppleImport])
 
   useEffect(() => {
     const openPrompt = async () => {
