@@ -48,6 +48,7 @@ import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { cellWidth } from './S'
 import { normalizeScheduleColorKey, resolveScheduleColor } from '@/styles/scheduleColorSets'
 import { getTask } from '@/api/task'
+import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
 
 
 
@@ -1485,6 +1486,7 @@ const handleTaskDelete = useCallback(async () => {
   if (!taskPopupId) return
   try {
     await http.delete(`/task/${taskPopupId}`)
+    invalidateDayCache({ date: focusedDateISO })
 
     bus.emit('calendar:mutated', {
       op: 'delete',
