@@ -1925,7 +1925,7 @@ const S = StyleSheet.create({
     flex: 1,
   },
   timelineContent: {
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 16,
     paddingHorizontal: 16,
   },

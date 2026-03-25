@@ -234,7 +234,7 @@ const S = StyleSheet.create({
   },
 
   gridContent: {
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: DAY_GRID_BOTTOM_SPACER,
   },
 
