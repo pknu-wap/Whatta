@@ -350,6 +350,8 @@ export function DraggableFixedEvent({
 }: DraggableFixedEventProps) {
   const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
   const height = rawHeight
+  const [displayedStartMin, setDisplayedStartMin] = useState(startMin)
+  const [displayedEndMin, setDisplayedEndMin] = useState(endMin)
 
   const translateY = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
@@ -362,6 +364,11 @@ export function DraggableFixedEvent({
     translateY.value = withSpring(0)
     dragEnabled.value = false
   }, [dragEnabled, translateY])
+
+  useEffect(() => {
+    setDisplayedStartMin(startMin)
+    setDisplayedEndMin(endMin)
+  }, [endMin, startMin])
 
   const handleDrop = useCallback(
     async (movedY: number) => {
@@ -440,6 +447,10 @@ export function DraggableFixedEvent({
                     })
 
                     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                    bus.emit('calendar:mutated', {
+                      op: 'update',
+                      item: { id, startDate: anchorDate, endDate: anchorDate },
+                    })
                   } catch (e) {
                     console.error('❌ 반복 단일 수정 실패:', e)
                     resetDragPosition()
@@ -469,6 +480,10 @@ export function DraggableFixedEvent({
                     })
 
                     bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
+                    bus.emit('calendar:mutated', {
+                      op: 'update',
+                      item: { id, startDate: anchorDate, endDate: anchorDate },
+                    })
                   } catch (e) {
                     console.error('❌ 반복 전체 수정 실패:', e)
                     resetDragPosition()
@@ -492,6 +507,8 @@ export function DraggableFixedEvent({
           startTime: newStartTime,
           endTime: newEndTime,
         })
+        setDisplayedStartMin(newStart)
+        setDisplayedEndMin(newEnd)
 
         bus.emit('calendar:mutated', {
           op: 'update',
@@ -560,8 +577,8 @@ export function DraggableFixedEvent({
   const fmt = (min: number) =>
     `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 
-  const startTime = fmt(startMin)
-  const endTime = fmt(endMin)
+  const startTime = fmt(displayedStartMin)
+  const endTime = fmt(displayedEndMin)
 
   return (
     <GestureDetector gesture={composedGesture}>
