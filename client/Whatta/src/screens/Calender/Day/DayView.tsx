@@ -32,7 +32,7 @@ import { DraggableFixedEvent } from './DayViewItems'
 import { DraggableFlexibleEvent } from './DayViewItems'
 import { PIXELS_PER_MIN } from './constants'
 import S from './S'
-import { patchDayTaskCompletion, useDayData } from './eventUtils'
+import { invalidateDayCache, patchDayTaskCompletion, useDayData } from './eventUtils'
 import { useDaySwipe } from './swipeUtils'
 import { useOCR } from '@/hooks/useOCR'
 import { useDayDrag } from './dragUtils'
@@ -579,6 +579,26 @@ export default function DayView({ active = true }: { active?: boolean }) {
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
   }, [anchorDate, fetchDailyEvents, setChecks, setTasks])
+
+  useEffect(() => {
+    const onInvalidate = (payload?: { ym?: string; date?: string }) => {
+      if (!payload) return
+
+      if (payload.date) {
+        invalidateDayCache({ date: payload.date })
+        if (payload.date === anchorDate) void fetchDailyEvents({ force: true })
+        return
+      }
+
+      if (payload.ym && payload.ym === anchorDate.slice(0, 7)) {
+        invalidateDayCache({ ym: payload.ym })
+        void fetchDailyEvents({ force: true })
+      }
+    }
+
+    bus.on('calendar:invalidate', onInvalidate)
+    return () => bus.off('calendar:invalidate', onInvalidate)
+  }, [anchorDate, fetchDailyEvents])
 
   // 상단 박스 스크롤바 계산
   const [wrapH, setWrapH] = useState(150)

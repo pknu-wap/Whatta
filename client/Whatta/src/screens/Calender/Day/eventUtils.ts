@@ -15,6 +15,23 @@ type DailyRawData = {
 const dayCache = new Map<string, DailyRawData>()
 const dayInflight = new Map<string, Promise<DailyRawData>>()
 
+export function invalidateDayCache(target?: { date?: string; ym?: string }) {
+  if (target?.date) {
+    dayCache.delete(target.date)
+    dayInflight.delete(target.date)
+    return
+  }
+
+  if (target?.ym) {
+    for (const key of Array.from(dayCache.keys())) {
+      if (key.startsWith(target.ym)) dayCache.delete(key)
+    }
+    for (const key of Array.from(dayInflight.keys())) {
+      if (key.startsWith(target.ym)) dayInflight.delete(key)
+    }
+  }
+}
+
 export function patchDayTaskCompletion(date: string, taskId: string, completed: boolean) {
   const cached = dayCache.get(date)
   if (!cached) return

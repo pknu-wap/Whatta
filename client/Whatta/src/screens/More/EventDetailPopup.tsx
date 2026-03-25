@@ -40,6 +40,7 @@ import {
 } from '@/styles/scheduleColorSets'
 import { ts } from '@/styles/typography'
 import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
+import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
 
 type Panel = 'calendar' | 'start' | 'end' | null
 
@@ -1633,8 +1634,17 @@ export default function EventDetailPopup({
   const deleteNormal = async () => {
     try {
       await http.delete(`/event/${eventId}`)
+      const dateISO =
+        eventData?.startDate?.slice?.(0, 10) ??
+        initial?.startDate?.slice?.(0, 10) ??
+        null
 
-      bus.emit('calendar:mutated', { op: 'delete', id: eventId })
+      if (dateISO) invalidateDayCache({ date: dateISO })
+
+      bus.emit('calendar:mutated', {
+        op: 'delete',
+        item: dateISO ? { id: eventId, startDate: dateISO, endDate: dateISO } : { id: eventId },
+      })
       onClose()
     } catch (e) {
       console.log('일정 삭제 실패:', e)
@@ -1663,6 +1673,7 @@ export default function EventDetailPopup({
       })
 
       const ym = occDate.slice(0, 7)
+      invalidateDayCache({ date: occDate })
       bus.emit('calendar:invalidate', { ym })
 
       onClose()
@@ -1691,7 +1702,9 @@ export default function EventDetailPopup({
         },
       })
 
-      const ym = ymdLocal(start).slice(0, 7)
+      const occDate = ymdLocal(start)
+      const ym = occDate.slice(0, 7)
+      invalidateDayCache({ date: occDate })
       bus.emit('calendar:invalidate', { ym })
 
       onClose()

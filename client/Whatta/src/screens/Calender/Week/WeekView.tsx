@@ -43,6 +43,7 @@ import { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import WeekHeaderSpan from '@/screens/Calender/Week/WeekHeaderSpan'
 import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
 import WeekPopups from '@/screens/Calender/Week/WeekPopups'
+import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
 import { useCalendarSync } from '@/screens/Calender/Week/useCalendarSync'
 import { useWeekGestures } from '@/screens/Calender/Week/useWeekGestures'
 import { useOCR } from '@/hooks/useOCR'
@@ -1623,13 +1624,16 @@ const {
     void (async () => {
       try {
         await http.delete(`/task/${taskPopupId}`)
+        const taskDateISO = taskPopupTask?.placementDate ?? anchorDate
+
+        invalidateDayCache({ date: taskDateISO })
 
         bus.emit('calendar:mutated', {
           op: 'delete',
-          item: { id: taskPopupId },
+          item: { id: taskPopupId, date: taskDateISO },
         })
         bus.emit('calendar:invalidate', {
-          ym: anchorDate.slice(0, 7),
+          ym: taskDateISO.slice(0, 7),
         })
 
         await fetchWeek(weekDates)
