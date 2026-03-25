@@ -22,6 +22,9 @@ import { http } from '@/lib/http'
 const WHATTA_CALENDAR_TITLE = 'Whatta'
 const WHATTA_CALENDAR_COLOR = '#B04FFF'
 const APPLE_IMPORT_COLOR_KEY = 'C00'
+const APPLE_CALENDAR_SYNC_ENABLED = false
+const APPLE_CALENDAR_DISABLED_MESSAGE =
+  '애플 캘린더 연동은 양방향 동기화 안정화 전까지 임시로 비활성화되어 있습니다.'
 
 export type AppleCalendarConnectResult =
   | { ok: true; calendarId: string; created: boolean }
@@ -166,6 +169,20 @@ async function recreateWhattaCalendar() {
 }
 
 export async function refreshAppleCalendarPermissionState() {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) {
+    return setAppleCalendarSyncState({
+      isConnected: false,
+      permissionStatus: 'unknown',
+      calendarId: null,
+      calendarTitle: null,
+      sourceId: null,
+      sourceName: null,
+      sourceType: null,
+      initialExportDone: false,
+      lastSyncedAt: null,
+    })
+  }
+
   if (Platform.OS !== 'ios') {
     return setAppleCalendarSyncState({ permissionStatus: 'denied' })
   }
@@ -177,6 +194,15 @@ export async function refreshAppleCalendarPermissionState() {
 }
 
 export async function ensureAppleCalendarConnected(): Promise<AppleCalendarConnectResult> {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) {
+    await disconnectAppleCalendarLocally()
+    return {
+      ok: false,
+      reason: 'unknown',
+      message: APPLE_CALENDAR_DISABLED_MESSAGE,
+    }
+  }
+
   if (Platform.OS !== 'ios') {
     return {
       ok: false,
@@ -613,6 +639,8 @@ async function ensureConnectedCalendarId() {
 }
 
 export async function syncEventToAppleCalendar(whattaEventId: string) {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) return
+
   const calendarId = await ensureConnectedCalendarId()
   if (!calendarId) return
 
@@ -688,6 +716,8 @@ export async function syncEventToAppleCalendar(whattaEventId: string) {
 }
 
 export async function deleteEventFromAppleCalendar(whattaEventId: string) {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) return
+
   const prefixedLinks = await getAppleCalendarEventLinksByPrefix(`${whattaEventId}::`)
   if (prefixedLinks.length) {
     for (const { value } of prefixedLinks) {
@@ -769,6 +799,11 @@ async function fetchFutureEventIds(rangeStart: string, rangeEnd: string) {
 }
 
 async function exportFutureWhattaEvents(daysAhead = 180, force = false) {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) {
+    await disconnectAppleCalendarLocally()
+    return { exported: 0, skipped: true as const }
+  }
+
   let calendarId = await ensureConnectedCalendarId()
   if (!calendarId) return { exported: 0, skipped: true as const }
 
@@ -814,6 +849,11 @@ export async function forceExportFutureWhattaEventsToAppleCalendar(daysAhead = 1
 }
 
 export async function exportFutureWhattaEventsIfNeeded(daysAhead = 180) {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) {
+    await disconnectAppleCalendarLocally()
+    return { exported: 0, skipped: true as const }
+  }
+
   const state = await getAppleCalendarSyncState()
   if (!state.isConnected || !state.calendarId || state.initialExportDone) {
     return { exported: 0, skipped: true as const }
@@ -823,6 +863,11 @@ export async function exportFutureWhattaEventsIfNeeded(daysAhead = 180) {
 }
 
 export async function importAppleCalendarChangesToWhatta(daysAhead = 180): Promise<ReverseSyncResult> {
+  if (!APPLE_CALENDAR_SYNC_ENABLED) {
+    await disconnectAppleCalendarLocally()
+    return { created: 0, updated: 0, deleted: 0, skipped: 0 }
+  }
+
   const calendarId = await ensureConnectedCalendarId()
   if (!calendarId) return { created: 0, updated: 0, deleted: 0, skipped: 0 }
 

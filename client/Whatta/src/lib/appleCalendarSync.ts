@@ -82,11 +82,7 @@ export async function setAppleCalendarPromptDismissed(dismissed: boolean) {
 }
 
 export async function shouldShowAppleCalendarPrompt() {
-  const [state, dismissed] = await Promise.all([
-    getAppleCalendarSyncState(),
-    isAppleCalendarPromptDismissed(),
-  ])
-  return !state.isConnected && !dismissed
+  return false
 }
 
 export async function getAppleCalendarEventLinks() {

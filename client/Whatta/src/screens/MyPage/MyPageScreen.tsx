@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react'
-import { View, Text, SectionList, StyleSheet, Pressable, Alert, Linking } from 'react-native'
+import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import Constants from 'expo-constants'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
@@ -8,11 +8,6 @@ import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import LeftIcon from '@/assets/icons/left.svg'
-import { useAppleCalendarSync } from '@/hooks/useAppleCalendarSync'
-import {
-  ensureAppleCalendarConnected,
-  exportFutureWhattaEventsToAppleCalendar,
-} from '@/lib/appleCalendar'
 import {
   getActiveScheduleColorSetId,
   SCHEDULE_COLOR_SET_IDS,
@@ -110,7 +105,6 @@ function SimpleHeader({
 }
 
 export default function MyPageScreen({ navigation }: Props) {
-  const appleCalendarState = useAppleCalendarSync()
   const variant = String(Constants.expoConfig?.extra?.variant ?? 'unknown').toUpperCase()
   const apiBaseUrl = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '')
   const serverLabel = apiBaseUrl.includes('-dev-') ? 'DEV' : 'PROD'
@@ -142,46 +136,7 @@ export default function MyPageScreen({ navigation }: Props) {
     })
   }, [navigation])
 
-  const appleCalendarStatus = useMemo(() => {
-    if (!appleCalendarState) return '상태 확인 중'
-    if (appleCalendarState.isConnected) return '연동 중'
-    if (appleCalendarState.permissionStatus === 'denied') return '권한 필요'
-    return '연동 안 됨'
-  }, [appleCalendarState])
-
-  const onPressMyItem = async (route: keyof MyPageStackList) => {
-    if (route === 'AppleCalendar') {
-      if (appleCalendarState?.isConnected) {
-        navigation.navigate('AppleCalendar')
-        return
-      }
-
-      const result = await ensureAppleCalendarConnected()
-      if (!result.ok) {
-        if (result.reason === 'permission_denied') {
-          Alert.alert(
-            '애플 캘린더 연동',
-            `${result.message}\n\n이미 권한을 거부한 상태라면 설정 앱에서 다시 허용해야 합니다.`,
-            [
-              { text: '취소', style: 'cancel' },
-              { text: '설정 열기', onPress: () => Linking.openSettings() },
-            ]
-          )
-          return
-        }
-        Alert.alert('애플 캘린더 연동', result.message)
-        return
-      }
-
-      const exportResult = await exportFutureWhattaEventsToAppleCalendar()
-      if (!exportResult.skipped) {
-        Alert.alert(
-          '애플 캘린더 연동 완료',
-          `오늘 이후 일정 ${exportResult.exported}개를 Apple Calendar로 내보냈습니다.`,
-        )
-      }
-      return
-    }
+  const onPressMyItem = (route: keyof MyPageStackList) => {
     navigation.navigate(route)
   }
 
@@ -197,7 +152,6 @@ export default function MyPageScreen({ navigation }: Props) {
               <SmallCard
                 key={i}
                 label={d.key}
-                status={d.route === 'AppleCalendar' ? appleCalendarStatus : undefined}
                 onPress={() => onPressMyItem(d.route)}
               />
             ))}
