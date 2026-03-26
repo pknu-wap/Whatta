@@ -518,6 +518,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 10,
   },
+  
+  ocrPaletteBox: {
+  top: 54,
+  left: -17,
+  shadowOpacity: 0.55,
+  shadowRadius: 9,
+  elevation: 4,
+},
 
   cardShadow: {
     borderRadius: 20,

@@ -345,8 +345,9 @@ saveAllBtn: {
     fontSize: 12,
     fontWeight: '700',
   },
-  sliderBox: {
+sliderBox: {
   justifyContent: 'center',
+  marginTop: -50,
 },
 
 sliderContent: {
