@@ -72,10 +72,10 @@ export const S = StyleSheet.create({
     paddingTop: 0,
   },
   dateNumberWrapperWithHoliday: {
-    height: 28,
+    height: 18,
     justifyContent: 'flex-start',
     paddingTop: 0,
-    marginBottom: 3,
+    marginBottom: 0,
   },
   dateTopLine: {
     width: '100%',

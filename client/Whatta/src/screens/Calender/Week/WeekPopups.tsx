@@ -180,7 +180,7 @@ export default function WeekPopups({
       />
 
       <Modal visible={ocrSplashVisible} transparent animationType="fade" statusBarTranslucent>
-        <OcrSplash />
+        <OcrSplash visible={ocrSplashVisible} />
       </Modal>
 
       <OCREventCardSlider

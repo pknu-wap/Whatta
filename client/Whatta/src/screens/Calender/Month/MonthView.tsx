@@ -38,6 +38,7 @@ import OcrSplash from '@/screens/More/OcrSplash'
 
 
 import { today } from './dateUtils'
+import { getHolidayName } from './holidayUtils'
 import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
@@ -64,11 +65,6 @@ const MONTH_ITEM_GAP = 2
 const MONTH_ITEM_SLOT_HEIGHT = MONTH_ITEM_HEIGHT + MONTH_ITEM_GAP
 const MONTH_WEEK_MIN_HEIGHT = 120
 const MONTH_DATE_HEADER_HEIGHT = 32
-const HOLIDAY_HEADER_BASE_OFFSET = 13
-const HOLIDAY_EVENT_OFFSET = Math.max(
-  0,
-  MONTH_ITEM_SLOT_HEIGHT - HOLIDAY_HEADER_BASE_OFFSET,
-)
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const monthDataCache = new Map<string, MonthCacheSnapshot>()
 
@@ -96,6 +92,45 @@ const addDaysToISO = (iso: string, delta: number) => {
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(
     next.getDate(),
   ).padStart(2, '0')}`
+}
+
+const buildLaneMapWithHolidayReserves = (targetYM: string, spans: ScheduleData[]) => {
+  const [year, month] = targetYM.split('-').map(Number)
+  const monthIndex = month - 1
+  const firstDayOfMonth = new Date(year, monthIndex, 1)
+  const lastDayOfMonth = new Date(year, monthIndex + 1, 0)
+  const startWeekDay = firstDayOfMonth.getDay()
+  const totalDays = lastDayOfMonth.getDate()
+  const totalCells = Math.ceil((startWeekDay + totalDays) / 7) * 7
+  const gridStart = new Date(year, monthIndex, 1 - startWeekDay)
+
+  const holidayReserveSpans: ScheduleData[] = []
+
+  for (let i = 0; i < totalCells; i++) {
+    const date = new Date(gridStart)
+    date.setDate(gridStart.getDate() + i)
+    const holidayName = getHolidayName(date)
+    if (!holidayName) continue
+
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+      date.getDate(),
+    ).padStart(2, '0')}`
+
+    holidayReserveSpans.push({
+      id: `__holiday__${iso}`,
+      name: holidayName,
+      date: iso,
+      isRecurring: false,
+      isTask: false,
+      isCompleted: false,
+      multiDayStart: iso,
+      multiDayEnd: iso,
+      labelId: '',
+      __holidayReserve: true,
+    } as ScheduleData)
+  }
+
+  return buildLaneMap([...spans, ...holidayReserveSpans])
 }
 
 
@@ -180,7 +215,7 @@ export default function MonthView({ active = true, initialDateISO }: MonthViewPr
 
       void (async () => {
         try {
-          await refreshSelectedDayData(nextISO)
+          await refreshSelectedDayDataRef.current(nextISO)
           setTimeout(() => {
             setPopupVisible(true)
           }, 300)
@@ -192,7 +227,7 @@ export default function MonthView({ active = true, initialDateISO }: MonthViewPr
 
     bus.on('month:detail:navigate', onNavigate)
     return () => bus.off('month:detail:navigate', onNavigate)
-  }, [refreshSelectedDayData])
+  }, [])
 
   useEffect(() => {
     if (!active || !isScreenFocused) return
@@ -201,51 +236,46 @@ export default function MonthView({ active = true, initialDateISO }: MonthViewPr
 
 
   // 데이터 fetch
-  const fetchFresh = useCallback(
-    async (targetYM: string) => {
+  async function fetchFresh(targetYM: string) {
+    try {
+      const fresh = await fetchMonthlyApi(targetYM)
+      const schedulesFromMonth = flattenMonthly(fresh)
+      let tasksThisMonth: UISchedule[] = []
       try {
-        const fresh = await fetchMonthlyApi(targetYM)
-        const schedulesFromMonth = flattenMonthly(fresh)
-        let tasksThisMonth: UISchedule[] = []
-        try {
-          tasksThisMonth = await fetchTasksForMonth(targetYM)
-        } catch (err) {
-          console.warn('[MonthView] fetchFresh: fetchTasksForMonth 실패, 일정만 갱신합니다.', err)
-        }
-
-        const colorById = new Map<string, string | undefined>()
-        ;(fresh.spanEvents ?? []).forEach((e: any) => {
-          colorById.set(String(e.id), e.colorKey)
-        })
-        ;(fresh.days ?? []).forEach((d: any) => {
-          ;(d.events ?? []).forEach((ev: any) => {
-            colorById.set(String(ev.id), ev.colorKey)
-          })
-        })
-
-       const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map( 
-         (it) => ({
-           ...it,
-           colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
-         }),
-       ) 
-
-       const merged = dedupeSchedules(mergedRaw)
-
-        if (targetYM === ym) {
-          monthDataCache.set(targetYM, {
-            days: fresh.days,
-            schedules: merged,
-          })
-          setDays(fresh.days)
-          setServerSchedules(merged)
-        }
+        tasksThisMonth = await fetchTasksForMonth(targetYM)
       } catch (err) {
-        console.warn('[MonthView] fetchFresh 실패', err)
+        console.warn('[MonthView] fetchFresh: fetchTasksForMonth 실패, 일정만 갱신합니다.', err)
       }
-    },
-    [ym],
-  )
+
+      const colorById = new Map<string, string | undefined>()
+      ;(fresh.spanEvents ?? []).forEach((e: any) => {
+        colorById.set(String(e.id), e.colorKey)
+      })
+      ;(fresh.days ?? []).forEach((d: any) => {
+        ;(d.events ?? []).forEach((ev: any) => {
+          colorById.set(String(ev.id), ev.colorKey)
+        })
+      })
+
+      const mergedRaw: UISchedule[] = [...schedulesFromMonth, ...tasksThisMonth].map((it) => ({
+        ...it,
+        colorKey: (it as any).colorKey ?? colorById.get(String(it.id)) ?? undefined,
+      }))
+
+      const merged = dedupeSchedules(mergedRaw)
+
+      if (targetYM === ym) {
+        monthDataCache.set(targetYM, {
+          days: fresh.days,
+          schedules: merged,
+        })
+        setDays(fresh.days)
+        setServerSchedules(merged)
+      }
+    } catch (err) {
+      console.warn('[MonthView] fetchFresh 실패', err)
+    }
+  }
 
   useEffect(() => {
     const onInvalidate = (payload?: { ym?: string }) => {
@@ -254,11 +284,11 @@ export default function MonthView({ active = true, initialDateISO }: MonthViewPr
         typeof dirtyYM === 'string' && /^\d{4}-\d{2}$/.test(dirtyYM)
           ? dirtyYM
           : ym
-      void fetchFresh(safeYM)
+      void fetchFreshRef.current(safeYM)
     }
     bus.on('calendar:invalidate', onInvalidate)
     return () => bus.off('calendar:invalidate', onInvalidate)
-  }, [fetchFresh, ym])
+  }, [ym])
 
   const isFirstFocusRef = useRef(true)
   useEffect(() => {
@@ -267,17 +297,17 @@ export default function MonthView({ active = true, initialDateISO }: MonthViewPr
         isFirstFocusRef.current = false
         return
       }
-      void fetchFresh(ym)
-  }, [active, isScreenFocused, fetchFresh, ym])
+      void fetchFreshRef.current(ym)
+  }, [active, isScreenFocused, ym])
 
   useEffect(() => {
     const onMutated = (_payload?: { op?: 'create' | 'update' | 'delete'; item?: any }) => {
-      void fetchFresh(ym)
+      void fetchFreshRef.current(ym)
     }
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [ym, fetchFresh])
+  }, [ym])
 
 const {
   ocrSplashVisible,
@@ -303,6 +333,8 @@ const {
 
   const [popupVisible, setPopupVisible] = useState(false)
   const [selectedDayData, setSelectedDayData] = useState<any>(null)
+  const fetchFreshRef = useRef<(targetYM: string) => Promise<void>>(async () => {})
+  const refreshSelectedDayDataRef = useRef<(dateISO?: string | null) => Promise<void>>(async () => {})
 
   useEffect(() => {
     const onResetView = () => {
@@ -332,60 +364,60 @@ const {
     return found ? Number(found.id) : null
   }, [filterLabels])
 
-  const refreshSelectedDayData = useCallback(
-    async (dateISO?: string | null) => {
-      const targetISO = String(dateISO ?? '').slice(0, 10)
-      if (!targetISO) return
+  async function refreshSelectedDayData(dateISO?: string | null) {
+    const targetISO = String(dateISO ?? '').slice(0, 10)
+    if (!targetISO) return
 
+    try {
+      const nextYM = toYM(targetISO)
+      const fresh = await fetchMonthlyApi(nextYM)
+      let tasksThisMonth: UISchedule[] = []
       try {
-        const nextYM = toYM(targetISO)
-        const fresh = await fetchMonthlyApi(nextYM)
-        let tasksThisMonth: UISchedule[] = []
-        try {
-          tasksThisMonth = await fetchTasksForMonth(nextYM)
-        } catch (err) {
-          console.warn('[MonthView] refreshSelectedDayData: fetchTasksForMonth 실패', err)
-        }
+        tasksThisMonth = await fetchTasksForMonth(nextYM)
+      } catch (err) {
+        console.warn('[MonthView] refreshSelectedDayData: fetchTasksForMonth 실패', err)
+      }
 
-        const monthlySchedules = flattenMonthly(fresh)
-        const merged = dedupeSchedules([...monthlySchedules, ...tasksThisMonth])
+      const monthlySchedules = flattenMonthly(fresh)
+      const merged = dedupeSchedules([...monthlySchedules, ...tasksThisMonth])
         const nextCalendarDates = getCalendarDates(
           Number(targetISO.slice(0, 4)),
           Number(targetISO.slice(5, 7)) - 1,
           new Date(targetISO),
           merged,
-          buildLaneMap(merged.filter(isSpan)),
+          buildLaneMapWithHolidayReserves(nextYM, merged.filter(isSpan)),
         )
-        const targetDateItem = nextCalendarDates.find((item) => {
-          const iso = `${item.fullDate.getFullYear()}-${String(item.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
-            item.fullDate.getDate(),
-          ).padStart(2, '0')}`
-          return iso === targetISO
-        })
+      const targetDateItem = nextCalendarDates.find((item) => {
+        const iso = `${item.fullDate.getFullYear()}-${String(item.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
+          item.fullDate.getDate(),
+        ).padStart(2, '0')}`
+        return iso === targetISO
+      })
 
-        const rawDay = (fresh.days ?? []).find((day) => {
-          const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
-          return dayISO === targetISO
-        })
+      const rawDay = (fresh.days ?? []).find((day) => {
+        const dayISO = (day.date ?? (day as any).targetDate ?? '').slice(0, 10)
+        return dayISO === targetISO
+      })
 
-        if (!targetDateItem || !rawDay) return
+      if (!targetDateItem || !rawDay) return
 
-        monthDataCache.set(nextYM, {
-          days: fresh.days,
-          schedules: merged,
-        })
-        if (nextYM === ym) {
-          setDays(fresh.days)
-          setServerSchedules(merged)
-        }
-
-        setSelectedDayData(buildSelectedDayDataFromDateItem(targetDateItem, rawDay))
-      } catch (err) {
-        console.warn('[MonthView] refreshSelectedDayData failed', err)
+      monthDataCache.set(nextYM, {
+        days: fresh.days,
+        schedules: merged,
+      })
+      if (nextYM === ym) {
+        setDays(fresh.days)
+        setServerSchedules(merged)
       }
-    },
-    [ym, setDays, setServerSchedules],
-  )
+
+      setSelectedDayData(buildSelectedDayDataFromDateItem(targetDateItem, rawDay))
+    } catch (err) {
+      console.warn('[MonthView] refreshSelectedDayData failed', err)
+    }
+  }
+
+  fetchFreshRef.current = fetchFresh
+  refreshSelectedDayDataRef.current = refreshSelectedDayData
 
   const changeMonthDetailDate = useCallback(
     async (delta: -1 | 1) => {
@@ -400,12 +432,12 @@ const {
       bus.emit('calendar:set-date', nextISO)
 
       try {
-        await refreshSelectedDayData(nextISO)
+        await refreshSelectedDayDataRef.current(nextISO)
       } finally {
         setMonthDetailDateChanging(false)
       }
     },
-    [monthDetailDateChanging, refreshSelectedDayData, selectedDayData?.dateISO],
+    [monthDetailDateChanging, selectedDayData?.dateISO],
   )
 
   const openCreateTaskPopup = useCallback(
@@ -566,88 +598,9 @@ const {
 
   const { year, monthIndex } = useMemo(() => parseYM(ym), [ym])
 
-  const [calendarDates, setCalendarDates] = useState<CalendarDateItem[]>([])
   const [days, setDays] = useState<MonthlyDay[]>(() => initialCache?.days ?? [])
   const [loading, setLoading] = useState(!initialCache)
   const [hasHydratedMonth, setHasHydratedMonth] = useState(!!initialCache)
-  // Memo로 캐싱
-  const weeks = useMemo(() => {
-    const result: CalendarDateItem[][] = []
-    for(let i=0; i< calendarDates.length; i+= 7){
-      result.push(calendarDates.slice(i, i+7))
-    }
-    // 현재 연/월을 직접 기준으로 해당 달이 없는 주는 제거
-    return result.filter((week) =>
-      week.some(
-        (d) => d.fullDate.getFullYear() === year && d.fullDate.getMonth() === monthIndex,
-      ),
-    )
-  }, [calendarDates, year, monthIndex])
-
-// 주간 변경될 때만 계산
-const displayItemsByWeek = useMemo(() => {
-  return weeks.map((week) =>
-    week.map((dateItem) =>
-      getDisplayItems(dateItem.schedules, dateItem.tasks)
-    )
-  )
-}, [weeks])
-
-const holidayIsoByWeek = useMemo(() => {
-  return weeks.map((week) => {
-    const set = new Set<string>()
-    week.forEach((d) => {
-      if (!d.holidayName) return
-      const iso = `${d.fullDate.getFullYear()}-${String(d.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
-        d.fullDate.getDate(),
-      ).padStart(2, '0')}`
-      set.add(iso)
-    })
-    return set
-  })
-}, [weeks])
-
-  const weekRowHeights = useMemo(() => {
-    return weeks.map((week, weekIndex) => {
-      let maxContentRows = 0
-
-      week.forEach((_, dayIndex) => {
-        const itemsToRender = displayItemsByWeek[weekIndex]?.[dayIndex] ?? []
-        const scheduleItems = itemsToRender.filter(
-          (it) => !(it as any).isTaskSummary && !(it as any).isTask,
-        ) as ScheduleData[]
-        const taskItems = itemsToRender.filter(
-          (it) => !(it as any).isTaskSummary && !!(it as any).isTask,
-        ) as ScheduleData[]
-        const taskSummary = itemsToRender.find((it) => (it as any).isTaskSummary)
-
-        const scheduleMaxLane = Math.max(-1, ...scheduleItems.map((it: any) => it.__lane ?? -1))
-        const laneCount = Math.max(0, scheduleMaxLane + 1)
-        const taskCount = taskItems.length + (taskSummary ? 1 : 0)
-        const needsHolidayReserve =
-          !week[dayIndex]?.holidayName &&
-          scheduleItems.some((it) => {
-            const schedule = it as UISchedule
-            if (!schedule.multiDayStart || !schedule.multiDayEnd) return false
-
-            return Array.from(holidayIsoByWeek[weekIndex] ?? []).some(
-              (holidayISO) =>
-                schedule.multiDayStart! <= holidayISO &&
-                holidayISO <= schedule.multiDayEnd!,
-            )
-          })
-
-        const reserveRows = needsHolidayReserve ? 1 : 0
-        maxContentRows = Math.max(maxContentRows, laneCount + taskCount + reserveRows)
-      })
-
-      return Math.max(
-        MONTH_WEEK_MIN_HEIGHT,
-        MONTH_DATE_HEADER_HEIGHT + maxContentRows * MONTH_ITEM_SLOT_HEIGHT + 8,
-      )
-    })
-  }, [weeks, displayItemsByWeek, holidayIsoByWeek])
-
 
   type ExtendedScheduleData = ScheduleData & {
     memo?: string
@@ -865,7 +818,7 @@ const holidayIsoByWeek = useMemo(() => {
   )
 
   useEffect(() => {
-    laneMapRef.current = buildLaneMap(serverSchedules.filter(isSpan))
+    laneMapRef.current = buildLaneMapWithHolidayReserves(ym, serverSchedules.filter(isSpan))
   }, [serverSchedules])
 
   type MonthlyPayload = {
@@ -999,7 +952,7 @@ const holidayIsoByWeek = useMemo(() => {
 
        const merged = dedupeSchedules(mergedRaw)
 
-       laneMapRef.current = buildLaneMap(merged.filter(isSpan))
+       laneMapRef.current = buildLaneMapWithHolidayReserves(ym, merged.filter(isSpan))
         
 
         if (!alive) return
@@ -1042,7 +995,20 @@ const holidayIsoByWeek = useMemo(() => {
   }, [filterLabels, serverSchedules])
 
   useEffect(() => {
-    setCalendarDates(
+    const monthSpanDebug = filteredSchedules
+      .filter((s) => s.multiDayStart && s.multiDayEnd)
+      .map((s) => ({
+        id: String(s.id),
+        name: s.name,
+        start: s.multiDayStart,
+        end: s.multiDayEnd,
+        lane: laneMapRef.current.get(String(s.id)) ?? null,
+      }))
+    console.warn('[MonthView][span-debug]', { ym, spans: monthSpanDebug })
+  }, [ym, filteredSchedules])
+
+  const calendarDates = useMemo(
+    () =>
       getCalendarDates(
         year,
         monthIndex,
@@ -1050,9 +1016,76 @@ const holidayIsoByWeek = useMemo(() => {
         filteredSchedules,
         laneMapRef.current,
       ),
-    )
-  }, [year, monthIndex, focusedDateISO, filteredSchedules])
+    [year, monthIndex, focusedDateISO, filteredSchedules],
+  )
 
+  // Memo로 캐싱
+  const weeks = useMemo(() => {
+    const result: CalendarDateItem[][] = []
+    for(let i=0; i< calendarDates.length; i+= 7){
+      result.push(calendarDates.slice(i, i+7))
+    }
+    // 현재 연/월을 직접 기준으로 해당 달이 없는 주는 제거
+    return result.filter((week) =>
+      week.some(
+        (d) => d.fullDate.getFullYear() === year && d.fullDate.getMonth() === monthIndex,
+      ),
+    )
+  }, [calendarDates, year, monthIndex])
+
+// 주간 변경될 때만 계산
+const displayItemsByWeek = useMemo(() => {
+  return weeks.map((week) =>
+    week.map((dateItem) =>
+      getDisplayItems(dateItem.schedules, dateItem.tasks)
+    )
+  )
+}, [weeks])
+
+const holidayIsoByWeek = useMemo(() => {
+  return weeks.map((week) => {
+    const set = new Set<string>()
+    week.forEach((d) => {
+      if (!d.holidayName) return
+      const iso = `${d.fullDate.getFullYear()}-${String(d.fullDate.getMonth() + 1).padStart(2, '0')}-${String(
+        d.fullDate.getDate(),
+      ).padStart(2, '0')}`
+      set.add(iso)
+    })
+    return set
+  })
+}, [weeks])
+
+  const weekRowHeights = useMemo(() => {
+    return weeks.map((week, weekIndex) => {
+      let maxContentRows = 0
+
+      week.forEach((_, dayIndex) => {
+        const dateItem = week[dayIndex]
+        const itemsToRender = displayItemsByWeek[weekIndex]?.[dayIndex] ?? []
+        const scheduleItems = itemsToRender.filter(
+          (it) => !(it as any).isTaskSummary && !(it as any).isTask,
+        ) as ScheduleData[]
+        const taskItems = itemsToRender.filter(
+          (it) => !(it as any).isTaskSummary && !!(it as any).isTask,
+        ) as ScheduleData[]
+        const taskSummary = itemsToRender.find((it) => (it as any).isTaskSummary)
+
+        const scheduleMaxLane = Math.max(-1, ...scheduleItems.map((it: any) => it.__lane ?? -1))
+        const laneCount = Math.max(0, scheduleMaxLane + 1)
+        const taskCount = taskItems.length + (taskSummary ? 1 : 0)
+        const contentHeight =
+          laneCount * MONTH_ITEM_SLOT_HEIGHT +
+          taskCount * MONTH_ITEM_SLOT_HEIGHT
+        maxContentRows = Math.max(maxContentRows, MONTH_DATE_HEADER_HEIGHT + contentHeight)
+      })
+
+      return Math.max(
+        MONTH_WEEK_MIN_HEIGHT,
+        maxContentRows + 8,
+      )
+    })
+  }, [weeks, displayItemsByWeek, holidayIsoByWeek])
 
   const renderDayHeader = () => (
   <View style={S.dayHeader}>
@@ -1099,19 +1132,6 @@ const holidayIsoByWeek = useMemo(() => {
       const l = (it as any).__lane ?? 0
       if (l >= 0 && l < laneSlots.length) laneSlots[l] = it as ScheduleData
     }
-
-    const needsHolidayReserveForDate = !dateItem.holidayName && scheduleItems.some((it) => {
-      const schedule = it as UISchedule
-      if (!schedule.multiDayStart || !schedule.multiDayEnd) return false
-
-      return Array.from(holidayIsoByWeek[weekIndex] ?? []).some(
-        (holidayISO) =>
-          schedule.multiDayStart! <= holidayISO &&
-          holidayISO <= schedule.multiDayEnd! &&
-          currentDateISO >= schedule.multiDayStart! &&
-          currentDateISO <= schedule.multiDayEnd!,
-      )
-    })
 
     const normalizeColor = (colorKey?: string, fallback = '#B04FFF') => {
       if (!colorKey) return fallback
@@ -1293,15 +1313,6 @@ const holidayIsoByWeek = useMemo(() => {
 
           {/* 일정 및 할 일 영역 */}
           <View style={S.eventArea}>
-            {needsHolidayReserveForDate ? (
-              <View
-                style={{
-                  width: MONTH_ITEM_WIDTH,
-                  height: HOLIDAY_HEADER_BASE_OFFSET,
-                }}
-              />
-            ) : null}
-
             {laneSlots.map((slot, idx) =>
               slot ? (
                 renderSlotItem(slot, idx, 'slot')
@@ -1622,7 +1633,7 @@ const handleOcrAddEvent = useCallback(
   animationType="fade"
   statusBarTranslucent={true}
 >
-  <OcrSplash />
+  <OcrSplash visible={ocrSplashVisible} />
 </Modal>
 <OCREventCardSlider
   visible={ocrModalVisible}
