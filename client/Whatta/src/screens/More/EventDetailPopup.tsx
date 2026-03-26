@@ -39,6 +39,8 @@ import {
   slotKey,
 } from '@/styles/scheduleColorSets'
 import { ts } from '@/styles/typography'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
+import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
 
 type Panel = 'calendar' | 'start' | 'end' | null
 
@@ -50,6 +52,7 @@ const MemoCalendar = memo(
 )
 
 const H_PAD = 18
+const DETAIL_POPUP_LIFT = 49
 
 type Anchor = { x: number; y: number; w: number; h: number }
 
@@ -85,11 +88,17 @@ export default function EventDetailPopup({
 
   const insets = useSafeAreaInsets()
   const MARGIN = 10
+  const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
+  const bottomSheetInset =
+    insets.bottom +
+    MARGIN +
+    DETAIL_POPUP_LIFT +
+    (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
 
   const scrollRef = useRef<ScrollView>(null)
   const { width: W, height: H } = Dimensions.get('window')
   const SHEET_W = Math.min(W - MARGIN, 350)
-  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
@@ -241,6 +250,13 @@ export default function EventDetailPopup({
   const formatRepeatCustom = (n: number, u: RepeatUnit) =>
     `${n}${u === 'day' ? '일' : u === 'week' ? '주' : '월'}마다`
 
+  const applyRepeatMode = (nextMode: RepeatMode) => {
+    if (nextMode === 'weekly' && repeatMode !== 'weekly') {
+      setRepeatWeekdays([start.getDay()])
+    }
+    setRepeatMode(nextMode)
+  }
+
   const repeatLabel = (m: RepeatMode) =>
     m === 'daily'
       ? '매일'
@@ -319,6 +335,114 @@ export default function EventDetailPopup({
     }
   }
 
+  const shiftYmd = (iso: string, deltaDays: number) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    const next = new Date(y, (m || 1) - 1, d || 1)
+    next.setDate(next.getDate() + deltaDays)
+    return ymdLocal(next)
+  }
+
+  const getWeeklyRepeatDays = () =>
+    Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
+
+  const findNextWeeklyRepeatDate = (baseDateIso: string, days: number[]) => {
+    const [y, m, d] = baseDateIso.split('-').map(Number)
+    const baseDate = new Date(y, (m || 1) - 1, d || 1)
+
+    for (let delta = 1; delta <= 14; delta += 1) {
+      const candidate = new Date(baseDate)
+      candidate.setDate(candidate.getDate() + delta)
+      if (days.includes(candidate.getDay())) {
+        return ymdLocal(candidate)
+      }
+    }
+
+    return null
+  }
+
+  const diffDays = (fromIso: string, toIso: string) => {
+    const [fromY, fromM, fromD] = fromIso.split('-').map(Number)
+    const [toY, toM, toD] = toIso.split('-').map(Number)
+    const fromDate = new Date(fromY, (fromM || 1) - 1, fromD || 1)
+    const toDate = new Date(toY, (toM || 1) - 1, toD || 1)
+    return Math.round((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000))
+  }
+
+  const shouldSplitWeeklyRepeat = () => {
+    if (repeatMode !== 'weekly') return false
+    const days = getWeeklyRepeatDays()
+    return days.length > 0 && !days.includes(start.getDay())
+  }
+
+  const emitSavedEvent = (
+    saved: any,
+    fallback: { startDate: string; endDate: string } & Record<string, any>,
+    colorHex: string,
+  ) => {
+    const enriched = {
+      ...(saved ?? {}),
+      colorKey: colorHex,
+      startDate: saved?.startDate ?? fallback.startDate,
+      endDate: saved?.endDate ?? fallback.endDate,
+    }
+
+    bus.emit('calendar:mutated', { op: 'create', item: enriched })
+    const ym = enriched.startDate?.slice(0, 7)
+    if (ym) bus.emit('calendar:invalidate', { ym })
+  }
+
+  const createDetachedWeeklyRepeat = async (
+    payload: Record<string, any>,
+    colorHex: string,
+    opts?: { preserveExistingEvent?: boolean },
+  ) => {
+    const startDateIso = String(payload.startDate)
+    const weeklyDays = getWeeklyRepeatDays()
+    const repeatStartDate = findNextWeeklyRepeatDate(startDateIso, weeklyDays)
+
+    if (!repeatStartDate) {
+      throw new Error('다음 반복 날짜를 계산하지 못했습니다.')
+    }
+
+    const [baseStartY, baseStartM, baseStartD] = String(payload.startDate).split('-').map(Number)
+    const [baseEndY, baseEndM, baseEndD] = String(payload.endDate).split('-').map(Number)
+    const baseStartDate = new Date(baseStartY, (baseStartM || 1) - 1, baseStartD || 1)
+    const baseEndDate = new Date(baseEndY, (baseEndM || 1) - 1, baseEndD || 1)
+    const durationDays = Math.round(
+      (baseEndDate.getTime() - baseStartDate.getTime()) / (24 * 60 * 60 * 1000),
+    )
+
+    const deltaDays = diffDays(startDateIso, repeatStartDate)
+
+    const singlePayload: { startDate: string; endDate: string } & Record<string, any> = {
+      ...payload,
+      startDate: startDateIso,
+      endDate: String(payload.endDate),
+      repeat: null,
+    }
+
+    const repeatPayload: { startDate: string; endDate: string } & Record<string, any> = {
+      ...payload,
+      startDate: repeatStartDate,
+      endDate: shiftYmd(startDateIso, deltaDays + durationDays),
+      repeat: payload.repeat ?? buildRepeatPayload(),
+    }
+
+    if (opts?.preserveExistingEvent && mode === 'edit' && eventId) {
+      const updatedSingle = await http.patch(`/event/${eventId}`, {
+        ...singlePayload,
+        repeat: null,
+      })
+      emitSavedEvent(updatedSingle?.data, singlePayload, colorHex)
+    } else {
+      const createdSingle = await http.post('/event', singlePayload)
+      emitSavedEvent(createdSingle?.data, singlePayload, colorHex)
+    }
+
+    const createdRepeat = await http.post('/event', repeatPayload)
+    emitSavedEvent(createdRepeat?.data, repeatPayload, colorHex)
+  }
+
   const WEEKDAY_ENUM = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const
 
   const buildRepeatPayload = (opts?: { includeExceptions?: boolean }) => {
@@ -342,10 +466,9 @@ export default function EventDetailPopup({
     let on: string[] | null = null
 
     if (unit === 'WEEK') {
-      // 추가 요일 선택은 "매주"에서만 허용
       const weekdays =
         repeatMode === 'weekly'
-          ? Array.from(new Set([start.getDay(), ...repeatWeekdays])).sort((a, b) => a - b)
+          ? Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
           : [start.getDay()]
       on = weekdays.map((day) => WEEKDAY_ENUM[day])
     } else if (unit === 'MONTH') {
@@ -409,23 +532,15 @@ export default function EventDetailPopup({
 
     // 2) WEEK
     if (r.unit === 'WEEK') {
-      const wd = WEEKDAY_ENUM[start.getDay()]
-      const isSimpleWeekly =
-        r.interval === 1 && Array.isArray(r.on) && r.on.length === 1 && r.on[0] === wd
       nextRepeatWeekdays = Array.isArray(r.on)
         ? r.on
             .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
-            .filter((day): day is number => day >= 0 && day !== start.getDay())
+            .filter((day): day is number => day >= 0)
         : []
 
-      if (isSimpleWeekly) {
-        // "매주" 패턴
+      if (r.interval === 1) {
+        // interval 1인 주간 반복은 선택 요일 수와 무관하게 "매주"로 취급
         nextRepeatMode = 'weekly'
-        nextRepeatWeekdays = Array.isArray(r.on)
-          ? r.on
-              .map((token) => WEEKDAY_ENUM.indexOf(token as (typeof WEEKDAY_ENUM)[number]))
-              .filter((day): day is number => day >= 0 && day !== start.getDay())
-          : []
       } else {
         // 그 외는 "맞춤 설정 - 주"로 처리
         nextRepeatMode = 'custom'
@@ -605,6 +720,41 @@ export default function EventDetailPopup({
   const [taskDate, setTaskDate] = useState<Date | null>(null)
   const [taskDueOn, setTaskDueOn] = useState(false)
   const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
+  const [taskDueTimeOn, setTaskDueTimeOn] = useState(false)
+  const [taskDueTime, setTaskDueTime] = useState<Date>(new Date())
+
+  const applyDefaultTimesPreservingRange = React.useCallback(() => {
+    const now = new Date()
+    const snapMin = now.getMinutes() - (now.getMinutes() % 5)
+
+    const newStart = new Date(start)
+    newStart.setHours(now.getHours(), snapMin, 0, 0)
+    setStart(newStart)
+
+    if (createTypeSelected === 'task') {
+      const newEnd = new Date(newStart)
+      newEnd.setHours((newStart.getHours() + 1) % 24, newStart.getMinutes(), 0, 0)
+      const wrappedPastMidnight = newEnd.getTime() < newStart.getTime()
+      setEnd(newEnd)
+      setInvalidEndTime(wrappedPastMidnight)
+      setInvalidEndPreview(wrappedPastMidnight ? newEnd : null)
+      return
+    }
+
+    const isSameDate = ymdLocal(start) === ymdLocal(end)
+    if (isSameDate) {
+      const autoEnd = buildAutoEndForEvent(newStart, false)
+      setEnd(autoEnd)
+    } else {
+      const newEnd = new Date(end)
+      const endHour = now.getHours() === 23 ? 23 : now.getHours() + 1
+      newEnd.setHours(endHour, snapMin, 0, 0)
+      setEnd(newEnd)
+    }
+
+    setInvalidEndTime(false)
+    setInvalidEndPreview(null)
+  }, [createTypeSelected, end, start])
 
   /** 기본 저장 로직 (반복 아닐 때 / 일반 수정·생성) */
   const saveNormal = async (opts?: { clearRepeat?: boolean }) => {
@@ -665,7 +815,7 @@ export default function EventDetailPopup({
     const placementTime = timeOn ? hms(start) : null
     const dueDateTime =
       taskDueOn && taskDueDate
-        ? `${ymdLocal(taskDueDate)}T23:59:59`
+        ? `${ymdLocal(taskDueDate)}T${taskDueTimeOn ? hms(taskDueTime) : '23:59:59'}`
         : null
     const targetDate = placementDate ?? ymdLocal(start)
 
@@ -798,20 +948,11 @@ export default function EventDetailPopup({
         repeat: newRepeat,
       }
 
-      const resNew = await http.post('/event', createPayload)
-      const saved = resNew?.data
-
-      if (saved) {
-        const enriched = {
-          ...(saved ?? {}),
-          colorKey: colorHex,
-          startDate: saved?.startDate ?? createPayload.startDate,
-          endDate: saved?.endDate ?? createPayload.endDate,
-        }
-
-        bus.emit('calendar:mutated', { op: 'create', item: enriched })
-        const ym = enriched.startDate?.slice(0, 7)
-        if (ym) bus.emit('calendar:invalidate', { ym })
+      if (shouldSplitWeeklyRepeat()) {
+        await createDetachedWeeklyRepeat(createPayload, colorHex)
+      } else {
+        const resNew = await http.post('/event', createPayload)
+        emitSavedEvent(resNew?.data, createPayload, colorHex)
       }
 
       onClose()
@@ -894,20 +1035,28 @@ export default function EventDetailPopup({
       return
     }
 
-    if (timeOn && end.getTime() < start.getTime()) {
+    const isCreateTask = mode === 'create' && createTypeSelected === 'task'
+
+    if (!isCreateTask && timeOn && end.getTime() < start.getTime()) {
       setInvalidEndTime(true)
       Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이를 수 없습니다.')
       setSaving(false)
       return
     }
 
-    if (mode === 'create' && createTypeSelected === 'task') {
+    if (isCreateTask) {
       await saveTask()
       return
     }
 
     // 1) 반복 토글이 켜진 경우에만 반복 저장
     if (repeatOn) {
+      if (repeatMode === 'weekly' && getWeeklyRepeatDays().length === 0) {
+        Alert.alert('저장 실패', '반복할 요일을 최소 1개 선택해주세요.')
+        setSaving(false)
+        return
+      }
+
       // 편집 모드 + 기존에 repeat 있는 일정 → 분기(이 일정만 / 이후 모두)
       if (mode === 'edit' && eventData?.repeat != null) {
         setSaving(false)
@@ -951,6 +1100,14 @@ export default function EventDetailPopup({
 
       try {
         let saved: any
+        if (shouldSplitWeeklyRepeat()) {
+          await createDetachedWeeklyRepeat(finalPayload, colorHex, {
+            preserveExistingEvent: mode === 'edit' && !!eventId,
+          })
+          onClose()
+          return
+        }
+
         if (mode === 'edit' && eventId) {
           const res = await http.patch(`/event/${eventId}`, finalPayload)
           saved = res?.data
@@ -960,16 +1117,7 @@ export default function EventDetailPopup({
         }
 
         if (saved) {
-          const enriched = {
-            ...(saved ?? {}),
-            colorKey: colorHex,
-            startDate: saved?.startDate ?? finalPayload.startDate,
-            endDate: saved?.endDate ?? finalPayload.endDate,
-          }
-
-          bus.emit('calendar:mutated', { op: 'create', item: enriched })
-          const ym = enriched.startDate?.slice(0, 7)
-          if (ym) bus.emit('calendar:invalidate', { ym })
+          emitSavedEvent(saved, finalPayload, colorHex)
         }
 
         onClose()
@@ -1488,8 +1636,24 @@ export default function EventDetailPopup({
   const deleteNormal = async () => {
     try {
       await http.delete(`/event/${eventId}`)
+      const startDateISO =
+        initial?.startDate?.slice?.(0, 10) ??
+        eventData?.startDate?.slice?.(0, 10) ??
+        null
+      const endDateISO =
+        initial?.endDate?.slice?.(0, 10) ??
+        eventData?.endDate?.slice?.(0, 10) ??
+        startDateISO
 
-      bus.emit('calendar:mutated', { op: 'delete', id: eventId })
+      if (startDateISO) invalidateDayCache({ date: startDateISO })
+
+      bus.emit('calendar:mutated', {
+        op: 'delete',
+        item:
+          startDateISO != null
+            ? { id: eventId, startDate: startDateISO, endDate: endDateISO }
+            : { id: eventId },
+      })
       onClose()
     } catch (e) {
       console.log('일정 삭제 실패:', e)
@@ -1518,6 +1682,7 @@ export default function EventDetailPopup({
       })
 
       const ym = occDate.slice(0, 7)
+      invalidateDayCache({ date: occDate })
       bus.emit('calendar:invalidate', { ym })
 
       onClose()
@@ -1546,7 +1711,9 @@ export default function EventDetailPopup({
         },
       })
 
-      const ym = ymdLocal(start).slice(0, 7)
+      const occDate = ymdLocal(start)
+      const ym = occDate.slice(0, 7)
+      invalidateDayCache({ date: occDate })
       bus.emit('calendar:invalidate', { ym })
 
       onClose()
@@ -1592,7 +1759,7 @@ export default function EventDetailPopup({
           <View
             style={[
               styles.overlay,
-              { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
+              { paddingTop: insets.top + MARGIN, paddingBottom: bottomSheetInset },
             ]}
             pointerEvents="box-none"
           >
@@ -1701,6 +1868,7 @@ export default function EventDetailPopup({
                       selectedColorIndex={selectedSlot}
                       onSelectColorIndex={setSelectedSlot}
                       selectedType={mode === 'edit' ? 'event' : createTypeSelected}
+                      showEndTime={mode === 'edit' ? true : createTypeSelected !== 'task'}
                       onSelectType={(value) => {
                         if (mode === 'edit') return
                         applyCreateTypeSelection(value)
@@ -1769,30 +1937,7 @@ export default function EventDetailPopup({
                         }
                         setTimeOn(next)
                         if (next) {
-                          const now = new Date()
-                          const snapMin = now.getMinutes() - (now.getMinutes() % 5)
-
-                          const newStart = new Date(start)
-                          newStart.setHours(now.getHours())
-                          newStart.setMinutes(snapMin)
-                          newStart.setSeconds(0)
-                          newStart.setMilliseconds(0)
-                          setStart(newStart)
-
-                          const newEnd = new Date(newStart)
-                          if (createTypeSelected === 'task') {
-                            newEnd.setHours((newStart.getHours() + 1) % 24, newStart.getMinutes(), 0, 0)
-                            const wrappedPastMidnight = newEnd.getTime() < newStart.getTime()
-                            setInvalidEndTime(wrappedPastMidnight)
-                            setInvalidEndPreview(wrappedPastMidnight ? newEnd : null)
-                          } else {
-                            const allowNextDay = ymdLocal(start) !== ymdLocal(end)
-                            const autoEnd = buildAutoEndForEvent(newStart, allowNextDay)
-                            newEnd.setTime(autoEnd.getTime())
-                            setInvalidEndTime(false)
-                            setInvalidEndPreview(null)
-                          }
-                          setEnd(newEnd)
+                          applyDefaultTimesPreservingRange()
                         } else {
                           setInvalidEndTime(false)
                           setInvalidEndPreview(null)
@@ -1903,11 +2048,38 @@ export default function EventDetailPopup({
                         setCustomOpen(false)
                         setTaskDueOn(false)
                         setTaskDueDate(null)
+                        setTaskDueTimeOn(false)
+                        setTaskDueTime(new Date())
                       }}
                       taskDueOn={taskDueOn}
-                      onChangeTaskDueOn={setTaskDueOn}
+                      onChangeTaskDueOn={(next) => {
+                        if (!next) {
+                          setTaskDueOn(false)
+                          setTaskDueDate(null)
+                          setTaskDueTimeOn(false)
+                          setTaskDueTime(new Date())
+                          return
+                        }
+
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const minDueDate = taskDate ? new Date(taskDate) : today
+                        minDueDate.setHours(0, 0, 0, 0)
+                        const defaultDueDate =
+                          today.getTime() > minDueDate.getTime() ? today : minDueDate
+
+                        setTaskDueOn(true)
+                        setTaskDueDate((prev) => prev ?? defaultDueDate)
+                      }}
                       taskDueDate={taskDueDate}
                       onChangeTaskDueDate={setTaskDueDate}
+                      taskDueTimeOn={taskDueTimeOn}
+                      onChangeTaskDueTimeOn={setTaskDueTimeOn}
+                      taskDueTime={taskDueTime}
+                      onChangeTaskDueTime={(next) => {
+                        setTaskDueTimeOn(true)
+                        setTaskDueTime(next)
+                      }}
                     />
                   ) : (
                     <ScrollView
@@ -2241,18 +2413,7 @@ export default function EventDetailPopup({
                       onChange={(v) => {
                         setTimeOn(v)
                         if (v) {
-                          const now = new Date()
-                          const snapMin = now.getMinutes() - (now.getMinutes() % 5)
-
-                          // 날짜 유지 → 기존 start의 날짜 사용
-                          const newStart = new Date(start)
-                          newStart.setHours(now.getHours())
-                          newStart.setMinutes(snapMin)
-                          setStart(newStart)
-
-                          const allowNextDay = ymdLocal(start) !== ymdLocal(end)
-                          const newEnd = buildAutoEndForEvent(newStart, allowNextDay)
-                          setEnd(newEnd)
+                          applyDefaultTimesPreservingRange()
                         } else {
                           setOpenTime(false)
                           // 알림 관련 상태 초기화
@@ -2332,19 +2493,19 @@ export default function EventDetailPopup({
                                   onPress={() => {
                                     if (k === 'monthly') {
                                       // 매월은 리스트를 닫지 않고, 바로 아래에 인라인 옵션 토글
-                                      setRepeatMode('monthly')
+                                      applyRepeatMode('monthly')
                                       setRepeatCustomOpen(false) // 다른 서브 닫기
                                       setMonthlyOpen((v) => !v)
                                       return
                                     }
                                     if (k === 'custom') {
-                                      setRepeatMode('custom')
+                                      applyRepeatMode('custom')
                                       setMonthlyOpen(false)
                                       setRepeatCustomOpen((v) => !v) // 맞춤 설정 인라인 피커 토글
                                       return
                                     }
                                     // 다른 옵션은 접고 닫기
-                                    setRepeatMode(k as any)
+                                    applyRepeatMode(k)
                                     setMonthlyOpen(false)
                                     setRepeatCustomOpen(false)
                                     setRepeatOpen(false)

@@ -24,7 +24,7 @@ import Animated, {
   runOnJS,
   withDelay,
 } from 'react-native-reanimated'
-import { useFocusEffect, useIsFocused } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 
 import ScreenWithSidebar from '@/components/sidebars/ScreenWithSidebar'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
@@ -38,10 +38,12 @@ import { ts } from '@/styles/typography'
 import * as Haptics from 'expo-haptics'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
+import { calendarViewTransition } from '@/providers/CalendarViewProvider'
 import { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import WeekHeaderSpan from '@/screens/Calender/Week/WeekHeaderSpan'
 import WeekTimeline from '@/screens/Calender/Week/WeekTimeline'
 import WeekPopups from '@/screens/Calender/Week/WeekPopups'
+import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
 import { useCalendarSync } from '@/screens/Calender/Week/useCalendarSync'
 import { useWeekGestures } from '@/screens/Calender/Week/useWeekGestures'
 import { useOCR } from '@/hooks/useOCR'
@@ -85,7 +87,7 @@ const BASE_ROW_H = 48
 const DRAG_LONG_PRESS_MS = 380
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
-const TIME_COL_W = 50
+const TIME_COL_W = 58
 
 const SIDE_PADDING = 16 * 2 // ← 좌우 여백 합 = 32
 // 겹침(반분할) 카드 폭 튜닝: + 넓어지고, - 좁아진다
@@ -155,7 +157,9 @@ function TaskGroupBox({
   tasks,
   startHour,
   rowH,
+  collapseToken,
   onLocalChange,
+  openTaskPopupFromApi,
   dayColWidth,
   dateISO,
   dayIndex,
@@ -166,6 +170,7 @@ function TaskGroupBox({
   tasks: any[]
   startHour: number
   rowH: number
+  collapseToken: number
   dayColWidth: number
   dateISO: string
   dayIndex: number
@@ -178,8 +183,8 @@ function TaskGroupBox({
     completed?: boolean
     placementTime?: string | null
   }) => void
+  openTaskPopupFromApi?: (taskId: string) => void
 }) {
-  const [localTasks, setLocalTasks] = useState(tasks)
   const pixelsPerMin = rowH / 60
   const dayPx = 24 * 60 * pixelsPerMin
   const topBase = startHour * 60 * pixelsPerMin
@@ -192,8 +197,8 @@ function TaskGroupBox({
   const [lastShift, setLastShift] = useState(0)
 
   useEffect(() => {
-    setLocalTasks(tasks)
-  }, [tasks])
+    setExpanded(false)
+  }, [collapseToken])
 
   // ✅ 단일 Task 박스와 동일한 기본 위치
   const colCount = Math.max(1, columnsTotal)
@@ -235,7 +240,7 @@ function TaskGroupBox({
         const newDateISO = addDays(dateISO, dayOffset)
 
         await Promise.all(
-          localTasks.map(async (t: any) => {
+          tasks.map(async (t: any) => {
             const taskId = String(t.id)
             try {
               await moveTaskToDateTime(http, taskId, newDateISO, newTime)
@@ -269,7 +274,7 @@ function TaskGroupBox({
         console.error('❌ TaskGroup 이동 처리 중 오류:', err.message)
       }
     },
-    [dateISO, localTasks, onLocalChange, startHour, translateX, translateY, dayColWidth],
+    [dateISO, onLocalChange, tasks, translateX, translateY, dayColWidth, pixelsPerMin, topBase, dayPx, height],
   )
 
   const longPress = Gesture.LongPress()
@@ -340,18 +345,31 @@ function TaskGroupBox({
 
     const taskDateISO = dateISO
 
+    onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: newCompleted })
+    bus.emit('calendar:mutated', {
+      op: 'update',
+      item: {
+        id: taskId,
+        completed: newCompleted,
+        date: taskDateISO,
+        startDate: taskDateISO,
+      },
+    })
+
     try {
       await updateTaskCompleted(http, taskId, newCompleted, taskDateISO)
-
-      // 서버 반영 후에만 로컬 업데이트 (깜빡임 제거)
-      setLocalTasks((prev) =>
-        prev.map((t) =>
-          String(t.id) === taskId ? { ...t, completed: newCompleted } : t,
-        ),
-      )
-
-      onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: newCompleted })
     } catch (err: any) {
+      onLocalChange?.({ id: taskId, dateISO: taskDateISO, completed: !newCompleted })
+      bus.emit('calendar:mutated', {
+        op: 'update',
+        item: {
+          id: taskId,
+          completed: !newCompleted,
+          date: taskDateISO,
+          startDate: taskDateISO,
+        },
+      })
+      bus.emit('calendar:invalidate', { ym: taskDateISO.slice(0, 7) })
       console.error(
         '❌ TaskGroup PATCH 실패:',
         err && (err as any).response && (err as any).response.data
@@ -427,7 +445,7 @@ function TaskGroupBox({
             expanded={expanded}
             title="할 일"
             layoutWidthHint={finalWidth}
-            tasks={localTasks.map((t: any) => ({
+            tasks={tasks.map((t: any) => ({
               id: String(t.id),
               title: t.title ?? '',
               done: !!t.completed,
@@ -436,8 +454,11 @@ function TaskGroupBox({
               LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
               setExpanded(nextExpanded)
             }}
+            onPressTask={(taskId) => {
+              openTaskPopupFromApi?.(taskId)
+            }}
             onToggleTask={(taskId) => {
-              const target = localTasks.find((t: any) => String(t.id) === String(taskId))
+              const target = tasks.find((t: any) => String(t.id) === String(taskId))
               if (target) onToggleGroupTask(target)
             }}
           />
@@ -530,23 +551,32 @@ function DraggableTaskBox({
   const toggleDone = async () => {
     const next = !done
     setDone(next)
+    onLocalChange?.({ id, dateISO, completed: next })
+    bus.emit('calendar:mutated', {
+      op: 'update',
+      item: {
+        id,
+        completed: next,
+        date: dateISO,
+        startDate: dateISO,
+      },
+    })
     try {
       await updateTaskCompleted(http, id, next, dateISO)
-
-      onLocalChange?.({ id, dateISO, completed: next })
-
+    } catch (err: any) {
+      console.error('❌ Task 체크 상태 업데이트 실패:', err.message)
+      setDone(!next)
+      onLocalChange?.({ id, dateISO, completed: !next })
       bus.emit('calendar:mutated', {
         op: 'update',
         item: {
           id,
-          completed: next,
+          completed: !next,
           date: dateISO,
           startDate: dateISO,
         },
       })
-    } catch (err: any) {
-      console.error('❌ Task 체크 상태 업데이트 실패:', err.message)
-      setDone(!next)
+      bus.emit('calendar:invalidate', { ym: dateISO.slice(0, 7) })
     }
   }
 
@@ -1002,8 +1032,10 @@ const MemoDraggableFlexibleEvent = React.memo(DraggableFlexalbeEvent)
 /* WeekView 메인 */
 /* -------------------------------------------------------------------------- */
 
-export default function WeekView() {
+export default function WeekView({ active = true }: { active?: boolean }) {
+  const suppressNextAutoScrollRef = useRef(false)
   const isFocused = useIsFocused()
+  const screenActive = active && isFocused
   const spanWrapRef = useRef<View>(null)
   const [spanRect, setSpanRect] = useState<GridRect | null>(null)
 
@@ -1044,9 +1076,15 @@ const {
   }, [weekDates])
 
   const { weekData, setWeekData, loading, fetchWeek } = useWeekCalendarData(http)
+  const [taskGroupCollapseToken, setTaskGroupCollapseToken] = useState(0)
 
   const [nowTop, setNowTop] = useState<number | null>(null)
   const [hasScrolledOnce, setHasScrolledOnce] = useState(false)
+
+  useEffect(() => {
+    if (!screenActive) return
+    suppressNextAutoScrollRef.current = calendarViewTransition.consumeNextEntranceSuppressed()
+  }, [screenActive])
 
   const [spanWrapH, setSpanWrapH] = useState(150)
   const [spanContentH, setSpanContentH] = useState(150)
@@ -1165,6 +1203,18 @@ const {
   }, [])
 
   useEffect(() => {
+    const onResetView = () => {
+      setEventPopupVisible(false)
+      setTaskPopupVisible(false)
+      setImagePopupVisible(false)
+      setOcrModalVisible(false)
+    }
+
+    bus.on('calendar:reset-view', onResetView)
+    return () => bus.off('calendar:reset-view', onResetView)
+  }, [setImagePopupVisible, setOcrModalVisible])
+
+  useEffect(() => {
     if (isZoomed) {
       // 5일뷰: anchorDate 기준 -2 ~ +2
       const centerDate = anchorDate
@@ -1180,7 +1230,7 @@ const {
 
       setWeekDates(arr)
 
-      if (isFocused) {
+      if (screenActive) {
         bus.emit('calendar:state', {
           date: arr[0],
           mode: 'week',
@@ -1196,7 +1246,7 @@ const {
 
       setWeekDates(arr)
 
-      if (isFocused) {
+      if (screenActive) {
         bus.emit('calendar:state', {
           date: arr[0],
           mode: 'week',
@@ -1206,7 +1256,7 @@ const {
         })
       }
     }
-  }, [anchorDate, isZoomed, isFocused])
+  }, [anchorDate, isZoomed, screenActive])
 
   const rowH =
     weekDates.length === 7 ? 61 : weekDates.length === 5 ? 62 : BASE_ROW_H
@@ -1237,8 +1287,9 @@ const {
           requestAnimationFrame(() => {
             gridScrollRef.current?.scrollTo({
               y: Math.max(topPos - SCREEN_H * 0.35, 0),
-              animated: true,
+              animated: !suppressNextAutoScrollRef.current,
             })
+            suppressNextAutoScrollRef.current = false
             setHasScrolledOnce(true)
           })
         })
@@ -1256,30 +1307,41 @@ const {
         requestAnimationFrame(() => {
           gridScrollRef.current?.scrollTo({
             y: Math.max(nowTop - SCREEN_H * 0.35, 0),
-            animated: true,
+            animated: !suppressNextAutoScrollRef.current,
           })
+          suppressNextAutoScrollRef.current = false
           setHasScrolledOnce(true)
         })
       })
     }
   }, [nowTop, weekData, hasScrolledOnce])
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    if (!screenActive) return
+    if (suppressNextAutoScrollRef.current) return
       setHasScrolledOnce(false) // ← 요거 하나로 DayView와 동일한 동작 완성
-    }, []),
-  )
+  }, [screenActive])
 
   const today = todayISO()
   useCalendarSync({
-    isFocused,
+    active: screenActive,
     weekDates,
     anchorDateRef,
     dayColWidth,
     rowH,
     setAnchorDate,
+    setWeekData,
     fetchWeek,
   })
+
+  useEffect(() => {
+    if (!screenActive) return
+      setTaskGroupCollapseToken((prev) => prev + 1)
+  }, [screenActive])
+
+  useEffect(() => {
+    setTaskGroupCollapseToken((prev) => prev + 1)
+  }, [anchorDate])
   const showSpanScrollbar = spanContentH > spanWrapH - 10
 
   const gridWrapRef = useRef<View>(null)
@@ -1562,13 +1624,16 @@ const {
     void (async () => {
       try {
         await http.delete(`/task/${taskPopupId}`)
+        const taskDateISO = taskPopupTask?.placementDate ?? anchorDate
+
+        invalidateDayCache({ date: taskDateISO })
 
         bus.emit('calendar:mutated', {
           op: 'delete',
-          item: { id: taskPopupId },
+          item: { id: taskPopupId, date: taskDateISO },
         })
         bus.emit('calendar:invalidate', {
-          ym: anchorDate.slice(0, 7),
+          ym: taskDateISO.slice(0, 7),
         })
 
         await fetchWeek(weekDates)
@@ -1662,7 +1727,7 @@ const {
   if (loading && !weekDates.length) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ScreenWithSidebar mode="overlay">
+        <ScreenWithSidebar mode="overlay" floatingVisible={false}>
           <View style={S.loadingCenter}>
             <ActivityIndicator size="large" color={colors.primary.main} />
           </View>
@@ -1673,7 +1738,16 @@ const {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ScreenWithSidebar mode="overlay">
+      <ScreenWithSidebar
+        mode="overlay"
+        floatingVisible={
+          !taskPopupVisible &&
+          !eventPopupVisible &&
+          !imagePopupVisible &&
+          !ocrSplashVisible &&
+          !ocrModalVisible
+        }
+      >
         <GestureDetector gesture={composedGesture}>
           <Animated.View style={[S.screen, animatedStyle, swipeStyle]}>
             <WeekHeaderSpan
@@ -1721,6 +1795,7 @@ const {
               openTaskPopupFromApi={openTaskPopupFromApi}
               onGridScroll={handleGridScroll}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
+              taskGroupCollapseToken={taskGroupCollapseToken}
               DraggableFlexibleEventComponent={MemoDraggableFlexibleEvent}
               TaskGroupBoxComponent={MemoTaskGroupBox}
               DraggableTaskBoxComponent={MemoDraggableTaskBox}
@@ -1776,13 +1851,13 @@ const S = StyleSheet.create({
 
   weekHeaderRow: {
     flexDirection: 'row',
-    height: 40,
+    height: 48,
     backgroundColor: '#FFFFFF',
     alignItems: 'flex-start',
   },
   weekHeaderTimeCol: {
     width: TIME_COL_W,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'flex-start',
     paddingLeft: 0,
     paddingTop: 1,
@@ -1790,6 +1865,7 @@ const S = StyleSheet.create({
   weekHeaderBigDate: {
     ...ts('label1'),
     fontSize: 19,
+    lineHeight: 20,
     color: '#000000',
   },
   weekHeaderCol: {
@@ -1800,9 +1876,10 @@ const S = StyleSheet.create({
   weekHeaderWeekday: {
     ...ts('date3'),
     fontSize: 12,
+    lineHeight: 16,
     fontWeight: 500,
     color: colors.text.text2,
-    marginBottom: 4,
+    marginBottom: 0,
   },
   weekHeaderWeekdayToday: {
     fontWeight: 700,
@@ -1812,7 +1889,8 @@ const S = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 3,
+    marginTop: 0,
+    marginBottom: 2,
   },
   weekHeaderDatePillToday: {
     backgroundColor: '#EFE7F7',
@@ -1851,6 +1929,7 @@ const S = StyleSheet.create({
     flex: 1,
   },
   timelineContent: {
+    paddingTop: 4,
     paddingBottom: 16,
     paddingHorizontal: 16,
   },
@@ -1985,7 +2064,7 @@ const S = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: 1,
+    height: 2,
     backgroundColor: colors.icon.selected,
     borderRadius: 1,
     zIndex: 50,
@@ -1993,8 +2072,8 @@ const S = StyleSheet.create({
   liveDot: {
     position: 'absolute',
     left: -3,
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
     borderRadius: 4,
     backgroundColor: colors.icon.selected,
     zIndex: 31,

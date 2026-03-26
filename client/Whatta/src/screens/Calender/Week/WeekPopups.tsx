@@ -6,7 +6,7 @@ import { http } from '@/lib/http'
 import { createEvent } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
-import AddImageSheet from '@/screens/More/Ocr'
+import AddImageSheet from '@/screens/More/AddImageSheet'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import OcrSplash from '@/screens/More/OcrSplash'
 
@@ -103,6 +103,8 @@ export default function WeekPopups({
 
           const reminderNoti = form.reminderNoti ?? null
           if (reminderNoti === null || reminderNoti === undefined) fieldsToClear.push('reminderNoti')
+          const dueDateTime = form.dueDateTime ?? null
+          if (dueDateTime === null || dueDateTime === undefined) fieldsToClear.push('dueDateTime')
 
           try {
             if (taskPopupMode === 'edit') {
@@ -115,6 +117,7 @@ export default function WeekPopups({
                 placementDate,
                 placementTime,
                 reminderNoti,
+                dueDateTime,
                 fieldsToClear,
               })
 
@@ -130,6 +133,7 @@ export default function WeekPopups({
                 placementDate,
                 placementTime,
                 reminderNoti,
+                dueDateTime,
                 date: placementDate ?? anchorDate,
               })
 
@@ -176,7 +180,7 @@ export default function WeekPopups({
       />
 
       <Modal visible={ocrSplashVisible} transparent animationType="fade" statusBarTranslucent>
-        <OcrSplash />
+        <OcrSplash visible={ocrSplashVisible} />
       </Modal>
 
       <OCREventCardSlider
@@ -185,7 +189,6 @@ export default function WeekPopups({
         onClose={() => setOcrModalVisible(false)}
         onAddEvent={async (payload) => {
           try {
-            await createEvent(payload)
             await fetchWeek(weekDates)
             bus.emit('calendar:invalidate', { ym: anchorDate.slice(0, 7) })
           } catch (err) {

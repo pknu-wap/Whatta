@@ -11,14 +11,14 @@ export const ts = (styleName: string): any => {
 
 // 일정 위치 계산
 export function buildLaneMap(spans: ScheduleData[]) {
-  const days = (d: string) => Date.parse(d) / 86400000
   const list = spans
     .filter((s) => s.multiDayStart && s.multiDayEnd)
     .map((s) => ({ ...s, start: s.multiDayStart!, end: s.multiDayEnd! }))
     .sort(
       (a, b) =>
-        days(b.end) - days(b.start) - (days(a.end) - days(a.start)) ||
+        Number(Boolean((b as any).__holidayReserve)) - Number(Boolean((a as any).__holidayReserve)) ||
         a.start.localeCompare(b.start) ||
+        b.end.localeCompare(a.end) ||
         (a.name || '').localeCompare(b.name || ''),
     )
 
@@ -39,6 +39,7 @@ export function buildLaneMap(spans: ScheduleData[]) {
 export function getEventsForDate(
   fullDate: Date,
   allSchedules: ScheduleData[],
+  laneMap: Map<string, number>,
 ): { schedules: ScheduleData[]; tasks: ScheduleData[] } {
   type WithLane = ScheduleData & { __lane?: number }
 
@@ -72,7 +73,6 @@ export function getEventsForDate(
     }
   })
 
-  // 멀티데이 알고리즘
   const spansOnly = allSchedules.filter(
     (it) => it.multiDayStart && it.multiDayEnd,
   ) as (ScheduleData & { __lane?: number })[]
@@ -80,10 +80,12 @@ export function getEventsForDate(
     (s) => s.multiDayStart! <= iso && iso <= s.multiDayEnd!,
   )
 
-  // 레인 → 길이(desc) → 이름 순으로 정렬
   const spanLen = (s: WithLane) =>
     new Date(s.multiDayEnd!).getTime() - new Date(s.multiDayStart!).getTime()
 
+  spansToday.forEach((ev) => {
+    ev.__lane = laneMap.get(String(ev.id)) ?? 0
+  })
   spansToday.sort(
     (a, b) =>
       (a.__lane ?? 0) - (b.__lane ?? 0) ||
@@ -91,48 +93,7 @@ export function getEventsForDate(
       (a.name || '').localeCompare(b.name || ''),
   )
 
-  // 길이 긴 순으로 정렬
-  spansOnly.sort((a, b) => {
-    const startA = a.multiDayStart ? new Date(a.multiDayStart).getTime() : 0
-    const endA = a.multiDayEnd ? new Date(a.multiDayEnd).getTime() : 0
-    const startB = b.multiDayStart ? new Date(b.multiDayStart).getTime() : 0
-    const endB = b.multiDayEnd ? new Date(b.multiDayEnd).getTime() : 0
-    const lenA = endA - startA
-    const lenB = endB - startB
-    return lenB - lenA
-  })
-
-  const lanes: (ScheduleData & { __lane?: number })[][] = []
-
-  for (const ev of spansOnly) {
-    if (!ev.multiDayStart || !ev.multiDayEnd) continue
-    const start = new Date(ev.multiDayStart)
-    const end = new Date(ev.multiDayEnd)
-    let placed = false
-
-    for (let i = 0; i < lanes.length; i++) {
-      const conflict = lanes[i].some((other) => {
-        if (!other.multiDayStart || !other.multiDayEnd) return false
-        const oStart = new Date(other.multiDayStart)
-        const oEnd = new Date(other.multiDayEnd)
-        return !(end < oStart || start > oEnd)
-      })
-      if (!conflict) {
-        lanes[i].push(ev)
-        ev.__lane = i
-        placed = true
-        break
-      }
-    }
-
-    if (!placed) {
-      ev.__lane = lanes.length
-      lanes.push([ev])
-    }
-  }
-
   // 단일/Task 배치
-  const used = new Set<number>(spansOnly.map((s) => s.__lane!))
   const firstFreeLane = Math.max(-1, ...spansToday.map((s) => s.__lane ?? -1)) + 1
 
   const toMinutes = (x: any) => {
@@ -258,6 +219,7 @@ export function getCalendarDates(
     const { schedules: dayItems, tasks: dayTasks } = getEventsForDate(
       itemDate,
       allSchedules,
+      laneMap,
     )
     dates.push({
       day: date,

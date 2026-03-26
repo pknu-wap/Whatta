@@ -1,6 +1,5 @@
 import React from 'react'
 import {
-  Modal,
   View,
   Text,
   Pressable,
@@ -11,26 +10,32 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Easing } from 'react-native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { runOnJS } from 'react-native-reanimated'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
 import { http } from '@/lib/http'
 import { bus } from '@/lib/eventBus'
-import DownL from '@/assets/icons/drop_down.svg'
-import XIcon from '@/assets/icons/x.svg'
 import PlusBtn from '@/assets/icons/plusbtn.svg'
-import CalendarModal from '@/components/CalendarModal'
+import XIcon from '@/assets/icons/x.svg'
 import FixedScheduleCard from '@/components/calendar-items/schedule/FixedScheduleCard'
 import RepeatScheduleCard from '@/components/calendar-items/schedule/RepeatScheduleCard'
 import RangeScheduleBar from '@/components/calendar-items/schedule/RangeScheduleBar'
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { resolveScheduleColor } from '@/styles/scheduleColorSets'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
+import { useLabels } from '@/providers/LabelProvider'
+import { createLabel } from '@/api/label_api'
 
 const DETAIL_ITEM_WIDTH = 302
 const DETAIL_RIGHT_EXTENSION = 24
 const DETAIL_ITEM_HEIGHT = 60
 const QUICK_INPUT_HEIGHT = 50
 const DETAIL_ITEM_RADIUS = 12
+const APP_HEADER_HEIGHT = 45
+const MONTH_DETAIL_LIFT = -49
 
 export interface DayEvent {
   id?: string | number
@@ -55,6 +60,10 @@ export interface DayEvent {
 interface MonthlyDetailPopupProps {
   visible: boolean
   onClose: () => void
+  interactionLocked?: boolean
+  onPressEvent?: (event: DayEvent) => void
+  onPressTask?: (task: DayEvent) => void
+  onSwipeDate?: (delta: -1 | 1) => void
   dayData: {
     date?: string
     dateISO?: string
@@ -110,23 +119,23 @@ const toStartMinutes = (ev: DayEvent) => {
   return Number.MAX_SAFE_INTEGER
 }
 
-const toISODate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-const todayISO = () => toISODate(new Date())
-
 export default function MonthlyDetailPopup({
   visible,
   onClose,
+  interactionLocked = false,
+  onPressEvent,
+  onPressTask,
+  onSwipeDate,
   dayData,
 }: MonthlyDetailPopupProps) {
+  const insets = useSafeAreaInsets()
   const fadeAnim = React.useRef(new Animated.Value(0)).current
   const scaleAnim = React.useRef(new Animated.Value(0.96)).current
   const [taskDoneMap, setTaskDoneMap] = React.useState<Record<string, boolean>>({})
   const [quickTitle, setQuickTitle] = React.useState('')
   const [quickSaving, setQuickSaving] = React.useState(false)
   const [quickCreatedUntimed, setQuickCreatedUntimed] = React.useState<DayEvent[]>([])
-  const [calendarVisible, setCalendarVisible] = React.useState(false)
+  const { labels, refresh: refreshLabels } = useLabels()
 
   const ANIM_DURATION = 260
 
@@ -170,10 +179,18 @@ export default function MonthlyDetailPopup({
   const untimedTasks = dayData.untimedTasks ?? fallbackUntimedTasks
   const timedTasks = dayData.timedTasks ?? fallbackTimedTasks
   const headerTitle = React.useMemo(() => buildHeaderTitle(dayData), [dayData])
-  const untimedDisplayEvents = React.useMemo(
-    () => [...normalEvents, ...quickCreatedUntimed],
-    [normalEvents, quickCreatedUntimed],
-  )
+  const untimedDisplayEvents = React.useMemo(() => {
+    const merged = [...normalEvents, ...quickCreatedUntimed]
+    const seen = new Set<string>()
+
+    return merged.filter((ev, index) => {
+      const fallbackKey = `idx-${index}-${ev.title}`
+      const dedupeKey = ev.id != null ? String(ev.id) : fallbackKey
+      if (seen.has(dedupeKey)) return false
+      seen.add(dedupeKey)
+      return true
+    })
+  }, [normalEvents, quickCreatedUntimed])
   const timedMerged = React.useMemo(() => {
     const merged = [
       ...timedScheduleEvents.map((ev) => ({ kind: 'schedule' as const, ev })),
@@ -260,6 +277,7 @@ export default function MonthlyDetailPopup({
           density="day"
           isUntimed={isUntimed}
           timeRangeText={subText}
+          onPress={!interactionLocked && ev.id != null ? () => onPressEvent?.(ev) : undefined}
           style={
             isUntimed
               ? S.itemCard
@@ -296,6 +314,7 @@ export default function MonthlyDetailPopup({
           isEnd={isEnd}
           density="day"
           isUntimed
+          onPress={!interactionLocked && ev.id != null ? () => onPressEvent?.(ev) : undefined}
           radiusOverride={DETAIL_ITEM_RADIUS}
           capWidthOverride={DETAIL_ITEM_RADIUS}
           style={[S.itemCard, { width: spanWidth }]}
@@ -317,8 +336,8 @@ export default function MonthlyDetailPopup({
           density="day"
           layoutWidthHint={DETAIL_ITEM_WIDTH}
           style={S.itemCard}
-          onPress={() => toggleTask(task)}
-          onToggle={() => toggleTask(task)}
+          onPress={!interactionLocked && task.id != null ? () => onPressTask?.(task) : undefined}
+          onToggle={interactionLocked ? undefined : () => toggleTask(task)}
         />
       </View>
     )
@@ -331,10 +350,18 @@ export default function MonthlyDetailPopup({
 
     setQuickSaving(true)
     try {
+      let scheduleLabelId = labels.find((label) => label.title === '일정')?.id
+      if (!scheduleLabelId) {
+        const createdLabel = await createLabel('일정')
+        scheduleLabelId = createdLabel.id
+        bus.emit('label:mutated')
+        void refreshLabels()
+      }
+
       const res = await http.post('/event', {
         title,
         content: '',
-        labels: [],
+        labels: scheduleLabelId ? [scheduleLabelId] : [],
         startDate: iso,
         endDate: iso,
         startTime: null,
@@ -377,142 +404,161 @@ export default function MonthlyDetailPopup({
     }
   }
 
-  const selectCalendarDate = React.useCallback(
-    (iso: string) => {
-      setCalendarVisible(false)
-      requestAnimationFrame(() => {
-        onClose()
-        requestAnimationFrame(() => {
-          bus.emit('month:detail:navigate', iso)
-        })
-      })
-    },
-    [onClose],
+  const handleHeaderPress = React.useCallback(() => {
+    if (interactionLocked) return
+    const iso = String(dayData.dateISO ?? '').slice(0, 10)
+    if (!iso) return
+
+    bus.emit('calendar:set-date', iso)
+    bus.emit('calendar:set-mode', 'day')
+    onClose()
+  }, [dayData.dateISO, interactionLocked, onClose])
+
+  const contentSwipeGesture = React.useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!interactionLocked && !!onSwipeDate)
+        .activeOffsetX([-18, 18])
+        .failOffsetY([-12, 12])
+        .onEnd((event) => {
+          if (!onSwipeDate) return
+          if (Math.abs(event.translationX) < 56) return
+          runOnJS(onSwipeDate)(event.translationX > 0 ? -1 : 1)
+        }),
+    [interactionLocked, onSwipeDate],
   )
 
-  return (
-    <Modal transparent visible={visible} animationType="none" statusBarTranslucent>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+  if (!visible) return null
 
+  return (
+    <View
+      style={[
+        S.modalHost,
+        {
+          top: -(APP_HEADER_HEIGHT + insets.top),
+        },
+      ]}
+      pointerEvents="auto"
+    >
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={interactionLocked ? undefined : onClose}
+      />
       <KeyboardAvoidingView
         style={S.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={24}
-        pointerEvents="box-none"
+        keyboardVerticalOffset={-80}
       >
-        <Animated.View style={[S.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
-          <Pressable onPress={(e) => e.stopPropagation()}>
+        <Animated.View
+          style={[
+            S.overlay,
+            {
+              opacity: fadeAnim,
+              paddingTop: APP_HEADER_HEIGHT + insets.top,
+              paddingBottom: CUSTOM_TAB_BAR_HEIGHT + 4 + MONTH_DETAIL_LIFT,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <View>
             <Animated.View style={[S.shadowWrap, { transform: [{ scale: scaleAnim }] }]}>
               <View style={S.container}>
-              <View style={S.headerRow}>
-                <Pressable style={S.headerLeft} onPress={() => setCalendarVisible(true)}>
-                  <Text style={S.headerText}>{headerTitle}</Text>
-                  <View style={S.headerDownIconWrap}>
-                    <DownL width={24} height={24} color={colors.icon.default} />
+                  <View style={S.headerRow}>
+                    <View style={S.headerLeft}>
+                      <Pressable onPress={interactionLocked ? undefined : handleHeaderPress}>
+                        <Text style={S.headerText}>{headerTitle}</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable
+                      onPress={interactionLocked ? undefined : onClose}
+                      hitSlop={10}
+                      style={S.headerRightIconWrap}
+                    >
+                      <XIcon width={13} height={13} color={colors.icon.default} />
+                    </Pressable>
                   </View>
-                </Pressable>
-                <View style={S.headerRightGroup}>
-                  <Pressable
-                    style={S.todayBtn}
-                    onPress={() => {
-                      selectCalendarDate(todayISO())
-                    }}
-                  >
-                    <Text style={S.todayBtnText}>Today</Text>
-                  </Pressable>
-                  <Pressable onPress={onClose} hitSlop={10} style={S.headerRightIconWrap}>
-                    <XIcon width={13} height={13} color={colors.icon.default} />
-                  </Pressable>
+
+                  <GestureDetector gesture={contentSwipeGesture}>
+                    <View style={S.scrollGestureArea}>
+                      <ScrollView
+                        style={S.scroll}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={S.scrollContent}
+                      >
+                        {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
+
+                        {untimedDisplayEvents.map((ev, i) =>
+                          renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
+                        )}
+
+                        {untimedTasks.map((task, i) =>
+                          renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
+                        )}
+
+                        <View style={S.divider} />
+                        <Text style={S.sectionTitle}>시간별 일정</Text>
+
+                        {timedMerged.map((item, i) => {
+                          if (item.kind === 'task') {
+                            return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
+                          }
+                          const ev = item.ev
+                          const timeText = ev.time?.trim()
+                            ? ev.time
+                            : ev.startAt && ev.endAt
+                            ? formatTimeRange(ev.startAt, ev.endAt)
+                            : undefined
+
+                          return renderScheduleCard(
+                            ev,
+                            `timed-${String(ev.id ?? i)}`,
+                            timeText,
+                            false,
+                          )
+                        })}
+                      </ScrollView>
+                    </View>
+                  </GestureDetector>
+
+                  <View style={S.bottomReserved} />
+                  <View style={S.quickInputWrap}>
+                    <View style={S.quickInputBox}>
+                      <Pressable
+                        onPress={submitQuickAdd}
+                        hitSlop={8}
+                        disabled={quickSaving}
+                        style={S.quickPlusBtn}
+                      >
+                        <PlusBtn width={18} height={18} color={colors.icon.default} />
+                      </Pressable>
+                      <TextInput
+                        value={quickTitle}
+                        onChangeText={setQuickTitle}
+                        placeholder="일정 제목을 입력하세요..."
+                        placeholderTextColor={colors.brand.primary}
+                        style={S.quickInput}
+                        returnKeyType="done"
+                        onSubmitEditing={submitQuickAdd}
+                        editable={!quickSaving}
+                        blurOnSubmit={false}
+                      />
+                    </View>
+                  </View>
                 </View>
-              </View>
-
-              <ScrollView
-                style={S.scroll}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={S.scrollContent}
-              >
-                {spanEvents.map((ev, i) => renderSpanCard(ev, `span-${String(ev.id ?? i)}`))}
-
-                {untimedDisplayEvents.map((ev, i) =>
-                  renderScheduleCard(ev, `normal-${String(ev.id ?? i)}`, undefined, false),
-                )}
-
-                {untimedTasks.map((task, i) =>
-                  renderTaskCard(task, `untimed-task-${String(task.id ?? i)}`),
-                )}
-
-                <View style={S.divider} />
-                <Text style={S.sectionTitle}>시간별 일정</Text>
-
-                {timedMerged.map((item, i) => {
-                  if (item.kind === 'task') {
-                    return renderTaskCard(item.ev, `timed-task-${String(item.ev.id ?? i)}`)
-                  }
-                  const ev = item.ev
-                  const timeText = ev.time?.trim()
-                    ? ev.time
-                    : ev.startAt && ev.endAt
-                    ? formatTimeRange(ev.startAt, ev.endAt)
-                    : undefined
-
-                  return renderScheduleCard(
-                    ev,
-                    `timed-${String(ev.id ?? i)}`,
-                    timeText,
-                    false,
-                  )
-                })}
-              </ScrollView>
-
-              <View style={S.bottomReserved} />
-              <View style={S.quickInputWrap}>
-                <View style={S.quickInputBox}>
-                  <Pressable
-                    onPress={submitQuickAdd}
-                    hitSlop={8}
-                    disabled={quickSaving}
-                    style={S.quickPlusBtn}
-                  >
-                    <PlusBtn width={18} height={18} color={colors.icon.default} />
-                  </Pressable>
-                  <TextInput
-                    value={quickTitle}
-                    onChangeText={setQuickTitle}
-                    placeholder="일정 제목을 입력하세요..."
-                    placeholderTextColor={colors.brand.primary}
-                    style={S.quickInput}
-                    returnKeyType="done"
-                    onSubmitEditing={submitQuickAdd}
-                    editable={!quickSaving}
-                    blurOnSubmit={false}
-                  />
-                </View>
-              </View>
-              </View>
-            </Animated.View>
-          </Pressable>
+              </Animated.View>
+          </View>
         </Animated.View>
       </KeyboardAvoidingView>
-      <CalendarModal
-        visible={calendarVisible}
-        onClose={() => setCalendarVisible(false)}
-        currentDate={dayData.dateISO ?? ''}
-        modalTopOffset={220}
-        onSelectDate={selectCalendarDate}
-        onPressToday={() => selectCalendarDate(todayISO())}
-        autoConfirmOnDayPress
-        showCalendarActions={false}
-        pickerContentHeight={286}
-        initialOpenMode="calendar"
-        pickerConfirmVariant="icon"
-        showPickerCancel
-        pickerActionsLift={0}
-      />
-    </Modal>
+      </View>
   )
 }
 
 const S = StyleSheet.create({
+  modalHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+  },
   keyboardAvoid: {
     flex: 1,
   },
@@ -520,7 +566,7 @@ const S = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFFB3',
+    backgroundColor: 'rgba(255,255,255,0.62)',
   },
   shadowWrap: {
     width: 350,
@@ -534,7 +580,7 @@ const S = StyleSheet.create({
   container: {
     width: 350,
     height: 569,
-    backgroundColor: colors.background.bg1,
+    backgroundColor: '#fff',
     borderRadius: 20,
     overflow: 'hidden',
   },
@@ -550,6 +596,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 32,
+    flexShrink: 1,
   },
   headerText: {
     ...ts('titleM'),
@@ -557,13 +604,6 @@ const S = StyleSheet.create({
     fontWeight: '700',
     includeFontPadding: false,
     lineHeight: ts('titleM').lineHeight,
-    marginRight: 2,
-  },
-  headerDownIconWrap: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   headerRightIconWrap: {
     width: 32,
@@ -571,28 +611,12 @@ const S = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 10,
-  },
-  todayBtn: {
-    width: 57,
-    height: 30,
-    borderRadius: 8,
-    borderWidth: 0.5,
-    borderColor: colors.divider.divider1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.bg1,
-  },
-  todayBtnText: {
-    ...ts('label4'),
-    color: colors.text.text2,
-  },
   scroll: {
     flex: 1,
     marginTop: 22,
+  },
+  scrollGestureArea: {
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: 118,
@@ -640,7 +664,7 @@ const S = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 94,
-    backgroundColor: colors.background.bg1,
+    backgroundColor: '#fff',
     shadowColor: '#A4ADB2',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.3,
@@ -662,7 +686,7 @@ const S = StyleSheet.create({
     borderRadius: DETAIL_ITEM_RADIUS,
     borderWidth: 0.5,
     borderColor: colors.brand.primary,
-    backgroundColor: colors.background.bg1,
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,

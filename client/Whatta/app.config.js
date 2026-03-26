@@ -49,10 +49,20 @@ module.exports = ({ config }) => {
       ...config.ios,
       bundleIdentifier: selected.iosBundleIdentifier,
       googleServicesFile: selected.iosGoogleServicesFile,
+      infoPlist: {
+        ...config.ios?.infoPlist,
+        NSLocationWhenInUseUsageDescription:
+          "현재 위치 기반으로 오늘의 날씨를 보여주기 위해 위치 정보가 필요합니다.",
+      },
     },
     android: {
       ...config.android,
       package: selected.androidPackage,
+      permissions: [
+        ...(config.android?.permissions ?? []),
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+      ],
     },
     extra: {
       ...config.extra,

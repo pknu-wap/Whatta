@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, type ViewStyle } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
 import PagerView from 'react-native-pager-view'
 
@@ -23,12 +23,13 @@ type Props = {
   selectedType: 'event' | 'task' | null
   onSelectType: (value: 'event' | 'task') => void
   start: Date
-  end: Date
+  end?: Date
   endDisplay?: Date | null
   onPressDateBox: () => void
   onChangeStartTime: (next: Date) => void
-  onChangeEndTime: (next: Date) => void
+  onChangeEndTime?: (next: Date) => void
   invalidEndTime?: boolean
+  showEndTime?: boolean
   timeOn: boolean
   timeDisabled?: boolean
   onToggleTime: (next: boolean) => void
@@ -72,6 +73,15 @@ type Props = {
   onChangeTaskDueOn: (next: boolean) => void
   taskDueDate: Date | null
   onChangeTaskDueDate: (next: Date | null) => void
+  taskDueTimeOn: boolean
+  onChangeTaskDueTimeOn: (next: boolean) => void
+  taskDueTime: Date
+  onChangeTaskDueTime: (next: Date) => void
+  contentWidth?: number
+  paletteWidth?: number
+  paletteBoxStyle?: ViewStyle
+  contentPaddingHorizontal?: number
+  eventDateInline?: React.ReactNode
 }
 
 type ReminderPresetOption = {
@@ -119,6 +129,7 @@ function formatKDate(d: Date) {
 }
 
 function formatKTime12(d: Date) {
+  if (!isValidDate(d)) return '오전 12:00'
   let h = d.getHours()
   const m = String(d.getMinutes()).padStart(2, '0')
   const ap = h < 12 ? '오전' : '오후'
@@ -127,6 +138,11 @@ function formatKTime12(d: Date) {
   return `${ap} ${h}:${m}`
 }
 
+function isValidDate(value: Date) {
+  return value instanceof Date && !Number.isNaN(value.getTime())
+}
+
+const TIME_WHEEL_FALLBACK_DATE = new Date(2000, 0, 1, 0, 0, 0, 0)
 const END_CAL_PILL_BG = '#B04FFF1A'
 const END_CAL_W = 301
 const END_DAY_W = 43
@@ -171,6 +187,7 @@ export default function CreateEventDetailStep({
   onChangeStartTime,
   onChangeEndTime,
   invalidEndTime = false,
+  showEndTime = selectedType === 'event',
   timeOn,
   timeDisabled = false,
   onToggleTime,
@@ -214,9 +231,23 @@ export default function CreateEventDetailStep({
   onChangeTaskDueOn,
   taskDueDate,
   onChangeTaskDueDate,
+  taskDueTimeOn,
+  onChangeTaskDueTimeOn,
+  taskDueTime,
+  onChangeTaskDueTime,
+  contentWidth = 302,
+  paletteWidth = 320,
+  paletteBoxStyle,
+  contentPaddingHorizontal = 24,
+  eventDateInline = null,
 }: Props) {
-  const displayedEnd = endDisplay ?? end
-  const [openTimeTarget, setOpenTimeTarget] = React.useState<'start' | 'end' | null>(null)
+  const typeButtonWidth = (contentWidth - 16) / 2
+  const timeBoxWidth = contentWidth - 76
+  const eventEnd = end ?? start
+  const displayedEnd = endDisplay ?? end ?? start
+  const [openTimeTarget, setOpenTimeTarget] = React.useState<
+    'start' | 'end' | 'due' | null
+  >(null)
   const [repeatOpen, setRepeatOpen] = React.useState(false)
   const [monthlyOpen, setMonthlyOpen] = React.useState(false)
   const [repeatCustomOpen, setRepeatCustomOpen] = React.useState(false)
@@ -231,14 +262,22 @@ export default function CreateEventDetailStep({
   const [repeatEndPickMonth, setRepeatEndPickMonth] = React.useState(start.getMonth() + 1)
   const plusBtnRef = React.useRef<View>(null)
   const [labelModalOpen, setLabelModalOpen] = React.useState(false)
-  const [labelAnchor, setLabelAnchor] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [labelAnchor, setLabelAnchor] = React.useState<{
+    x: number
+    y: number
+    w: number
+    h: number
+  } | null>(null)
   const [colorPaletteOpen, setColorPaletteOpen] = React.useState(false)
-  const [openTaskCalendar, setOpenTaskCalendar] = React.useState<'date' | 'due' | null>(null)
+  const [openTaskCalendar, setOpenTaskCalendar] = React.useState<'date' | 'due' | null>(
+    null,
+  )
 
   const isRange = useMemo(
-    () => new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime() !==
-      new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime(),
-    [start, end],
+    () =>
+      new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime() !==
+      new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate()).getTime(),
+    [start, eventEnd],
   )
   const WD_TXT = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
   const getWeekIndexOfMonth = (d: Date) => {
@@ -262,6 +301,13 @@ export default function CreateEventDetailStep({
               ? `매월 ${nth}번째 ${wd}에 반복`
               : `매월 마지막주 ${wd}에 반복`
           : `${repeatEvery}${repeatUnit === 'day' ? '일' : repeatUnit === 'week' ? '주' : '월'}마다`
+
+  const applyRepeatMode = (nextMode: Props['repeatMode']) => {
+    if (nextMode === 'weekly' && repeatMode !== 'weekly') {
+      onChangeRepeatWeekdays([start.getDay()])
+    }
+    onChangeRepeatMode(nextMode)
+  }
   React.useEffect(() => {
     if (!repeatOn) {
       setRepeatOpen(false)
@@ -281,14 +327,21 @@ export default function CreateEventDetailStep({
     { label: '토', value: 6 },
   ] as const
   const K_DAY = ['일', '월', '화', '수', '목', '금', '토'] as const
-  const disabledWeekday = start.getDay()
   const repeatEndSelected = repeatEndDate ?? start
   const repeatEndHeader = `${repeatEndMonthCursor.getFullYear()}년 ${repeatEndMonthCursor.getMonth() + 1}월`
   const repeatEndPages = useMemo(
     () => [
-      new Date(repeatEndMonthCursor.getFullYear(), repeatEndMonthCursor.getMonth() - 1, 1),
+      new Date(
+        repeatEndMonthCursor.getFullYear(),
+        repeatEndMonthCursor.getMonth() - 1,
+        1,
+      ),
       repeatEndMonthCursor,
-      new Date(repeatEndMonthCursor.getFullYear(), repeatEndMonthCursor.getMonth() + 1, 1),
+      new Date(
+        repeatEndMonthCursor.getFullYear(),
+        repeatEndMonthCursor.getMonth() + 1,
+        1,
+      ),
     ],
     [repeatEndMonthCursor],
   )
@@ -307,13 +360,12 @@ export default function CreateEventDetailStep({
     return Array.from({ length: 101 }, (_, i) => now - 50 + i)
   }, [])
   const weekdayLabel = (() => {
-    const appliedDays = Array.from(new Set([disabledWeekday, ...repeatWeekdays])).sort(
-      (a, b) => a - b,
-    )
+    const appliedDays = Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
     const hasDay = (d: number) => appliedDays.includes(d)
     const isWeekendEvery = hasDay(0) && hasDay(6)
     const isWeekdayEvery = [1, 2, 3, 4, 5].every((d) => hasDay(d))
-    if (appliedDays.length === 1) return `${K_DAY[disabledWeekday]}요일마다`
+    if (appliedDays.length === 0) return '요일 추가 없음'
+    if (appliedDays.length === 1) return `${K_DAY[appliedDays[0]]}요일마다`
     if (isWeekendEvery) return '주말마다'
     if (isWeekdayEvery) return '평일마다'
     return appliedDays.map((d) => K_DAY[d]).join(', ')
@@ -322,11 +374,17 @@ export default function CreateEventDetailStep({
     if (selectedType === 'task') setColorPaletteOpen(false)
   }, [selectedType])
 
+  React.useEffect(() => {
+    if (!taskDueOn && openTimeTarget === 'due') {
+      setOpenTimeTarget(null)
+    }
+  }, [taskDueOn, openTimeTarget])
+
   const openTaskCalendarWithBase = (target: 'date' | 'due') => {
     const base =
       target === 'date'
-        ? taskDate ?? new Date()
-        : taskDueDate ?? taskDate ?? new Date()
+        ? (taskDate ?? new Date())
+        : (taskDueDate ?? taskDate ?? new Date())
     setRepeatEndMonthCursor(new Date(base.getFullYear(), base.getMonth(), 1))
     setRepeatEndPickYear(base.getFullYear())
     setRepeatEndPickMonth(base.getMonth() + 1)
@@ -338,7 +396,10 @@ export default function CreateEventDetailStep({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.containerContent}
+      contentContainerStyle={[
+        styles.containerContent,
+        { paddingHorizontal: contentPaddingHorizontal },
+      ]}
       showsVerticalScrollIndicator={false}
       bounces={false}
     >
@@ -353,13 +414,18 @@ export default function CreateEventDetailStep({
           />
           {selectedType === 'event' && (
             <Pressable
-              style={[styles.titleColorBtn, { backgroundColor: paletteColors[selectedColorIndex] ?? paletteColors[0] }]}
+              style={[
+                styles.titleColorBtn,
+                {
+                  backgroundColor: paletteColors[selectedColorIndex] ?? paletteColors[0],
+                },
+              ]}
               onPress={() => setColorPaletteOpen((v) => !v)}
             />
           )}
         </View>
         {selectedType === 'event' && colorPaletteOpen && (
-          <View style={styles.colorPaletteBox}>
+          <View style={[styles.colorPaletteBox, { width: paletteWidth }, paletteBoxStyle]}>
             <View style={styles.colorPaletteGrid}>
               {paletteColors.slice(0, 12).map((c, idx) => (
                 <Pressable
@@ -375,20 +441,38 @@ export default function CreateEventDetailStep({
           </View>
         )}
         <View style={styles.divider} />
-        <View style={styles.typeRow}>
+        <View style={[styles.typeRow, { width: contentWidth }]}>
           <Pressable
-            style={[styles.typeButton, selectedType === 'event' && styles.typeButtonSelected]}
+            style={[
+              styles.typeButton,
+              { width: typeButtonWidth },
+              selectedType === 'event' && styles.typeButtonSelected,
+            ]}
             onPress={() => onSelectType('event')}
           >
-            <Text style={[styles.typeText, selectedType === 'event' && styles.typeTextSelected]}>
+            <Text
+              style={[
+                styles.typeText,
+                selectedType === 'event' && styles.typeTextSelected,
+              ]}
+            >
               일정
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.typeButton, selectedType === 'task' && styles.typeButtonSelected]}
+            style={[
+              styles.typeButton,
+              { width: typeButtonWidth },
+              selectedType === 'task' && styles.typeButtonSelected,
+            ]}
             onPress={() => onSelectType('task')}
           >
-            <Text style={[styles.typeText, selectedType === 'task' && styles.typeTextSelected]}>
+            <Text
+              style={[
+                styles.typeText,
+                selectedType === 'task' && styles.typeTextSelected,
+              ]}
+            >
               할 일
             </Text>
           </Pressable>
@@ -397,7 +481,7 @@ export default function CreateEventDetailStep({
 
       <Text style={styles.sectionLabel}>날짜</Text>
       <Pressable
-        style={styles.dateBox}
+        style={[styles.dateBox, { width: contentWidth }]}
         onPress={
           selectedType === 'event'
             ? onPressDateBox
@@ -406,21 +490,27 @@ export default function CreateEventDetailStep({
       >
         {selectedType === 'event' ? (
           isRange ? (
-          <View style={styles.rangeRow}>
-            <View style={styles.rangeSide}>
-              <Text style={[styles.dateText, styles.rangeDateText, styles.rangeDateStart]} numberOfLines={1}>
-                {formatKDate(start)}
-              </Text>
+            <View style={styles.rangeRow}>
+              <View style={styles.rangeSide}>
+                <Text
+                  style={[styles.dateText, styles.rangeDateText, styles.rangeDateStart]}
+                  numberOfLines={1}
+                >
+                  {formatKDate(start)}
+                </Text>
+              </View>
+              <View style={styles.rangeArrowWrap}>
+                <BigRight width={6} height={8} color={colors.text.text3} />
+              </View>
+              <View style={styles.rangeSide}>
+                <Text
+                  style={[styles.dateText, styles.rangeDateText, styles.rangeDateEnd]}
+                  numberOfLines={1}
+                >
+                  {formatKDate(eventEnd)}
+                </Text>
+              </View>
             </View>
-            <View style={styles.rangeArrowWrap}>
-              <BigRight width={6} height={8} color={colors.text.text3} />
-            </View>
-            <View style={styles.rangeSide}>
-              <Text style={[styles.dateText, styles.rangeDateText, styles.rangeDateEnd]} numberOfLines={1}>
-                {formatKDate(end)}
-              </Text>
-            </View>
-          </View>
           ) : (
             <Text style={styles.dateText}>{formatKDate(start)}</Text>
           )
@@ -430,6 +520,7 @@ export default function CreateEventDetailStep({
           </Text>
         )}
       </Pressable>
+      {selectedType === 'event' ? eventDateInline : null}
       {selectedType === 'task' && openTaskCalendar === 'date' && (
         <View style={styles.repeatEndCalendarWrap}>
           <View style={styles.repeatEndCalendarHeader}>
@@ -480,7 +571,13 @@ export default function CreateEventDetailStep({
             <>
               <View style={styles.repeatEndWeekRow}>
                 {END_WEEKDAY.map((label, idx) => (
-                  <Text key={label} style={[styles.repeatEndWeekText, idx === 0 && styles.repeatEndWeekTextSunday]}>
+                  <Text
+                    key={label}
+                    style={[
+                      styles.repeatEndWeekText,
+                      idx === 0 && styles.repeatEndWeekTextSunday,
+                    ]}
+                  >
                     {label}
                   </Text>
                 ))}
@@ -503,9 +600,15 @@ export default function CreateEventDetailStep({
                 {repeatEndPages.map((baseMonth, pageIndex) => {
                   const cells = getMonthCells(baseMonth)
                   return (
-                    <View key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`} style={styles.repeatEndGridWrap}>
+                    <View
+                      key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`}
+                      style={styles.repeatEndGridWrap}
+                    >
                       {cells.map((cell, idx) => {
-                        if (!cell) return <View key={`empty-${idx}`} style={styles.repeatEndCell} />
+                        if (!cell)
+                          return (
+                            <View key={`empty-${idx}`} style={styles.repeatEndCell} />
+                          )
                         const selected = taskDate
                           ? startOfDay(cell).getTime() === startOfDay(taskDate).getTime()
                           : false
@@ -527,14 +630,22 @@ export default function CreateEventDetailStep({
                               }
 
                               onChangeTaskDate(picked)
-                              if (taskDueDate && startOfDay(taskDueDate).getTime() < picked.getTime()) {
+                              if (
+                                taskDueDate &&
+                                startOfDay(taskDueDate).getTime() < picked.getTime()
+                              ) {
                                 onChangeTaskDueDate(picked)
                               }
                               setOpenTaskCalendar(null)
                             }}
                           >
                             {selected && <View style={styles.repeatEndSinglePill} />}
-                            <Text style={[styles.repeatEndDayText, selected && styles.repeatEndDayTextSelected]}>
+                            <Text
+                              style={[
+                                styles.repeatEndDayText,
+                                selected && styles.repeatEndDayTextSelected,
+                              ]}
+                            >
                               {cell.getDate()}
                             </Text>
                           </Pressable>
@@ -550,7 +661,9 @@ export default function CreateEventDetailStep({
             <View style={styles.calendarBottomActionRow}>
               <Pressable
                 onPress={() => {
-                  setRepeatEndMonthCursor(new Date(repeatEndPickYear, repeatEndPickMonth - 1, 1))
+                  setRepeatEndMonthCursor(
+                    new Date(repeatEndPickYear, repeatEndPickMonth - 1, 1),
+                  )
                   setRepeatEndPagerSeed((v) => v + 1)
                   setRepeatEndYmOpen(false)
                 }}
@@ -574,6 +687,7 @@ export default function CreateEventDetailStep({
             <Pressable
               style={[
                 styles.timeBox,
+                { width: timeBoxWidth },
                 openTimeTarget === 'start' && styles.timeBoxSelected,
               ]}
               onPress={() =>
@@ -591,7 +705,7 @@ export default function CreateEventDetailStep({
             </Pressable>
           </View>
           {openTimeTarget === 'start' && (
-            <View style={styles.timePickerWrap}>
+            <View style={[styles.timePickerWrap, { width: contentWidth }]}>
               <TimeWheel
                 value={start}
                 onChange={onChangeStartTime}
@@ -599,34 +713,41 @@ export default function CreateEventDetailStep({
             </View>
           )}
 
-          <View style={[styles.timeRow, { marginTop: 14 }]}>
-            <Text style={styles.timeRowLabel}>종료 시각</Text>
-            <Pressable
-              style={[
-                styles.timeBox,
-                openTimeTarget === 'end' && styles.timeBoxSelected,
-              ]}
-              onPress={() => setOpenTimeTarget((prev) => (prev === 'end' ? null : 'end'))}
-            >
-              <Text
-                style={[
-                  styles.timeBoxText,
-                  invalidEndTime
-                    ? styles.timeBoxTextInvalid
-                    : openTimeTarget === 'end' && styles.timeBoxTextSelected,
-                ]}
-              >
-                {formatKTime12(displayedEnd)}
-              </Text>
-            </Pressable>
-          </View>
-          {openTimeTarget === 'end' && (
-            <View style={styles.timePickerWrap}>
-              <TimeWheel
-                value={displayedEnd}
-                onChange={onChangeEndTime}
-              />
-            </View>
+          {showEndTime && onChangeEndTime && (
+            <>
+              <View style={[styles.timeRow, { marginTop: 14 }]}>
+                <Text style={styles.timeRowLabel}>종료 시각</Text>
+                <Pressable
+                  style={[
+                    styles.timeBox,
+                    { width: timeBoxWidth },
+                    openTimeTarget === 'end' && styles.timeBoxSelected,
+                  ]}
+                  onPress={() =>
+                    setOpenTimeTarget((prev) => (prev === 'end' ? null : 'end'))
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.timeBoxText,
+                      invalidEndTime
+                        ? styles.timeBoxTextInvalid
+                        : openTimeTarget === 'end' && styles.timeBoxTextSelected,
+                    ]}
+                  >
+                    {formatKTime12(displayedEnd)}
+                  </Text>
+                </Pressable>
+              </View>
+              {openTimeTarget === 'end' && (
+                <View style={[styles.timePickerWrap, { width: contentWidth }]}>
+                  <TimeWheel
+                    value={displayedEnd}
+                    onChange={onChangeEndTime}
+                  />
+                </View>
+              )}
+            </>
           )}
         </View>
       )}
@@ -652,169 +773,195 @@ export default function CreateEventDetailStep({
             />
           </View>
           {repeatOn && (
-        <View style={styles.repeatDetail}>
-          <Pressable
-            style={styles.repeatBox}
-            onPress={() => {
-              setRepeatOpen((v) => !v)
-              setMonthlyOpen(false)
-              setRepeatCustomOpen(false)
-            }}
-          >
-            <Text style={styles.repeatBoxText}>
-              {repeatLabelText}
-            </Text>
-            <View style={styles.repeatArrow}>
-              <DownL width={12} height={10} color={colors.icon.selected} />
-            </View>
-          </Pressable>
+            <View style={styles.repeatDetail}>
+              <Pressable
+                style={[styles.repeatBox, { width: contentWidth }]}
+                onPress={() => {
+                  setRepeatOpen((v) => !v)
+                  setMonthlyOpen(false)
+                  setRepeatCustomOpen(false)
+                }}
+              >
+                <Text style={styles.repeatBoxText}>{repeatLabelText}</Text>
+                <View style={styles.repeatArrow}>
+                  <DownL width={12} height={10} color={colors.icon.selected} />
+                </View>
+              </Pressable>
 
-          {repeatOpen && (
-            <View style={styles.repeatMenu}>
-              {(
-                [
-                  { k: 'daily', t: '매일' },
-                  { k: 'weekly', t: '매주' },
-                  { k: 'monthly', t: '매월' },
-                  { k: 'custom', t: '맞춤 설정' },
-                ] as const
-              ).map(({ k, t }, idx, arr) => (
-                <View key={k}>
-                  <Pressable
-                    style={[
-                      styles.repeatMenuItem,
-                      idx !== arr.length - 1 && styles.repeatMenuItemDivider,
-                      k === 'monthly' && monthlyOpen && styles.repeatMenuItemExpanded,
-                    ]}
-                    onPress={() => {
-                      if (k === 'monthly') {
-                        onChangeRepeatMode('monthly')
-                        setMonthlyOpen((v) => !v)
-                        setRepeatCustomOpen(false)
-                        return
-                      }
-                      if (k === 'custom') {
-                        if (repeatMode !== 'custom') {
-                          onChangeRepeatEvery(1)
-                          onChangeRepeatUnit('day')
-                        }
-                        onChangeRepeatMode('custom')
-                        setRepeatCustomOpen((v) => !v)
-                        setMonthlyOpen(false)
-                        return
-                      }
-                      onChangeRepeatMode(k)
-                      setRepeatOpen(false)
-                      setMonthlyOpen(false)
-                      setRepeatCustomOpen(false)
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.repeatMenuText,
-                        repeatMode === k && styles.repeatMenuTextSelected,
-                        k === 'monthly' && monthlyOpen && styles.repeatMenuTextOpenStrong,
-                      ]}
-                    >
-                      {t}
-                    </Text>
-                    {k === 'monthly' && (
-                      <View style={styles.repeatMenuItemArrow}>
-                        <DownL
-                          width={12}
-                          height={10}
-                          color={colors.icon.selected}
-                          style={monthlyOpen ? styles.repeatMenuItemArrowOpen : undefined}
-                        />
-                      </View>
-                    )}
-                  </Pressable>
-
-                  {k === 'monthly' && monthlyOpen && (
-                    <View style={styles.monthlyGroup}>
+              {repeatOpen && (
+                <View style={[styles.repeatMenu, { width: contentWidth }]}>
+                  {(
+                    [
+                      { k: 'daily', t: '매일' },
+                      { k: 'weekly', t: '매주' },
+                      { k: 'monthly', t: '매월' },
+                      { k: 'custom', t: '맞춤 설정' },
+                    ] as const
+                  ).map(({ k, t }, idx, arr) => (
+                    <View key={k}>
                       <Pressable
-                        style={[styles.monthlyItem, monthlyOpt === 'byDate' && styles.monthlyItemActive]}
+                        style={[
+                          styles.repeatMenuItem,
+                          idx !== arr.length - 1 && styles.repeatMenuItemDivider,
+                          k === 'monthly' && monthlyOpen && styles.repeatMenuItemExpanded,
+                        ]}
                         onPress={() => {
-                          onChangeRepeatMode('monthly')
-                          onChangeMonthlyOpt('byDate')
-                          setMonthlyOpen(false)
-                          setRepeatOpen(false)
-                        }}
-                      >
-                        <Text style={[styles.monthlyText, monthlyOpt === 'byDate' && styles.monthlyTextActive]}>
-                          {`매월 ${start.getDate()}일에 반복`}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.monthlyItem, monthlyOpt === 'byNthWeekday' && styles.monthlyItemActive]}
-                        onPress={() => {
-                          onChangeRepeatMode('monthly')
-                          onChangeMonthlyOpt('byNthWeekday')
-                          setMonthlyOpen(false)
-                          setRepeatOpen(false)
-                        }}
-                      >
-                        <Text style={[styles.monthlyText, monthlyOpt === 'byNthWeekday' && styles.monthlyTextActive]}>
-                          {`매월 ${nth}번째 ${wd}에 반복`}
-                        </Text>
-                      </Pressable>
-                      {nth >= 4 && (
-                        <Pressable
-                          style={[styles.monthlyItem, monthlyOpt === 'byLastWeekday' && styles.monthlyItemActive]}
-                          onPress={() => {
-                            onChangeRepeatMode('monthly')
-                            onChangeMonthlyOpt('byLastWeekday')
+                          if (k === 'monthly') {
+                            applyRepeatMode('monthly')
+                            setMonthlyOpen((v) => !v)
+                            setRepeatCustomOpen(false)
+                            return
+                          }
+                          if (k === 'custom') {
+                            if (repeatMode !== 'custom') {
+                              onChangeRepeatEvery(1)
+                              onChangeRepeatUnit('day')
+                            }
+                            applyRepeatMode('custom')
+                            setRepeatCustomOpen((v) => !v)
                             setMonthlyOpen(false)
-                            setRepeatOpen(false)
-                          }}
+                            return
+                          }
+                          applyRepeatMode(k)
+                          setRepeatOpen(false)
+                          setMonthlyOpen(false)
+                          setRepeatCustomOpen(false)
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.repeatMenuText,
+                            repeatMode === k && styles.repeatMenuTextSelected,
+                            k === 'monthly' && monthlyOpen && styles.repeatMenuTextOpenStrong,
+                          ]}
                         >
-                          <Text style={[styles.monthlyText, monthlyOpt === 'byLastWeekday' && styles.monthlyTextActive]}>
-                            {`매월 마지막주 ${wd}에 반복`}
-                          </Text>
-                        </Pressable>
+                          {t}
+                        </Text>
+                        {k === 'monthly' && (
+                          <View style={styles.repeatMenuItemArrow}>
+                            <DownL
+                              width={12}
+                              height={10}
+                              color={colors.icon.selected}
+                              style={monthlyOpen ? styles.repeatMenuItemArrowOpen : undefined}
+                            />
+                          </View>
+                        )}
+                      </Pressable>
+
+                      {k === 'monthly' && monthlyOpen && (
+                        <View style={styles.monthlyGroup}>
+                          <Pressable
+                            style={[
+                              styles.monthlyItem,
+                              monthlyOpt === 'byDate' && styles.monthlyItemActive,
+                            ]}
+                            onPress={() => {
+                              onChangeRepeatMode('monthly')
+                              onChangeMonthlyOpt('byDate')
+                              setMonthlyOpen(false)
+                              setRepeatOpen(false)
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.monthlyText,
+                                monthlyOpt === 'byDate' && styles.monthlyTextActive,
+                              ]}
+                            >
+                              {`매월 ${start.getDate()}일에 반복`}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[
+                              styles.monthlyItem,
+                              monthlyOpt === 'byNthWeekday' && styles.monthlyItemActive,
+                            ]}
+                            onPress={() => {
+                              onChangeRepeatMode('monthly')
+                              onChangeMonthlyOpt('byNthWeekday')
+                              setMonthlyOpen(false)
+                              setRepeatOpen(false)
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.monthlyText,
+                                monthlyOpt === 'byNthWeekday' && styles.monthlyTextActive,
+                              ]}
+                            >
+                              {`매월 ${nth}번째 ${wd}에 반복`}
+                            </Text>
+                          </Pressable>
+                          {nth >= 4 && (
+                            <Pressable
+                              style={[
+                                styles.monthlyItem,
+                                monthlyOpt === 'byLastWeekday' &&
+                                  styles.monthlyItemActive,
+                              ]}
+                              onPress={() => {
+                                onChangeRepeatMode('monthly')
+                                onChangeMonthlyOpt('byLastWeekday')
+                                setMonthlyOpen(false)
+                                setRepeatOpen(false)
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.monthlyText,
+                                  monthlyOpt === 'byLastWeekday' &&
+                                    styles.monthlyTextActive,
+                                ]}
+                              >
+                                {`매월 마지막주 ${wd}에 반복`}
+                              </Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      )}
+
+                      {k === 'custom' && repeatCustomOpen && (
+                        <View style={[styles.customPickerInList, { width: contentWidth }]}>
+                          <View style={{ height: 8, pointerEvents: 'none' }} />
+                          <View style={styles.customRow}>
+                            <View style={styles.customCol}>
+                              <Picker
+                                selectedValue={repeatEvery}
+                                onValueChange={(v) => onChangeRepeatEvery(Number(v))}
+                                style={styles.customPicker}
+                                itemStyle={styles.customPickerItem}
+                              >
+                                {[1, 2, 3, 4, 5, 6].map((n) => (
+                                  <Picker.Item key={n} label={`${n}`} value={n} />
+                                ))}
+                              </Picker>
+                            </View>
+                            <View style={styles.customCol}>
+                              <Picker
+                                selectedValue={repeatUnit}
+                                onValueChange={(v) =>
+                                  onChangeRepeatUnit(v as 'day' | 'week' | 'month')
+                                }
+                                style={styles.customPicker}
+                                itemStyle={styles.customPickerItem}
+                              >
+                                <Picker.Item label="일" value="day" />
+                                <Picker.Item label="주" value="week" />
+                                <Picker.Item label="월" value="month" />
+                              </Picker>
+                            </View>
+                            <View style={styles.customSuffixWrap}>
+                              <Text style={styles.customSuffix}>마다</Text>
+                            </View>
+                          </View>
+                        </View>
                       )}
                     </View>
-                  )}
-
-                  {k === 'custom' && repeatCustomOpen && (
-                    <View style={styles.customPickerInList}>
-                      <View style={{ height: 8, pointerEvents: 'none' }} />
-                      <View style={styles.customRow}>
-                        <View style={styles.customCol}>
-                          <Picker
-                            selectedValue={repeatEvery}
-                            onValueChange={(v) => onChangeRepeatEvery(Number(v))}
-                            style={styles.customPicker}
-                            itemStyle={styles.customPickerItem}
-                          >
-                            {[1, 2, 3, 4, 5, 6].map((n) => (
-                              <Picker.Item key={n} label={`${n}`} value={n} />
-                            ))}
-                          </Picker>
-                        </View>
-                        <View style={styles.customCol}>
-                          <Picker
-                            selectedValue={repeatUnit}
-                            onValueChange={(v) => onChangeRepeatUnit(v as 'day' | 'week' | 'month')}
-                            style={styles.customPicker}
-                            itemStyle={styles.customPickerItem}
-                          >
-                            <Picker.Item label="일" value="day" />
-                            <Picker.Item label="주" value="week" />
-                            <Picker.Item label="월" value="month" />
-                          </Picker>
-                        </View>
-                        <View style={styles.customSuffixWrap}>
-                          <Text style={styles.customSuffix}>마다</Text>
-                        </View>
-                      </View>
-                    </View>
-                  )}
+                  ))}
                 </View>
-              ))}
+              )}
             </View>
-          )}
-        </View>
           )}
         </>
       )}
@@ -823,7 +970,7 @@ export default function CreateEventDetailStep({
         <>
           <View style={styles.weekdaySection}>
             <Pressable
-              style={styles.repeatBox}
+              style={[styles.repeatBox, { width: contentWidth }]}
               onPress={() => setWeekdayOpen((v) => !v)}
             >
               <Text
@@ -839,15 +986,13 @@ export default function CreateEventDetailStep({
               </View>
             </Pressable>
             {weekdayOpen && (
-              <View style={styles.weekdayWrap}>
+              <View style={[styles.weekdayWrap, { width: contentWidth }]}>
                 {WEEKDAY_OPTIONS.map(({ label, value }) => {
-                  const disabled = value === disabledWeekday
                   const selected = repeatWeekdays.includes(value)
                   return (
                     <Pressable
                       key={`${label}-${value}`}
                       style={[styles.weekdayItem, selected && styles.weekdayItemSelected]}
-                      disabled={disabled}
                       onPress={() => {
                         onChangeRepeatWeekdays(
                           selected
@@ -860,7 +1005,6 @@ export default function CreateEventDetailStep({
                         style={[
                           styles.weekdayText,
                           selected && styles.weekdayTextSelected,
-                          disabled && styles.weekdayTextDisabled,
                         ]}
                       >
                         {label}
@@ -885,6 +1029,7 @@ export default function CreateEventDetailStep({
             <Pressable
               style={[
                 styles.timeBox,
+                { width: timeBoxWidth },
                 openRepeatEndDate && styles.timeBoxSelected,
               ]}
               onPress={() => setOpenRepeatEndDate((v) => !v)}
@@ -907,7 +1052,9 @@ export default function CreateEventDetailStep({
                   style={styles.repeatEndCalendarHeaderPress}
                   onPress={() => setRepeatEndYmOpen((v) => !v)}
                 >
-                  <Text style={styles.repeatEndCalendarHeaderText}>{repeatEndHeader}</Text>
+                  <Text style={styles.repeatEndCalendarHeaderText}>
+                    {repeatEndHeader}
+                  </Text>
                   <DropDown
                     width={24}
                     height={24}
@@ -948,7 +1095,13 @@ export default function CreateEventDetailStep({
                 <>
                   <View style={styles.repeatEndWeekRow}>
                     {END_WEEKDAY.map((label, idx) => (
-                      <Text key={label} style={[styles.repeatEndWeekText, idx === 0 && styles.repeatEndWeekTextSunday]}>
+                      <Text
+                        key={label}
+                        style={[
+                          styles.repeatEndWeekText,
+                          idx === 0 && styles.repeatEndWeekTextSunday,
+                        ]}
+                      >
                         {label}
                       </Text>
                     ))}
@@ -972,12 +1125,19 @@ export default function CreateEventDetailStep({
                     {repeatEndPages.map((baseMonth, pageIndex) => {
                       const cells = getMonthCells(baseMonth)
                       return (
-                        <View key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`} style={styles.repeatEndGridWrap}>
+                        <View
+                          key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`}
+                          style={styles.repeatEndGridWrap}
+                        >
                           {cells.map((cell, idx) => {
-                            if (!cell) return <View key={`empty-${idx}`} style={styles.repeatEndCell} />
+                            if (!cell)
+                              return (
+                                <View key={`empty-${idx}`} style={styles.repeatEndCell} />
+                              )
 
                             const picked = startOfDay(cell)
-                            const selected = picked.getTime() === startOfDay(repeatEndSelected).getTime()
+                            const selected =
+                              picked.getTime() === startOfDay(repeatEndSelected).getTime()
 
                             return (
                               <Pressable
@@ -992,7 +1152,12 @@ export default function CreateEventDetailStep({
                                 }}
                               >
                                 {selected && <View style={styles.repeatEndSinglePill} />}
-                                <Text style={[styles.repeatEndDayText, selected && styles.repeatEndDayTextSelected]}>
+                                <Text
+                                  style={[
+                                    styles.repeatEndDayText,
+                                    selected && styles.repeatEndDayTextSelected,
+                                  ]}
+                                >
                                   {cell.getDate()}
                                 </Text>
                               </Pressable>
@@ -1008,7 +1173,9 @@ export default function CreateEventDetailStep({
                 <View style={styles.calendarBottomActionRow}>
                   <Pressable
                     onPress={() => {
-                      setRepeatEndMonthCursor(new Date(repeatEndPickYear, repeatEndPickMonth - 1, 1))
+                      setRepeatEndMonthCursor(
+                        new Date(repeatEndPickYear, repeatEndPickMonth - 1, 1),
+                      )
                       setRepeatEndPagerSeed((v) => v + 1)
                       setRepeatEndYmOpen(false)
                     }}
@@ -1040,8 +1207,13 @@ export default function CreateEventDetailStep({
           </View>
           {taskDueOn && (
             <>
-              <Pressable style={styles.dateBox} onPress={() => openTaskCalendarWithBase('due')}>
-                <Text style={[styles.dateText, !taskDueDate && styles.endDatePlaceholder]}>
+              <Pressable
+                style={[styles.dateBox, { width: contentWidth }]}
+                onPress={() => openTaskCalendarWithBase('due')}
+              >
+                <Text
+                  style={[styles.dateText, !taskDueDate && styles.endDatePlaceholder]}
+                >
                   {taskDueDate ? formatKDate(taskDueDate) : '지정안함'}
                 </Text>
               </Pressable>
@@ -1058,7 +1230,9 @@ export default function CreateEventDetailStep({
                       <DropDown
                         width={24}
                         height={24}
-                        color={repeatEndYmOpen ? colors.icon.selected : colors.icon.default}
+                        color={
+                          repeatEndYmOpen ? colors.icon.selected : colors.icon.default
+                        }
                       />
                     </Pressable>
                   </View>
@@ -1095,7 +1269,13 @@ export default function CreateEventDetailStep({
                     <>
                       <View style={styles.repeatEndWeekRow}>
                         {END_WEEKDAY.map((label, idx) => (
-                          <Text key={label} style={[styles.repeatEndWeekText, idx === 0 && styles.repeatEndWeekTextSunday]}>
+                          <Text
+                            key={label}
+                            style={[
+                              styles.repeatEndWeekText,
+                              idx === 0 && styles.repeatEndWeekTextSunday,
+                            ]}
+                          >
                             {label}
                           </Text>
                         ))}
@@ -1118,12 +1298,23 @@ export default function CreateEventDetailStep({
                         {repeatEndPages.map((baseMonth, pageIndex) => {
                           const cells = getMonthCells(baseMonth)
                           return (
-                            <View key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`} style={styles.repeatEndGridWrap}>
+                            <View
+                              key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`}
+                              style={styles.repeatEndGridWrap}
+                            >
                               {cells.map((cell, idx) => {
-                                if (!cell) return <View key={`empty-${idx}`} style={styles.repeatEndCell} />
+                                if (!cell)
+                                  return (
+                                    <View
+                                      key={`empty-${idx}`}
+                                      style={styles.repeatEndCell}
+                                    />
+                                  )
                                 const picked = startOfDay(cell)
                                 const minBase = taskDate ? startOfDay(taskDate) : null
-                                const disabled = minBase ? picked.getTime() < minBase.getTime() : false
+                                const disabled = minBase
+                                  ? picked.getTime() < minBase.getTime()
+                                  : false
                                 const selected = taskDueDate
                                   ? picked.getTime() === startOfDay(taskDueDate).getTime()
                                   : false
@@ -1137,7 +1328,9 @@ export default function CreateEventDetailStep({
                                       setOpenTaskCalendar(null)
                                     }}
                                   >
-                                    {selected && <View style={styles.repeatEndSinglePill} />}
+                                    {selected && (
+                                      <View style={styles.repeatEndSinglePill} />
+                                    )}
                                     <Text
                                       style={[
                                         styles.repeatEndDayText,
@@ -1160,7 +1353,9 @@ export default function CreateEventDetailStep({
                     <View style={styles.calendarBottomActionRow}>
                       <Pressable
                         onPress={() => {
-                          setRepeatEndMonthCursor(new Date(repeatEndPickYear, repeatEndPickMonth - 1, 1))
+                          setRepeatEndMonthCursor(
+                            new Date(repeatEndPickYear, repeatEndPickMonth - 1, 1),
+                          )
                           setRepeatEndPagerSeed((v) => v + 1)
                           setRepeatEndYmOpen(false)
                         }}
@@ -1170,6 +1365,50 @@ export default function CreateEventDetailStep({
                       </Pressable>
                     </View>
                   )}
+                </View>
+              )}
+              <View style={[styles.timeRow, { marginTop: 14 }]}>
+                <Text style={styles.timeRowLabel}>마감 시각</Text>
+                <Pressable
+                  style={[
+                    styles.timeBox,
+                    { width: timeBoxWidth },
+                    openTimeTarget === 'due' && styles.timeBoxSelected,
+                  ]}
+                  onPress={() =>
+                    setOpenTimeTarget((prev) => (prev === 'due' ? null : 'due'))
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.timeBoxText,
+                      !taskDueTimeOn && styles.endDatePlaceholder,
+                      openTimeTarget === 'due' &&
+                        taskDueTimeOn &&
+                        styles.timeBoxTextSelected,
+                    ]}
+                  >
+                    {taskDueTimeOn ? formatKTime12(taskDueTime) : '지정안함'}
+                  </Text>
+                </Pressable>
+              </View>
+              {openTimeTarget === 'due' && (
+                <View style={[styles.timePickerWrap, { width: contentWidth }]}>
+                  <TimeWheel
+                    value={taskDueTime}
+                    onChange={onChangeTaskDueTime}
+                  />
+                  <View style={styles.dueTimeActionRow}>
+                    <Pressable
+                      onPress={() => {
+                        onChangeTaskDueTimeOn(false)
+                        setOpenTimeTarget(null)
+                      }}
+                      hitSlop={10}
+                    >
+                      <Text style={styles.dueTimeClearText}>지정 안함</Text>
+                    </Pressable>
+                  </View>
                 </View>
               )}
             </>
@@ -1196,7 +1435,7 @@ export default function CreateEventDetailStep({
       {remindOn && (
         <View style={styles.repeatDetail}>
           <Pressable
-            style={styles.repeatBox}
+            style={[styles.repeatBox, { width: contentWidth }]}
             onPress={() => {
               const nextOpen = !remindOpen
               onSetRemindOpen(nextOpen)
@@ -1219,7 +1458,7 @@ export default function CreateEventDetailStep({
           </Pressable>
 
           {remindOpen && (
-            <View style={styles.repeatMenu}>
+            <View style={[styles.repeatMenu, { width: contentWidth }]}>
               {remindOptions.map((opt, idx) => {
                 const isLast = idx === remindOptions.length - 1
                 const key = opt.type === 'preset' ? opt.id : 'custom'
@@ -1227,10 +1466,18 @@ export default function CreateEventDetailStep({
                 return (
                   <Pressable
                     key={key}
-                    style={[styles.repeatMenuItem, !isLast && styles.repeatMenuItemDivider]}
+                    style={[
+                      styles.repeatMenuItem,
+                      !isLast && styles.repeatMenuItemDivider,
+                    ]}
                     onPress={() => onSelectRemindOption(opt)}
                   >
-                    <Text style={[styles.repeatMenuText, selected && styles.repeatMenuTextSelected]}>
+                    <Text
+                      style={[
+                        styles.repeatMenuText,
+                        selected && styles.repeatMenuTextSelected,
+                      ]}
+                    >
                       {opt.label}
                     </Text>
                   </Pressable>
@@ -1240,7 +1487,7 @@ export default function CreateEventDetailStep({
           )}
 
           {customOpen && (
-            <View style={styles.remindPickerWrap}>
+            <View style={[styles.remindPickerWrap, { width: contentWidth }]}>
               <View style={styles.remindPickerInner}>
                 <View style={styles.remindPickerBox}>
                   <Picker
@@ -1286,10 +1533,14 @@ export default function CreateEventDetailStep({
           }}
           hitSlop={10}
         >
-          <Plus width={16} height={16} color={labelModalOpen ? colors.brand.primary : colors.icon.selected} />
+          <Plus
+            width={16}
+            height={16}
+            color={labelModalOpen ? colors.brand.primary : colors.icon.selected}
+          />
         </Pressable>
       </View>
-      <View style={styles.labelBox}>
+      <View style={[styles.labelBox, { width: contentWidth }]}>
         {selectedLabelIds.length > 0 ? (
           <ScrollView
             horizontal
@@ -1304,12 +1555,17 @@ export default function CreateEventDetailStep({
               return (
                 <View
                   key={id}
-                  style={[styles.labelChipItem, idx === selectedLabelIds.length - 1 && { marginRight: 0 }]}
+                  style={[
+                    styles.labelChipItem,
+                    idx === selectedLabelIds.length - 1 && { marginRight: 0 },
+                  ]}
                 >
                   <LabelChip
                     title={item.title}
                     removeIconSize={8}
-                    onRemove={() => onChangeSelectedLabelIds(selectedLabelIds.filter((x) => x !== id))}
+                    onRemove={() =>
+                      onChangeSelectedLabelIds(selectedLabelIds.filter((x) => x !== id))
+                    }
                   />
                 </View>
               )
@@ -1333,7 +1589,7 @@ export default function CreateEventDetailStep({
       )}
 
       <Text style={[styles.sectionLabel, styles.memoLabel]}>메모</Text>
-      <View style={styles.memoBox}>
+      <View style={[styles.memoBox, { width: contentWidth }]}>
         <TextInput
           value={memo}
           onChangeText={onChangeMemo}
@@ -1349,20 +1605,24 @@ export default function CreateEventDetailStep({
 }
 
 function TimeWheel({ value, onChange }: { value: Date; onChange: (next: Date) => void }) {
-  const hour24 = value.getHours()
+  const safeValue = isValidDate(value) ? value : TIME_WHEEL_FALLBACK_DATE
+  const hour24 = safeValue.getHours()
   const ampm = hour24 < 12 ? 'AM' : 'PM'
   let hour12 = hour24 % 12
   if (hour12 === 0) hour12 = 12
-  const minute = value.getMinutes()
+  const minute = safeValue.getMinutes()
+  const canPropagateChange = isValidDate(value)
 
   const setTime = (nextHour12: number, nextMinute: number, nextAmPm: 'AM' | 'PM') => {
+    if (!canPropagateChange) return
     let h = nextHour12 % 12
     if (nextAmPm === 'PM') h += 12
-    const next = new Date(value)
+    const next = new Date(safeValue)
     next.setHours(h)
     next.setMinutes(nextMinute)
     next.setSeconds(0)
     next.setMilliseconds(0)
+    if (!isValidDate(next)) return
     onChange(next)
   }
 
@@ -1474,7 +1734,9 @@ const styles = StyleSheet.create({
   typeRow: {
     marginTop: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignSelf: 'center',
+    justifyContent: 'flex-start',
+    gap: 16,
   },
   typeButton: {
     width: 143,
@@ -1958,12 +2220,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginLeft: 0,
     width: 302,
-    height: 170,
+    minHeight: 170,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     paddingVertical: 5,
     paddingHorizontal: 5,
+  },
+  dueTimeActionRow: {
+    width: '100%',
+    height: 34,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  dueTimeClearText: {
+    ...ts('label3'),
+    color: colors.text.text3,
+    fontWeight: '700',
   },
   wheelRow: {
     flex: 1,

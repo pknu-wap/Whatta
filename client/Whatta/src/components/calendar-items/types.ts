@@ -18,6 +18,7 @@ export type ScheduleCardProps = {
   isUntimed?: boolean
   density?: CalendarDensity
   layoutWidthHint?: number
+  contentHeightHint?: number
   isRepeat?: boolean
   hideText?: boolean
   style?: any
@@ -72,4 +73,5 @@ export type TaskGroupCardProps = {
   hideText?: boolean
   onToggleExpand?: (groupId: string, nextExpanded: boolean) => void
   onToggleTask?: (taskId: string, nextDone: boolean) => void
+  onPressTask?: (taskId: string) => void
 }

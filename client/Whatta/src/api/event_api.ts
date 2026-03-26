@@ -26,6 +26,7 @@ export type CreateEventPayload = {
   endTime?: string | null // "HH:mm:ss"
   repeat?: RepeatRule | null
   colorKey?: string // "FFFFFF"
+  reminderNoti?: { day: number; hour: number; minute: number } | null
 }
 
 type CreateEventResponse<Data = any> = {
@@ -45,16 +46,11 @@ export async function createEvent(payload: CreateEventPayload) {
     (raw as any)?._id ??
     (raw as any)?.eventId
 
-  //console.log('✅ createEvent response:', JSON.stringify(raw, null, 2))
-  if (!eventId) {
-    //console.warn('⚠️ eventId를 응답에서 찾지 못했습니다. 응답 구조를 확인해주세요.')
-  }
   return { eventId, raw }
 }
 
 export async function getEvent(eventId: string) {
   const res = await http.get(`/event/${eventId}`)
-  //console.log('📥 getEvent detail:', JSON.stringify(res.data, null, 2))
   return res.data
 }
 
@@ -107,6 +103,19 @@ export type EventItem = {
   repeat?: RepeatRule | null
 }
 
+export type EventSummaryItem = {
+  title: string
+  content: string
+  startTime: string | null
+  endTime: string | null
+}
+
+type EventSummaryResponse = {
+  statusCode: string
+  message: string
+  data: EventSummaryItem[]
+}
+
 // 3. Task → MonthView용 ScheduleData로 변환
 export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
   const raw = await fetchTasksRaw(ym)
@@ -130,6 +139,11 @@ export async function fetchTasksForMonth(ym: string): Promise<ScheduleData[]> {
   })
 
   return normalized
+}
+
+export async function fetchEventSummary(): Promise<EventSummaryItem[]> {
+  const res = await http.get<EventSummaryResponse>('/event/summary')
+  return Array.isArray(res.data?.data) ? res.data.data : []
 }
 
 export async function updateEvent(

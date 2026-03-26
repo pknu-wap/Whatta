@@ -14,7 +14,10 @@ export type MySection = {
 export const MY_SECTIONS: MySection[] = [
   {
     size: 'small',
-    data: [{ key: '라벨 관리', route: 'Labels' }],
+    data: [
+      { key: '라벨 관리', route: 'Labels' },
+      { key: '시간표 추가하기', route: 'vibration' },
+    ],
   },
   {
     title: '리마인드 알림 설정',

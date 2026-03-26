@@ -25,6 +25,7 @@ import { ts } from '@/styles/typography'
 import { useFocusEffect, useNavigationState } from '@react-navigation/native'
 import { bus } from '@/lib/eventBus'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
+import { currentCalendarView } from '@/providers/CalendarViewProvider'
 
 const AnimatedMenu = AnimatedRe.createAnimatedComponent(Menu)
 
@@ -92,7 +93,9 @@ export default function Header() {
   const { progress, toggle, close } = useDrawer()
 
   const [calVisible, setCalVisible] = useState(false)
-  const [calendarMode, setCalendarMode] = useState<'day' | 'week' | 'month'>('day')
+  const [calendarMode, setCalendarMode] = useState<'day' | 'week' | 'month'>(
+    currentCalendarView.get(),
+  )
   const [popup, setPopup] = useState(globalPopupState.popup)
   const popupOpacity = useState(new Animated.Value(globalPopupState.opacity))[0]
   const sliderX = useState(new Animated.Value(globalPopupState.sliderX))[0]
@@ -145,11 +148,18 @@ export default function Header() {
       rangeEnd?: string
     }) => {
       if (typeof st?.date === 'string' && st.date.length >= 10) {
-        setAnchorDate(st.date)
+        setAnchorDate((prev) => (prev === st.date ? prev : st.date))
       }
-      if (st.mode) setCalendarMode(st.mode)
-      setRangeStart(typeof st?.rangeStart === 'string' ? st.rangeStart : null)
-      setRangeEnd(typeof st?.rangeEnd === 'string' ? st.rangeEnd : null)
+      const nextMode = st.mode
+      if (nextMode) {
+        setCalendarMode((prev) => (prev === nextMode ? prev : nextMode))
+      }
+      const nextRangeStart =
+        typeof st?.rangeStart === 'string' ? st.rangeStart : null
+      const nextRangeEnd =
+        typeof st?.rangeEnd === 'string' ? st.rangeEnd : null
+      setRangeStart((prev) => (prev === nextRangeStart ? prev : nextRangeStart))
+      setRangeEnd((prev) => (prev === nextRangeEnd ? prev : nextRangeEnd))
     }
 
     bus.on('calendar:state', onState)
@@ -224,6 +234,15 @@ export default function Header() {
     return () => bus.off('filter:close', closeHandler)
   }, [])
 
+  useEffect(() => {
+    const popupHandler = (open: boolean) => {
+      if (open) return
+      closeFilterPopup()
+    }
+    bus.on('filter:popup', popupHandler)
+    return () => bus.off('filter:popup', popupHandler)
+  }, [])
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -256,20 +275,22 @@ export default function Header() {
           </TouchableOpacity>
         </View>
 
-        {isTodayButtonVisible && (
-          <TouchableOpacity
-            style={styles.todayButton}
-            onPress={() => {
-              if (popup) {
-                closeFilterPopup()
-                bus.emit('filter:popup', false)
-              }
-              bus.emit('calendar:set-date', today())
-            }}
-          >
-            <Text style={styles.todayText}>Today</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[
+            styles.todayButton,
+            !isTodayButtonVisible ? styles.todayButtonHidden : null,
+          ]}
+          disabled={!isTodayButtonVisible}
+          onPress={() => {
+            if (popup) {
+              closeFilterPopup()
+              bus.emit('filter:popup', false)
+            }
+            bus.emit('calendar:set-date', today())
+          }}
+        >
+          <Text style={styles.todayText}>Today</Text>
+        </TouchableOpacity>
 
         {/* 필터 버튼 */}
         <TouchableOpacity
@@ -431,7 +452,7 @@ export default function Header() {
 
 /* 스타일 */
 const styles = StyleSheet.create({
-  root: { height: 48, overflow: 'visible' },
+  root: { height: 48, overflow: 'visible', marginTop: -8 },
   header: {
     position: 'relative',
     height: '100%',
@@ -467,6 +488,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2,
     top: 9,
+  },
+  todayButtonHidden: {
+    opacity: 0,
   },
   todayText: {
     ...ts('label4'),

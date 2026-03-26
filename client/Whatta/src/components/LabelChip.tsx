@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import Xbutton from '@/assets/icons/x.svg'
+import Xbutton from '@/assets/icons/xs.svg'
 
 type Props = {
   title: string

@@ -1,14 +1,14 @@
 import { StyleSheet } from 'react-native'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
-import { ROW_H } from './constants'
+import { DAY_GRID_BOTTOM_SPACER, ROW_H } from './constants'
 
 const S = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.neutral.surface },
 
   taskBox: {
     width: '100%',
-    height: 160,
+    height: 168,
     backgroundColor: '#FFFFFF',
     overflow: 'visible',
     borderRadius: 0,
@@ -63,10 +63,10 @@ const S = StyleSheet.create({
     alignSelf: 'stretch',
   },
   topCard: {
-    width: 308,
+    width: '100%',
     minHeight: 30,
     height: 30,
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
   },
   topCardFull: {
     width: '100%',
@@ -234,7 +234,17 @@ const S = StyleSheet.create({
   },
 
   gridContent: {
-    paddingBottom: 10,
+    paddingTop: 4,
+    paddingBottom: DAY_GRID_BOTTOM_SPACER,
+  },
+
+  gridLayer: {
+    position: 'relative',
+  },
+
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
   },
 
   liveBar: {

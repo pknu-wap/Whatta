@@ -23,8 +23,10 @@ import CreateModeTypeStep from '@/screens/More/CreateModeTypeStep'
 import CreateEventDetailStep from '@/screens/More/CreateEventDetailStep'
 import colors from '@/styles/colors'
 import { ts } from '@/styles/typography'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 const H_PAD = 18
+const DETAIL_POPUP_LIFT = 49
 
 type TaskFormValue = {
   title: string
@@ -35,6 +37,7 @@ type TaskFormValue = {
   labels: number[] | null
   memo: string
   reminderNoti: { day: number; hour: number; minute: number } | null
+  dueDateTime?: string | null
 }
 
 type TaskDetailPopupProps = {
@@ -60,6 +63,11 @@ const withSameDay = (base: Date, source: Date) => {
   next.setHours(source.getHours(), source.getMinutes(), 0, 0)
   return next
 }
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+const pad = (n: number) => String(n).padStart(2, '0')
+const formatLocalDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const formatLocalTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:00`
 
 // 추가: 일정 상세 알림 preset 타입 그대로 가져옴
 type ReminderPreset = {
@@ -90,8 +98,14 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const insets = useSafeAreaInsets()
   const { width: W, height: H } = Dimensions.get('window')
   const MARGIN = 10
+  const needsTabBarClearance = source === 'Day' || source === 'Week' || source === 'Month'
+  const bottomSheetInset =
+    insets.bottom +
+    MARGIN +
+    DETAIL_POPUP_LIFT +
+    (needsTabBarClearance ? CUSTOM_TAB_BAR_HEIGHT - 72 : 0)
   const SHEET_W = Math.min(W - MARGIN, 350)
-  const MAX_H = H - (insets.top + insets.bottom) - MARGIN * 2
+  const MAX_H = H - (insets.top + MARGIN) - bottomSheetInset
   const SHEET_H = Math.min(569, MAX_H)
   const HEADER_H = 40
   const KEYBOARD_OFFSET = insets.top + MARGIN + HEADER_H
@@ -112,10 +126,9 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
   const [memo, setMemo] = useState('')
   const [taskDueOn, setTaskDueOn] = useState(false)
   const [taskDueDate, setTaskDueDate] = useState<Date | null>(null)
+  const [taskDueTimeOn, setTaskDueTimeOn] = useState(false)
+  const [taskDueTime, setTaskDueTime] = useState<Date>(new Date())
   const [detailStart, setDetailStart] = useState<Date>(new Date())
-  const [detailEnd, setDetailEnd] = useState<Date>(new Date(Date.now() + 60 * 60 * 1000))
-  const [invalidEndTime, setInvalidEndTime] = useState(false)
-  const [invalidEndPreview, setInvalidEndPreview] = useState<Date | null>(null)
   const [repeatOn, setRepeatOn] = useState(false)
   const [repeatMode, setRepeatMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>(
     'daily',
@@ -260,15 +273,23 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     if (dueRaw) {
       const parsed = new Date(dueRaw)
       if (!Number.isNaN(parsed.getTime())) {
+        const timePart = typeof dueRaw === 'string' && dueRaw.includes('T') ? dueRaw.split('T')[1] ?? '' : ''
+        const hasExplicitDueTime = !!timePart && !timePart.startsWith('23:59:59')
         setTaskDueOn(true)
-        setTaskDueDate(parsed)
+        setTaskDueDate(startOfDay(parsed))
+        setTaskDueTimeOn(hasExplicitDueTime)
+        setTaskDueTime(parsed)
       } else {
         setTaskDueOn(false)
         setTaskDueDate(null)
+        setTaskDueTimeOn(false)
+        setTaskDueTime(new Date())
       }
     } else {
       setTaskDueOn(false)
       setTaskDueDate(null)
+      setTaskDueTimeOn(false)
+      setTaskDueTime(new Date())
     }
 
     if (Array.isArray(initialTask.labels)) {
@@ -306,11 +327,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     } else {
       startAt.setHours(9, 0, 0, 0)
     }
-    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000)
     setDetailStart(startAt)
-    setDetailEnd(endAt)
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
   }, [visible, initialTask])
 
   // reminder preset 로딩/변경 시 리마인더 값만 동기화
@@ -371,9 +388,10 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       setTime(startAt)
     }
     setDetailStart(startAt)
-    setDetailEnd(new Date(startAt.getTime() + 60 * 60 * 1000))
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
+    setTaskDueOn(false)
+    setTaskDueDate(null)
+    setTaskDueTimeOn(false)
+    setTaskDueTime(new Date(baseDate))
   }, [visible, mode, initialTask, initialDate, initialHasDate, initialHasTime, initialTime])
 
   useEffect(() => {
@@ -419,11 +437,6 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       return
     }
 
-    if (hasTime && (invalidEndTime || detailEnd.getTime() < detailStart.getTime())) {
-      Alert.alert('저장 실패', '종료 시간은 시작 시간보다 이후여야 합니다.')
-      return
-    }
-
     const value: TaskFormValue = {
       title,
       memo,
@@ -433,6 +446,12 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
       time: hasTime ? detailStart : undefined,
       labels: labelIds.length ? labelIds.slice(0, MAX_SELECTED_LABELS) : null,
       reminderNoti: buildReminderNoti(), // 추가
+      dueDateTime:
+        taskDueOn && taskDueDate
+          ? `${formatLocalDate(taskDueDate)}T${
+              taskDueTimeOn ? formatLocalTime(taskDueTime) : '23:59:59'
+            }`
+          : null,
     }
 
     onSave(value)
@@ -460,32 +479,21 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
     setRemindOpen(false)
   }
 
-  const clearInvalidEndState = () => {
-    setInvalidEndTime(false)
-    setInvalidEndPreview(null)
-  }
-
-  const applyTaskTimeWindow = (nextStart: Date) => {
-    const nextEnd = new Date(nextStart)
-    nextEnd.setHours((nextStart.getHours() + 1) % 24, nextStart.getMinutes(), 0, 0)
-    const wrappedPastMidnight = nextEnd.getTime() < nextStart.getTime()
-
+  const applyTaskStartTime = (nextStart: Date) => {
     setDetailStart(nextStart)
-    setDetailEnd(nextEnd)
-    setInvalidEndTime(wrappedPastMidnight)
-    setInvalidEndPreview(wrappedPastMidnight ? nextEnd : null)
     setTime(nextStart)
   }
 
   const clearTaskDateSelection = () => {
     setHasDate(false)
     setHasTime(false)
-    clearInvalidEndState()
     setRemindOn(false)
     setRemindOpen(false)
     setCustomOpen(false)
     setTaskDueOn(false)
     setTaskDueDate(null)
+    setTaskDueTimeOn(false)
+    setTaskDueTime(new Date())
   }
 
   return (
@@ -494,7 +502,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
         <View
           style={[
             styles.overlay,
-            { paddingTop: insets.top + MARGIN, paddingBottom: insets.bottom + MARGIN },
+            { paddingTop: insets.top + MARGIN, paddingBottom: bottomSheetInset },
           ]}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
@@ -558,26 +566,13 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                     selectedType={'task'}
                     onSelectType={() => {}}
                     start={detailStart}
-                    end={detailEnd}
-                    endDisplay={invalidEndPreview}
+                    showEndTime={false}
                     onPressDateBox={() => {}}
                     onChangeStartTime={(next) => {
                       const nextStart = withSameDay(hasDate ? date : detailStart, next)
                       setHasTime(true)
-                      applyTaskTimeWindow(nextStart)
+                      applyTaskStartTime(nextStart)
                     }}
-                    onChangeEndTime={(next) => {
-                      const nextEnd = withSameDay(hasDate ? date : detailStart, next)
-                      if (nextEnd.getTime() < detailStart.getTime()) {
-                        setInvalidEndTime(true)
-                        setInvalidEndPreview(nextEnd)
-                        return
-                      }
-                      setInvalidEndTime(false)
-                      setInvalidEndPreview(null)
-                      setDetailEnd(nextEnd)
-                    }}
-                    invalidEndTime={invalidEndTime}
                     timeOn={hasTime}
                     timeDisabled={!hasDate}
                     onToggleTime={(next) => {
@@ -589,9 +584,7 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       if (next) {
                         const t = new Date(detailStart)
                         t.setSeconds(0, 0)
-                        applyTaskTimeWindow(t)
-                      } else {
-                        clearInvalidEndState()
+                        applyTaskStartTime(t)
                       }
                     }}
                     repeatOn={repeatOn}
@@ -643,16 +636,12 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       if (next) {
                         const nextStart = new Date(detailStart)
                         nextStart.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
-                        const nextEnd = new Date(detailEnd)
-                        nextEnd.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
                         setHasDate(true)
                         setDate(next)
                         setDetailStart(nextStart)
-                        setDetailEnd(nextEnd)
                         if (hasTime) {
                           setTime(nextStart)
                         }
-                        clearInvalidEndState()
                         if (taskDueDate && taskDueDate.getTime() < next.getTime()) {
                           setTaskDueDate(next)
                         }
@@ -661,9 +650,32 @@ export default function TaskDetailPopup(props: TaskDetailPopupProps) {
                       clearTaskDateSelection()
                     }}
                     taskDueOn={taskDueOn}
-                    onChangeTaskDueOn={setTaskDueOn}
+                    onChangeTaskDueOn={(next) => {
+                      if (!next) {
+                        setTaskDueOn(false)
+                        setTaskDueDate(null)
+                        setTaskDueTimeOn(false)
+                        setTaskDueTime(new Date())
+                        return
+                      }
+
+                      const today = startOfDay(new Date())
+                      const minDueDate = hasDate ? startOfDay(date) : today
+                      const defaultDueDate =
+                        today.getTime() > minDueDate.getTime() ? today : minDueDate
+
+                      setTaskDueOn(true)
+                      setTaskDueDate((prev) => prev ?? defaultDueDate)
+                    }}
                     taskDueDate={taskDueDate}
                     onChangeTaskDueDate={setTaskDueDate}
+                    taskDueTimeOn={taskDueTimeOn}
+                    onChangeTaskDueTimeOn={setTaskDueTimeOn}
+                    taskDueTime={taskDueTime}
+                    onChangeTaskDueTime={(next) => {
+                      setTaskDueTimeOn(true)
+                      setTaskDueTime(next)
+                    }}
                   />
                 )}
               </View>

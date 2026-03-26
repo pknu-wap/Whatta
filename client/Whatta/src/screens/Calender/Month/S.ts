@@ -1,4 +1,5 @@
 import { StyleSheet, Dimensions } from 'react-native'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 import { ts } from '@/styles/typography'
 import colors from '@/styles/colors'
 
@@ -10,7 +11,7 @@ export const cellWidth = Math.min(60, dynamicCellWidth)
 export const S = StyleSheet.create({
   contentContainerWrapper: { flex: 1, paddingBottom: 0, paddingTop: 0 },
   contentArea: { flex: 1, paddingHorizontal: 7, paddingTop: 0 },
-  scrollContentContainer: { paddingBottom: 0, flexGrow: 1 },
+  scrollContentContainer: { paddingBottom: CUSTOM_TAB_BAR_HEIGHT + 96, flexGrow: 1 },
 
   dayHeader: {
     flexDirection: 'row',
@@ -41,6 +42,9 @@ export const S = StyleSheet.create({
   },
 
   calendarGrid: {},
+  calendarGridHidden: {
+    opacity: 0,
+  },
   weekRow: {
     flexDirection: 'row',
     width: '100%',
@@ -68,10 +72,10 @@ export const S = StyleSheet.create({
     paddingTop: 0,
   },
   dateNumberWrapperWithHoliday: {
-    height: 28,
+    height: 18,
     justifyContent: 'flex-start',
     paddingTop: 0,
-    marginBottom: 3,
+    marginBottom: 0,
   },
   dateTopLine: {
     width: '100%',

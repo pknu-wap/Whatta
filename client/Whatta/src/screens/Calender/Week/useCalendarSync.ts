@@ -1,31 +1,33 @@
 import { useCallback, useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
 
 import { bus } from '@/lib/eventBus'
 import { currentCalendarView } from '@/providers/CalendarViewProvider'
 import { todayISO } from '@/screens/Calender/Week/date'
+import type { WeekData } from '@/screens/Calender/Week/useWeekCalendarData'
 
 type UseCalendarSyncParams = {
-  isFocused: boolean
+  active: boolean
   weekDates: string[]
   anchorDateRef: MutableRefObject<string>
   dayColWidth: number
   rowH: number
   setAnchorDate: Dispatch<SetStateAction<string>>
+  setWeekData: Dispatch<SetStateAction<WeekData>>
   fetchWeek: (dates: string[]) => void | Promise<void>
 }
 
 export function useCalendarSync({
-  isFocused,
+  active,
   weekDates,
   anchorDateRef,
   dayColWidth,
   rowH,
   setAnchorDate,
+  setWeekData,
   fetchWeek,
 }: UseCalendarSyncParams) {
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+      if (!active) return
       currentCalendarView.set('week')
 
       if (weekDates.length > 0) {
@@ -49,11 +51,10 @@ export function useCalendarSync({
       if (weekDates.length > 0) {
         fetchWeek(weekDates)
       }
-    }, [anchorDateRef, dayColWidth, fetchWeek, rowH, weekDates]),
-  )
+  }, [active, anchorDateRef, dayColWidth, fetchWeek, rowH, weekDates])
 
   useEffect(() => {
-    if (!weekDates.length || !isFocused) return
+    if (!weekDates.length || !active) return
 
     bus.emit('calendar:state', {
       date: weekDates[0],
@@ -68,10 +69,10 @@ export function useCalendarSync({
       dayColWidth,
       rowH,
     })
-  }, [dayColWidth, isFocused, rowH, weekDates])
+  }, [active, dayColWidth, rowH, weekDates])
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+      if (!active) return
       const onReq = () => {
         if (!weekDates.length) return
 
@@ -104,8 +105,7 @@ export function useCalendarSync({
         bus.off('calendar:set-date', onSet)
         bus.off('calendar:state', onState)
       }
-    }, [anchorDateRef, setAnchorDate, weekDates]),
-  )
+  }, [active, anchorDateRef, setAnchorDate, weekDates])
 
   useEffect(() => {
     const onMutated = (payload: { op: 'create' | 'update' | 'delete'; item: any }) => {
@@ -121,6 +121,35 @@ export function useCalendarSync({
         todayISO()
       const itemDateISO = String(rawDate).slice(0, 10)
 
+      if (weekDates.includes(itemDateISO) && typeof item.completed === 'boolean') {
+        const itemId = String(item.id)
+        const completed = item.completed
+
+        setWeekData((prev) => {
+          const bucket = prev[itemDateISO]
+          if (!bucket) return prev
+
+          return {
+            ...prev,
+            [itemDateISO]: {
+              ...bucket,
+              timedTasks: (bucket.timedTasks || []).map((task: any) =>
+                String(task.id) === itemId ? { ...task, completed } : task,
+              ),
+              checks: (bucket.checks || []).map((check: any) =>
+                String(check.id) === itemId ? { ...check, done: completed } : check,
+              ),
+              spanEvents: (bucket.spanEvents || []).map((event: any) =>
+                String(event.id) === itemId
+                  ? { ...event, done: completed, completed }
+                  : event,
+              ),
+            },
+          }
+        })
+        return
+      }
+
       if (weekDates.includes(itemDateISO)) {
         setTimeout(() => fetchWeek(weekDates), 250)
       }
@@ -128,5 +157,5 @@ export function useCalendarSync({
 
     bus.on('calendar:mutated', onMutated)
     return () => bus.off('calendar:mutated', onMutated)
-  }, [fetchWeek, weekDates])
+  }, [fetchWeek, setWeekData, weekDates])
 }
