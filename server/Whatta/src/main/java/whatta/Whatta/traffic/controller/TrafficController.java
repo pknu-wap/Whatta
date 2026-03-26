@@ -38,7 +38,7 @@ public class TrafficController {
         return Response.ok("시/도 코드 목록 조회 성공", cities);
     }
 
-    @GetMapping("/station/searchGps")
+    @GetMapping("/bus/station/searchGps")
     @Operation(summary = "좌표 기반 근접 정류장 검색(GPS)", description = "현재 좌표를 기반으로 반경 500m 내의 정류장 목록을 반환합니다.")
     public ResponseEntity<?> searchStationsByGps(
             @Parameter(description = "위도") @RequestParam Double latitude,
@@ -48,7 +48,7 @@ public class TrafficController {
         return Response.ok("주변 정류소 검색 성공", stations);
     }
 
-    @GetMapping("/station/searchName")
+    @GetMapping("/bus/station/searchName")
     @Operation(summary = "정류장 키워드 검색", description = "정류장명 또는 번호로 검색하여 정류장 목록을 반환합니다.")
     public ResponseEntity<?> searchStationsByName(
             @AuthenticationPrincipal String userId,
@@ -59,7 +59,7 @@ public class TrafficController {
         return Response.ok("정류장 키워드 검색 성공", stations);
     }
 
-    @GetMapping("/station/searchRoutes/{busStationId}")
+    @GetMapping("/bus/station/searchRoutes/{busStationId}")
     @Operation(summary = "정류장별 경유노선 목록 조회", description = "해당 정류장을 경유하는 모든 버스 노선 목록을 반환합니다.")
     public ResponseEntity<?> searchRoutesByStation(
             @AuthenticationPrincipal String userId,
