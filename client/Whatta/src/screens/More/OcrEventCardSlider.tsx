@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: 'rgba(255,255,255,1)',
   },
 
 cardArea: {
