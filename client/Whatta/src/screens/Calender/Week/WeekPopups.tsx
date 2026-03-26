@@ -6,7 +6,7 @@ import { http } from '@/lib/http'
 import { createEvent } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
-import AddImageSheet from '@/screens/More/Ocr'
+import AddImageSheet from '@/screens/More/AddImageSheet'
 import OCREventCardSlider, { OCREventDisplay } from '@/screens/More/OcrEventCardSlider'
 import OcrSplash from '@/screens/More/OcrSplash'
 

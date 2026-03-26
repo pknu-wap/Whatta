@@ -152,7 +152,7 @@ function WeekTimeline({
         }
         scrollEventThrottle={16}
         style={styles.timelineScroll}
-        contentContainerStyle={styles.timelineContent}
+        contentContainerStyle={[styles.timelineContent, { paddingBottom: rowH * 2.8 }]}
         showsVerticalScrollIndicator={false}
       >
         <View ref={gridWrapRef} style={styles.timelineInner}>

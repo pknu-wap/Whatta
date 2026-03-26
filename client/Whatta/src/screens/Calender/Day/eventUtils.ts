@@ -14,6 +14,32 @@ type DailyRawData = {
 
 const dayCache = new Map<string, DailyRawData>()
 const dayInflight = new Map<string, Promise<DailyRawData>>()
+const dayRequestVersion = new Map<string, number>()
+
+function bumpDayRequestVersion(date: string) {
+  dayRequestVersion.set(date, (dayRequestVersion.get(date) ?? 0) + 1)
+}
+
+export function invalidateDayCache(target?: { date?: string; ym?: string }) {
+  if (target?.date) {
+    dayCache.delete(target.date)
+    dayInflight.delete(target.date)
+    bumpDayRequestVersion(target.date)
+    return
+  }
+
+  if (target?.ym) {
+    for (const key of Array.from(dayCache.keys())) {
+      if (key.startsWith(target.ym)) dayCache.delete(key)
+    }
+    for (const key of Array.from(dayInflight.keys())) {
+      if (key.startsWith(target.ym)) dayInflight.delete(key)
+    }
+    for (const key of Array.from(dayRequestVersion.keys())) {
+      if (key.startsWith(target.ym)) bumpDayRequestVersion(key)
+    }
+  }
+}
 
 export function patchDayTaskCompletion(date: string, taskId: string, completed: boolean) {
   const cached = dayCache.get(date)
@@ -61,6 +87,7 @@ async function fetchDailyRaw(date: string, force = false): Promise<DailyRawData>
   const inflight = dayInflight.get(date)
   if (inflight) return inflight
 
+  const requestVersion = dayRequestVersion.get(date) ?? 0
   const req = (async () => {
     const res = await http.get('/calendar/daily', { params: { date } })
     const data = res?.data?.data ?? {}
@@ -72,7 +99,9 @@ async function fetchDailyRaw(date: string, force = false): Promise<DailyRawData>
       allDaySpanEvents: data?.allDaySpanEvents ?? [],
       allDayEvents: data?.allDayEvents ?? [],
     }
-    dayCache.set(date, normalized)
+    if ((dayRequestVersion.get(date) ?? 0) === requestVersion) {
+      dayCache.set(date, normalized)
+    }
     return normalized
   })()
 
@@ -106,10 +135,11 @@ export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
         .map((e: any) => {
           const [sh = 0, sm = 0] = e.clippedStartTime.split(':').map(Number)
           const [eh = 0, em = 0] = e.clippedEndTime.split(':').map(Number)
+          const normalizedColorKey = normalizeScheduleColorKey(e?.colorKey ?? e?.color)
 
           return {
             ...e,
-            colorKey: normalizeScheduleColorKey(e?.colorKey),
+            colorKey: normalizedColorKey,
             startMin: sh * 60 + sm,
             endMin: eh * 60 + em,
           }
@@ -127,7 +157,7 @@ export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
         [...allDaySpan, ...allDayEvents]
           .map((e: any) => ({
             ...e,
-            colorKey: normalizeScheduleColorKey(e?.colorKey),
+            colorKey: normalizeScheduleColorKey(e?.colorKey ?? e?.color),
           }))
           .filter(filterByLabel),
       )

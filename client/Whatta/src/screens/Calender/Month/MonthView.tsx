@@ -28,7 +28,7 @@ import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
 import TaskDetailPopup from '@/screens/More/TaskDetailPopup'
 import { useLabelFilter } from '@/providers/LabelFilterProvider'
-import AddImageSheet from '@/screens/More/Ocr'
+import AddImageSheet from '@/screens/More/AddImageSheet'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { S } from './S'
 import { buildLaneMap, getDisplayItems, getCalendarDates, CalendarDateItem } from './MonthView.utils'
@@ -49,6 +49,7 @@ import TaskGroupCard from '@/components/calendar-items/task/TaskGroupCard'
 import { cellWidth } from './S'
 import { normalizeScheduleColorKey, resolveScheduleColor } from '@/styles/scheduleColorSets'
 import { getTask } from '@/api/task'
+import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
 
 
 
@@ -1516,6 +1517,7 @@ const handleTaskDelete = useCallback(async () => {
   if (!taskPopupId) return
   try {
     await http.delete(`/task/${taskPopupId}`)
+    invalidateDayCache({ date: focusedDateISO })
 
     bus.emit('calendar:mutated', {
       op: 'delete',
