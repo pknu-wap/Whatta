@@ -16,6 +16,7 @@ import { ensureAuthReady } from '@/app/bootstrap'
 import { DrawerProvider } from '@/providers/DrawerProvider'
 import { LabelProvider } from '@/providers/LabelProvider'
 import { LabelFilterProvider } from '@/providers/LabelFilterProvider'
+import PolicyUpdateModal from '@/components/PolicyUpdateModal'
 import messaging from '@react-native-firebase/messaging'
 import CustomSplash from '@/screens/CustomSplash'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -31,6 +32,10 @@ import {
 } from '@/lib/appleCalendar'
 import { shouldShowAppleCalendarPrompt } from '@/lib/appleCalendarSync'
 import { bus } from '@/lib/eventBus'
+import {
+  hasAgreedToCurrentPolicyUpdate,
+  writePolicyUpdateConsent,
+} from '@/lib/policyUpdateConsent'
 
 // 포그라운드 메시지 핸들러
 // messaging().onMessage(async (remoteMessage) => {
@@ -101,6 +106,9 @@ function ForegroundBannerHost({
 export default function App() {
   const [ready, setReady] = useState(false)
   const [splashDone, setSplashDone] = useState(false)
+  const [policyConsentLoaded, setPolicyConsentLoaded] = useState(false)
+  const [policyConsentAgreed, setPolicyConsentAgreed] = useState(false)
+  const [policyBlocked, setPolicyBlocked] = useState(false)
 
   const [fgMsg, setFgMsg] = useState<{ title: string; body: string } | null>(null)
   const appleImportInFlightRef = useRef(false)
@@ -121,6 +129,18 @@ export default function App() {
         await ensureAuthReady()
       } finally {
         setReady(true)
+      }
+    })()
+  }, [])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const agreed = await hasAgreedToCurrentPolicyUpdate()
+        setPolicyConsentAgreed(agreed)
+        setPolicyBlocked(!agreed)
+      } finally {
+        setPolicyConsentLoaded(true)
       }
     })()
   }, [])
@@ -290,7 +310,7 @@ export default function App() {
     return () => bus.off('calendar:mutated', onCalendarMutated)
   }, [])
 
-  if (!ready || !splashDone) {
+  if (!ready || !splashDone || !policyConsentLoaded) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <CustomSplash onFinish={() => setSplashDone(true)} />
@@ -314,6 +334,21 @@ export default function App() {
             </DrawerProvider>
           </LabelFilterProvider>
         </LabelProvider>
+
+        <PolicyUpdateModal
+          visible={!policyConsentAgreed}
+          blocked={policyBlocked}
+          onAgree={async () => {
+            await writePolicyUpdateConsent('agreed')
+            setPolicyConsentAgreed(true)
+            setPolicyBlocked(false)
+          }}
+          onDisagree={async () => {
+            await writePolicyUpdateConsent('declined')
+            setPolicyConsentAgreed(false)
+            setPolicyBlocked(true)
+          }}
+        />
       </GestureHandlerRootView>
     </SafeAreaProvider>
   )
