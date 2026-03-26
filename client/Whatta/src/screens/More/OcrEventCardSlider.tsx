@@ -105,8 +105,9 @@ const CARD_RATIO = CARD_BASE_H / CARD_BASE_W
 
 const ITEM_WIDTH = Math.min(W - 56, 350) 
 const ITEM_HEIGHT = ITEM_WIDTH * CARD_RATIO
+const OCR_CONTENT_WIDTH = Math.max(ITEM_WIDTH - 48, 240)
 
-const SPACING = 2
+const SPACING = 8
 const SIDE_PADDING = (W - ITEM_WIDTH) / 2
 
   /** 📌 요일 반복 */
@@ -270,6 +271,7 @@ useEffect(() => {
                 date={item.startDate}
                 startTime={item.startTime?.slice(0, 5)}
                 endTime={item.endTime?.slice(0, 5)}
+                contentWidth={OCR_CONTENT_WIDTH}
                 registerPayloadGetter={(getter) => registerPayloadGetter(item.id, getter)}
                 unregisterPayloadGetter={() => unregisterPayloadGetter(item.id)}
                 onSubmit={async (finalPayload) => {

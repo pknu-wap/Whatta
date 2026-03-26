@@ -12,11 +12,12 @@ type Props = {
   end: Date
   onChangeRange: (nextStart: Date, nextEnd: Date) => void
   onNext: () => void
+  calendarWidth?: number
+  contentPaddingHorizontal?: number
 }
 
 const PILL_BG = '#B04FFF1A'
-const CALENDAR_W = 301
-const DAY_W = 43
+const DEFAULT_CALENDAR_W = 301
 const DAY_H = 44
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'] as const
 
@@ -47,7 +48,11 @@ export default function CreateEventDateStep({
   end,
   onChangeRange,
   onNext,
+  calendarWidth = DEFAULT_CALENDAR_W,
+  contentPaddingHorizontal = 24,
 }: Props) {
+  const resolvedCalendarWidth = Math.min(calendarWidth, DEFAULT_CALENDAR_W)
+  const dayWidth = resolvedCalendarWidth / 7
   const pickingEndRef = useRef(false)
   const [monthCursor, setMonthCursor] = useState(
     () => new Date(start.getFullYear(), start.getMonth(), 1),
@@ -110,7 +115,7 @@ export default function CreateEventDateStep({
   }, [])
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingHorizontal: contentPaddingHorizontal }]}>
       <Text style={styles.guideText}>날짜를 지정하세요</Text>
 
       <View style={styles.calendarCard}>
@@ -122,13 +127,13 @@ export default function CreateEventDateStep({
         </View>
 
         {ymOpen ? (
-          <View style={styles.ymWrap}>
+          <View style={[styles.ymWrap, { width: resolvedCalendarWidth }]}>
             <View style={styles.ymRow}>
-              <View style={styles.ymCol}>
+              <View style={[styles.ymCol, { width: resolvedCalendarWidth / 2 }]}>
                 <Picker
                   selectedValue={pickYear}
                   onValueChange={(v) => setPickYear(Number(v))}
-                  style={styles.ymPicker}
+                  style={[styles.ymPicker, { width: resolvedCalendarWidth / 2 }]}
                   itemStyle={styles.ymPickerItem}
                 >
                   {yearOptions.map((y) => (
@@ -136,11 +141,11 @@ export default function CreateEventDateStep({
                   ))}
                 </Picker>
               </View>
-              <View style={styles.ymCol}>
+              <View style={[styles.ymCol, { width: resolvedCalendarWidth / 2 }]}>
                 <Picker
                   selectedValue={pickMonth}
                   onValueChange={(v) => setPickMonth(Number(v))}
-                  style={styles.ymPicker}
+                  style={[styles.ymPicker, { width: resolvedCalendarWidth / 2 }]}
                   itemStyle={styles.ymPickerItem}
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -154,7 +159,14 @@ export default function CreateEventDateStep({
           <>
             <View style={styles.weekRow}>
               {WEEKDAY.map((label, idx) => (
-                <Text key={label} style={[styles.weekText, idx === 0 && styles.weekTextSunday]}>
+                <Text
+                  key={label}
+                  style={[
+                    styles.weekText,
+                    { width: dayWidth },
+                    idx === 0 && styles.weekTextSunday,
+                  ]}
+                >
                   {label}
                 </Text>
               ))}
@@ -162,7 +174,7 @@ export default function CreateEventDateStep({
 
             <PagerView
               key={`${monthBase.getFullYear()}-${monthBase.getMonth()}-${pagerSeed}`}
-              style={styles.pager}
+              style={[styles.pager, { width: resolvedCalendarWidth }]}
               initialPage={1}
               onPageSelected={(e) => {
                 const position = e.nativeEvent.position
@@ -190,10 +202,13 @@ export default function CreateEventDateStep({
                   hasVisibleRange &&
                   visibleRangeStart.getTime() === visibleRangeEnd.getTime()
                 return (
-                  <View key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`} style={styles.gridWrap}>
+                  <View
+                    key={`${baseMonth.getFullYear()}-${baseMonth.getMonth()}-${pageIndex}`}
+                    style={[styles.gridWrap, { width: resolvedCalendarWidth }]}
+                  >
                     {cells.map((cell, idx) => {
                       if (!cell) {
-                        return <View key={`empty-${idx}`} style={styles.cell} />
+                        return <View key={`empty-${idx}`} style={[styles.cell, { width: dayWidth }]} />
                       }
 
                       const t = startOfDay(cell).getTime()
@@ -207,11 +222,16 @@ export default function CreateEventDateStep({
                       const isMid = inRange && !single && !isStart && !isEnd
 
                       return (
-                        <Pressable key={cell.toISOString()} style={styles.cell} onPress={() => onSelectDate(cell)}>
+                        <Pressable
+                          key={cell.toISOString()}
+                          style={[styles.cell, { width: dayWidth }]}
+                          onPress={() => onSelectDate(cell)}
+                        >
                           {inRange && (
                             <View
                               style={[
                                 styles.pill,
+                                { width: dayWidth },
                                 single && styles.singlePill,
                                 isStart && styles.startPill,
                                 isEnd && styles.endPill,
@@ -232,7 +252,7 @@ export default function CreateEventDateStep({
         )}
       </View>
 
-      <View style={styles.footerRow}>
+      <View style={[styles.footerRow, { width: resolvedCalendarWidth }]}>
         {ymOpen ? (
           <Pressable
             onPress={() => {
@@ -283,7 +303,6 @@ const styles = StyleSheet.create({
     color: colors.text.text1,
   },
   ymWrap: {
-    width: CALENDAR_W,
     marginTop: 12,
     borderRadius: 12,
     overflow: 'hidden',
@@ -296,12 +315,10 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   ymCol: {
-    width: 130,
     height: 190,
     justifyContent: 'center',
   },
   ymPicker: {
-    width: 130,
     height: 190,
   },
   ymPickerItem: {
@@ -309,14 +326,12 @@ const styles = StyleSheet.create({
     color: colors.text.text1,
   },
   weekRow: {
-    width: CALENDAR_W,
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 23,
     marginBottom: 2,
   },
   weekText: {
-    width: DAY_W,
     textAlign: 'center',
     ...ts('date3'),
     color: colors.text.text3,
@@ -325,24 +340,20 @@ const styles = StyleSheet.create({
     color: '#FF474A',
   },
   gridWrap: {
-    width: CALENDAR_W,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
   },
   pager: {
-    width: CALENDAR_W,
     height: DAY_H * 6,
   },
   cell: {
-    width: DAY_W,
     height: DAY_H,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pill: {
     position: 'absolute',
-    width: DAY_W,
     height: DAY_H,
     backgroundColor: PILL_BG,
   },
@@ -359,7 +370,6 @@ const styles = StyleSheet.create({
   },
   midPill: {
     borderRadius: 0,
-    width: DAY_W,
   },
   dayText: {
     ...ts('date1'),
@@ -370,7 +380,6 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
   },
   footerRow: {
-    width: CALENDAR_W,
     alignSelf: 'flex-start',
     marginTop: -6,
     alignItems: 'flex-end',

@@ -26,6 +26,7 @@ interface OCREventEditCardProps {
   week?: string
   startTime?: string
   endTime?: string
+  contentWidth?: number
   onClose: () => void
   isFromOCR?: boolean
   colorKey?: string
@@ -41,6 +42,7 @@ export default function OCREventEditCard({
   week,
   startTime,
   endTime,
+  contentWidth = 286,
   onSubmit,
   onClose,
   colorKey,
@@ -78,6 +80,8 @@ const parseTime = (t?: string) => {
   const [endDate, setEndDate] = useState(parseTime(endTime))
 
   const [editDatePicking, setEditDatePicking] = useState(false)
+  const dateStepWidth = Math.min(contentWidth, 301)
+  const paletteWidth = Math.min(contentWidth + 34, 320)
 
 
   // 시간 형식 변환 HH:mm
@@ -430,6 +434,7 @@ return (
       setEndDate(nextEnd)
     }}
     onNext={() => setEditDatePicking(false)}
+    calendarWidth={dateStepWidth}
   />
 ) : (
   <CreateEventDetailStep
@@ -498,8 +503,8 @@ return (
     onChangeTaskDueTimeOn={() => {}}
     taskDueTime={new Date()}
     onChangeTaskDueTime={() => {}}
-    contentWidth={286}
-    paletteWidth={320}
+    contentWidth={contentWidth}
+    paletteWidth={paletteWidth}
     paletteBoxStyle={styles.ocrPaletteBox}
   />
 )}
