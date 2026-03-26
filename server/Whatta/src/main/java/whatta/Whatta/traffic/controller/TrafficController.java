@@ -16,7 +16,7 @@ import whatta.Whatta.traffic.payload.response.BusRouteResponse;
 import whatta.Whatta.traffic.payload.response.BusStationResponse;
 import whatta.Whatta.traffic.payload.response.SubwayStationResponse;
 import whatta.Whatta.traffic.service.SubwayService;
-import whatta.Whatta.traffic.service.TrafficService;
+import whatta.Whatta.traffic.service.BusService;
 
 import java.util.List;
 
@@ -28,13 +28,13 @@ import java.util.List;
 @SecurityRequirement(name = "BearerAuth")
 public class TrafficController {
 
-    private final TrafficService trafficService;
+    private final BusService busService;
     private final SubwayService subwayService;
 
     @GetMapping("/cities")
     @Operation(summary = "시/도 코드 목록 조회", description = "지역 선택에 사용할 시/도 코드 목록을 반환합니다.")
     public ResponseEntity<?> getCities() {
-        List<BusCityResponse> cities = trafficService.searchCities();
+        List<BusCityResponse> cities = busService.searchCities();
         return Response.ok("시/도 코드 목록 조회 성공", cities);
     }
 
@@ -44,7 +44,7 @@ public class TrafficController {
             @Parameter(description = "위도") @RequestParam Double latitude,
             @Parameter(description = "경도") @RequestParam Double longitude
     ) {
-        List<BusStationResponse> stations = trafficService.searchStationsByGps(latitude, longitude);
+        List<BusStationResponse> stations = busService.searchStationsByGps(latitude, longitude);
         return Response.ok("주변 정류소 검색 성공", stations);
     }
 
@@ -55,7 +55,7 @@ public class TrafficController {
             @Parameter(description = "검색할 정류장명 또는 번호 (예: 부산시민공원, 05034)") @RequestParam String keyword,
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusStationResponse> stations = trafficService.searchStationsByName(userId, keyword, cityCode);
+        List<BusStationResponse> stations = busService.searchStationsByName(userId, keyword, cityCode);
         return Response.ok("정류장 키워드 검색 성공", stations);
     }
 
@@ -66,7 +66,7 @@ public class TrafficController {
             @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusRouteResponse> routes = trafficService.searchRouteByStation(userId, busStationId, cityCode);
+        List<BusRouteResponse> routes = busService.searchRouteByStation(userId, busStationId, cityCode);
         return Response.ok("정류장별 경유노선 조회 성공", routes);
     }
 
@@ -77,7 +77,7 @@ public class TrafficController {
             @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByStation(userId, busStationId, cityCode);
+        List<BusArrivalResponse> arrivalResponses = busService.searchArrivalsByStation(userId, busStationId, cityCode);
         return Response.ok("정류장별 도착예정정보 조회 성공", arrivalResponses);
     }
 
@@ -90,7 +90,7 @@ public class TrafficController {
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
 
     ) {
-        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByRoute(userId, busStationId, busRouteId, cityCode);
+        List<BusArrivalResponse> arrivalResponses = busService.searchArrivalsByRoute(userId, busStationId, busRouteId, cityCode);
         return Response.ok("특정노선 도착예정정보 조회 성공", arrivalResponses);
     }
 

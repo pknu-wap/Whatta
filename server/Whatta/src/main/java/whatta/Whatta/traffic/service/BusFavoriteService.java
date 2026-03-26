@@ -37,7 +37,7 @@ public class BusFavoriteService {
 
         if (existingFavorite.isPresent()) {
             BusFavorite favorite = existingFavorite.get();
-            log.info("즐겨찾기 중복데이터 감지: 기존 ID({})", favorite.getId());
+            log.info("버스 즐겨찾기 중복데이터 감지: 기존 ID({})", favorite.getId());
             return BusFavoriteResponse.fromEntity(favorite);
         }
 
@@ -53,7 +53,7 @@ public class BusFavoriteService {
             BusFavorite savedFavorite = busFavoriteRepository.save(favorite);
             return BusFavoriteResponse.fromEntity(savedFavorite);
         } catch (DuplicateKeyException e) {
-            log.info("즐겨찾기 중복 삽입 레이스 감지, 기존 데이터 재조회");
+            log.info("버스 즐겨찾기 중복 삽입 레이스 감지, 기존 데이터 재조회");
 
             return busFavoriteRepository.findByUserIdAndBusStationIdAndBusRouteId(
                             userId,
