@@ -38,6 +38,7 @@ interface OCREventEditCardProps {
 export default function OCREventEditCard({
   title,
   date,
+  week,
   startTime,
   endTime,
   onSubmit,
@@ -208,11 +209,29 @@ const handleCreateLabel = async (title: string) => {
 
 // 반복
 const [repeatOn, setRepeatOn] = useState(true)
-const [repeatMode, setRepeatMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('weekly')
-const [monthlyOpt, setMonthlyOpt] = useState<'byDate' | 'byNthWeekday' | 'byLastWeekday'>('byDate')
+  const [repeatMode, setRepeatMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('weekly')
+  const [monthlyOpt, setMonthlyOpt] = useState<'byDate' | 'byNthWeekday' | 'byLastWeekday'>('byDate')
 const [repeatEvery, setRepeatEvery] = useState(1)
 const [repeatUnit, setRepeatUnit] = useState<'day' | 'week' | 'month'>('day')
-const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([])
+const parseWeekday = (value?: string) => {
+  if (!value) return null
+
+  const normalized = value.trim().toUpperCase()
+  const map: Record<string, number> = {
+    SUN: 0,
+    MON: 1,
+    TUE: 2,
+    WED: 3,
+    THU: 4,
+    FRI: 5,
+    SAT: 6,
+  }
+
+  return map[normalized] ?? null
+}
+
+const initialWeekday = parseWeekday(week) ?? startDate.getDay()
+const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([initialWeekday])
 const [repeatEndDate, setRepeatEndDate] = useState<Date | null>(null)
 
 // 🔢 이번 달 몇 번째 주인지 계산
@@ -255,10 +274,11 @@ const buildEventPayload = () => {
         exceptionDates: [],
       }
     } else if (repeatMode === 'weekly') {
+      const weeklyDays = Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
       repeat = {
         interval: 1,
         unit: 'WEEK',
-        on: [wd],
+        on: (weeklyDays.length ? weeklyDays : [startDate.getDay()]).map((day) => WEEKDAY_ENUM[day]),
         endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
@@ -276,10 +296,14 @@ const buildEventPayload = () => {
         exceptionDates: [],
       }
     } else if (repeatMode === 'custom') {
+      const weeklyDays = Array.from(new Set(repeatWeekdays)).sort((a, b) => a - b)
       repeat = {
         interval: repeatEvery,
         unit: repeatUnit.toUpperCase(),
-        on: repeatUnit === 'week' ? [wd] : [],
+        on:
+          repeatUnit === 'week'
+            ? (weeklyDays.length ? weeklyDays : [startDate.getDay()]).map((day) => WEEKDAY_ENUM[day])
+            : [],
         endDate: repeatEndDate ? formatLocalDate(repeatEndDate) : null,
         exceptionDates: [],
       }
@@ -335,6 +359,7 @@ useEffect(() => {
   monthlyOpt,
   repeatEvery,
   repeatUnit,
+  repeatWeekdays,
   repeatEndDate,
   remindOn,
   remindValue,
@@ -508,14 +533,6 @@ card: {
   backgroundColor: '#ffffff',
   borderRadius: 20,
   overflow: 'hidden',
-},
-
-ocrPaletteBox: {
-  top: 54,
-  left: -17,
-  shadowOpacity: 0.55,
-  shadowRadius: 9,
-  elevation: 4,
 },
 
 })

@@ -33,6 +33,59 @@ interface Props {
   colorKey?: string
 }
 
+function AnimatedCard({
+  children,
+  isLast,
+  itemWidth,
+  itemHeight,
+  spacing,
+  onRemove,
+  id,
+}: {
+  children: (animateRemove: () => void) => React.ReactNode
+  isLast: boolean
+  itemWidth: number
+  itemHeight: number
+  spacing: number
+  onRemove: (id: string) => void
+  id: string
+}) {
+  const translateY = useSharedValue(0)
+  const opacity = useSharedValue(1)
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }))
+
+  const animateRemove = () => {
+    translateY.value = withTiming(-40, { duration: 250 })
+    opacity.value = withTiming(0, { duration: 250 }, (finished) => {
+      if (finished) {
+        runOnJS(onRemove)(id)
+      }
+    })
+  }
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: itemWidth,
+          height: itemHeight,
+          marginRight: isLast ? 0 : spacing,
+          marginTop: 32,
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+        },
+        animStyle,
+      ]}
+    >
+      {children(animateRemove)}
+    </Animated.View>
+  )
+}
+
 export default function OCREventCardSlider({
   visible,
   events,
@@ -108,19 +161,35 @@ const SIDE_PADDING = (W - ITEM_WIDTH) / 2
   useEffect(() => {
     if (!timetableLabelId) return // 라벨 준비되면 실행
 
-    setEditedEvents(
-      events.map(ev => ({
-        id: ev.id,
-        title: ev.title,
-        content: ev.content ?? '',
-        labels: [timetableLabelId],        // ★ 라벨 자동 적용
-        startDate: ev.date,
-        endDate: ev.date,
-        startTime: ev.startTime ? `${ev.startTime}:00` : null,
-        endTime: ev.endTime ? `${ev.endTime}:00` : null,
-        repeat: mapWeekDayToRepeat(ev.weekDay),
-        colorKey: slotKey(resolveSlotIndex(selectedColor))
-      }))
+    setEditedEvents((prev) =>
+      events.map((ev) => {
+        const existing = prev.find((item) => item.id === ev.id)
+
+        if (existing) {
+          return {
+            ...existing,
+            labels:
+              existing.labels?.length
+                ? existing.labels.includes(timetableLabelId)
+                  ? existing.labels
+                  : [...existing.labels, timetableLabelId]
+                : [timetableLabelId],
+          }
+        }
+
+        return {
+          id: ev.id,
+          title: ev.title,
+          content: ev.content ?? '',
+          labels: [timetableLabelId],
+          startDate: ev.date,
+          endDate: ev.date,
+          startTime: ev.startTime ? `${ev.startTime}:00` : null,
+          endTime: ev.endTime ? `${ev.endTime}:00` : null,
+          repeat: mapWeekDayToRepeat(ev.weekDay),
+          colorKey: slotKey(resolveSlotIndex(selectedColor)),
+        }
+      }),
     )
   }, [events, timetableLabelId, selectedColor])
 
@@ -167,60 +236,6 @@ useEffect(() => {
   if (editedEvents.length === 0) onClose()
 }, [editedEvents])
 
-const AnimatedCard = ({
-  children,
-  isLast,
-  itemWidth,
-  itemHeight,
-  spacing,
-  onRemove,
-  id,
-}: {
-  children: (animateRemove: () => void) => React.ReactNode
-  isLast: boolean
-  itemWidth: number
-  itemHeight: number
-  spacing: number
-  onRemove: (id: string) => void
-  id: string
-}) => {
-
-  const translateY = useSharedValue(0)
-  const opacity = useSharedValue(1)
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }))
-
-  const animateRemove = () => {
-    translateY.value = withTiming(-40, { duration: 250 })
-    opacity.value = withTiming(0, { duration: 250 }, (finished) => {
-      if (finished) {
-        runOnJS(onRemove)(id)
-      }
-    })
-  }
-
-  return (
-<Animated.View
-  style={[
-    {
-      width: itemWidth,
-      height: itemHeight,
-      marginRight: isLast ? 0 : spacing,
-      marginTop: -20,
-      justifyContent: 'flex-start',
-      alignItems: 'center',
-    },
-    animStyle,
-  ]}
->
-      {children(animateRemove)}
-    </Animated.View>
-  )
-}
-
   return (
     <Modal transparent visible={visible} animationType="fade">
      <View style={styles.overlay}>
@@ -251,6 +266,7 @@ const AnimatedCard = ({
             {(animateRemove) => (
               <OCREventCard
                 title={item.title}
+                week={events.find((ev) => ev.id === item.id)?.weekDay}
                 date={item.startDate}
                 startTime={item.startTime?.slice(0, 5)}
                 endTime={item.endTime?.slice(0, 5)}
