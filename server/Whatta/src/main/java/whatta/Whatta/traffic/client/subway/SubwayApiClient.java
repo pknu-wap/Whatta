@@ -68,7 +68,7 @@ public class SubwayApiClient {
     }
 
     private SubwayApiResponse callApi(URI uri) {
-        log.info(">>> 지하철 API 요청 URI: {}", uri);
+        log.info(">>> 지하철 API 요청 path: {}", uri.getPath());
         try {
             String jsonString = restTemplate.getForObject(uri, String.class);
             JsonNode rootNode = objectMapper.readTree(jsonString);
@@ -81,14 +81,15 @@ public class SubwayApiClient {
             SubwayApiResponse response = objectMapper.treeToValue(responseNode, SubwayApiResponse.class);
 
             if (response == null || response.getHeader() == null || !"00".equals(response.getHeader().getResultCode())) {
-                log.warn("지하철 공공데이터 API 호출 실패: uri={}", uri);
+                log.warn("지하철 공공데이터 API 호출 실패: path={}", uri.getPath());
                 throw new RestApiException(ErrorCode.PUBLIC_SUBWAY_API_FAILED);
             }
             return response;
         } catch (RestApiException e) {
             throw e;
         } catch (Exception e) {
-            log.error("지하철 API 호출 중 예외 발생: {}", e.getMessage());
+            log.error("지하철 API 호출 중 예외 발생: path={}, type={}",
+                    uri.getPath(), e.getClass().getSimpleName());
             throw new RestApiException(ErrorCode.PUBLIC_SUBWAY_API_FAILED);
         }
     }

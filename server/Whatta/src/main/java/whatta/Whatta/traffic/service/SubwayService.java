@@ -135,7 +135,7 @@ public class SubwayService {
         int minute = Integer.parseInt(padded.substring(2, 4));
         int second = Integer.parseInt(padded.substring(4, 6));
 
-        if (hour > 47 || minute > 59 || second > 59) {
+        if (hour > 26 || minute > 59 || second > 59) {
             return null;
         }
 

@@ -151,7 +151,7 @@ public class BusApiClient {
     }
 
     private BusApiResponse callApi(URI uri){
-        log.info(">>> 버스 API 요청 URI: {}", uri.toString());
+        log.info(">>> 버스 API 요청 path: {}", uri.getPath());
         try {
             String jsonString = restTemplate.getForObject(uri, String.class);
 
@@ -166,12 +166,13 @@ public class BusApiClient {
             BusApiResponse response = objectMapper.treeToValue(responseNode, BusApiResponse.class);
 
             if(response == null || response.getHeader() == null || !"00".equals(response.getHeader().getResultCode())) {
-                log.warn("공공데이터 API 호출 실패: uri={}", uri);
+                log.warn("공공데이터 API 호출 실패: path={}", uri.getPath());
                 throw new RestApiException(ErrorCode.PUBLIC_BUS_API_FAILED);
             }
             return response;
         } catch (Exception e) {
-            log.error("버스 API 호출 중 예외 발생: {}", e.getMessage());
+            log.error("버스 API 호출 중 예외 발생: path={}, type={}",
+                    uri.getPath(), e.getClass().getSimpleName());
             throw new RestApiException(ErrorCode.PUBLIC_BUS_API_FAILED);
         }
     }

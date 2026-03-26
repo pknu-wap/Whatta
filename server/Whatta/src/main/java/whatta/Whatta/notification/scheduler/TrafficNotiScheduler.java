@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @Slf4j
 @Component
@@ -58,13 +59,17 @@ public class TrafficNotiScheduler {
     }
 
     private void notifyAlarmAsync(TrafficNotification alarm) {
-        notiExecutor.execute(() -> {
-            try {
-                notifyAlarm(alarm);
-            } catch (Exception e) {
-                log.error("교통 알림 비동기 처리 실패. alarmId={}", alarm.getId(), e);
-            }
-        });
+        try {
+            notiExecutor.execute(() -> {
+                try {
+                    notifyAlarm(alarm);
+                } catch (Exception e) {
+                    log.error("교통 알림 비동기 처리 실패. alarmId={}", alarm.getId(), e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+                log.error("교통 알림 태스크 제출 실패 (큐 초과). alarmId={}", alarm.getId(), e);
+        }
     }
 
     private void notifyAlarm(TrafficNotification alarm) {
