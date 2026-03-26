@@ -42,7 +42,7 @@ function AnimatedCard({
   onRemove,
   id,
 }: {
-  children: (animateRemove: () => void) => React.ReactNode
+  children: (animateRemove: (direction?: 'up' | 'down') => void) => React.ReactNode
   isLast: boolean
   itemWidth: number
   itemHeight: number
@@ -58,8 +58,8 @@ function AnimatedCard({
     opacity: opacity.value,
   }))
 
-  const animateRemove = () => {
-    translateY.value = withTiming(-40, { duration: 250 })
+  const animateRemove = (direction: 'up' | 'down' = 'up') => {
+    translateY.value = withTiming(direction === 'down' ? 40 : -40, { duration: 250 })
     opacity.value = withTiming(0, { duration: 250 }, (finished) => {
       if (finished) {
         runOnJS(onRemove)(id)
@@ -290,13 +290,13 @@ useEffect(() => {
                     await createEvent(savedPayload)
 
                     onAddEvent(savedPayload)
-                    animateRemove()
+                    animateRemove('up')
                   } catch (e) {
                     console.error('❌ 일정 저장 실패:', e)
                     Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
                   }
                 }}
-                onClose={animateRemove}
+                onClose={() => animateRemove('down')}
               />
             )}
           </AnimatedCard>
