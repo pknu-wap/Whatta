@@ -87,10 +87,14 @@ function CustomTabBar({
   descriptors,
   navigation,
   aiModalVisible,
+  monthDetailVisible,
   onPressAi,
+  onPressMonthDetailBackdrop,
 }: BottomTabBarProps & {
   aiModalVisible: boolean
+  monthDetailVisible: boolean
   onPressAi: () => void
+  onPressMonthDetailBackdrop: () => void
 }) {
   const lastHomeTapRef = React.useRef(0)
   const focusedRoute = state.routes[state.index]
@@ -104,6 +108,11 @@ function CustomTabBar({
   if (focusedStyle?.display === 'none') return null
 
   const handleTabPress = (route: (typeof state.routes)[number], index: number) => {
+    if (monthDetailVisible) {
+      onPressMonthDetailBackdrop()
+      return
+    }
+
     const isFocused = state.index === index
     const event = navigation.emit({
       type: 'tabPress',
@@ -151,6 +160,11 @@ function CustomTabBar({
   }
 
   const handleTabLongPress = (route: (typeof state.routes)[number]) => {
+    if (monthDetailVisible) {
+      onPressMonthDetailBackdrop()
+      return
+    }
+
     navigation.emit({
       type: 'tabLongPress',
       target: route.key,
@@ -231,6 +245,9 @@ function CustomTabBar({
           </View>
         </Pressable>
       ) : null}
+      {monthDetailVisible ? (
+        <Pressable style={S.monthDetailBlocker} onPress={onPressMonthDetailBackdrop} />
+      ) : null}
     </View>
   )
 }
@@ -238,9 +255,23 @@ function CustomTabBar({
 export default function RootTabs() {
   const insets = useSafeAreaInsets()
   const [aiModalVisible, setAiModalVisible] = React.useState(false)
+  const [monthDetailVisible, setMonthDetailVisible] = React.useState(false)
 
   const handleAiClose = React.useCallback(() => {
     setAiModalVisible(false)
+  }, [])
+
+  const handleMonthDetailBackdrop = React.useCallback(() => {
+    bus.emit('month:detail:close')
+  }, [])
+
+  React.useEffect(() => {
+    const handleMonthDetailVisibility = (visible?: boolean) => {
+      setMonthDetailVisible(visible === true)
+    }
+
+    bus.on('month:detail:visibility', handleMonthDetailVisibility)
+    return () => bus.off('month:detail:visibility', handleMonthDetailVisibility)
   }, [])
 
   return (
@@ -257,7 +288,9 @@ export default function RootTabs() {
           <CustomTabBar
             {...props}
             aiModalVisible={aiModalVisible}
+            monthDetailVisible={monthDetailVisible}
             onPressAi={() => setAiModalVisible(true)}
+            onPressMonthDetailBackdrop={handleMonthDetailBackdrop}
           />
         )}
       >
@@ -372,6 +405,15 @@ const S = StyleSheet.create({
   },
   aiSlot: {
     flex: 1,
+  },
+  monthDetailBlocker: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    zIndex: 20,
+    backgroundColor: 'transparent',
   },
   sideTabInner: {
     flex: 1,

@@ -26,6 +26,8 @@ import RangeScheduleBar from '@/components/calendar-items/schedule/RangeSchedule
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { resolveScheduleColor } from '@/styles/scheduleColorSets'
 import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
+import { useLabels } from '@/providers/LabelProvider'
+import { createLabel } from '@/api/label_api'
 
 const DETAIL_ITEM_WIDTH = 302
 const DETAIL_RIGHT_EXTENSION = 24
@@ -133,6 +135,7 @@ export default function MonthlyDetailPopup({
   const [quickTitle, setQuickTitle] = React.useState('')
   const [quickSaving, setQuickSaving] = React.useState(false)
   const [quickCreatedUntimed, setQuickCreatedUntimed] = React.useState<DayEvent[]>([])
+  const { labels, refresh: refreshLabels } = useLabels()
 
   const ANIM_DURATION = 260
 
@@ -347,10 +350,18 @@ export default function MonthlyDetailPopup({
 
     setQuickSaving(true)
     try {
+      let scheduleLabelId = labels.find((label) => label.title === '일정')?.id
+      if (!scheduleLabelId) {
+        const createdLabel = await createLabel('일정')
+        scheduleLabelId = createdLabel.id
+        bus.emit('label:mutated')
+        void refreshLabels()
+      }
+
       const res = await http.post('/event', {
         title,
         content: '',
-        labels: [],
+        labels: scheduleLabelId ? [scheduleLabelId] : [],
         startDate: iso,
         endDate: iso,
         startTime: null,
@@ -427,7 +438,7 @@ export default function MonthlyDetailPopup({
           top: -(APP_HEADER_HEIGHT + insets.top),
         },
       ]}
-      pointerEvents="box-none"
+      pointerEvents="auto"
     >
       <Pressable
         style={StyleSheet.absoluteFill}
@@ -436,7 +447,7 @@ export default function MonthlyDetailPopup({
       <KeyboardAvoidingView
         style={S.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={24}
+        keyboardVerticalOffset={-80}
       >
         <Animated.View
           style={[
@@ -535,9 +546,9 @@ export default function MonthlyDetailPopup({
                   </View>
                 </View>
               </Animated.View>
-            </View>
-          </Animated.View>
-        </KeyboardAvoidingView>
+          </View>
+        </Animated.View>
+      </KeyboardAvoidingView>
       </View>
   )
 }
