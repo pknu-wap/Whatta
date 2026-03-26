@@ -14,6 +14,8 @@ import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
 import whatta.Whatta.traffic.payload.response.BusCityResponse;
 import whatta.Whatta.traffic.payload.response.BusRouteResponse;
 import whatta.Whatta.traffic.payload.response.BusStationResponse;
+import whatta.Whatta.traffic.payload.response.SubwayStationResponse;
+import whatta.Whatta.traffic.service.SubwayService;
 import whatta.Whatta.traffic.service.TrafficService;
 
 import java.util.List;
@@ -27,6 +29,7 @@ import java.util.List;
 public class TrafficController {
 
     private final TrafficService trafficService;
+    private final SubwayService subwayService;
 
     @GetMapping("/cities")
     @Operation(summary = "시/도 코드 목록 조회", description = "지역 선택에 사용할 시/도 코드 목록을 반환합니다.")
@@ -89,5 +92,14 @@ public class TrafficController {
     ) {
         List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByRoute(userId, busStationId, busRouteId, cityCode);
         return Response.ok("특정노선 도착예정정보 조회 성공", arrivalResponses);
+    }
+
+    @GetMapping("/subway/stations/search")
+    @Operation(summary = "지하철역 키워드 검색", description = "지하철역명으로 지하철역 목록을 검색합니다.")
+    public ResponseEntity<?> searchSubwayStationsByName(
+            @Parameter(description = "검색할 지하철역명 (예: 서울역)") @RequestParam String keyword
+    ) {
+        List<SubwayStationResponse> stations = subwayService.searchStationsByName(keyword);
+        return Response.ok("지하철역 키워드 검색 성공", stations);
     }
 }
