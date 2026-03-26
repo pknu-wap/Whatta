@@ -349,6 +349,26 @@ const {
     return () => bus.off('calendar:reset-view', onResetView)
   }, [setImagePopupVisible, setOcrModalVisible])
 
+  useEffect(() => {
+    const handleMonthDetailClose = () => {
+      setPopupVisible(false)
+    }
+
+    bus.on('month:detail:close', handleMonthDetailClose)
+    return () => bus.off('month:detail:close', handleMonthDetailClose)
+  }, [])
+
+  useEffect(() => {
+    const shouldExposeMonthDetail = active && isScreenFocused && popupVisible
+    bus.emit('month:detail:visibility', shouldExposeMonthDetail)
+
+    return () => {
+      if (shouldExposeMonthDetail) {
+        bus.emit('month:detail:visibility', false)
+      }
+    }
+  }, [active, isScreenFocused, popupVisible])
+
   const { items: filterLabels } = useLabelFilter()
   const labelTitleById = useMemo(() => {
     const map = new Map<string, string>()
