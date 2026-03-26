@@ -42,7 +42,7 @@ function AnimatedCard({
   onRemove,
   id,
 }: {
-  children: (animateRemove: () => void) => React.ReactNode
+  children: (animateRemove: (direction?: 'up' | 'down') => void) => React.ReactNode
   isLast: boolean
   itemWidth: number
   itemHeight: number
@@ -58,8 +58,8 @@ function AnimatedCard({
     opacity: opacity.value,
   }))
 
-  const animateRemove = () => {
-    translateY.value = withTiming(-40, { duration: 250 })
+  const animateRemove = (direction: 'up' | 'down' = 'up') => {
+    translateY.value = withTiming(direction === 'down' ? 40 : -40, { duration: 250 })
     opacity.value = withTiming(0, { duration: 250 }, (finished) => {
       if (finished) {
         runOnJS(onRemove)(id)
@@ -105,8 +105,9 @@ const CARD_RATIO = CARD_BASE_H / CARD_BASE_W
 
 const ITEM_WIDTH = Math.min(W - 56, 350) 
 const ITEM_HEIGHT = ITEM_WIDTH * CARD_RATIO
+const OCR_CONTENT_WIDTH = Math.max(ITEM_WIDTH - 48, 240)
 
-const SPACING = 2
+const SPACING = 8
 const SIDE_PADDING = (W - ITEM_WIDTH) / 2
 
   /** 📌 요일 반복 */
@@ -270,6 +271,7 @@ useEffect(() => {
                 date={item.startDate}
                 startTime={item.startTime?.slice(0, 5)}
                 endTime={item.endTime?.slice(0, 5)}
+                contentWidth={OCR_CONTENT_WIDTH}
                 registerPayloadGetter={(getter) => registerPayloadGetter(item.id, getter)}
                 unregisterPayloadGetter={() => unregisterPayloadGetter(item.id)}
                 onSubmit={async (finalPayload) => {
@@ -288,13 +290,13 @@ useEffect(() => {
                     await createEvent(savedPayload)
 
                     onAddEvent(savedPayload)
-                    animateRemove()
+                    animateRemove('up')
                   } catch (e) {
                     console.error('❌ 일정 저장 실패:', e)
                     Alert.alert('오류', '일정 저장 중 문제가 발생했습니다.')
                   }
                 }}
-                onClose={animateRemove}
+                onClose={() => animateRemove('down')}
               />
             )}
           </AnimatedCard>
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
   
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: 'rgba(255,255,255,1)',
   },
 
 cardArea: {
