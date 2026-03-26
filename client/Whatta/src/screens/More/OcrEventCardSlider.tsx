@@ -106,7 +106,7 @@ const CARD_RATIO = CARD_BASE_H / CARD_BASE_W
 const ITEM_WIDTH = Math.min(W - 56, 350) 
 const ITEM_HEIGHT = ITEM_WIDTH * CARD_RATIO
 
-const SPACING = 12
+const SPACING = 2
 const SIDE_PADDING = (W - ITEM_WIDTH) / 2
 
   /** 📌 요일 반복 */
@@ -304,7 +304,7 @@ useEffect(() => {
   </View>
 
   <Pressable style={styles.saveAllBtn} onPress={handleSaveAll}>
-    <Text style={styles.saveAllText}>모두 저장</Text>
+    <Text style={styles.saveAllText}>모두 등록하기</Text>
   </Pressable>
 </View>
       </View>
@@ -328,20 +328,20 @@ cardArea: {
 
 saveAllBtn: {
   position: 'absolute',
-  bottom: 90,
+  bottom: 105,
   alignSelf: 'center',
-
   backgroundColor: '#FFFFFF',
-  paddingVertical: 14,
-  borderRadius: 64,
-  width: 100,
-  height: 44,
+  borderWidth: 1,
+  borderColor: colors.brand.primary,
+  borderRadius: 16,
+  width: 102,
+  height: 45,
   alignItems: 'center',
   justifyContent: 'center',
 },
 
   saveAllText: {
-    color: colors.primary.main,
+    color: colors.brand.primary,
     fontSize: 12,
     fontWeight: '700',
   },

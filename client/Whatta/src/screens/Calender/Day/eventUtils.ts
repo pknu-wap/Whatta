@@ -135,10 +135,11 @@ export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
         .map((e: any) => {
           const [sh = 0, sm = 0] = e.clippedStartTime.split(':').map(Number)
           const [eh = 0, em = 0] = e.clippedEndTime.split(':').map(Number)
+          const normalizedColorKey = normalizeScheduleColorKey(e?.colorKey ?? e?.color)
 
           return {
             ...e,
-            colorKey: normalizeScheduleColorKey(e?.colorKey),
+            colorKey: normalizedColorKey,
             startMin: sh * 60 + sm,
             endMin: eh * 60 + em,
           }
@@ -156,7 +157,7 @@ export function useDayData(anchorDate: string, enabledLabelIds: number[]) {
         [...allDaySpan, ...allDayEvents]
           .map((e: any) => ({
             ...e,
-            colorKey: normalizeScheduleColorKey(e?.colorKey),
+            colorKey: normalizeScheduleColorKey(e?.colorKey ?? e?.color),
           }))
           .filter(filterByLabel),
       )

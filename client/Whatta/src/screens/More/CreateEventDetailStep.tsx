@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, type ViewStyle } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
 import PagerView from 'react-native-pager-view'
 
@@ -78,6 +78,8 @@ type Props = {
   taskDueTime: Date
   onChangeTaskDueTime: (next: Date) => void
   contentWidth?: number
+  paletteWidth?: number
+  paletteBoxStyle?: ViewStyle
   contentPaddingHorizontal?: number
   eventDateInline?: React.ReactNode
 }
@@ -234,10 +236,11 @@ export default function CreateEventDetailStep({
   taskDueTime,
   onChangeTaskDueTime,
   contentWidth = 302,
+  paletteWidth = 320,
+  paletteBoxStyle,
   contentPaddingHorizontal = 24,
   eventDateInline = null,
 }: Props) {
-  const paletteWidth = contentWidth + 18
   const typeButtonWidth = (contentWidth - 16) / 2
   const timeBoxWidth = contentWidth - 76
   const eventEnd = end ?? start
@@ -422,7 +425,7 @@ export default function CreateEventDetailStep({
           )}
         </View>
         {selectedType === 'event' && colorPaletteOpen && (
-          <View style={[styles.colorPaletteBox, { width: paletteWidth }]}>
+          <View style={[styles.colorPaletteBox, { width: paletteWidth }, paletteBoxStyle]}>
             <View style={styles.colorPaletteGrid}>
               {paletteColors.slice(0, 12).map((c, idx) => (
                 <Pressable
@@ -438,7 +441,7 @@ export default function CreateEventDetailStep({
           </View>
         )}
         <View style={styles.divider} />
-        <View style={styles.typeRow}>
+        <View style={[styles.typeRow, { width: contentWidth }]}>
           <Pressable
             style={[
               styles.typeButton,
@@ -1731,7 +1734,9 @@ const styles = StyleSheet.create({
   typeRow: {
     marginTop: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignSelf: 'center',
+    justifyContent: 'flex-start',
+    gap: 16,
   },
   typeButton: {
     width: 143,

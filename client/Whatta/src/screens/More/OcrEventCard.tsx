@@ -498,6 +498,9 @@ return (
     onChangeTaskDueTimeOn={() => {}}
     taskDueTime={new Date()}
     onChangeTaskDueTime={() => {}}
+    contentWidth={286}
+    paletteWidth={320}
+    paletteBoxStyle={styles.ocrPaletteBox}
   />
 )}
     </View>
@@ -518,11 +521,11 @@ const styles = StyleSheet.create({
 
   cardShadow: {
     borderRadius: 20,
-    shadowColor: '#747e86',
+    shadowColor: '#BBC5CC',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 18,
-    elevation: 16,
+    shadowOpacity: 0.72,
+    shadowRadius: 10,
+    elevation: 6,
   },
 
 card: {
