@@ -488,7 +488,8 @@ const S = StyleSheet.create({
     ...ts('label1'),
     fontSize: 18,
     color: '#333',
-    paddingVertical: 0,
+    paddingTop: 6,
+    paddingBottom: 0,
     paddingLeft: 10,
     paddingRight: 12,
   },
@@ -499,7 +500,7 @@ const S = StyleSheet.create({
     color: colors.text.text4,
     left: 10,
     top: '50%',
-    transform: [{ translateY: -8 }],
+    transform: [{ translateY: -4 }],
   },
   item: {
     width: 302,
