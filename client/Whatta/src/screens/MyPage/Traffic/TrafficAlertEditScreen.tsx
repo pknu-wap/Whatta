@@ -4,11 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import { Picker } from '@react-native-picker/picker'
 import colors from '@/styles/colors'
-import Xbutton from '@/assets/icons/x.svg'
+import Xbutton from '@/assets/icons/xL.svg'
+import ClearIcon from '@/assets/icons/x.svg'
 import Down from '@/assets/icons/down.svg'
 import Check from '@/assets/icons/check.svg'
 import TrafficStopSearchModal from '@/components/TrafficStopSearchModal'
 import { http } from '@/lib/http'
+import { ts } from '@/styles/typography'
 
 type RouteParams = {
   mode?: 'create' | 'edit'
@@ -91,6 +93,10 @@ export default function TrafficAlertEditScreen() {
   const [stopOpen, setStopOpen] = useState(false)
   const [stopOptions, setStopOptions] = useState<FavoriteOption[]>([])
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+  const selectedStops = useMemo(
+    () => stopOptions.filter((opt) => selectedItemIds.includes(opt.itemId)),
+    [selectedItemIds, stopOptions],
+  )
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -214,6 +220,13 @@ export default function TrafficAlertEditScreen() {
       .map((opt) => opt.label)
     return labels.join(', ')
   }
+  const getSelectedRouteLabel = () => {
+    if (selectedStops.length === 0) return null
+    return selectedStops
+      .map((opt) => (opt.busRouteNo ? `${opt.busRouteNo}번` : ''))
+      .filter(Boolean)
+      .join(', ')
+  }
 
   const handleSave = async () => {
     if (selectedItemIds.length === 0) {
@@ -274,10 +287,22 @@ export default function TrafficAlertEditScreen() {
     <SafeAreaView style={S.safe}>
       <View style={S.header}>
         <Pressable style={S.headerSide} onPress={() => nav.goBack()}>
-          <Xbutton width={15} height={15} color="#808080" />
+          {({ pressed }) => (
+            <Xbutton
+              width={20}
+              height={20}
+              color={pressed ? colors.icon.selected : colors.icon.default}
+            />
+          )}
         </Pressable>
-        <Pressable style={S.headerSide} onPress={handleSave}>
-          <Check width={15} height={15} color="#808080" />
+        <Pressable style={S.headerSide} onPress={handleSave} hitSlop={16}>
+          {({ pressed }) => (
+            <Check
+              width={16}
+              height={16}
+              color={pressed ? colors.icon.selected : colors.icon.default}
+            />
+          )}
         </Pressable>
       </View>
 
@@ -299,6 +324,15 @@ export default function TrafficAlertEditScreen() {
           <Picker
             style={S.timePicker}
             itemStyle={S.timePickerItem}
+            selectedValue={ampm}
+            onValueChange={(v) => handleChangeAmpm(v as 'AM' | 'PM')}
+          >
+            <Picker.Item label="AM" value="AM" />
+            <Picker.Item label="PM" value="PM" />
+          </Picker>
+          <Picker
+            style={S.timePicker}
+            itemStyle={S.timePickerItem}
             selectedValue={hour12}
             onValueChange={(v) => handleChangeHour12(v as number)}
           >
@@ -316,186 +350,156 @@ export default function TrafficAlertEditScreen() {
               <Picker.Item key={m} label={String(m).padStart(2, '0')} value={m} />
             ))}
           </Picker>
-          <Picker
-            style={S.timePicker}
-            itemStyle={S.timePickerItem}
-            selectedValue={ampm}
-            onValueChange={(v) => handleChangeAmpm(v as 'AM' | 'PM')}
-          >
-            <Picker.Item label="AM" value="AM" />
-            <Picker.Item label="PM" value="PM" />
-          </Picker>
         </View>
 
-        <View style={{ marginTop: 30 }}>
+        <View style={S.stopSection}>
+          <Text style={S.stopSectionTitle}>정류장 및 노선 검색 (최대 2개)</Text>
+
           <Pressable
-            style={S.selectHeaderBtn}
+            style={S.stopSelector}
             onPress={() => setStopOpen((v) => !v)}
             hitSlop={8}
           >
-            <Text style={S.sectionLabel} numberOfLines={1} ellipsizeMode="tail">
-              {getSelectedStopLabel() ?? '정류장 및 노선 선택 (최대 2개)'}
-            </Text>
-            <Down width={10} height={10} color={stopOpen ? '#B04FFF' : '#333'} />
+            <View style={S.stopSelectorMain}>
+              <View style={S.stopSelectorContent}>
+                <Text style={S.stopSelectorStation} numberOfLines={1} ellipsizeMode="tail">
+                  {getSelectedStopLabel() ?? '정류장 선택'}
+                </Text>
+                {!!getSelectedRouteLabel() && (
+                  <Text style={S.stopSelectorRoute} numberOfLines={1}>
+                    {getSelectedRouteLabel()}
+                  </Text>
+                )}
+              </View>
+              <View style={S.stopSelectorIconWrap}>
+                <Down width={12} height={12} color={colors.icon.selected} />
+              </View>
+            </View>
           </Pressable>
 
           {stopOpen && (
-            <View style={S.dropdownCard}>
-              {[
-                ...stopOptions,
-                {
-                  itemId: 'ADD',
-                  label: '정류장 및 노선 추가',
-                  busRouteNo: '',
-                } as FavoriteOption,
-              ].map((opt, idx, arr) => {
-                const isAdd = opt.itemId === 'ADD'
+            <View style={S.favoriteList}>
+              {stopOptions.map((opt) => {
                 const isSelected = selectedItemIds.includes(opt.itemId)
-                const isLastItem = idx === arr.length - 1
 
                 return (
-                  <View key={opt.itemId}>
-                    <Pressable
-                      style={[
-                        S.dropdownItem,
-                        !isLastItem && { borderBottomWidth: 0.5, borderColor: '#E3E5EA' },
-                      ]}
-                      onPress={() => {
-                        if (isAdd) {
-                          setSearchOpen(true)
-                          return
-                        }
-                        toggleStopSelection(opt.itemId)
-                      }}
-                    >
-                      {isSelected && <View style={S.selectedBg} />}
-                      <View style={S.dropdownContentCenter}>
+                  <Pressable
+                    key={opt.itemId}
+                    style={[S.favoriteRow, isSelected && S.favoriteRowSelected]}
+                    onPress={() => toggleStopSelection(opt.itemId)}
+                  >
+                    <View style={S.favoriteRowContent}>
+                      <Text
+                        style={[
+                          S.favoriteStation,
+                          isSelected && S.favoriteStationSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {opt.label}
+                      </Text>
+                      {!!opt.busRouteNo && (
                         <Text
                           style={[
-                            S.dropdownItemText,
-                            isSelected && S.dropdownItemTextSelected,
-                            isAdd && { color: '#777', fontWeight: '500' },
+                            S.favoriteRoute,
+                            isSelected && S.favoriteRouteSelected,
                           ]}
+                          numberOfLines={1}
                         >
-                          {opt.label}
+                          {opt.busRouteNo}번
                         </Text>
-
-                        {!isAdd && opt.busRouteNo && (
-                          <Text
-                            style={[
-                              S.dropdownSubText,
-                              isSelected && { color: '#B04FFF' },
-                            ]}
-                          >
-                            {' '}
-                            {opt.busRouteNo && `버스 ${opt.busRouteNo}번`}
-                          </Text>
-                        )}
-                      </View>
-                      {/* 삭제 버튼 (추가 버튼 제외, 우측 고정) */}
-                      {!isAdd && (
-                        <Pressable
-                          style={S.deleteOptionBtn}
-                          hitSlop={15}
-                          onPress={() => {
-                            Alert.alert('즐겨찾기 삭제', `${opt.label} 삭제할까요?`, [
-                              { text: '취소', style: 'cancel' },
-                              {
-                                text: '삭제',
-                                style: 'destructive',
-                                onPress: async () => {
-                                  try {
-                                    await http.delete(`/traffic/items/${opt.itemId}`)
-                                    setStopOptions((prev) =>
-                                      prev.filter((x) => x.itemId !== opt.itemId),
-                                    )
-                                    if (selectedItemIds.includes(opt.itemId)) {
-                                      setSelectedItemIds((prev) =>
-                                        prev.filter((id) => id !== opt.itemId),
-                                      )
-                                    }
-                                  } catch (err: any) {
-                                    console.log('삭제 실패:', err)
-                                  }
-                                },
-                              },
-                            ])
-                          }}
-                        >
-                          <Xbutton width={10} height={10} color="#B4B4B4" />
-                        </Pressable>
                       )}
+                    </View>
+                    <Pressable
+                      style={S.favoriteDeleteBtn}
+                      hitSlop={12}
+                      onPress={async (e) => {
+                        e.stopPropagation()
+                        try {
+                          await http.delete(`/traffic/items/${opt.itemId}`)
+                          setStopOptions((prev) => prev.filter((item) => item.itemId !== opt.itemId))
+                          setSelectedItemIds((prev) =>
+                            prev.filter((itemId) => itemId !== opt.itemId),
+                          )
+                        } catch (err: any) {
+                          Alert.alert('오류', '즐겨찾기 삭제에 실패했습니다.')
+                        }
+                      }}
+                    >
+                      <ClearIcon width={12} height={12} color={colors.icon.default} />
                     </Pressable>
-                  </View>
+                  </Pressable>
                 )
               })}
+
+              <Pressable style={S.favoriteRow} onPress={() => setSearchOpen(true)}>
+                <View style={S.favoriteSearchRow}>
+                  <Text style={S.favoriteSearchText}>정류장 검색</Text>
+                </View>
+              </Pressable>
             </View>
           )}
         </View>
 
-        <View style={S.sectionDivider} />
+        <View style={S.repeatSection}>
+          <View style={S.repeatHeader}>
+            <Text style={S.repeatLabel}>반복</Text>
+            <CustomToggle
+              value={repeatOn}
+              onChange={(v) => {
+                setRepeatOn(v)
+                if (!v) setRepeatOpen(false)
+              }}
+            />
+          </View>
 
-        <View style={{ marginTop: 8 }}>
-          <Pressable
-            style={S.repeatHeader}
-            onPress={() => {
-              if (repeatOn) setRepeatOpen((v) => !v)
-            }}
-          >
-            <View>
-              <Text style={S.sectionLabelSimple}>반복</Text>
-            </View>
-            <View style={S.repeatSelectBtn}>
-              <Text
-                style={[S.repeatSelectText, { color: repeatOn ? '#333' : '#B3B3B3' }]}
+          {repeatOn && (
+            <>
+              <Pressable
+                style={S.repeatSelector}
+                onPress={() => setRepeatOpen((v) => !v)}
+                hitSlop={8}
               >
-                {getRepeatText()}
-              </Text>
-              <Down
-                width={10}
-                height={10}
-                color={repeatOn ? '#333' : '#B3B3B3'}
-                style={{ marginRight: 10 }}
-              />
-              <CustomToggle
-                value={repeatOn}
-                onChange={(v) => {
-                  setRepeatOn(v)
-                  if (!v) setRepeatOpen(false)
-                }}
-              />
-            </View>
-          </Pressable>
+                <View style={S.repeatSelectorMain}>
+                  <Text style={S.repeatSelectorText}>{getRepeatText()}</Text>
+                  <View style={S.repeatSelectorIconWrap}>
+                    <Down width={12} height={12} color={colors.icon.selected} />
+                  </View>
+                </View>
+              </Pressable>
 
-          {repeatOn && repeatOpen && (
-            <View style={S.weekRow}>
-              {DAY_LABEL_FULL.map((label, idx) => {
-                const active = repeatDays.includes(idx)
-                return (
-                  <Pressable
-                    key={idx}
-                    style={[S.dayChip, active && S.dayChipActive]}
-                    onPress={() =>
-                      setRepeatDays((prev) =>
-                        prev.includes(idx)
-                          ? prev.filter((x) => x !== idx)
-                          : [...prev, idx],
-                      )
-                    }
-                  >
-                    <Text style={[S.dayChipText, active && S.dayChipTextActive]}>
-                      {label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
+              {repeatOpen && (
+                <View style={S.weekRow}>
+                  {DAY_LABEL_FULL.map((label, idx) => {
+                    const active = repeatDays.includes(idx)
+                    return (
+                      <Pressable
+                        key={idx}
+                        style={[S.dayChip, active && S.dayChipActive]}
+                        onPress={() =>
+                          setRepeatDays((prev) =>
+                            prev.includes(idx)
+                              ? prev.filter((x) => x !== idx)
+                              : [...prev, idx],
+                          )
+                        }
+                      >
+                        <Text style={[S.dayChipText, active && S.dayChipTextActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+              )}
+            </>
           )}
         </View>
 
         {mode === 'edit' && (
           <View style={S.footer}>
             <Pressable
+              style={S.deletePill}
               onPress={() => {
                 Alert.alert('알림 삭제', '정말 삭제하시겠습니까?', [
                   { text: '취소', style: 'cancel' },
@@ -514,7 +518,7 @@ export default function TrafficAlertEditScreen() {
                 ])
               }}
             >
-              <Text style={S.deleteTxt}>삭제</Text>
+              <Text style={S.deletePillText}>삭제</Text>
             </Pressable>
           </View>
         )}
@@ -578,155 +582,220 @@ const S = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    borderBottomWidth: 0.3,
-    borderBottomColor: '#B3B3B3',
   },
-  headerSide: { width: 20, alignItems: 'center', justifyContent: 'center' },
+  headerSide: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1 },
   bodyContent: {
-    paddingHorizontal: 32,
+    paddingHorizontal: 16,
     paddingTop: 66,
     paddingBottom: 40,
   },
   timeLabelWrap: { alignItems: 'center', marginBottom: 16 },
-  timeAmPm: { fontSize: 16, color: '#474A54', marginRight: 10 },
-  timeMain: { fontSize: 32, color: '#B04FFF', fontWeight: '800' },
+  timeAmPm: { ...ts('body1'), fontSize: 13, color: colors.text.text2, marginRight: 6 },
+  timeMain: { fontSize: 40, color: colors.text.title, fontWeight: '700' },
   timePickerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 48,
   },
   timePicker: { flex: 1, height: 160 },
   timePickerItem: { fontSize: 22, fontWeight: '500' },
 
-  selectHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    width: '100%',
-  },
-  sectionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'left',
-    flex: 1,
-    lineHeight: 20,
-  },
-  sectionLabelSimple: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-  },
-
-  dropdownCard: {
-    marginTop: 6,
-    width: '100%',
-    backgroundColor: '#FFF',
-    alignSelf: 'center',
-    overflow: 'hidden',
-    borderRadius: 10,
-  },
-
-  dropdownItem: {
-    minHeight: 54,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    position: 'relative',
-  },
-
-  dropdownContentCenter: {
-    flexDirection: 'row', // ✅ [수정] 가로 배치
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    width: '85%',
-    zIndex: 1,
-  },
-
-  selectedBg: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    paddingVertical: 20,
-    backgroundColor: '#E6E6E6',
-    borderRadius: 10,
-    zIndex: 0,
-  },
-
-  dropdownItemText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#333',
-    textAlign: 'center',
-  },
-  dropdownItemTextSelected: {
-    color: '#B04FFF',
-    fontWeight: '700',
-  },
-  dropdownSubText: {
-    fontSize: 13,
-    color: '#8E8E93',
-    marginLeft: 6,
-    textAlign: 'center',
-  },
-
-  deleteOptionBtn: {
-    position: 'absolute',
-    right: 16,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    zIndex: 2,
-  },
-
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: '#F4F4F4',
-    width: '80%',
-  },
-
-  sectionDivider: {
-    height: 1,
-    backgroundColor: '#EEE',
+  stopSection: {
     marginTop: 20,
-    marginBottom: 12,
-    marginHorizontal: -32,
+    alignItems: 'center',
   },
-
-  repeatHeader: {
+  stopSectionTitle: {
+    ...ts('label2'),
+    color: colors.text.text3,
+    width: 358,
+  },
+  stopSelector: {
+    width: 358,
+    height: 50,
+    marginTop: 22,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.divider.divider1,
+    paddingHorizontal: 16,
+    position: 'relative',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
   },
-  repeatSelectBtn: {
+  stopSelectorMain: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+  },
+  stopSelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
+    maxWidth: '80%',
+  },
+  stopSelectorStation: {
+    ...ts('label2'),
+    color: colors.brand.primary,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  stopSelectorRoute: {
+    ...ts('date2'),
+    color: colors.brand.primary,
+    marginLeft: 8,
+    flexShrink: 0,
+  },
+  stopSelectorIconWrap: {
+    position: 'absolute',
+    right: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteList: {
+    width: 358,
     marginTop: 4,
   },
-  repeatSelectText: { fontSize: 13 },
-
-  weekRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  favoriteRow: {
+    height: 50,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.divider.divider1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    position: 'relative',
   },
-  dayChip: {
-    width: 32,
-    height: 32,
+  favoriteRowSelected: {
+    backgroundColor: colors.background.bg2,
+  },
+  favoriteRowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 8,
+  },
+  favoriteDeleteBtn: {
+    position: 'absolute',
+    right: 23.5,
+    top: 0,
+    bottom: 0,
+    width: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayChipActive: { borderColor: '#B04FFF' },
-  dayChipText: { fontSize: 15, color: '#474A54', fontWeight: '700' },
-  dayChipTextActive: { color: '#B04FFF' },
+  favoriteStation: {
+    ...ts('date2'),
+    color: colors.text.text1,
+  },
+  favoriteStationSelected: {
+    ...ts('label2'),
+    color: colors.text.text1,
+  },
+  favoriteRoute: {
+    ...ts('date2'),
+    color: colors.text.text3,
+  },
+  favoriteRouteSelected: {
+    ...ts('date2'),
+    color: colors.text.text1,
+  },
+  favoriteSearchRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteSearchText: {
+    ...ts('label2'),
+    color: colors.text.text1,
+  },
+  repeatSection: {
+    width: 358,
+    alignSelf: 'center',
+    marginTop: 34,
+  },
+  repeatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  repeatLabel: {
+    ...ts('label2'),
+    color: colors.text.text3,
+  },
+  repeatSelector: {
+    width: 358,
+    height: 50,
+    marginTop: 22,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: colors.divider.divider1,
+    paddingHorizontal: 16,
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  repeatSelectorMain: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  repeatSelectorText: {
+    ...ts('label2'),
+    color: colors.brand.primary,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  repeatSelectorIconWrap: {
+    position: 'absolute',
+    right: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekRow: {
+    width: 358,
+    height: 50,
+    marginTop: 4,
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.divider.divider2,
+  },
+  dayChip: {
+    flex: 1,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayChipActive: {
+    backgroundColor: colors.background.bg2,
+  },
+  dayChipText: {
+    ...ts('date1'),
+    color: colors.text.text2,
+  },
+  dayChipTextActive: {
+    ...ts('label2'),
+    color: colors.text.text1,
+  },
 
-  footer: { marginTop: 40 },
-  deleteTxt: { fontSize: 15, color: '#9D7BFF', fontWeight: '700' },
+  footer: {
+    marginTop: 40,
+    alignItems: 'flex-end',
+  },
+  deletePill: {
+    minWidth: 38,
+    height: 28,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deletePillText: {
+    ...ts('body1'),
+    color: '#FF6B6B',
+    fontWeight: '600',
+  },
 })
