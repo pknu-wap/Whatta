@@ -33,6 +33,8 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "800-2", "해당 노선은 존재하지 않습니다."),
     TRAFFIC_ITEM_ALREADY_EXISTS(HttpStatus.CONFLICT, "800-3", "이미 즐겨찾기에 추가된 노선입니다."),
     INVALID_TRAFFIC_ALARM_REQUEST(HttpStatus.BAD_REQUEST, "800-4", "교통 알림 요청값이 유효하지 않습니다."),
+    PUBLIC_SUBWAY_API_FAILED(HttpStatus.BAD_GATEWAY, "800-5", "지하철 공공데이터 API 호출에 실패했습니다."),
+    SUBWAY_ITEM_ALREADY_EXISTS(HttpStatus.CONFLICT, "800-6", "이미 즐겨찾기에 추가된 지하철 항목입니다."),
 
     //801-xx : 날씨 api 관련 오류
     WEATHER_API_FAILED(HttpStatus.BAD_GATEWAY, "801-1", "날씨 API 호출에 실패했습니다."),

@@ -42,6 +42,9 @@ public class TrafficNotification {
     private List<String> targetItemIds = new ArrayList<>();
 
     @Builder.Default
+    private List<TrafficNotificationTarget> targets = new ArrayList<>();
+
+    @Builder.Default
     private boolean isEnabled = true;
 
     @Builder.Default

@@ -13,14 +13,14 @@ public record BusFavoriteResponse(
         String busRouteNo,
         String cityCode
 ) {
-    public static BusFavoriteResponse fromEntity(BusFavorite item) {
+    public static BusFavoriteResponse fromEntity(BusFavorite favorite) {
         return BusFavoriteResponse.builder()
-                .id(item.getId())
-                .busStationId(item.getBusStationId())
-                .busStationName(item.getBusStationName())
-                .busRouteId(item.getBusRouteId())
-                .busRouteNo(item.getBusRouteNo())
-                .cityCode(resolveCityCode(item.getCityCode()))
+                .id(favorite.getId())
+                .busStationId(favorite.getBusStationId())
+                .busStationName(favorite.getBusStationName())
+                .busRouteId(favorite.getBusRouteId())
+                .busRouteNo(favorite.getBusRouteNo())
+                .cityCode(resolveCityCode(favorite.getCityCode()))
                 .build();
     }
 

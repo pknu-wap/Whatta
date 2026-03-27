@@ -8,18 +8,23 @@ import org.springframework.transaction.annotation.Transactional;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.traffic.entity.TrafficNotification;
+import whatta.Whatta.traffic.entity.TrafficNotificationTarget;
+import whatta.Whatta.traffic.enums.TrafficTransportType;
 import whatta.Whatta.traffic.payload.request.TrafficNotiCreateRequest;
 import whatta.Whatta.traffic.payload.request.TrafficNotiUpdateRequest;
 import whatta.Whatta.traffic.payload.response.TrafficNotiResponse;
-import whatta.Whatta.traffic.repository.TrafficNotiRepository;
 import whatta.Whatta.traffic.repository.BusFavoriteRepository;
+import whatta.Whatta.traffic.repository.SubwayFavoriteRepository;
+import whatta.Whatta.traffic.repository.TrafficNotiRepository;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,6 +36,7 @@ import java.util.stream.Collectors;
 public class TrafficNotiService {
 
     private final BusFavoriteRepository busFavoriteRepository;
+    private final SubwayFavoriteRepository subwayFavoriteRepository;
     private final TrafficNotiRepository trafficNotiRepository;
 
     @PostConstruct
@@ -57,7 +63,7 @@ public class TrafficNotiService {
 
     public TrafficNotiResponse createTrafficNoti(String userId, TrafficNotiCreateRequest request) {
         List<String> targetItemIds = sanitizeTargetItemIds(request.targetItemIds());
-        validateTrafficItems(userId, targetItemIds);
+        List<TrafficNotificationTarget> targets = resolveTargets(userId, targetItemIds);
 
         LocalTime cleanTime = request.alarmTime().truncatedTo(ChronoUnit.MINUTES);
 
@@ -70,6 +76,7 @@ public class TrafficNotiService {
                 .alarmMinuteOfDay(toMinuteOfDay(cleanTime))
                 .days(request.days() != null ? request.days() : new HashSet<>())
                 .targetItemIds(targetItemIds)
+                .targets(targets)
                 .isEnabled(true)
                 .isRepeatEnabled(shouldRepeat)
                 .build();
@@ -83,9 +90,10 @@ public class TrafficNotiService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
         List<String> sanitizedTargetItemIds = null;
+        List<TrafficNotificationTarget> resolvedTargets = null;
         if (request.targetItemIds() != null) {
             sanitizedTargetItemIds = sanitizeTargetItemIds(request.targetItemIds());
-            validateTrafficItems(userId, sanitizedTargetItemIds);
+            resolvedTargets = resolveTargets(userId, sanitizedTargetItemIds);
         }
 
         TrafficNotification.TrafficNotificationBuilder builder = originalAlarm.toBuilder();
@@ -103,7 +111,13 @@ public class TrafficNotiService {
             builder.isRepeatEnabled(shouldRepeat);
         }
         if (request.isEnabled() != null) builder.isEnabled(request.isEnabled());
-        if (sanitizedTargetItemIds != null) builder.targetItemIds(sanitizedTargetItemIds);
+        if (sanitizedTargetItemIds != null) {
+            builder.targetItemIds(sanitizedTargetItemIds);
+            builder.targets(resolvedTargets);
+        } else if (isLegacyAlarm(originalAlarm)) {
+            resolveTargetsSafely(userId, originalAlarm.getTargetItemIds())
+                    .ifPresent(builder::targets);
+        }
 
         //요일값이 없을경우 반복 off
         TrafficNotification temp = builder.build();
@@ -131,14 +145,6 @@ public class TrafficNotiService {
                 .collect(Collectors.toList());
     }
 
-    private void validateTrafficItems(String userId, List<String> itemIds) {
-        long validCount = busFavoriteRepository.countByIdInAndUserId(itemIds, userId);
-
-        if(validCount != itemIds.size()) {
-            throw new RestApiException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-    }
-
     private List<String> sanitizeTargetItemIds(List<String> itemIds) {
         if (itemIds == null || itemIds.isEmpty()) {
             throw new RestApiException(ErrorCode.INVALID_TRAFFIC_ALARM_REQUEST);
@@ -156,6 +162,42 @@ public class TrafficNotiService {
         }
 
         return new ArrayList<>(sanitized);
+    }
+
+    private List<TrafficNotificationTarget> resolveTargets(String userId, List<String> itemIds) {
+        Map<String, TrafficTransportType> transportTypeByItemId = new HashMap<>();
+
+        busFavoriteRepository.findByIdInAndUserId(itemIds, userId)
+                .forEach(favorite -> transportTypeByItemId.put(favorite.getId(), TrafficTransportType.BUS));
+
+        subwayFavoriteRepository.findByIdInAndUserId(itemIds, userId)
+                .forEach(favorite -> transportTypeByItemId.put(favorite.getId(), TrafficTransportType.SUBWAY));
+
+        if (transportTypeByItemId.size() != itemIds.size()) {
+            throw new RestApiException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
+        return itemIds.stream()
+                .map(itemId -> TrafficNotificationTarget.builder()
+                        .itemId(itemId)
+                        .transportType(transportTypeByItemId.get(itemId))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private java.util.Optional<List<TrafficNotificationTarget>> resolveTargetsSafely(String userId, List<String> itemIds) {
+        try {
+            return java.util.Optional.of(resolveTargets(userId, itemIds));
+        } catch (RestApiException e) {
+            log.info("레거시 교통 알림 targets 보강 스킵. userId={}, reason={}", userId, e.getMessage());
+            return java.util.Optional.empty();
+        }
+    }
+
+    private boolean isLegacyAlarm(TrafficNotification alarm) {
+        return (alarm.getTargets() == null || alarm.getTargets().isEmpty())
+                && alarm.getTargetItemIds() != null
+                && !alarm.getTargetItemIds().isEmpty();
     }
 
     private int toMinuteOfDay(LocalTime time) {

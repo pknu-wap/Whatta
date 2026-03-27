@@ -14,7 +14,9 @@ import whatta.Whatta.traffic.payload.response.BusArrivalResponse;
 import whatta.Whatta.traffic.payload.response.BusCityResponse;
 import whatta.Whatta.traffic.payload.response.BusRouteResponse;
 import whatta.Whatta.traffic.payload.response.BusStationResponse;
-import whatta.Whatta.traffic.service.TrafficService;
+import whatta.Whatta.traffic.payload.response.SubwayStationResponse;
+import whatta.Whatta.traffic.service.SubwayService;
+import whatta.Whatta.traffic.service.BusService;
 
 import java.util.List;
 
@@ -26,44 +28,45 @@ import java.util.List;
 @SecurityRequirement(name = "BearerAuth")
 public class TrafficController {
 
-    private final TrafficService trafficService;
+    private final BusService busService;
+    private final SubwayService subwayService;
 
     @GetMapping("/cities")
     @Operation(summary = "시/도 코드 목록 조회", description = "지역 선택에 사용할 시/도 코드 목록을 반환합니다.")
     public ResponseEntity<?> getCities() {
-        List<BusCityResponse> cities = trafficService.searchCities();
+        List<BusCityResponse> cities = busService.searchCities();
         return Response.ok("시/도 코드 목록 조회 성공", cities);
     }
 
-    @GetMapping("/station/searchGps")
+    @GetMapping("/bus/station/searchGps")
     @Operation(summary = "좌표 기반 근접 정류장 검색(GPS)", description = "현재 좌표를 기반으로 반경 500m 내의 정류장 목록을 반환합니다.")
     public ResponseEntity<?> searchStationsByGps(
             @Parameter(description = "위도") @RequestParam Double latitude,
             @Parameter(description = "경도") @RequestParam Double longitude
     ) {
-        List<BusStationResponse> stations = trafficService.searchStationsByGps(latitude, longitude);
+        List<BusStationResponse> stations = busService.searchStationsByGps(latitude, longitude);
         return Response.ok("주변 정류소 검색 성공", stations);
     }
 
-    @GetMapping("/station/searchName")
+    @GetMapping("/bus/station/searchName")
     @Operation(summary = "정류장 키워드 검색", description = "정류장명 또는 번호로 검색하여 정류장 목록을 반환합니다.")
     public ResponseEntity<?> searchStationsByName(
             @AuthenticationPrincipal String userId,
             @Parameter(description = "검색할 정류장명 또는 번호 (예: 부산시민공원, 05034)") @RequestParam String keyword,
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusStationResponse> stations = trafficService.searchStationsByName(userId, keyword, cityCode);
+        List<BusStationResponse> stations = busService.searchStationsByName(userId, keyword, cityCode);
         return Response.ok("정류장 키워드 검색 성공", stations);
     }
 
-    @GetMapping("/station/searchRoutes/{busStationId}")
+    @GetMapping("/bus/station/searchRoutes/{busStationId}")
     @Operation(summary = "정류장별 경유노선 목록 조회", description = "해당 정류장을 경유하는 모든 버스 노선 목록을 반환합니다.")
     public ResponseEntity<?> searchRoutesByStation(
             @AuthenticationPrincipal String userId,
             @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusRouteResponse> routes = trafficService.searchRouteByStation(userId, busStationId, cityCode);
+        List<BusRouteResponse> routes = busService.searchRouteByStation(userId, busStationId, cityCode);
         return Response.ok("정류장별 경유노선 조회 성공", routes);
     }
 
@@ -74,7 +77,7 @@ public class TrafficController {
             @Parameter(description = "경유노선을 조회할 정류장ID (예: BSB164040201)") @PathVariable String busStationId,
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
     ) {
-        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByStation(userId, busStationId, cityCode);
+        List<BusArrivalResponse> arrivalResponses = busService.searchArrivalsByStation(userId, busStationId, cityCode);
         return Response.ok("정류장별 도착예정정보 조회 성공", arrivalResponses);
     }
 
@@ -87,7 +90,16 @@ public class TrafficController {
             @Parameter(description = "시/도 코드(미입력 시 userSetting값)") @RequestParam(required = false) String cityCode
 
     ) {
-        List<BusArrivalResponse> arrivalResponses = trafficService.searchArrivalsByRoute(userId, busStationId, busRouteId, cityCode);
+        List<BusArrivalResponse> arrivalResponses = busService.searchArrivalsByRoute(userId, busStationId, busRouteId, cityCode);
         return Response.ok("특정노선 도착예정정보 조회 성공", arrivalResponses);
+    }
+
+    @GetMapping("/subway/stations/search")
+    @Operation(summary = "지하철역 키워드 검색", description = "지하철역명으로 지하철역 목록을 검색합니다.")
+    public ResponseEntity<?> searchSubwayStationsByName(
+            @Parameter(description = "검색할 지하철역명 (예: 서울역)") @RequestParam String keyword
+    ) {
+        List<SubwayStationResponse> stations = subwayService.searchStationsByName(keyword);
+        return Response.ok("지하철역 키워드 검색 성공", stations);
     }
 }
