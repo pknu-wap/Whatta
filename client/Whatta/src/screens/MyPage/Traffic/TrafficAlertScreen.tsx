@@ -4,13 +4,13 @@ import { useFocusEffect } from '@react-navigation/native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import colors from '@/styles/colors'
 import Left from '@/assets/icons/left.svg'
-import Plus from '@/assets/icons/plusbtn.svg'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { TrafficAlertStackList } from '@/navigation/TrafficAlertStack'
 import { http } from '@/lib/http'
+import { ts } from '@/styles/typography'
 import {
   ensureNotificationPermissionForToggle,
   hasNotificationPermission,
@@ -21,7 +21,7 @@ type TransitAlertItem = {
   enabled: boolean
   hour: number
   minute: number
-  stopLabels: string[]
+  stopLabels: { station: string; busRouteNo?: string | null }[]
   repeatDays: number[]
 }
 
@@ -47,8 +47,7 @@ function formatRepeatLabel(days: number[]) {
   if (isEveryday) return '매일'
 
   const ordered = [...days].sort((a, b) => a - b)
-  const text = ordered.map((d) => DAY_LABEL_KO[d]).join('·')
-  return `매주 ${text}`
+  return `${ordered.map((d) => DAY_LABEL_KO[d]).join(', ')}요일마다`
 }
 
 /** Custom Toggle */
@@ -109,7 +108,10 @@ function TransitAlertRow({
 
   return (
     <View>
-      <Pressable style={S.row} onPress={editMode ? onToggleSelect : onPressDetail}>
+      <Pressable
+        style={[S.rowCard, selected && S.rowCardSelected]}
+        onPress={editMode ? onToggleSelect : onPressDetail}
+      >
         {/* 체크박스 영역: 편집 모드 아니면 width 0 */}
         <View
           style={{
@@ -122,9 +124,9 @@ function TransitAlertRow({
           {editMode && (
             <Pressable onPress={onToggleSelect} style={{ marginRight: 15 }}>
               {selected ? (
-                <CheckOn width={20} height={20} />
+                <CheckOn width={22} height={22} />
               ) : (
-                <CheckOff width={20} height={20} />
+                <CheckOff width={22} height={22} />
               )}
             </Pressable>
           )}
@@ -144,28 +146,33 @@ function TransitAlertRow({
           <View style={S.stopsContainer}>
             {item.stopLabels.length > 0 ? (
               item.stopLabels.map((label, idx) => (
-                <Text
-                  key={idx}
-                  style={[S.stopText, { color: '#B04FFF' }]}
-                  numberOfLines={1}
-                >
-                  {label}
-                </Text>
+                <View key={idx} style={S.stopRow}>
+                  <Text style={S.stopText} numberOfLines={1}>
+                    {label.station}
+                  </Text>
+                  {label.busRouteNo ? (
+                    <>
+                      <Text style={S.stopSeparator}>·</Text>
+                      <Text style={S.routeText} numberOfLines={1}>
+                        버스 {label.busRouteNo}번
+                      </Text>
+                    </>
+                  ) : null}
+                </View>
               ))
             ) : (
-              <Text
-                style={[S.stopTextPlaceholder, { color: '#B04FFF' }]}
-                numberOfLines={1}
-              >
+              <Text style={S.stopTextPlaceholder} numberOfLines={1}>
                 정류장 및 노선 추가
               </Text>
             )}
           </View>
 
           {!!repeatText && (
-            <Text style={S.repeatText} numberOfLines={1}>
-              {repeatText}
-            </Text>
+            <View style={S.repeatChip}>
+              <Text style={S.repeatText} numberOfLines={1}>
+                {repeatText}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -173,9 +180,6 @@ function TransitAlertRow({
           <CustomToggle value={item.enabled} onChange={onToggleEnabled} />
         </View>
       </Pressable>
-
-      {/* 구분선 */}
-      <View style={S.rowDivider} />
     </View>
   )
 }
@@ -183,6 +187,7 @@ function TransitAlertRow({
 export default function TrafficAlertsScreen() {
   const nav = useNavigation<NativeStackNavigationProp<TrafficAlertStackList>>()
   const [items, setItems] = useState<TransitAlertItem[]>([])
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   useFocusEffect(
     useCallback(() => {
@@ -198,18 +203,18 @@ export default function TrafficAlertsScreen() {
             const repeatDays = (it.days ?? []).map((d: string) => DAY_MAP.indexOf(d))
 
             const targetIds = it.targetItemIds || []
-            const matchedLabels: string[] = []
+            const matchedLabels: { station: string; busRouteNo?: string | null }[] = []
 
             for (const id of targetIds) {
               const fav = favorites.find((f: any) => f.id === id)
               if (fav) {
-                const stationName = fav.busStationNo
+                const station = fav.busStationNo
                   ? `${fav.busStationName} (${fav.busStationNo})`
                   : fav.busStationName
-                const label = fav.busRouteNo
-                  ? `${stationName} · 버스 ${fav.busRouteNo}번`
-                  : stationName
-                matchedLabels.push(label)
+                matchedLabels.push({
+                  station,
+                  busRouteNo: fav.busRouteNo ?? null,
+                })
               }
             }
 
@@ -285,23 +290,7 @@ export default function TrafficAlertsScreen() {
 
   const handleBulkDelete = () => {
     if (!canBulkDelete) return
-    const ids = Array.from(selected)
-    Alert.alert('삭제', '선택한 교통 알림을 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await Promise.all(ids.map((id) => http.delete(`/traffic/alarms/${id}`)))
-            setItems((prev) => prev.filter((it) => !ids.includes(it.id)))
-            setSelected(new Set())
-          } catch (err: any) {
-            Alert.alert('오류', '교통 알림 삭제에 실패했습니다.')
-          }
-        },
-      },
-    ])
+    setDeleteConfirmOpen(true)
   }
 
   const handlePressAdd = () => nav.navigate('TrafficAlertEdit', { mode: 'create' })
@@ -312,19 +301,25 @@ export default function TrafficAlertsScreen() {
     <SafeAreaView style={S.safe}>
       <View style={S.header}>
         <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
-          <Left width={30} height={30} color="#B4B4B4" />
+          <Left width={24} height={24} color={colors.icon.default} />
         </Pressable>
         <Text style={S.headerTitle}>교통 알림</Text>
         <Pressable style={S.plusBtn} onPress={handlePressAdd}>
-          <Plus width={22} height={22} color="#B04FFF" />
+          <View style={S.plusIcon}>
+            <View style={S.plusIconHorizontal} />
+            <View style={S.plusIconVertical} />
+          </View>
         </Pressable>
       </View>
 
       {editMode ? (
-        <View style={S.headerBottom}>
+        <View style={S.headerBottomEdit}>
           <Pressable onPress={handleBulkDelete}>
             <Text
-              style={[S.headerLeft, { color: canBulkDelete ? '#B04FFF' : '#C0C2C7' }]}
+              style={[
+                S.headerActionText,
+                { color: canBulkDelete ? colors.brand.primary : colors.text.text3 },
+              ]}
             >
               삭제
             </Text>
@@ -335,14 +330,13 @@ export default function TrafficAlertsScreen() {
               setSelected(new Set())
             }}
           >
-            <Text style={S.headerRight}>완료</Text>
+            <Text style={S.headerActionText}>완료</Text>
           </Pressable>
         </View>
       ) : (
-        <View style={S.headerBottom}>
-          <View style={{ flex: 1 }} />
+        <View style={S.headerBottomIdle}>
           <Pressable onPress={() => setEditMode(true)}>
-            <Text style={S.headerRight}>편집</Text>
+            <Text style={[S.headerActionText, S.headerRightIdle]}>편집</Text>
           </Pressable>
         </View>
       )}
@@ -350,7 +344,7 @@ export default function TrafficAlertsScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={S.listContent}
         renderItem={({ item }) => (
           <TransitAlertRow
             item={item}
@@ -362,6 +356,43 @@ export default function TrafficAlertsScreen() {
           />
         )}
       />
+
+      {deleteConfirmOpen && (
+        <View style={S.deleteOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setDeleteConfirmOpen(false)}
+          />
+          <View style={S.deleteCard}>
+            <Text style={S.deleteTitle}>선택하신 교통알림을 삭제할까요?</Text>
+            <View style={S.deleteRow}>
+              <Pressable
+                style={[S.deleteActionBtn, S.deleteCancelBtn]}
+                onPress={() => setDeleteConfirmOpen(false)}
+              >
+                <Text style={S.deleteCancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[S.deleteActionBtn, S.deleteConfirmBtn]}
+                onPress={async () => {
+                  const ids = Array.from(selected)
+                  try {
+                    await Promise.all(ids.map((id) => http.delete(`/traffic/alarms/${id}`)))
+                    setItems((prev) => prev.filter((it) => !ids.includes(it.id)))
+                    setSelected(new Set())
+                    setDeleteConfirmOpen(false)
+                  } catch (err: any) {
+                    setDeleteConfirmOpen(false)
+                    Alert.alert('오류', '교통 알림 삭제에 실패했습니다.')
+                  }
+                }}
+              >
+                <Text style={S.deleteConfirmTxt}>삭제</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -372,21 +403,122 @@ const S = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: 0.3,
-    borderBottomColor: '#B3B3B3',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text.title },
-  backBtn: { position: 'absolute', left: 16, height: 48, justifyContent: 'center' },
-  plusBtn: { position: 'absolute', right: 16, height: 48, justifyContent: 'center' },
-  headerBottom: {
-    height: 48,
-    flexDirection: 'row',
+  headerTitle: { ...ts('titleM'), color: colors.text.title },
+  backBtn: { position: 'absolute', left: 14, height: 48, justifyContent: 'center' },
+  plusBtn: { position: 'absolute', right: 14, height: 48, justifyContent: 'center' },
+  plusIcon: {
+    width: 24,
+    height: 24,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusIconHorizontal: {
+    position: 'absolute',
+    width: 16,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: colors.icon.selected,
+  },
+  plusIconVertical: {
+    position: 'absolute',
+    width: 2,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: colors.icon.selected,
+  },
+  headerBottomEdit: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    marginTop: 4,
   },
-  headerLeft: { fontSize: 16, fontWeight: '700' },
-  headerRight: { fontSize: 16, fontWeight: '700', color: '#B04FFF' },
+  headerBottomIdle: {
+    alignItems: 'flex-end',
+    marginTop: 4,
+    paddingRight: 14,
+  },
+  headerActionText: { ...ts('label3'), fontSize: 13, color: colors.text.text1 },
+  headerRightIdle: { color: colors.text.text3 },
+  deleteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCard: {
+    width: 302,
+    height: 152,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#A4ADB2',
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 15,
+    elevation: 0,
+  },
+  deleteTitle: {
+    ...ts('label1'),
+    fontWeight: '700',
+    color: colors.text.text1,
+    textAlign: 'center',
+  },
+  deleteRow: {
+    width: 302,
+    paddingHorizontal: 32,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    columnGap: 16,
+  },
+  deleteActionBtn: {
+    width: 119,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCancelBtn: {
+    backgroundColor: colors.background.bg1,
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.brand.primary,
+  },
+  deleteCancelTxt: {
+    ...ts('label1'),
+    color: colors.text.text3,
+  },
+  deleteConfirmTxt: {
+    ...ts('label1'),
+    color: colors.text.text1w,
+  },
+  listContent: {
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 32,
+    rowGap: 12,
+  },
+  rowCard: {
+    width: 358,
+    minHeight: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+  },
+  rowCardSelected: {
+    backgroundColor: colors.background.bg2,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,44 +534,69 @@ const S = StyleSheet.create({
   timeRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 4,
+    marginBottom: 16,
   },
   timeAmPm: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#474A54',
+    ...ts('body1'),
+    color: colors.text.text2,
     marginRight: 6,
   },
   timeMain: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 30,
+    fontWeight: '700',
     color: colors.text.title,
   },
   stopsContainer: {
     flexDirection: 'column',
     marginBottom: 4,
   },
-  stopText: {
-    fontSize: 14,
-    fontWeight: '500',
+  stopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 2,
+    minWidth: 0,
+  },
+  stopText: {
+    ...ts('label3'),
+    fontSize: 13,
+    color: colors.brand.primary,
+    flexShrink: 1,
+  },
+  stopSeparator: {
+    ...ts('label4'),
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.text3,
+    marginHorizontal: 4,
+  },
+  routeText: {
+    ...ts('label3'),
+    fontSize: 13,
+    color: colors.text.text3,
+    flexShrink: 1,
   },
   stopTextPlaceholder: {
+    ...ts('label3'),
     fontSize: 13,
-    color: '#B3B3B3',
+    color: colors.brand.primary,
   },
   repeatText: {
-    fontSize: 13,
-    color: '#8E8E93',
+    ...ts('body2'),
+    color: colors.text.text1,
   },
-  rowDivider: {
-    height: 0.3,
-    backgroundColor: '#E3E5EA',
-    marginLeft: 16,
+  repeatChip: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+    borderRadius: 999,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
   },
   switchWrap: {
     marginLeft: 12,
-    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    paddingTop: 6,
+    justifyContent: 'flex-start',
     alignItems: 'center',
   },
 })
