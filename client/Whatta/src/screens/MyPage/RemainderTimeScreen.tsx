@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native'
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, Animated } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
 import { Swipeable } from 'react-native-gesture-handler'
@@ -157,6 +157,7 @@ export default function RemainderTimeScreen() {
   const [editMode, setEditMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
 
   const canBulkDelete = selected.size > 0
 
@@ -246,28 +247,14 @@ export default function RemainderTimeScreen() {
 
   // 단건 삭제
   const handleDeleteOne = (id: string) => {
-    setReminders((prev) => prev.filter((it) => it.id !== id))
-    setSelected((prev) => {
-      const s = new Set(prev)
-      s.delete(id)
-      return s
-    })
-    if (openId === id) setOpenId(null)
-    ;(async () => {
-      try {
-        await http.delete('/user/setting/reminder', {
-          data: [id],
-        })
-        bus.emit('reminder:mutated')
-      } catch (e) {
-        console.warn('reminder delete error', e)
-      }
-    })()
+    setPendingDeleteIds([id])
+    setDeleteConfirmOpen(true)
   }
 
   // 여러 개 선택 삭제
   const handleBulkDelete = () => {
     if (!canBulkDelete) return
+    setPendingDeleteIds(Array.from(selected))
     setDeleteConfirmOpen(true)
   }
 
@@ -282,9 +269,9 @@ export default function RemainderTimeScreen() {
       return
     }
 
-    // 2) 기본값 후보 찾기: day 0, hour 9부터 시작해서 겹치지 않는 시간 찾기
+    // 2) 기본값 후보 찾기: day 0, hour 1부터 시작해서 겹치지 않는 시간 찾기
     let day = 0
-    let hour = 9
+    let hour = 1
     let minute = 0
 
     // 최대 48번 정도만 돌면서 빈 슬롯 찾기 (무한루프 방지)
@@ -296,7 +283,7 @@ export default function RemainderTimeScreen() {
 
       // 시만 +1씩 올리다가 한 바퀴 돌면 day를 1로 바꿈(전날)
       hour = (hour + 1) % 24
-      if (hour === 9) {
+      if (hour === 1) {
         day = 1
       }
     }
@@ -324,7 +311,7 @@ export default function RemainderTimeScreen() {
   return (
     <SafeAreaView style={S.safe}>
       <View style={S.header}>
-        <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
+        <Pressable style={S.backBtn} onPress={() => nav.goBack()} hitSlop={16}>
           <Left width={24} height={24} color={colors.icon.default} />
         </Pressable>
 
@@ -376,11 +363,28 @@ export default function RemainderTimeScreen() {
             friction={2}
             rightThreshold={24}
             overshootRight={false}
-            renderRightActions={() => (
+            renderRightActions={(_, dragX) => (
               <View style={S.rightActions}>
-                <Pressable style={S.deleteBtn} onPress={() => handleDeleteOne(item.id)}>
-                  <Trash color="#fff" />
-                </Pressable>
+                <Animated.View
+                  style={[
+                    S.deleteBtnWrap,
+                    {
+                      transform: [
+                        {
+                          translateX: dragX.interpolate({
+                            inputRange: [-60, 0],
+                            outputRange: [0, 60],
+                            extrapolate: 'clamp',
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Pressable style={S.deleteBtn} onPress={() => handleDeleteOne(item.id)}>
+                    <Trash color="#fff" />
+                  </Pressable>
+                </Animated.View>
               </View>
             )}
           >
@@ -402,25 +406,40 @@ export default function RemainderTimeScreen() {
         <View style={S.deleteOverlay}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setDeleteConfirmOpen(false)}
+            onPress={() => {
+              setDeleteConfirmOpen(false)
+              setPendingDeleteIds([])
+            }}
           />
           <View style={S.deleteCard}>
-            <Text style={S.deleteTitle}>선택하신 리마인드 알림을 삭제할까요?</Text>
+            <Text style={S.deleteTitle}>
+              {pendingDeleteIds.length > 1
+                ? '선택하신 리마인드 알림을 삭제할까요?'
+                : '리마인드 알림을 삭제할까요?'}
+            </Text>
             <View style={S.deleteRow}>
               <Pressable
                 style={[S.deleteActionBtn, S.deleteCancelBtn]}
-                onPress={() => setDeleteConfirmOpen(false)}
+                onPress={() => {
+                  setDeleteConfirmOpen(false)
+                  setPendingDeleteIds([])
+                }}
               >
                 <Text style={S.deleteCancelTxt}>취소</Text>
               </Pressable>
               <Pressable
                 style={[S.deleteActionBtn, S.deleteConfirmBtn]}
                 onPress={async () => {
-                  const ids = Array.from(selected)
+                  const ids = pendingDeleteIds
                   setDeleteConfirmOpen(false)
-                  setReminders((prev) => prev.filter((it) => !selected.has(it.id)))
-                  setSelected(new Set())
-                  if (openId && selected.has(openId)) setOpenId(null)
+                  setPendingDeleteIds([])
+                  setReminders((prev) => prev.filter((it) => !ids.includes(it.id)))
+                  setSelected((prev) => {
+                    const next = new Set(prev)
+                    ids.forEach((id) => next.delete(id))
+                    return next
+                  })
+                  if (openId && ids.includes(openId)) setOpenId(null)
                   try {
                     await http.delete('/user/setting/reminder', {
                       data: ids,
@@ -573,6 +592,10 @@ const S = StyleSheet.create({
 
   // Swipe delete
   rightActions: { width: 60, justifyContent: 'center', alignItems: 'center' },
+  deleteBtnWrap: {
+    width: 60,
+    height: 60,
+  },
   deleteBtn: {
     width: 60,
     height: 60,

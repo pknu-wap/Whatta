@@ -55,7 +55,7 @@ export default function LabelsScreen() {
 
   return (
     <EditableListScreen
-      title="라벨관리"
+      title="라벨 관리"
       initialItems={items}
       inlineText
       addFooterText="라벨 추가"
@@ -63,7 +63,7 @@ export default function LabelsScreen() {
       onCreate={onCreate}
       onUpdate={onUpdate}
       onDelete={onDelete}
-      addPlacement="footer"
+      addPlacement="header"
     />
   )
 }
