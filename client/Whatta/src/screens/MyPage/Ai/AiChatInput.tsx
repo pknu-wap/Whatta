@@ -82,7 +82,7 @@ export default function AiChatInput({
   const barRadius = isSingleLine ? 50 : 20
   const hasInput = (displayPreview ? previewText : value).trim().length > 0 || !!imagePreviewUri
   const canSubmit = hasInput && !disabled
-  const attachmentMenuBottom = barHeight + (imagePreviewUri ? 96 : 24)
+  const attachmentMenuBottom = barHeight + 28
 
   return (
     <View style={S.wrap}>
@@ -104,7 +104,7 @@ export default function AiChatInput({
       ) : null}
 
       {imagePreviewUri ? (
-        <View style={[S.imagePreviewRow, { bottom: barHeight + 16 }]}>
+        <View style={[S.imagePreviewRow, { bottom: barHeight + 28 }]}>
           <View style={S.imagePreviewCard}>
             <Image source={{ uri: imagePreviewUri }} style={S.imagePreview} />
             <Pressable style={S.removeImageButton} onPress={onRemoveImage} hitSlop={8}>
