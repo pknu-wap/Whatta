@@ -86,6 +86,10 @@ export default function TrafficStopSearchModal({
   const [cityPickerOpen, setCityPickerOpen] = React.useState(false)
   const isBusNumberSearch = search.trim() === MOCK_BUS_NUMBER
   const isSubwaySearch = search.trim() === MOCK_SUBWAY_STATION
+  const normalizedCitySearch = search.trim()
+  const filteredCityOptions = normalizedCitySearch
+    ? CITY_OPTIONS.filter((city) => city.includes(normalizedCitySearch))
+    : CITY_OPTIONS
   const displayList = isBusNumberSearch
     ? [
         {
@@ -119,6 +123,12 @@ export default function TrafficStopSearchModal({
     setSelectedSubwayDirection(null)
   }, [search])
 
+  React.useEffect(() => {
+    if (cityPickerOpen) {
+      setSearch('')
+    }
+  }, [cityPickerOpen, setSearch])
+
   return (
     <Modal
       visible={visible}
@@ -126,17 +136,20 @@ export default function TrafficStopSearchModal({
       animationType="fade"
       presentationStyle="overFullScreen"
     >
-      {/* overlay: 바깥 클릭 시 닫힘 */}
-      <Pressable style={S.overlay} onPress={onClose}>
-        {/* 카드: 내부 클릭 시 닫힘 방지 */}
-        <View
-          style={S.card}
-          onStartShouldSetResponder={() => true}
-          onTouchStart={(e) => e.stopPropagation()}
-        >
+      <View style={S.overlay}>
+        <Pressable style={S.overlayTop} onPress={onClose} />
+        <View style={S.middleRow}>
+          <View style={S.sideSpacer} />
+          <View
+            style={S.card}
+            onStartShouldSetResponder={() => true}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
           <Pressable
             style={[S.cityChip, cityPickerOpen && S.cityChipActive]}
-            onPress={() => setCityPickerOpen((prev) => !prev)}
+            onPress={() => {
+              setCityPickerOpen((prev) => !prev)
+            }}
           >
             <Text style={[S.cityChipText, cityPickerOpen && S.cityChipTextActive]}>
               {selectedCity}
@@ -146,13 +159,13 @@ export default function TrafficStopSearchModal({
           {/* 검색바 */}
           <View style={S.searchRow}>
             <View style={S.searchBox}>
-              <TextInput style={S.input} value={search} onChangeText={setSearch} />
-
-              {!search && (
-                <Text style={S.placeholder} pointerEvents="none">
-                  {cityPickerOpen ? '지역 명을 입력하세요' : '정류장 및 노선을 입력하세요'}
-                </Text>
-              )}
+              <TextInput
+                style={S.input}
+                value={search}
+                onChangeText={setSearch}
+                placeholder={cityPickerOpen ? '지역 명을 입력하세요' : '정류장 및 노선을 입력하세요'}
+                placeholderTextColor={colors.text.text4}
+              />
 
               <SearchIcon width={24} height={24} />
             </View>
@@ -164,13 +177,15 @@ export default function TrafficStopSearchModal({
               contentContainerStyle={S.cityGrid}
               showsVerticalScrollIndicator={false}
             >
-              {CITY_OPTIONS.map((city) => {
+              {filteredCityOptions.map((city) => {
                 const selected = selectedCity === city
                 return (
                   <Pressable
                     key={city}
                     style={[S.cityOption, selected && S.cityOptionSelected]}
-                    onPress={() => setSelectedCity(city)}
+                    onPress={() => {
+                      setSelectedCity(city)
+                    }}
                   >
                     <Text style={[S.cityOptionText, selected && S.cityOptionTextSelected]}>
                       {city}
@@ -178,6 +193,11 @@ export default function TrafficStopSearchModal({
                   </Pressable>
                 )
               })}
+              {filteredCityOptions.length === 0 ? (
+                <View style={S.cityEmptyState}>
+                  <Text style={S.cityEmptyText}>검색 결과가 없습니다</Text>
+                </View>
+              ) : null}
             </ScrollView>
           ) : (
             <FlatList
@@ -421,8 +441,11 @@ export default function TrafficStopSearchModal({
               }
             />
           )}
+          </View>
+          <View style={S.sideSpacer} />
         </View>
-      </Pressable>
+        <Pressable style={S.overlayBottom} onPress={onClose} />
+      </View>
     </Modal>
   )
 }
@@ -431,8 +454,20 @@ const S = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(255,255,255,0.72)',
-    justifyContent: 'center',
+  },
+  overlayTop: {
+    flex: 1,
+  },
+  middleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sideSpacer: {
+    flex: 1,
+  },
+  overlayBottom: {
+    flex: 1,
   },
   card: {
     width: 350,
@@ -488,19 +523,12 @@ const S = StyleSheet.create({
     ...ts('label1'),
     fontSize: 18,
     color: '#333',
-    paddingTop: 6,
+    height: 50,
+    paddingTop: 0,
     paddingBottom: 0,
     paddingLeft: 10,
     paddingRight: 12,
-  },
-  placeholder: {
-    position: 'absolute',
-    ...ts('label1'),
-    fontSize: 18,
-    color: colors.text.text4,
-    left: 10,
-    top: '50%',
-    transform: [{ translateY: -4 }],
+    textAlignVertical: 'center',
   },
   item: {
     width: 302,
@@ -561,6 +589,17 @@ const S = StyleSheet.create({
     columnGap: 16,
     rowGap: 16,
     paddingBottom: 24,
+  },
+  cityEmptyState: {
+    width: '100%',
+    paddingTop: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cityEmptyText: {
+    ...ts('body1'),
+    color: colors.text.text4,
+    textAlign: 'center',
   },
   cityOption: {
     width: 90,
