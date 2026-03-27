@@ -14,6 +14,8 @@ public class  BusArrivalItem {
     private String nodenm;//정류소명 ex)북대전농협
     private String nodeid;//정류소ID
     private String nodeno;//정류소 번호
+    private String citycode;//시도코드
+    private String cityname;//시도명
     //정류장 검색 조회
     private String gpslati;//정류소 Y좌표
     private String gpslong;//정류소 X좌표

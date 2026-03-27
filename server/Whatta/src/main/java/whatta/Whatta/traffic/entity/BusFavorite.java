@@ -27,4 +27,6 @@ public class BusFavorite {
     private String busRouteId;
     @NotNull
     private String busRouteNo;
+    @NotNull
+    private String cityCode;
 }

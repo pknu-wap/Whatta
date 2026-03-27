@@ -6,6 +6,7 @@ import com.google.firebase.messaging.Notification;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import whatta.Whatta.notification.enums.NotificationSendResult;
 import whatta.Whatta.notification.entity.FcmToken;
 import whatta.Whatta.notification.repository.FcmTokenRepository;
 
@@ -19,24 +20,24 @@ public class NotificationSendService {
     private final FcmTokenRepository fcmTokenRepository;
     private final FirebaseMessaging firebaseMessaging;
 
-    public void sendSummary(String userId, String title, String body) {
+    public NotificationSendResult sendSummary(String userId, String title, String body) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
         if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
             log.warn("FCM token not found. userId={}", userId);
-            return;
+            return NotificationSendResult.TERMINAL_FAILURE;
         }
 
-        send(token.getFcmToken(), title, body, Map.of(
+        return send(token.getFcmToken(), title, body, Map.of(
                 "type", "SUMMARY",
                 "userId", userId)
         );
     }
 
-    public boolean sendReminder(String userId, String title, String body, String targetId) {
+    public NotificationSendResult sendReminder(String userId, String title, String body, String targetId) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
         if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
             log.warn("FCM token not found. userId={}", userId);
-            return false;
+            return NotificationSendResult.TERMINAL_FAILURE;
         }
 
         return send(token.getFcmToken(), title, body, Map.of(
@@ -46,11 +47,25 @@ public class NotificationSendService {
         ));
     }
 
-    public boolean sendTrafficAlarm(String userId, String title, String body) {
+    public NotificationSendResult sendTaskDue(String userId, String title, String body, String targetId) {
         FcmToken token = fcmTokenRepository.findByUserId(userId);
         if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
             log.warn("FCM token not found. userId={}", userId);
-            return false;
+            return NotificationSendResult.TERMINAL_FAILURE;
+        }
+
+        return send(token.getFcmToken(), title, body, Map.of(
+                "type", "TASK_DUE",
+                "userId", userId,
+                "targetId", targetId
+        ));
+    }
+
+    public NotificationSendResult sendTrafficAlarm(String userId, String title, String body) {
+        FcmToken token = fcmTokenRepository.findByUserId(userId);
+        if (token == null || token.getFcmToken() == null || token.getFcmToken().isBlank()) {
+            log.warn("FCM token not found. userId={}", userId);
+            return NotificationSendResult.TERMINAL_FAILURE;
         }
 
         return send(token.getFcmToken(), title, body, Map.of(
@@ -59,7 +74,7 @@ public class NotificationSendService {
         ));
     }
 
-    private boolean send(String token, String title, String body, Map<String, String> data) {
+    private NotificationSendResult send(String token, String title, String body, Map<String, String> data) {
         Notification notification = Notification.builder()
                 .setTitle(title)
                 .setBody(body)
@@ -77,10 +92,10 @@ public class NotificationSendService {
 
         try {
             firebaseMessaging.send(message);
-            return true;
+            return NotificationSendResult.SUCCESS;
         } catch (Exception e) {
             log.warn("FCM send failed", e);
-            return false;
+            return NotificationSendResult.RETRYABLE_FAILURE;
         }
     }
 }

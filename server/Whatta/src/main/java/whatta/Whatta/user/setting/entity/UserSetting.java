@@ -1,0 +1,54 @@
+package whatta.Whatta.user.setting.entity;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.mapping.Document;
+import whatta.Whatta.global.label.Label;
+import whatta.Whatta.traffic.TrafficConstants;
+import whatta.Whatta.user.setting.enums.DefaultMainView;
+import whatta.Whatta.user.setting.enums.StartOfWeek;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Document("user_settings")
+@CompoundIndex(name = "idx_summary_enabled_minute", def = "{'scheduleSummaryNoti.enabled': 1, 'scheduleSummaryNoti.minuteOfDay': 1}")
+@AllArgsConstructor
+@NoArgsConstructor
+@Getter
+@Builder(toBuilder = true)
+public class UserSetting {
+
+    @Id
+    private String id;
+
+    @NotNull
+    private String userId;
+
+    @Builder.Default
+    private StartOfWeek startOfWeek = StartOfWeek.SUNDAY;
+
+    @Builder.Default
+    private DefaultMainView defaultMainView = DefaultMainView.WEEKLY;
+
+    @Valid
+    @Builder.Default
+    private List<Label> labels = new ArrayList<>();
+
+    @Builder.Default
+    private List<ReminderNotiPreset> reminderNotiPresets = new ArrayList<>();
+
+    @Builder.Default
+    private ScheduleSummaryNoti scheduleSummaryNoti = ScheduleSummaryNoti.builder().build();
+
+    @NotNull
+    @Builder.Default
+    private String cityCode = TrafficConstants.DEFAULT_CITY_CODE;
+    //TODO: 알림 default 값은 알림 구현할 때 함께 구현하기
+}

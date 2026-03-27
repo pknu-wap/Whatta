@@ -8,11 +8,15 @@ import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import whatta.Whatta.calendar.repository.dto.CalendarAllDayTaskItem;
+import whatta.Whatta.calendar.repository.dto.CalendarTaskDueSummaryItem;
+import whatta.Whatta.calendar.repository.dto.CalendarTaskPlacedSummaryItem;
+import whatta.Whatta.calendar.repository.dto.CalendarTaskSummaryResult;
 import whatta.Whatta.calendar.repository.dto.CalendarMonthlyTaskResult;
 import whatta.Whatta.calendar.repository.dto.CalendarTasksResult;
 import whatta.Whatta.calendar.repository.dto.CalendarTimedTaskItem;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -69,6 +73,61 @@ public class CalendarTasksRepositoryCustom {
                 ? result : new CalendarTasksResult(
                         List.<CalendarAllDayTaskItem>of(),
                         List.<CalendarTimedTaskItem>of());
+    }
+
+    public CalendarTaskSummaryResult getTodaySummaryByUserId(String userId, LocalDate date) {
+
+        AggregationOperation commonMatch = Aggregation.match(
+                Criteria.where("userId").is(userId));
+
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime startOfTomorrow = date.plusDays(1).atStartOfDay();
+
+        List<AggregationOperation> placedOperations = new ArrayList<>();
+        placedOperations.add(Aggregation.match(
+                Criteria.where("placementDate").is(date)));
+        placedOperations.add(Aggregation.project()
+                .and("_id").as("id")
+                .and("title").as("title")
+                .and("completed").as("completed")
+                .and("placementTime").as("placementTime")
+                .and("dueDateTime").as("dueDateTime"));
+        placedOperations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("placementTime"),
+                Sort.Order.asc("title")
+        )));
+
+        List<AggregationOperation> dueOperations = new ArrayList<>();
+        dueOperations.add(Aggregation.match(
+                Criteria.where("dueDateTime").gte(startOfDay).lt(startOfTomorrow)));
+        dueOperations.add(Aggregation.project()
+                .and("_id").as("id")
+                .and("title").as("title")
+                .and("completed").as("completed")
+                .and("dueDateTime").as("dueDateTime"));
+        dueOperations.add(Aggregation.sort(Sort.by(
+                Sort.Order.asc("dueDateTime"),
+                Sort.Order.asc("title")
+        )));
+
+        Aggregation aggregation = Aggregation.newAggregation(
+                commonMatch,
+                Aggregation.facet(
+                        placedOperations.toArray(new AggregationOperation[0])).as("placedToday")
+                        .and(dueOperations.toArray(new AggregationOperation[0])).as("dueToday")
+        );
+
+        CalendarTaskSummaryResult result = mongoTemplate.aggregate(
+                        aggregation,
+                        "tasks",
+                        CalendarTaskSummaryResult.class)
+                .getUniqueMappedResult();
+
+        return (result != null)
+                ? result
+                : new CalendarTaskSummaryResult(
+                        List.<CalendarTaskPlacedSummaryItem>of(),
+                        List.<CalendarTaskDueSummaryItem>of());
     }
 
     public CalendarTasksResult getWeeklyViewByUserId(String userId, LocalDate start, LocalDate end) {

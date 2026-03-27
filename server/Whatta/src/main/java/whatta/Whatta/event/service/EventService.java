@@ -3,32 +3,42 @@ package whatta.Whatta.event.service;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import whatta.Whatta.calendar.repository.CalendarEventsRepositoryCustom;
+import whatta.Whatta.calendar.repository.dto.CalendarEventSummaryItem;
 import whatta.Whatta.event.entity.Event;
 import whatta.Whatta.event.enums.EventClearField;
 import whatta.Whatta.event.mapper.EventMapper;
 import whatta.Whatta.event.payload.request.EventCreateRequest;
 import whatta.Whatta.event.payload.request.EventUpdateRequest;
 import whatta.Whatta.event.payload.response.EventResponse;
+import whatta.Whatta.event.payload.response.TodayEventSummaryResponse;
 import whatta.Whatta.event.repository.EventRepository;
 import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.util.LabelUtil;
 import whatta.Whatta.global.util.LocalDateTimeUtil;
 import whatta.Whatta.notification.service.ReminderNotiService;
-import whatta.Whatta.user.entity.User;
-import whatta.Whatta.user.entity.UserSetting;
-import whatta.Whatta.user.repository.UserRepository;
-import whatta.Whatta.user.repository.UserSettingRepository;
+import whatta.Whatta.user.account.entity.User;
+import whatta.Whatta.user.setting.entity.UserSetting;
+import whatta.Whatta.user.account.repository.UserRepository;
+import whatta.Whatta.user.setting.repository.UserSettingRepository;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.List;
+
+import static whatta.Whatta.global.util.RepeatUtil.expandRepeatDates;
 
 @Service
 @AllArgsConstructor
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final CalendarEventsRepositoryCustom calendarEventsRepository;
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
     private final EventMapper eventMapper;
@@ -72,6 +82,20 @@ public class EventService {
                 .orElseThrow(() -> new RestApiException(ErrorCode.EVENT_NOT_FOUND));
 
         return eventMapper.toEventDetailsResponse(event);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TodayEventSummaryResponse> getTodaySummary(String userId) {
+        LocalDate today = LocalDate.now();
+
+        return calendarEventsRepository.getTodaySummaryByUserId(userId, today).stream()
+                .flatMap(item -> buildTodaySummaryEntries(item, today).stream())
+                .sorted(Comparator
+                        .comparing(SummaryItem::sortStartTime, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(SummaryItem::sortEndTime, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(SummaryItem::title, String.CASE_INSENSITIVE_ORDER))
+                .map(SummaryItem::response)
+                .toList();
     }
 
     @Transactional
@@ -157,5 +181,79 @@ public class EventService {
 
         scheduledNotiService.cancelReminderNotification(eventId);
         eventRepository.delete(event);
+    }
+
+    private List<SummaryItem> buildTodaySummaryEntries(CalendarEventSummaryItem item, LocalDate date) {
+        if (item.repeat() == null) {
+            if (date.isBefore(item.startDate()) || date.isAfter(item.endDate())) {
+                return List.of();
+            }
+            return List.of(buildSummaryItem(item, item.startDate(), item.endDate(), date));
+        }
+
+        long spanDays = java.time.temporal.ChronoUnit.DAYS.between(item.startDate(), item.endDate());
+        LocalTime rootTime = item.startTime() != null ? item.startTime() : LocalTime.NOON;
+        List<LocalDate> occurrenceDates = expandRepeatDates(
+                LocalDateTime.of(item.startDate(), rootTime),
+                item.repeat(),
+                date.minusDays(spanDays),
+                date
+        );
+
+        return occurrenceDates.stream()
+                .filter(occurrenceDate -> !date.isBefore(occurrenceDate)
+                        && !date.isAfter(occurrenceDate.plusDays(spanDays)))
+                .map(occurrenceDate -> buildSummaryItem(
+                        item,
+                        occurrenceDate,
+                        occurrenceDate.plusDays(spanDays),
+                        date))
+                .toList();
+    }
+
+    private SummaryItem buildSummaryItem(CalendarEventSummaryItem item,
+                                         LocalDate occurrenceStartDate,
+                                         LocalDate occurrenceEndDate,
+                                         LocalDate targetDate) {
+        LocalTime displayStartTime = resolveDisplayStartTime(item, occurrenceStartDate, targetDate);
+        LocalTime displayEndTime = resolveDisplayEndTime(item, occurrenceEndDate, targetDate);
+
+        return new SummaryItem(
+                displayStartTime,
+                displayEndTime,
+                item.title(),
+                TodayEventSummaryResponse.builder()
+                        .title(item.title())
+                        .content(item.content())
+                        .startTime(LocalDateTimeUtil.localTimeToString(displayStartTime))
+                        .endTime(LocalDateTimeUtil.localTimeToString(displayEndTime))
+                        .build()
+        );
+    }
+
+    private LocalTime resolveDisplayStartTime(CalendarEventSummaryItem item,
+                                              LocalDate occurrenceStartDate,
+                                              LocalDate targetDate) {
+        if (item.startTime() == null || item.endTime() == null) {
+            return null;
+        }
+        return targetDate.equals(occurrenceStartDate) ? item.startTime() : LocalTime.MIN;
+    }
+
+    private LocalTime resolveDisplayEndTime(CalendarEventSummaryItem item,
+                                            LocalDate occurrenceEndDate,
+                                            LocalDate targetDate) {
+        if (item.startTime() == null || item.endTime() == null) {
+            return null;
+        }
+        return targetDate.equals(occurrenceEndDate) ? item.endTime() : LocalTime.MAX;
+    }
+
+    private record SummaryItem(
+            LocalTime sortStartTime,
+            LocalTime sortEndTime,
+            String title,
+            TodayEventSummaryResponse response
+    ) {
     }
 }

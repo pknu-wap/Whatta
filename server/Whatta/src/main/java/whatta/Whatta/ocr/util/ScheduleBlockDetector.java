@@ -15,6 +15,13 @@ import whatta.Whatta.ocr.payload.dto.DetectedBlock;
 @Component
 public class ScheduleBlockDetector {
 
+    private static final double COLOR_VIVIDNESS_S_GAMMA = 0.55; //선명도 보정을 위한 감마(1보다 작을수록 끌어올림)
+    private static final double COLOR_VIVIDNESS_V_GAMMA = 0.92;
+    private static final double LIGHT_MODE_V_THRESHOLD_SCALE = 0.7;
+    private static final double DARK_MODE_V_THRESHOLD_SCALE = 0.3; //다크모드일 때 라이트모드보다 임계점을 더 낮춤
+    private static final int LIGHT_MODE_V_THRESHOLD_MIN = 80;
+    private static final int DARK_MODE_V_THRESHOLD_MIN = 40;
+
     public DetectedBlock findTimeBox (String imageData) {
         //TODO: imageData 검증 필요
         Mat bgrImage = ImageIOUtil.fromBase64(imageData);
@@ -31,13 +38,16 @@ public class ScheduleBlockDetector {
         Scalar gMean = mean(gray);
         boolean darkMode = gMean.get(0) < 70; //평균 밝기가 낮으면 다크모드로 간주
 
+        //색 선명도 높임
+        Mat vividBgr = new Mat();
+        applyColorVividnessApproximation(bgrImage, vividBgr);
+
         //다크모드라면 전체 이미지를 반전해서, 흰 배경 기준으로 처리
         Mat workBgr = new Mat();
         if (darkMode) {
-            bitwise_not(bgrImage, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
-            //System.out.println("darkMode");
+            bitwise_not(vividBgr, workBgr); //검은 배경 → 흰 배경, 밝은 글자 → 어두운 글자
         } else {
-            workBgr = bgrImage.clone();
+            workBgr = vividBgr.clone();
         }
         gray.release();
 
@@ -60,8 +70,12 @@ public class ScheduleBlockDetector {
 
         //V채널 하한
         Mat vMask = new Mat();
-        double vOtsu = threshold(V, new Mat(), 0, 255, THRESH_BINARY | THRESH_OTSU);
-        threshold(V, vMask, Math.max(80, vOtsu * 0.7), 255, THRESH_BINARY);
+        Mat vOtsuProbe = new Mat();
+        double vOtsu = threshold(V, vOtsuProbe, 0, 255, THRESH_BINARY | THRESH_OTSU);
+        double vThreshold = darkMode
+                ? Math.max(DARK_MODE_V_THRESHOLD_MIN, vOtsu * DARK_MODE_V_THRESHOLD_SCALE)
+                : Math.max(LIGHT_MODE_V_THRESHOLD_MIN, vOtsu * LIGHT_MODE_V_THRESHOLD_SCALE);
+        threshold(V, vMask, vThreshold, 255, THRESH_BINARY);
 
         //최종 마스크 S + V
         Mat mask = new Mat();
@@ -76,10 +90,51 @@ public class ScheduleBlockDetector {
         //리소스 해제
         smooth.release(); hsv.release();
         S.release(); V.release();
-        sMask.release(); vMask.release(); mask.release();
+        sMask.release(); vMask.release(); vOtsuProbe.release(); mask.release();
+        vividBgr.release();
         workBgr.release();
 
         return ScheduleBlockMapper.toDetectedBlock(bgrImage.size(), blocks);
+    }
+
+    private void applyColorVividnessApproximation(Mat sourceBgr, Mat destinationBgr) {
+        Mat hsv = new Mat();
+        cvtColor(sourceBgr, hsv, COLOR_BGR2HSV);
+
+        MatVector hsvSplit = new MatVector();
+        split(hsv, hsvSplit);
+        Mat vividS = new Mat();
+        Mat vividV = new Mat();
+        Mat sTable = buildGammaTable(COLOR_VIVIDNESS_S_GAMMA);
+        Mat vTable = buildGammaTable(COLOR_VIVIDNESS_V_GAMMA);
+        LUT(hsvSplit.get(1), sTable, vividS);
+        LUT(hsvSplit.get(2), vTable, vividV);
+        vividS.copyTo(hsvSplit.get(1));
+        vividV.copyTo(hsvSplit.get(2));
+        merge(hsvSplit, hsv);
+        cvtColor(hsv, destinationBgr, COLOR_HSV2BGR);
+
+        hsvSplit.get(0).release();
+        hsvSplit.get(1).release();
+        hsvSplit.get(2).release();
+        hsvSplit.close();
+        vividS.release();
+        vividV.release();
+        sTable.release();
+        vTable.release();
+        hsv.release();
+    }
+
+    //감마 값 변환 테이블(약한 채도 값을 더 큰 값으로 올려줌)
+    private Mat buildGammaTable(double gamma) {
+        Mat lut = new Mat(1, 256, CV_8U);
+        byte[] values = new byte[256];
+        for (int i = 0; i < 256; i++) {
+            int adjusted = (int) Math.round(255.0 * Math.pow(i / 255.0, gamma));
+            values[i] = (byte) Math.max(0, Math.min(255, adjusted));
+        }
+        lut.data().put(values);
+        return lut;
     }
 
     private void morphologyRefine(Mat mask) {

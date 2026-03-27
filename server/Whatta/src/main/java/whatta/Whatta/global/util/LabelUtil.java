@@ -4,7 +4,7 @@ import whatta.Whatta.global.exception.ErrorCode;
 import whatta.Whatta.global.exception.RestApiException;
 import whatta.Whatta.global.label.Label;
 import whatta.Whatta.global.label.payload.LabelItem;
-import whatta.Whatta.user.entity.UserSetting;
+import whatta.Whatta.user.setting.entity.UserSetting;
 
 import java.util.ArrayList;
 import java.util.List;
