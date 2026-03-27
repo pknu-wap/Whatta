@@ -242,7 +242,7 @@ const S = StyleSheet.create({
     opacity: 1,
   },
   scrollContent: {
-    paddingTop: 20,
+    paddingTop: 8,
     paddingBottom: 40,
     alignItems: 'center',
   },
@@ -260,6 +260,8 @@ const S = StyleSheet.create({
   },
   menuCardText: {
     ...ts('label2'),
+    fontSize: 16,
+    lineHeight: 20,
     color: colors.text.text1,
   },
   menuCardSpacing: {
