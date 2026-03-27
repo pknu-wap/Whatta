@@ -7,6 +7,7 @@ import {
   Alert,
   Modal,
   Dimensions,
+  LayoutChangeEvent,
 } from 'react-native'
 
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -23,6 +24,7 @@ import { bus } from '@/lib/eventBus'
 import { http } from '@/lib/http'
 import { fetchTasksForMonth, getEvent } from '@/api/event_api'
 import { useIsFocused } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import MonthDetailPopup from '@/screens/More/MonthDetailPopup'
 import EventDetailPopup from '@/screens/More/EventDetailPopup'
 import type { EventItem } from '@/api/event_api'
@@ -50,6 +52,7 @@ import { cellWidth } from './S'
 import { normalizeScheduleColorKey, resolveScheduleColor } from '@/styles/scheduleColorSets'
 import { getTask } from '@/api/task'
 import { invalidateDayCache } from '@/screens/Calender/Day/eventUtils'
+import { CUSTOM_TAB_BAR_HEIGHT } from '@/navigation/tabBarLayout'
 
 
 
@@ -64,8 +67,10 @@ const MONTH_CARD_WIDTH = Math.min(56, Math.max(0, MONTH_ITEM_WIDTH - 2))
 const MONTH_ITEM_HEIGHT = 24
 const MONTH_ITEM_GAP = 2
 const MONTH_ITEM_SLOT_HEIGHT = MONTH_ITEM_HEIGHT + MONTH_ITEM_GAP
-const MONTH_WEEK_MIN_HEIGHT = 120
 const MONTH_DATE_HEADER_HEIGHT = 32
+const MONTH_WEEK_MIN_HEIGHT = MONTH_DATE_HEADER_HEIGHT + MONTH_ITEM_SLOT_HEIGHT + 8
+const FLOATING_BUTTON_SIZE = 66
+const MONTH_GRID_FAB_TOP_GAP = 3
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window')
 const monthDataCache = new Map<string, MonthCacheSnapshot>()
 
@@ -142,6 +147,7 @@ type MonthViewProps = {
 
 export default function MonthView({ active = true, initialDateISO }: MonthViewProps) {
   const isScreenFocused = useIsFocused()
+  const insets = useSafeAreaInsets()
   const [imagePopupVisible, setImagePopupVisible] = useState(false)
   const [, setColorSetVersion] = useState(0)
 
@@ -317,8 +323,6 @@ const {
   setOcrModalVisible,
   sendToOCR,
 } = useOCR()
-
-  const laneMapRef = useRef<Map<string, number>>(new Map())
 
   const pad = (n: number) => String(n).padStart(2, '0')
   const toYM = (src: string | Date): string => {
@@ -622,6 +626,8 @@ const {
   const [days, setDays] = useState<MonthlyDay[]>(() => initialCache?.days ?? [])
   const [loading, setLoading] = useState(!initialCache)
   const [hasHydratedMonth, setHasHydratedMonth] = useState(!!initialCache)
+  const [contentViewportHeight, setContentViewportHeight] = useState(0)
+  const [dayHeaderHeight, setDayHeaderHeight] = useState(0)
 
   type ExtendedScheduleData = ScheduleData & {
     memo?: string
@@ -838,10 +844,6 @@ const {
     () => initialCache?.schedules ?? [],
   )
 
-  useEffect(() => {
-    laneMapRef.current = buildLaneMapWithHolidayReserves(ym, serverSchedules.filter(isSpan))
-  }, [serverSchedules])
-
   type MonthlyPayload = {
     days: MonthlyDay[]
     spanEvents: {
@@ -973,9 +975,6 @@ const {
 
        const merged = dedupeSchedules(mergedRaw)
 
-       laneMapRef.current = buildLaneMapWithHolidayReserves(ym, merged.filter(isSpan))
-        
-
         if (!alive) return
         monthDataCache.set(ym, {
           days: fresh.days,
@@ -1015,6 +1014,11 @@ const {
     })
   }, [filterLabels, serverSchedules])
 
+  const laneMap = useMemo(
+    () => buildLaneMapWithHolidayReserves(ym, filteredSchedules.filter(isSpan)),
+    [ym, filteredSchedules],
+  )
+
   useEffect(() => {
     const monthSpanDebug = filteredSchedules
       .filter((s) => s.multiDayStart && s.multiDayEnd)
@@ -1023,10 +1027,10 @@ const {
         name: s.name,
         start: s.multiDayStart,
         end: s.multiDayEnd,
-        lane: laneMapRef.current.get(String(s.id)) ?? null,
+        lane: laneMap.get(String(s.id)) ?? null,
       }))
     console.warn('[MonthView][span-debug]', { ym, spans: monthSpanDebug })
-  }, [ym, filteredSchedules])
+  }, [ym, filteredSchedules, laneMap])
 
   const calendarDates = useMemo(
     () =>
@@ -1035,9 +1039,9 @@ const {
         monthIndex,
         new Date(focusedDateISO),
         filteredSchedules,
-        laneMapRef.current,
+        laneMap,
       ),
-    [year, monthIndex, focusedDateISO, filteredSchedules],
+    [year, monthIndex, focusedDateISO, filteredSchedules, laneMap],
   )
 
   // Memo로 캐싱
@@ -1077,6 +1081,26 @@ const holidayIsoByWeek = useMemo(() => {
   })
 }, [weeks])
 
+  const floatingBottomOffset = useMemo(
+    () => Math.max(CUSTOM_TAB_BAR_HEIGHT + insets.bottom - 18, 0),
+    [insets.bottom],
+  )
+
+  const monthGridMinHeight = useMemo(() => {
+    if (contentViewportHeight <= 0) return 0
+    const minHeight =
+      contentViewportHeight -
+      dayHeaderHeight -
+      (floatingBottomOffset + FLOATING_BUTTON_SIZE + MONTH_GRID_FAB_TOP_GAP)
+
+    return Math.max(0, minHeight)
+  }, [contentViewportHeight, dayHeaderHeight, floatingBottomOffset])
+
+  const weekDistributedMinHeight = useMemo(() => {
+    if (weeks.length === 0 || monthGridMinHeight <= 0) return MONTH_WEEK_MIN_HEIGHT
+    return Math.max(MONTH_WEEK_MIN_HEIGHT, Math.floor(monthGridMinHeight / weeks.length))
+  }, [weeks.length, monthGridMinHeight])
+
   const weekRowHeights = useMemo(() => {
     return weeks.map((week, weekIndex) => {
       let maxContentRows = 0
@@ -1102,14 +1126,24 @@ const holidayIsoByWeek = useMemo(() => {
       })
 
       return Math.max(
-        MONTH_WEEK_MIN_HEIGHT,
+        weekDistributedMinHeight,
         maxContentRows + 8,
       )
     })
-  }, [weeks, displayItemsByWeek, holidayIsoByWeek])
+  }, [weeks, displayItemsByWeek, holidayIsoByWeek, weekDistributedMinHeight])
+
+  const handleContentWrapperLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.round(event.nativeEvent.layout.height)
+    setContentViewportHeight((prev) => (prev === nextHeight ? prev : nextHeight))
+  }, [])
+
+  const handleDayHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.round(event.nativeEvent.layout.height)
+    setDayHeaderHeight((prev) => (prev === nextHeight ? prev : nextHeight))
+  }, [])
 
   const renderDayHeader = () => (
-  <View style={S.dayHeader}>
+  <View style={S.dayHeader} onLayout={handleDayHeaderLayout}>
     {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
       <View key={`dow-${index}`} style={S.dayCellFixed}>
         <Text
@@ -1587,7 +1621,7 @@ const handleOcrAddEvent = useCallback(
     >
       <GestureDetector gesture={swipeGesture}>
         <Animated.View collapsable={false} style={[{ flex: 1 }, swipeStyle]}>
-          <View style={S.contentContainerWrapper}>
+          <View style={S.contentContainerWrapper} onLayout={handleContentWrapperLayout}>
             {/* 요일 헤더 */}
             {renderDayHeader()}
 
@@ -1599,6 +1633,7 @@ const handleOcrAddEvent = useCallback(
               <View
                 style={[
                   S.calendarGrid,
+                  monthGridMinHeight > 0 ? { minHeight: monthGridMinHeight } : null,
                   shouldHideMonthGrid ? S.calendarGridHidden : null,
                 ]}
                 pointerEvents={shouldHideMonthGrid ? 'none' : 'auto'}
