@@ -31,7 +31,7 @@ function MenuCard({
   style?: ViewStyle
 }) {
   return (
-    <Pressable style={[S.menuCard, style]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [S.menuCard, pressed && S.menuCardPressed, style]} onPress={onPress}>
       <Text style={S.menuCardText}>{label}</Text>
     </Pressable>
   )
@@ -263,6 +263,9 @@ const S = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
     color: colors.text.text1,
+  },
+  menuCardPressed: {
+    backgroundColor: colors.background.bg2,
   },
   menuCardSpacing: {
     marginTop: 8,
