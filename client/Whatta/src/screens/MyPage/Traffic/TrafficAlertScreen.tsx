@@ -514,7 +514,7 @@ const S = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.background.bg1,
     borderWidth: 1,
-    borderColor: colors.divider.divider1,
+    borderColor: colors.divider.divider2,
   },
   rowCardSelected: {
     backgroundColor: colors.background.bg2,
