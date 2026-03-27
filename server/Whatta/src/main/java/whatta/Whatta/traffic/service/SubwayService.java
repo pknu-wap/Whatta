@@ -65,6 +65,9 @@ public class SubwayService {
     }
 
     private SubwayStationResponse parseToStationResponse(SubwayApiItem item) {
+        if(item == null){
+            return null;
+        }
         if (item.getSubwayStationId() == null || item.getSubwayStationName() == null) {
             return null;
         }
@@ -77,6 +80,10 @@ public class SubwayService {
     }
 
     private SubwayScheduleCandidate parseToScheduleCandidate(SubwayApiItem item) {
+        if(item == null){
+            return null;
+        }
+
         ParsedScheduleTime arrivalTime = parseScheduleTime(item.getArrTime());
         ParsedScheduleTime departureTime = parseScheduleTime(item.getDepTime());
         ParsedScheduleTime primaryScheduleTime = resolvePrimaryScheduleTime(arrivalTime, departureTime);
