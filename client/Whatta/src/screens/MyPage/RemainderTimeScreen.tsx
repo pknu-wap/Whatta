@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native'
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, Animated } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
 import { Swipeable } from 'react-native-gesture-handler'
@@ -8,11 +8,11 @@ import Pencil from '@/assets/icons/pencil.svg'
 import Trash from '@/assets/icons/trash.svg'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
-import Plus from '@/assets/icons/plusbtn.svg'
 import { Picker } from '@react-native-picker/picker'
 import { http } from '@/lib/http'
 import Left from '@/assets/icons/left.svg'
 import { bus } from '@/lib/eventBus'
+import { ts } from '@/styles/typography'
 
 type ReminderItem = {
   id: string
@@ -75,29 +75,30 @@ function ReminderRow({
 
   return (
     <View>
-      {/* HEADER */}
-      <View style={S.rowHeader}>
+      <Pressable
+        style={[S.rowHeader, editMode && selected && S.rowHeaderSelected]}
+        onPress={editMode ? onToggleSelect : onToggleOpen}
+        hitSlop={8}
+      >
         {editMode ? (
           <Pressable onPress={onToggleSelect} style={S.checkboxWrap}>
             {selected ? <CheckOn /> : <CheckOff />}
           </Pressable>
         ) : null}
 
-        <Pressable
-          style={S.rowTitleArea}
-          onPress={editMode ? onToggleSelect : onToggleOpen}
-        >
+        <View style={S.rowTitleArea}>
           <Text style={S.rowTitleText}>{formatLabel(item)}</Text>
-        </Pressable>
+        </View>
 
-        {!editMode ? (
-          <Pressable style={S.rowRightIcon} onPress={onToggleOpen}>
-            <Pencil width={24} height={24} color="#333" />
-          </Pressable>
-        ) : (
-          <View style={S.rowRightIcon} />
-        )}
-      </View>
+        <Pressable
+          style={[S.rowRightIcon, editMode && S.rowRightIconDisabled]}
+          onPress={onToggleOpen}
+          disabled={editMode}
+          hitSlop={8}
+        >
+          <Pencil width={24} height={24} color={editMode ? colors.text.text4 : '#333'} />
+        </Pressable>
+      </Pressable>
 
       {/* DROPDOWN */}
       {isOpen && (
@@ -155,6 +156,8 @@ export default function RemainderTimeScreen() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
 
   const canBulkDelete = selected.size > 0
 
@@ -244,52 +247,15 @@ export default function RemainderTimeScreen() {
 
   // 단건 삭제
   const handleDeleteOne = (id: string) => {
-    setReminders((prev) => prev.filter((it) => it.id !== id))
-    setSelected((prev) => {
-      const s = new Set(prev)
-      s.delete(id)
-      return s
-    })
-    if (openId === id) setOpenId(null)
-    ;(async () => {
-      try {
-        await http.delete('/user/setting/reminder', {
-          data: [id],
-        })
-        bus.emit('reminder:mutated')
-      } catch (e) {
-        console.warn('reminder delete error', e)
-      }
-    })()
+    setPendingDeleteIds([id])
+    setDeleteConfirmOpen(true)
   }
 
   // 여러 개 선택 삭제
   const handleBulkDelete = () => {
     if (!canBulkDelete) return
-    const ids = Array.from(selected)
-
-    Alert.alert('삭제', '선택한 알림을 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () => {
-          setReminders((prev) => prev.filter((it) => !selected.has(it.id)))
-          setSelected(new Set())
-          if (openId && selected.has(openId)) setOpenId(null)
-          ;(async () => {
-            try {
-              await http.delete('/user/setting/reminder', {
-                data: ids,
-              })
-              bus.emit('reminder:mutated')
-            } catch (e) {
-              console.warn('reminder bulk delete error', e)
-            }
-          })()
-        },
-      },
-    ])
+    setPendingDeleteIds(Array.from(selected))
+    setDeleteConfirmOpen(true)
   }
 
   // 플러스: 기본값 하나 생성 후 서버 POST
@@ -303,9 +269,9 @@ export default function RemainderTimeScreen() {
       return
     }
 
-    // 2) 기본값 후보 찾기: day 0, hour 9부터 시작해서 겹치지 않는 시간 찾기
+    // 2) 기본값 후보 찾기: day 0, hour 1부터 시작해서 겹치지 않는 시간 찾기
     let day = 0
-    let hour = 9
+    let hour = 1
     let minute = 0
 
     // 최대 48번 정도만 돌면서 빈 슬롯 찾기 (무한루프 방지)
@@ -317,7 +283,7 @@ export default function RemainderTimeScreen() {
 
       // 시만 +1씩 올리다가 한 바퀴 돌면 day를 1로 바꿈(전날)
       hour = (hour + 1) % 24
-      if (hour === 9) {
+      if (hour === 1) {
         day = 1
       }
     }
@@ -344,63 +310,81 @@ export default function RemainderTimeScreen() {
 
   return (
     <SafeAreaView style={S.safe}>
-      {/* 상단 헤더 */}
       <View style={S.header}>
-        <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
-          <Left width={30} height={30} color="#B4B4B4" />
+        <Pressable style={S.backBtn} onPress={() => nav.goBack()} hitSlop={16}>
+          <Left width={24} height={24} color={colors.icon.default} />
         </Pressable>
 
-        <Text style={S.headerTitle}>리마인드 알림 시간</Text>
+        <Text style={S.headerTitle}>리마인드 알림 시간 수정</Text>
 
         <Pressable style={S.plusBtn} onPress={handleAdd}>
-          <Plus width={22} height={22} color="#B04FFF" />
+          <View style={S.plusIcon}>
+            <View style={S.plusIconHorizontal} />
+            <View style={S.plusIconVertical} />
+          </View>
         </Pressable>
       </View>
 
-      {/* 편집/삭제 헤더 */}
       {editMode ? (
-        <View style={S.headerBottom}>
-          <Pressable onPress={handleBulkDelete}>
+        <View style={S.headerBottomEdit}>
+          <Pressable onPress={handleBulkDelete} hitSlop={16}>
             <Text
-              style={[S.headerLeft, { color: canBulkDelete ? '#B04FFF' : '#C0C2C7' }]}
+              style={[
+                S.headerActionText,
+                { color: canBulkDelete ? colors.brand.primary : colors.text.text3 },
+              ]}
             >
               삭제
             </Text>
           </Pressable>
           <Pressable
+            hitSlop={16}
             onPress={() => {
               setEditMode(false)
               setSelected(new Set())
             }}
           >
-            <Text style={S.headerRight}>완료</Text>
+            <Text style={S.headerActionText}>완료</Text>
           </Pressable>
         </View>
       ) : (
-        <View style={S.headerBottom}>
-          <View style={{ flex: 1 }} />
-          <Pressable onPress={() => setEditMode(true)}>
-            <Text style={S.headerRight}>편집</Text>
+        <View style={S.headerBottomIdle}>
+          <Pressable onPress={() => setEditMode(true)} hitSlop={16}>
+            <Text style={[S.headerActionText, S.headerRightIdle]}>편집</Text>
           </Pressable>
         </View>
       )}
 
-      {/* 리스트 */}
       <FlatList
         data={reminders}
         keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => <View style={S.separator} />}
-        ListFooterComponent={<View style={S.separator} />}
         renderItem={({ item }) => (
           <Swipeable
             friction={2}
             rightThreshold={24}
             overshootRight={false}
-            renderRightActions={() => (
+            renderRightActions={(_, dragX) => (
               <View style={S.rightActions}>
-                <Pressable style={S.deleteBtn} onPress={() => handleDeleteOne(item.id)}>
-                  <Trash color="#fff" />
-                </Pressable>
+                <Animated.View
+                  style={[
+                    S.deleteBtnWrap,
+                    {
+                      transform: [
+                        {
+                          translateX: dragX.interpolate({
+                            inputRange: [-60, 0],
+                            outputRange: [0, 60],
+                            extrapolate: 'clamp',
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Pressable style={S.deleteBtn} onPress={() => handleDeleteOne(item.id)}>
+                    <Trash color="#fff" />
+                  </Pressable>
+                </Animated.View>
               </View>
             )}
           >
@@ -415,39 +399,176 @@ export default function RemainderTimeScreen() {
             />
           </Swipeable>
         )}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={S.listContent}
       />
+
+      {deleteConfirmOpen && (
+        <View style={S.deleteOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setDeleteConfirmOpen(false)
+              setPendingDeleteIds([])
+            }}
+          />
+          <View style={S.deleteCard}>
+            <Text style={S.deleteTitle}>
+              {pendingDeleteIds.length > 1
+                ? '선택하신 리마인드 알림을 삭제할까요?'
+                : '리마인드 알림을 삭제할까요?'}
+            </Text>
+            <View style={S.deleteRow}>
+              <Pressable
+                style={[S.deleteActionBtn, S.deleteCancelBtn]}
+                onPress={() => {
+                  setDeleteConfirmOpen(false)
+                  setPendingDeleteIds([])
+                }}
+              >
+                <Text style={S.deleteCancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[S.deleteActionBtn, S.deleteConfirmBtn]}
+                onPress={async () => {
+                  const ids = pendingDeleteIds
+                  setDeleteConfirmOpen(false)
+                  setPendingDeleteIds([])
+                  setReminders((prev) => prev.filter((it) => !ids.includes(it.id)))
+                  setSelected((prev) => {
+                    const next = new Set(prev)
+                    ids.forEach((id) => next.delete(id))
+                    return next
+                  })
+                  if (openId && ids.includes(openId)) setOpenId(null)
+                  try {
+                    await http.delete('/user/setting/reminder', {
+                      data: ids,
+                    })
+                    bus.emit('reminder:mutated')
+                  } catch (e) {
+                    console.warn('reminder bulk delete error', e)
+                    Alert.alert('오류', '리마인드 알림 삭제에 실패했습니다.')
+                  }
+                }}
+              >
+                <Text style={S.deleteConfirmTxt}>삭제</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   )
 }
 
 const S = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.neutral.surface },
+  safe: { flex: 1, backgroundColor: colors.background.bg1 },
 
   header: {
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#B3B3B3',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text.title },
-  backBtn: { position: 'absolute', left: 16, height: 48, justifyContent: 'center' },
-  plusBtn: { position: 'absolute', right: 16, height: 48, justifyContent: 'center' },
-
-  headerBottom: {
-    height: 48,
-    flexDirection: 'row',
+  headerTitle: { ...ts('titleM'), color: colors.text.text1 },
+  backBtn: { position: 'absolute', left: 14, height: 48, justifyContent: 'center' },
+  plusBtn: { position: 'absolute', right: 14, height: 48, justifyContent: 'center' },
+  plusIcon: {
+    width: 24,
+    height: 24,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusIconHorizontal: {
+    position: 'absolute',
+    width: 16,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: colors.icon.selected,
+  },
+  plusIconVertical: {
+    position: 'absolute',
+    width: 2,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: colors.icon.selected,
+  },
+
+  headerBottomEdit: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 12,
   },
-  headerLeft: { fontSize: 16, fontWeight: '700' },
-  headerRight: { fontSize: 16, fontWeight: '700', color: '#B04FFF' },
-
-  separator: {
-    height: 0.5,
-    backgroundColor: '#E3E5EA',
+  headerBottomIdle: {
+    alignItems: 'flex-end',
+    marginTop: 12,
+    marginBottom: 12,
+    paddingRight: 14,
+  },
+  headerActionText: { ...ts('label3'), fontSize: 15, color: colors.text.text1 },
+  headerRightIdle: { color: colors.text.text3 },
+  deleteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCard: {
+    width: 302,
+    height: 152,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#A4ADB2',
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 15,
+    elevation: 0,
+  },
+  deleteTitle: {
+    ...ts('label1'),
+    fontWeight: '700',
+    color: colors.text.text1,
+    textAlign: 'center',
+  },
+  deleteRow: {
+    width: 302,
+    paddingHorizontal: 32,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    columnGap: 16,
+  },
+  deleteActionBtn: {
+    width: 119,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCancelBtn: {
+    backgroundColor: colors.background.bg1,
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.brand.primary,
+  },
+  deleteCancelTxt: {
+    ...ts('label1'),
+    color: colors.text.text3,
+  },
+  deleteConfirmTxt: {
+    ...ts('label1'),
+    color: colors.text.text1w,
+  },
+  listContent: {
+    paddingBottom: 32,
   },
 
   // Row
@@ -456,17 +577,28 @@ const S = StyleSheet.create({
     alignItems: 'center',
     paddingLeft: 16,
     paddingRight: 12,
-    minHeight: 48,
+    minHeight: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider.divider2,
+  },
+  rowHeaderSelected: {
+    backgroundColor: colors.background.bg2,
   },
   checkboxWrap: { marginRight: 12 },
   rowTitleArea: { flex: 1, justifyContent: 'center' },
-  rowTitleText: { fontSize: 18, fontWeight: '600', color: colors.text.title },
+  rowTitleText: { ...ts('label2'), color: colors.text.text1 },
   rowRightIcon: { width: 24, alignItems: 'flex-end' },
+  rowRightIconDisabled: { opacity: 1 },
 
   // Swipe delete
-  rightActions: { width: 72, height: '100%', justifyContent: 'center' },
+  rightActions: { width: 60, justifyContent: 'center', alignItems: 'center' },
+  deleteBtnWrap: {
+    width: 60,
+    height: 60,
+  },
   deleteBtn: {
-    flex: 1,
+    width: 60,
+    height: 60,
     backgroundColor: '#FF3B30',
     justifyContent: 'center',
     alignItems: 'center',
@@ -476,7 +608,7 @@ const S = StyleSheet.create({
   accordion: {
     paddingHorizontal: 16,
     paddingBottom: 16,
-    backgroundColor: colors.neutral.surface,
+    backgroundColor: colors.background.bg1,
   },
   optionLabel: {
     marginTop: 8,
