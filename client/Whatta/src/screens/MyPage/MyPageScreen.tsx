@@ -1,13 +1,13 @@
 import React, { useLayoutEffect, useMemo, useState } from 'react'
-import { View, Text, SectionList, StyleSheet, Pressable } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Pressable, type ViewStyle } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import Constants from 'expo-constants'
 import type { MyPageStackList } from '@/navigation/MyPageStack'
-import { MY_SECTIONS, type MyItem, type MySection } from '@/screens/MyPage/contants'
 import colors from '@/styles/colors'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { bus } from '@/lib/eventBus'
 import LeftIcon from '@/assets/icons/left.svg'
+import RightIcon from '@/assets/icons/right.svg'
 import AddImageSheet from '@/screens/More/AddImageSheet'
 import OCREventCardSlider from '@/screens/More/OcrEventCardSlider'
 import { useOCR } from '@/hooks/useOCR'
@@ -17,51 +17,22 @@ import {
   SCHEDULE_COLOR_SET_IDS,
   setActiveScheduleColorSetId,
 } from '@/styles/scheduleColorSets'
+import { ts } from '@/styles/typography'
 
 type Props = NativeStackScreenProps<MyPageStackList, 'MyPageList'>
 
-function SectionCard({
-  title,
-  actions,
-  onPress,
-}: {
-  title?: string
-  actions: { label: string; route: keyof MyPageStackList }[]
-  onPress: (route: keyof MyPageStackList) => void
-}) {
-  return (
-    <View style={S.card}>
-      {/* 타이틀 */}
-      {title ? <Text style={S.cardTitle}>{title}</Text> : null}
-
-      {/* 하단 선 */}
-      <View style={S.cardDivider} />
-
-      {/* 버튼 2개 자리 */}
-      <View style={S.cardBody}>
-        {actions.slice(0, 2).map((a, idx) => (
-          <Pressable key={idx} style={S.cardButton} onPress={() => onPress(a.route)}>
-            <Text style={S.cardButtonText}>{a.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  )
-}
-
-function SmallCard({
+function MenuCard({
   label,
-  status,
   onPress,
+  style,
 }: {
   label: string
-  status?: string
   onPress: () => void
+  style?: ViewStyle
 }) {
   return (
-    <Pressable style={S.smallCard} onPress={onPress}>
-      <Text style={S.smallCardText}>{label}</Text>
-      {status ? <Text style={S.smallCardStatus}>{status}</Text> : null}
+    <Pressable style={({ pressed }) => [S.menuCard, pressed && S.menuCardPressed, style]} onPress={onPress}>
+      <Text style={S.menuCardText}>{label}</Text>
     </Pressable>
   )
 }
@@ -75,16 +46,14 @@ function SimpleHeader({
 }) {
   const insets = useSafeAreaInsets()
   return (
-    <View style={{ backgroundColor: colors.neutral.surface }}>
+    <View style={{ backgroundColor: colors.background.bg1 }}>
       <View style={{ height: insets.top }} />
       <View
         style={{
           height: 48,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: colors.neutral.surface,
-          borderBottomWidth: 0.3,
-          borderBottomColor: '#B3B3B3',
+          backgroundColor: colors.background.bg1,
         }}
       >
         {canGoBack ? (
@@ -102,7 +71,7 @@ function SimpleHeader({
             )}
           </Pressable>
         ) : null}
-        <Text style={{ fontSize: 20, fontWeight: '700' }}>마이페이지</Text>
+        <Text style={{ ...ts('titleM'), fontSize: 20, color: colors.text.text1 }}>마이페이지</Text>
       </View>
     </View>
   )
@@ -115,6 +84,15 @@ export default function MyPageScreen({ navigation }: Props) {
   const showEnvBadge = variant === 'DEV' || serverLabel === 'DEV'
   const showColorSetChip = showEnvBadge
   const [activeColorSet, setActiveColorSet] = useState(getActiveScheduleColorSetId())
+  const topMenuItems: { label: string; route: keyof MyPageStackList }[] = [
+    { label: '일정 색상 변경', route: 'Preferences' },
+    { label: '시간표 추가하기', route: 'vibration' },
+    { label: '라벨 관리', route: 'Labels' },
+  ]
+  const notificationItems: { label: string; route: keyof MyPageStackList }[] = [
+    { label: '리마인드 알림 시간 수정', route: 'NotifDefaults' },
+    { label: '일정 요약 알림 설정', route: 'CalendarNotif' },
+  ]
 
   const nextColorSet = useMemo(() => {
     const idx = SCHEDULE_COLOR_SET_IDS.indexOf(activeColorSet)
@@ -150,6 +128,11 @@ export default function MyPageScreen({ navigation }: Props) {
   }, [navigation])
 
   const onPressMyItem = (route: keyof MyPageStackList) => {
+    if (route === 'Preferences') {
+      onPressColorSetChip()
+      return
+    }
+
     if (route === 'vibration') {
       setShowOcrSheet(true)
       return
@@ -159,68 +142,60 @@ export default function MyPageScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <SectionList<MyItem, MySection>
-        sections={MY_SECTIONS}
-        keyExtractor={(item) => item.key}
-        renderItem={() => null}
-        renderSectionHeader={({ section }) =>
-          section.size === 'small' ? (
-            <>
-              {section.data.map((d, i) => (
-                <SmallCard
-                  key={i}
-                  label={d.key}
-                  onPress={() => onPressMyItem(d.route)}
-                />
-              ))}
-            </>
-          ) : (
-            <SectionCard
-              title={section.title}
-              actions={section.data.map((d) => ({ label: d.key, route: d.route }))}
-              onPress={onPressMyItem}
-            />
-          )
-        }
-        ListHeaderComponent={
-          <View
-            style={{
-              paddingTop: 2,
-              paddingBottom: 2,
-              backgroundColor: colors.neutral.background,
-            }}
-          >
-            {/* 프로필 카드 */}
-            <View style={S.profileCard}>
-              <View style={S.avatar} />
-              <View style={{ flex: 1 }}>
-                <View style={S.profileNameRow}>
-                  <Text style={S.profileName}>사용자님</Text>
-                  {showEnvBadge ? (
-                    <View style={[S.envBadge, S.envBadgeDev]}>
-                      <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
-                    </View>
-                  ) : null}
+    <View style={{ flex: 1, backgroundColor: colors.background.bg1 }}>
+      <ScrollView
+        style={{ backgroundColor: colors.background.bg1 }}
+        contentContainerStyle={S.scrollContent}
+        contentInsetAdjustmentBehavior="automatic"
+        scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
+      >
+        <View style={S.profileCard}>
+          <View style={S.avatar} />
+          <View style={S.profileContent}>
+            <View style={S.profileMainRow}>
+              <View style={S.profileNameRow}>
+                <Text style={S.profileName}>사용자님</Text>
+                <RightIcon width={24} height={24} color="#B4B4B4" />
+              </View>
+              {showEnvBadge ? (
+                <View style={S.profileBadgeRow}>
+                  <View style={[S.envBadge, S.envBadgeDev]}>
+                    <Text style={S.envBadgeText}>{`${variant}/${serverLabel}`}</Text>
+                  </View>
                   {showColorSetChip ? (
                     <Pressable style={[S.envBadge, S.colorSetBadge]} onPress={onPressColorSetChip}>
                       <Text style={S.envBadgeText}>{`SET:${activeColorSet}`}</Text>
                     </Pressable>
                   ) : null}
                 </View>
-                {/* <Text style={S.profileMeta}>나이 / 직업</Text> */}
-              </View>
-              {/* <Text style={S.editLink}>편집</Text> */}
+              ) : null}
             </View>
           </View>
-        }
-        ItemSeparatorComponent={null}
-        SectionSeparatorComponent={() => <View style={{ height: 2 }} />}
-        stickySectionHeadersEnabled
-        contentInsetAdjustmentBehavior="automatic"
-        contentInset={{ top: 0, bottom: 10, left: 0, right: 0 }}
-        scrollIndicatorInsets={{ top: 0, bottom: 120, left: 0, right: 0 }}
-      />
+        </View>
+
+        {topMenuItems.map((item, index) => (
+          <MenuCard
+            key={item.route}
+            label={item.label}
+            onPress={() => onPressMyItem(item.route)}
+            style={index === 0 ? undefined : S.menuCardSpacing}
+          />
+        ))}
+
+        <Text style={S.sectionLabel}>알림 시간 설정</Text>
+
+        <View style={S.notificationGroup}>
+          {notificationItems.map((item, index) => (
+            <Pressable
+              key={item.route}
+              style={[S.menuCard, index === 0 ? null : S.menuCardSpacing]}
+              onPress={() => onPressMyItem(item.route)}
+            >
+              <Text style={S.menuCardText}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
 
       <AddImageSheet
         visible={showOcrSheet}
@@ -266,114 +241,96 @@ const S = StyleSheet.create({
   backButtonPressed: {
     opacity: 1,
   },
-  smallCard: {
-    width: '90%',
-    height: 48,
-    alignSelf: 'center',
-    marginTop: 8,
-    backgroundColor: colors.neutral.surface,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
+  scrollContent: {
+    paddingTop: 8,
+    paddingBottom: 40,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 0 },
   },
-  smallCardText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text.title,
-  },
-  smallCardStatus: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.brand.secondary,
-  },
-  card: {
-    width: '90%',
-    height: 100,
+  menuCard: {
+    width: 358,
+    height: 56,
     alignSelf: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 10,
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  cardTitle: {
-    position: 'absolute',
-    top: 15,
-    left: 16,
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text.caption,
-  },
-
-  cardDivider: {
-    position: 'absolute',
-    top: 45,
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#B3B3B3',
-  },
-  cardBody: {
-    position: 'absolute',
-    top: 53,
-    left: 16,
-    right: 16,
-    bottom: 12,
-    justifyContent: 'space-between',
-  },
-  cardButton: {
-    flex: 1,
+    backgroundColor: colors.background.bg1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.divider.divider2,
+    paddingLeft: 16,
     justifyContent: 'center',
+    alignItems: 'flex-start',
   },
-  cardButtonText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text.title,
+  menuCardText: {
+    ...ts('label2'),
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.text.text1,
   },
-
-  // 프로필 카드
-  profileCard: {
-    width: '90%',
-    alignSelf: 'center',
-    marginHorizontal: 16,
+  menuCardPressed: {
+    backgroundColor: colors.background.bg2,
+  },
+  menuCardSpacing: {
     marginTop: 8,
-    backgroundColor: colors.neutral.surface,
-    borderRadius: 10,
+  },
+  sectionLabel: {
+    ...ts('label3'),
+    fontSize: 13,
+    color: colors.text.text3,
+    width: 358,
+    marginTop: 40,
+    paddingLeft: 2,
+  },
+  notificationGroup: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  profileCard: {
+    width: 358,
+    height: 90,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: colors.background.bg1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.divider.divider2,
     paddingHorizontal: 16,
-    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 0 },
+    justifyContent: 'space-between',
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E9ECF1',
-    marginRight: 12,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#D9D9D9',
+    marginRight: 16,
+  },
+  profileContent: {
+    flex: 1,
+    height: 50,
+    justifyContent: 'center',
+  },
+  profileMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   profileName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text.title,
-    marginTop: 3,
+    ...ts('titleS'),
+    color: colors.text.text1,
+    marginRight: 16,
   },
   profileNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    height: 24,
+  },
+  profileBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    marginTop: 3,
+    marginLeft: 12,
+    height: 24,
   },
   envBadge: {
     minWidth: 64,
@@ -398,7 +355,4 @@ const S = StyleSheet.create({
     fontWeight: '700',
     color: '#333',
   },
-  profileMeta: { fontSize: 14, color: colors.text.body, marginTop: 7 },
-  editLink: { color: '#333', fontWeight: '600' },
-  chevron: { fontSize: 26, color: colors.text.caption, marginLeft: 6 },
 })

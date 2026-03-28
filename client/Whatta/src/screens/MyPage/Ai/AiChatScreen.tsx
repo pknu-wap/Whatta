@@ -667,6 +667,12 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
   }, [loading])
 
   React.useEffect(() => {
+    if (attachedImage) {
+      setAttachmentMenuOpen(false)
+    }
+  }, [attachedImage])
+
+  React.useEffect(() => {
     if (deletedToastTimerRef.current) {
       clearTimeout(deletedToastTimerRef.current)
       deletedToastTimerRef.current = null
@@ -1390,6 +1396,7 @@ export function AiChatView({ onClose, modal = false }: AiChatViewProps) {
               imagePreviewUri={attachedImage?.url ?? null}
               disabled={loading || imageUploading}
               onPressPlus={() => {
+                if (attachedImage) return
                 setAttachmentMenuOpen((prev) => !prev)
               }}
               onPressAlbum={() => {

@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   ScrollView,
+  Animated,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
@@ -19,6 +20,8 @@ import Trash from '@/assets/icons/trash.svg'
 import Plus from '@/assets/icons/plusbtn.svg'
 import CheckOff from '@/assets/icons/check_off.svg'
 import CheckOn from '@/assets/icons/check_on.svg'
+import Left from '@/assets/icons/left.svg'
+import { ts } from '@/styles/typography'
 
 export type EditableItem = { id: string; label: string; fixed?: boolean }
 
@@ -70,15 +73,27 @@ export default function EditableListScreen({
   const [editMode, setEditMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [footerEditing, setFooterEditing] = useState(false)
+  const [footerText, setFooterText] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
 
   // Accordion 상태
   const [openAccordionId, setOpenAccordionId] = useState<string | null>(null)
 
   const openedRef = useRef<Swipeable | null>(null)
+  const footerInputRef = useRef<TextInput | null>(null)
+  const footerSubmittingRef = useRef(false)
 
   useEffect(() => {
     setItems(initialItems)
   }, [initialItems])
+
+  useEffect(() => {
+    if (footerEditing) {
+      setTimeout(() => footerInputRef.current?.focus(), 0)
+    }
+  }, [footerEditing])
 
   // 라벨모드 vs 리마인더모드
   const labelMode = inlineText === true
@@ -100,11 +115,39 @@ export default function EditableListScreen({
   const addPress = () => {
     if (labelMode) {
       if (atMax) return
-      const id = `temp-${Date.now()}`
-      notify((prev) => [...prev, { id, label: '' }])
-      setEditingId(id)
-    } else {
+      setFooterEditing(true)
+      } else {
       onAddPress?.()
+    }
+  }
+
+  const commitFooterInline = async () => {
+    if (footerSubmittingRef.current) return
+    footerSubmittingRef.current = true
+
+    const title = footerText.trim()
+    if (!title) {
+      setFooterEditing(false)
+      setFooterText('')
+      footerSubmittingRef.current = false
+      return
+    }
+
+    try {
+      const created = await onCreate?.(title)
+      if (created) {
+        notify((prev) => [...prev, created])
+      }
+    } catch (err: any) {
+      if (err?.code === 'duplicate') {
+        Alert.alert('중복 라벨', '이미 같은 이름의 라벨이 있습니다.')
+      } else {
+        Alert.alert('라벨 한도', `라벨은 최대 ${maxCount}개까지 생성할 수 있습니다.`)
+      }
+    } finally {
+      setFooterEditing(false)
+      setFooterText('')
+      footerSubmittingRef.current = false
     }
   }
 
@@ -177,15 +220,8 @@ export default function EditableListScreen({
 
   const deleteWithConfirm = (ids: string[]) => {
     if (!ids.length) return
-
-    Alert.alert('삭제하시겠습니까?', '선택한 라벨이 삭제됩니다.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () => confirmDelete(ids),
-      },
-    ])
+    setPendingDeleteIds(ids)
+    setDeleteConfirmOpen(true)
   }
 
   const toggleSelect = (id: string) => {
@@ -213,7 +249,7 @@ export default function EditableListScreen({
         <View
           style={[
             S.row,
-            labelMode && { height: 48 }, // 라벨 화면은 딱 48 고정
+            labelMode && S.rowLabel,
             reminderMode && S.rowReminder, // 리마인더는 확장될 수 있어야 하므로 minHeight 유지
           ]}
         >
@@ -282,12 +318,29 @@ export default function EditableListScreen({
         friction={2}
         rightThreshold={24}
         overshootRight={false}
-        renderRightActions={() =>
+        renderRightActions={(_, dragX) =>
           item.fixed ? null : (
             <View style={S.rightActions}>
-              <Pressable style={S.deleteBtn} onPress={() => deleteWithConfirm([item.id])}>
-                <Trash color="#fff" />
-              </Pressable>
+              <Animated.View
+                style={[
+                  S.deleteBtnWrap,
+                  {
+                    transform: [
+                      {
+                        translateX: dragX.interpolate({
+                          inputRange: [-60, 0],
+                          outputRange: [0, 60],
+                          extrapolate: 'clamp',
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Pressable style={S.deleteBtn} onPress={() => deleteWithConfirm([item.id])}>
+                  <Trash color="#fff" />
+                </Pressable>
+              </Animated.View>
             </View>
           )
         }
@@ -298,14 +351,28 @@ export default function EditableListScreen({
   }
 
   const Footer =
-    labelMode && addPlacement === 'footer' && !editMode ? (
+    labelMode && !editMode && !atMax ? (
       <>
         <View style={S.separator} />
-        <Pressable style={S.addRow} onPress={addPress} disabled={atMax}>
-          <Plus width={16} height={16} color="#B3B3B3" />
-          <Text style={S.addText}>
-            {atMax ? `최대 ${maxCount}개` : (addFooterText ?? '추가')}
-          </Text>
+        <Pressable style={S.addRow} onPress={() => setFooterEditing(true)}>
+          <View style={S.footerPlusWrap}>
+            <Plus width={22} height={22} color={colors.icon.default} />
+          </View>
+          {footerEditing ? (
+            <TextInput
+              ref={footerInputRef}
+              style={S.footerInput}
+              value={footerText}
+              onChangeText={setFooterText}
+              placeholder="라벨 명을 입력하세요"
+              placeholderTextColor={colors.text.text4}
+              returnKeyType="done"
+              onSubmitEditing={commitFooterInline}
+              onBlur={commitFooterInline}
+            />
+          ) : (
+            <Text style={S.addText}>라벨 명을 입력하세요</Text>
+          )}
         </Pressable>
       </>
     ) : null
@@ -315,43 +382,47 @@ export default function EditableListScreen({
       <SafeAreaView style={S.safe}>
         {/* 헤더 */}
         <View style={S.header}>
-          <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
-            <Text style={{ fontSize: 18 }}>←</Text>
+          <Pressable style={S.backBtn} onPress={() => nav.goBack()} hitSlop={16}>
+            <Left width={24} height={24} color={colors.icon.default} />
           </Pressable>
 
           <Text style={S.headerTitle}>{title}</Text>
 
-          {/* 리마인더/교통알림만 헤더 플러스 */}
-          {!labelMode && addPlacement === 'header' ? (
+          {addPlacement === 'header' ? (
             <Pressable style={S.plusBtn} onPress={addPress}>
-              <Plus width={22} height={22} color="#B04FFF" />
+              <View style={S.plusIcon}>
+                <View style={S.plusIconHorizontal} />
+                <View style={S.plusIconVertical} />
+              </View>
             </Pressable>
           ) : (
             <View style={S.plusBtn} />
           )}
         </View>
 
-        {/* 편집 모드 */}
         {editMode ? (
-          <View style={S.headerBottom}>
+          <View style={S.headerBottomEdit}>
             <Pressable
+              hitSlop={16}
               onPress={() => canBulkDelete && deleteWithConfirm(Array.from(selected))}
             >
               <Text
-                style={[S.headerLeft, { color: canBulkDelete ? '#B04FFF' : '#C0C2C7' }]}
+                style={[
+                  S.headerActionText,
+                  { color: canBulkDelete ? colors.brand.primary : colors.text.text3 },
+                ]}
               >
                 삭제
               </Text>
             </Pressable>
-            <Pressable onPress={() => setEditMode(false)}>
-              <Text style={S.headerRight}>완료</Text>
+            <Pressable onPress={() => setEditMode(false)} hitSlop={16}>
+              <Text style={S.headerActionText}>완료</Text>
             </Pressable>
           </View>
         ) : (
-          <View style={S.headerBottom}>
-            <View style={{ flex: 1 }} />
-            <Pressable onPress={() => setEditMode(true)}>
-              <Text style={S.headerRight}>편집</Text>
+          <View style={S.headerBottomIdle}>
+            <Pressable onPress={() => setEditMode(true)} hitSlop={16}>
+              <Text style={[S.headerActionText, S.headerRightIdle]}>편집</Text>
             </Pressable>
           </View>
         )}
@@ -370,41 +441,168 @@ export default function EditableListScreen({
           ItemSeparatorComponent={() => <View style={S.separator} />}
           ListFooterComponent={Footer}
         />
+
+        {deleteConfirmOpen && (
+          <View style={S.deleteOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                setDeleteConfirmOpen(false)
+                setPendingDeleteIds([])
+              }}
+            />
+            <View style={S.deleteCard}>
+              <Text style={S.deleteTitle}>
+                {pendingDeleteIds.length > 1 ? '선택하신 라벨을 삭제할까요?' : '라벨을 삭제할까요?'}
+              </Text>
+              <View style={S.deleteRow}>
+                <Pressable
+                  style={[S.deleteActionBtn, S.deleteCancelBtn]}
+                  onPress={() => {
+                    setDeleteConfirmOpen(false)
+                    setPendingDeleteIds([])
+                  }}
+                >
+                  <Text style={S.deleteCancelTxt}>취소</Text>
+                </Pressable>
+                <Pressable
+                  style={[S.deleteActionBtn, S.deleteConfirmBtn]}
+                  onPress={async () => {
+                    const ids = pendingDeleteIds
+                    setDeleteConfirmOpen(false)
+                    setPendingDeleteIds([])
+                    await confirmDelete(ids)
+                  }}
+                >
+                  <Text style={S.deleteConfirmTxt}>삭제</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
       </SafeAreaView>
     </KeyboardAvoidingView>
   )
 }
 
 const S = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.neutral.surface },
+  safe: { flex: 1, backgroundColor: colors.background.bg1 },
 
   header: {
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#B3B3B3',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text.title },
-  backBtn: { position: 'absolute', left: 16, height: 48, justifyContent: 'center' },
-  plusBtn: { position: 'absolute', right: 16, height: 48, justifyContent: 'center' },
-
-  headerBottom: {
-    height: 48,
-    flexDirection: 'row',
+  headerTitle: { ...ts('titleM'), color: colors.text.text1 },
+  backBtn: { position: 'absolute', left: 14, height: 48, justifyContent: 'center' },
+  plusBtn: { position: 'absolute', right: 14, height: 48, justifyContent: 'center' },
+  plusIcon: {
+    width: 24,
+    height: 24,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusIconHorizontal: {
+    position: 'absolute',
+    width: 16,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: colors.icon.selected,
+  },
+  plusIconVertical: {
+    position: 'absolute',
+    width: 2,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: colors.icon.selected,
+  },
+
+  headerBottomEdit: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 12,
   },
-  headerLeft: { fontSize: 16, fontWeight: '700' },
-  headerRight: { fontSize: 16, fontWeight: '700', color: '#B04FFF' },
+  headerBottomIdle: {
+    alignItems: 'flex-end',
+    marginTop: 12,
+    marginBottom: 12,
+    paddingRight: 14,
+  },
+  headerActionText: { ...ts('label3'), fontSize: 15, color: colors.text.text1 },
+  headerRightIdle: { color: colors.text.text3 },
+  deleteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCard: {
+    width: 302,
+    height: 152,
+    borderRadius: 20,
+    backgroundColor: colors.background.bg1,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#A4ADB2',
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 15,
+    elevation: 0,
+  },
+  deleteTitle: {
+    ...ts('label1'),
+    fontWeight: '700',
+    color: colors.text.text1,
+    textAlign: 'center',
+  },
+  deleteRow: {
+    width: 302,
+    paddingHorizontal: 32,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    columnGap: 16,
+  },
+  deleteActionBtn: {
+    width: 119,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCancelBtn: {
+    backgroundColor: colors.background.bg1,
+    borderWidth: 1,
+    borderColor: colors.divider.divider1,
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.brand.primary,
+  },
+  deleteCancelTxt: {
+    ...ts('label1'),
+    color: colors.text.text3,
+  },
+  deleteConfirmTxt: {
+    ...ts('label1'),
+    color: colors.text.text1w,
+  },
 
   row: {
-    minHeight: 48,
+    minHeight: 60,
     paddingLeft: 16,
     paddingRight: 12,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  rowLabel: {
+    height: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider.divider2,
   },
   checkboxWrap: {
     marginRight: 12,
@@ -415,9 +613,8 @@ const S = StyleSheet.create({
     justifyContent: 'center',
   },
   itemText: {
-    fontSize: 19,
-    fontWeight: '600',
-    color: colors.text.title,
+    ...ts('label2'),
+    color: colors.text.text1,
   },
   input: {
     flex: 1,
@@ -427,26 +624,46 @@ const S = StyleSheet.create({
   },
 
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E3E5EA',
-    marginLeft: 16,
+    height: 0,
   },
 
-  rightActions: { width: 72, height: '100%', justifyContent: 'center' },
+  rightActions: { width: 60, justifyContent: 'center', alignItems: 'center' },
+  deleteBtnWrap: {
+    width: 60,
+    height: 60,
+  },
   deleteBtn: {
-    flex: 1,
+    width: 60,
+    height: 60,
     backgroundColor: '#FF3B30',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   addRow: {
-    height: 44,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
   },
-  addText: { fontSize: 17, color: '#B3B3B3', fontWeight: '600', marginLeft: 6 },
+  footerPlusWrap: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addText: {
+    ...ts('label2'),
+    color: colors.text.text4,
+    marginLeft: 12,
+  },
+  footerInput: {
+    flex: 1,
+    marginLeft: 12,
+    ...ts('label2'),
+    color: colors.text.text1,
+    paddingVertical: 0,
+  },
   rowReminder: {
     paddingVertical: 4, // 위/아래 여백 최소화
   },

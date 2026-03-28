@@ -579,6 +579,7 @@ const S = StyleSheet.create({
     ...ts('label3'),
     fontSize: 13,
     color: colors.brand.primary,
+    marginTop: 6,
   },
   repeatText: {
     ...ts('body2'),

@@ -5,13 +5,14 @@ import {
   StyleSheet,
   Pressable,
   Alert,
-  Switch,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native'
 import colors from '@/styles/colors'
 import { http } from '@/lib/http'
 import { Picker } from '@react-native-picker/picker' 
+import Left from '@/assets/icons/left.svg'
+import { ts } from '@/styles/typography'
 import { ensureNotificationPermissionForToggle, hasNotificationPermission } from '@/lib/fcm';
 
 
@@ -24,25 +25,43 @@ type SummarySetting = {
   minute: number
 }
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i) // 0 ~ 23
 const MINUTES = Array.from({ length: 60 }, (_, i) => i) // 0 ~ 59
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1)
 
-const DAY_OPTIONS: { label: string; value: NotifyDay }[] = [
-  { label: '당일', value: 'TODAY' },
-  { label: '전날', value: 'TOMORROW' }, //전날이 맞음! 서버입장에선 내일이지만!(헷갈리지 말기)
-]
-
-function formatLabel({ notifyDay, hour, minute }: SummarySetting) {
-  const dayLabel =
-    notifyDay === 'TODAY'
-      ? '당일'
-      : notifyDay === 'TOMORROW'
-        ? '전날'
-        : '당일'
-
-  const hh = String(hour).padStart(2, '0')
-  const mm = String(minute).padStart(2, '0')
-  return `${dayLabel} ${hh}:${mm}`
+const CustomToggle = ({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) => {
+  return (
+    <Pressable
+      onPress={() => !disabled && onChange(!value)}
+      hitSlop={20}
+      style={{
+        width: 51,
+        height: 31,
+        borderRadius: 26,
+        padding: 3,
+        justifyContent: 'center',
+        backgroundColor: disabled ? '#E3E5EA' : value ? '#B04FFF' : '#B3B3B3',
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      <View
+        style={{
+          width: 25,
+          height: 25,
+          borderRadius: 25,
+          backgroundColor: '#fff',
+          transform: [{ translateX: value ? 20 : 0 }],
+        }}
+      />
+    </Pressable>
+  )
 }
 
 export default function CalendarNotifScreen() {
@@ -55,7 +74,8 @@ export default function CalendarNotifScreen() {
     minute: 0,
   })
   const [loading, setLoading] = useState(true)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const ampm = setting.hour < 12 ? 'AM' : 'PM'
+  const hour12 = setting.hour % 12 === 0 ? 12 : setting.hour % 12
 
   useEffect(() => {
     ;(async () => {
@@ -156,9 +176,6 @@ export default function CalendarNotifScreen() {
     setSetting((prev) => {
       const next = { ...prev, enabled: value }
       saveSummary(next)
-      if (!value) {
-        setPickerOpen(false)
-      }
       return next
     })
   }
@@ -172,14 +189,40 @@ export default function CalendarNotifScreen() {
     })
   }
 
+  const handleChangeHour12 = (h12: number) => {
+    updateTime({
+      hour:
+        ampm === 'PM'
+          ? h12 === 12
+            ? 12
+            : h12 + 12
+          : h12 === 12
+            ? 0
+            : h12,
+    })
+  }
+
+  const handleChangeAmpm = (next: 'AM' | 'PM') => {
+    updateTime({
+      hour:
+        next === 'AM'
+          ? setting.hour >= 12
+            ? setting.hour - 12
+            : setting.hour
+          : setting.hour < 12
+            ? setting.hour + 12
+            : setting.hour,
+    })
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={S.safe}>
         <View style={S.header}>
           <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
-            <Text style={{ fontSize: 18 }}>←</Text>
+            <Left width={24} height={24} color={colors.icon.default} />
           </Pressable>
-          <Text style={S.headerTitle}>일정 요약 알림</Text>
+          <Text style={S.headerTitle}>일정 요약 알림 설정</Text>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <Text style={{ color: colors.text.caption }}>불러오는 중...</Text>
@@ -193,106 +236,67 @@ export default function CalendarNotifScreen() {
       {/* 상단 헤더 */}
       <View style={S.header}>
         <Pressable style={S.backBtn} onPress={() => nav.goBack()}>
-          <Text style={{ fontSize: 18 }}>←</Text>
+          <Left width={24} height={24} color={colors.icon.default} />
         </Pressable>
-        <Text style={S.headerTitle}>일정 요약 알림</Text>
+        <Text style={S.headerTitle}>일정 요약 알림 설정</Text>
         <View style={S.headerRightEmpty} />
       </View>
 
-      {/* 설명 + 스위치 */}
-      <View style={S.toggleRow}>
-        <View>
-          <Text style={S.toggleTitle}>요약 알림 받기</Text>
-          <Text style={S.toggleDesc}>하루 일정과 할 일을 한 번에 알려드려요.</Text>
+      <View style={S.toggleCard}>
+        <View style={S.toggleTextBlock}>
+          <Text style={S.toggleTitle}>일정 요약 알림 받기</Text>
+          <Text style={S.toggleDesc}>하루 일정과 할 일을 한번에 알려드려요</Text>
         </View>
-
-        <Switch
-          value={setting.enabled}
-          onValueChange={handleToggleEnabled}
-          trackColor={{ false: '#E3E5EA', true: '#D9C5FF' }}
-          thumbColor={setting.enabled ? '#B04FFF' : '#FFFFFF'}
-        />
+        <CustomToggle value={setting.enabled} onChange={handleToggleEnabled} />
       </View>
-
-      <View style={S.separator} />
 
       {/* ✅ 스위치가 on일 때만 아래 시간/편집/피커가 보이도록 감싼 부분 */}
       {setting.enabled ? (
         <View style={S.card}>
-          {/* "당일 09:00   편집" 행 */}
-          <View style={S.rowHeader}>
-            <Pressable
-              style={S.rowTitleArea}
-              onPress={() => setPickerOpen((prev) => !prev)} // 제목 눌러도 접기/펼치기
-            >
-              <Text style={S.rowTitleText}>{formatLabel(setting)}</Text>
-            </Pressable>
-
-            <Pressable onPress={() => setPickerOpen((prev) => !prev)}>
-              <Text style={S.rowRightText}>{pickerOpen ? '완료' : '편집'}</Text>
-            </Pressable>
+          <View style={S.timeLabelWrap}>
+            <View style={S.timeLabelRow}>
+              <Text style={S.timeAmPm}>{ampm === 'AM' ? '오전' : '오후'}</Text>
+              <Text style={S.timeMain}>
+                {hour12}:{String(setting.minute).padStart(2, '0')}
+              </Text>
+            </View>
           </View>
 
-          {/* 편집 눌렀을 때 나타나는 피커 (리마인드 화면과 동일한 스타일) */}
-          {pickerOpen && (
-            <View style={S.accordion}>
-              <Text style={S.optionLabel}>알림 시점</Text>
-              <View style={S.pickerRow}>
-                {/* 당일 / 내일 */}
-                <Picker
-                  style={S.picker}
-                  selectedValue={setting.notifyDay}
-                  onValueChange={(v) =>
-                    updateTime({
-                      notifyDay: v as NotifyDay,
-                    })
-                  }
-                >
-                  {DAY_OPTIONS.map((d) => (
-                    <Picker.Item key={d.value} label={d.label} value={d.value} />
-                  ))}
-                </Picker>
-
-                {/* 시 */}
-                <Picker
-                  style={S.picker}
-                  selectedValue={setting.hour}
-                  onValueChange={(v) =>
-                    updateTime({
-                      hour: v as number,
-                    })
-                  }
-                >
-                  {HOURS.map((h) => (
-                    <Picker.Item
-                      key={h}
-                      label={String(h).padStart(2, '0')}
-                      value={h}
-                    />
-                  ))}
-                </Picker>
-
-                {/* 분 */}
-                <Picker
-                  style={S.picker}
-                  selectedValue={setting.minute}
-                  onValueChange={(v) =>
-                    updateTime({
-                      minute: v as number,
-                    })
-                  }
-                >
-                  {MINUTES.map((m) => (
-                    <Picker.Item
-                      key={m}
-                      label={String(m).padStart(2, '0')}
-                      value={m}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-          )}
+          <View style={S.timePickerRow}>
+            <Picker
+              style={S.timePicker}
+              itemStyle={S.timePickerItem}
+              selectedValue={ampm}
+              onValueChange={(v) => handleChangeAmpm(v as 'AM' | 'PM')}
+            >
+              <Picker.Item label="AM" value="AM" />
+              <Picker.Item label="PM" value="PM" />
+            </Picker>
+            <Picker
+              style={S.timePicker}
+              itemStyle={S.timePickerItem}
+              selectedValue={hour12}
+              onValueChange={(v) => handleChangeHour12(v as number)}
+            >
+              {HOURS_12.map((h) => (
+                <Picker.Item key={h} label={String(h)} value={h} />
+              ))}
+            </Picker>
+            <Picker
+              style={S.timePicker}
+              itemStyle={S.timePickerItem}
+              selectedValue={setting.minute}
+              onValueChange={(v) =>
+                updateTime({
+                  minute: v as number,
+                })
+              }
+            >
+              {MINUTES.map((m) => (
+                <Picker.Item key={m} label={String(m).padStart(2, '0')} value={m} />
+              ))}
+            </Picker>
+          </View>
         </View>
       ) : null}
     </SafeAreaView>
@@ -300,79 +304,81 @@ export default function CalendarNotifScreen() {
 }
 
 const S = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.neutral.surface },
+  safe: { flex: 1, backgroundColor: colors.background.bg1 },
 
   header: {
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#B3B3B3',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text.title },
-  backBtn: { position: 'absolute', left: 16, height: 48, justifyContent: 'center' },
-  headerRightEmpty: { position: 'absolute', right: 16, height: 48, width: 24 },
+  headerTitle: { ...ts('titleM'), color: colors.text.text1 },
+  backBtn: { position: 'absolute', left: 14, height: 48, justifyContent: 'center' },
+  headerRightEmpty: { position: 'absolute', right: 14, height: 48, width: 24 },
 
-  toggleRow: {
+  toggleCard: {
+    width: 358,
+    height: 85,
+    alignSelf: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 28,
+    marginTop: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.divider.divider2,
+    backgroundColor: colors.background.bg1,
+  },
+  toggleTextBlock: {
+    flex: 1,
+    paddingRight: 16,
   },
   toggleTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text.title,
+    ...ts('label1'),
+    color: colors.text.text1,
   },
   toggleDesc: {
     marginTop: 4,
-    fontSize: 13,
-    color: colors.text.caption,
-  },
-
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E3E5EA',
-    marginLeft: 16,
+    ...ts('date2'),
+    color: colors.text.text3,
   },
 
   card: {
     width: '100%',
-    backgroundColor: colors.neutral.surface,
-    paddingTop: 8,
-  },
-
-  // 라벨 + 편집 행
-  rowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 16,
-    paddingRight: 16,
-    minHeight: 48,
-  },
-  rowTitleArea: { flex: 1, justifyContent: 'center' },
-  rowTitleText: { fontSize: 17, fontWeight: '600', color: colors.text.title },
-  rowRightText: { fontSize: 15, fontWeight: '600', color: '#B04FFF' },
-
-  // 리마인드 화면과 동일한 아코디언/피커 스타일들
-  accordion: {
+    backgroundColor: colors.background.bg1,
+    paddingTop: 48,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: colors.neutral.surface,
   },
-  optionLabel: {
-    marginTop: 8,
-    fontSize: 15,
+  timeLabelWrap: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  timeLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  timeAmPm: {
+    ...ts('body1'),
+    fontSize: 13,
+    color: colors.text.text2,
+    marginRight: 6,
+  },
+  timeMain: {
+    fontSize: 40,
+    fontWeight: '700',
     color: colors.text.title,
   },
-  pickerRow: {
-    marginTop: 8,
+  timePickerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 48,
   },
-  picker: {
+  timePicker: {
     flex: 1,
     height: 160,
+  },
+  timePickerItem: {
+    fontSize: 22,
+    fontWeight: '500',
   },
 })
