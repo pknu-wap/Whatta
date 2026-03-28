@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 
 import { GestureDetector } from 'react-native-gesture-handler'
-import Animated from 'react-native-reanimated'
+import Animated, { useSharedValue } from 'react-native-reanimated'
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useIsFocused } from '@react-navigation/native'
@@ -55,6 +55,7 @@ import RangeScheduleBar from '@/components/calendar-items/schedule/RangeSchedule
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { SCREEN_H } from './constants'
 import DayTimeline from './DayTimeline'
+import { useTimelineAutoScroll } from '@/screens/Calender/useTimelineAutoScroll'
 
 function FullBleed({
   children,
@@ -219,7 +220,7 @@ export default function DayView({ active = true }: { active?: boolean }) {
 
   const taskBoxRef = useRef<View>(null)
   const gridWrapRef = useRef<View>(null)
-  const [gridScrollY, setGridScrollY] = useState(0)
+  const gridScrollY = useSharedValue(0)
 
   const [taskBoxRect, setTaskBoxRect] = useState({
     left: 0,
@@ -291,9 +292,6 @@ export default function DayView({ active = true }: { active?: boolean }) {
   const gridScrollYRef = useRef(0)
   const taskBoxRectRef = useRef(taskBoxRect)
   const gridRectRef = useRef(gridRect)
-  useEffect(() => {
-    gridScrollYRef.current = gridScrollY
-  }, [gridScrollY])
   useEffect(() => {
     taskBoxRectRef.current = taskBoxRect
   }, [taskBoxRect])
@@ -509,15 +507,6 @@ export default function DayView({ active = true }: { active?: boolean }) {
     return computeEventOverlap(normalized)
   }, [events])
 
-  useDayDrag({
-    anchorDateRef,
-    fetchDailyEvents,
-    measureLayouts,
-    taskBoxRectRef,
-    gridRectRef,
-    gridScrollYRef,
-  })
-
   const taskGroups = useMemo(
     () =>
       groupTasksByOverlap(tasks).map((group) => ({
@@ -608,6 +597,20 @@ export default function DayView({ active = true }: { active?: boolean }) {
   const [thumbTop, setThumbTop] = useState(0)
   const boxScrollRef = useRef<ScrollView>(null)
   const gridScrollRef = useRef<ScrollView>(null)
+  const syncGridScrollY = useCallback(
+    (offsetY: number) => {
+      gridScrollY.value = offsetY
+      gridScrollYRef.current = offsetY
+    },
+    [gridScrollY],
+  )
+  const {
+    measureViewport: measureGridScrollViewport,
+    setContentHeight: setTimelineContentHeight,
+    setScrollY: setTimelineScrollY,
+    stopAutoScroll: stopTimelineAutoScroll,
+    updateAutoScroll: updateTimelineAutoScroll,
+  } = useTimelineAutoScroll({ scrollRef: gridScrollRef, onScrollSync: syncGridScrollY })
 
   const onLayoutWrap = (e: any) => setWrapH(e.nativeEvent.layout.height)
   const onContentSizeChange = (_: number, h: number) => setContentH(h)
@@ -622,6 +625,25 @@ export default function DayView({ active = true }: { active?: boolean }) {
       (layoutMeasurement.height - thumbH(layoutMeasurement.height, contentSize.height))
     setThumbTop(top)
   }
+
+  const handleGridScroll = useCallback(
+    (offsetY: number) => {
+      syncGridScrollY(offsetY)
+      setTimelineScrollY(offsetY)
+    },
+    [setTimelineScrollY, syncGridScrollY],
+  )
+
+  useDayDrag({
+    anchorDateRef,
+    fetchDailyEvents,
+    measureLayouts,
+    taskBoxRectRef,
+    gridRectRef,
+    gridScrollYRef,
+    onDragMove: updateTimelineAutoScroll,
+    onDragEnd: stopTimelineAutoScroll,
+  })
   const showScrollbar = contentH > wrapH
   const topItemWidth = Math.max(72, windowWidth - HORIZONTAL_PAD * 2 - TIME_COL_W)
   const anchorDateMeta = useMemo(() => {
@@ -929,29 +951,36 @@ export default function DayView({ active = true }: { active?: boolean }) {
               <View style={S.fadeGap} />
             </FullBleed>
 
-            <DayTimeline
-              gridScrollRef={gridScrollRef}
-              gridWrapRef={gridWrapRef}
-              measureLayouts={measureLayouts}
-              setGridScrollY={setGridScrollY}
-              isToday={isToday}
-              nowTop={nowTop}
-              overlappedEvents={overlappedEvents}
-              anchorDate={anchorDate}
-              events={events}
-              getLabelName={getLabelName}
-              getTaskStartHour={getTaskStartHour}
-              openEventDetail={openEventDetail}
-              taskGroups={taskGroups}
-              openGroupId={openGroupId}
-              setOpenGroupId={setOpenGroupId}
-              setTasks={setTasks}
-              openTaskPopupFromApi={openTaskPopupFromApi}
-              DraggableFixedEvent={DraggableFixedEvent}
-              DraggableFlexibleEvent={DraggableFlexibleEvent}
-              DraggableTaskGroupBox={DraggableTaskGroupBox}
-              DraggableTaskBox={DraggableTaskBox}
-            />
+            <View style={S.timelineViewport}>
+              <DayTimeline
+                gridScrollRef={gridScrollRef}
+                gridWrapRef={gridWrapRef}
+                measureLayouts={measureLayouts}
+                measureScrollViewport={measureGridScrollViewport}
+                onTimelineContentSizeChange={setTimelineContentHeight}
+                onTimelineDragMove={updateTimelineAutoScroll}
+                onTimelineDragEnd={stopTimelineAutoScroll}
+                onGridScroll={handleGridScroll}
+                gridScrollY={gridScrollY}
+                isToday={isToday}
+                nowTop={nowTop}
+                overlappedEvents={overlappedEvents}
+                anchorDate={anchorDate}
+                events={events}
+                getLabelName={getLabelName}
+                getTaskStartHour={getTaskStartHour}
+                openEventDetail={openEventDetail}
+                taskGroups={taskGroups}
+                openGroupId={openGroupId}
+                setOpenGroupId={setOpenGroupId}
+                setTasks={setTasks}
+                openTaskPopupFromApi={openTaskPopupFromApi}
+                DraggableFixedEvent={DraggableFixedEvent}
+                DraggableFlexibleEvent={DraggableFlexibleEvent}
+                DraggableTaskGroupBox={DraggableTaskGroupBox}
+                DraggableTaskBox={DraggableTaskBox}
+              />
+            </View>
           </Animated.View>
         </GestureDetector>
         <TaskDetailPopup

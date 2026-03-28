@@ -17,6 +17,7 @@ import {
 } from 'react-native-gesture-handler'
 
 import Animated, {
+  type SharedValue,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -77,6 +78,7 @@ import {
   resetLayoutDayEventsCache,
 } from '@/screens/Calender/Week/layout'
 import { resolveScheduleColor } from '@/styles/scheduleColorSets'
+import { useTimelineAutoScroll } from '@/screens/Calender/useTimelineAutoScroll'
 
 /* -------------------------------------------------------------------------- */
 /* 유틸 & 상수 */
@@ -164,6 +166,9 @@ function TaskGroupBox({
   dateISO,
   dayIndex,
   weekCount,
+  scrollY,
+  onDragMove,
+  onDragEnd,
   column = 0,
   columnsTotal = 1,
 }: {
@@ -175,6 +180,9 @@ function TaskGroupBox({
   dateISO: string
   dayIndex: number
   weekCount: number
+  scrollY: SharedValue<number>
+  onDragMove?: (position: number | { top: number; bottom: number }) => void
+  onDragEnd?: () => void
   column?: number
   columnsTotal?: number
   onLocalChange?: (payload: {
@@ -190,6 +198,8 @@ function TaskGroupBox({
   const topBase = startHour * 60 * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
   const height = rowH
   const [expanded, setExpanded] = useState(false)
   const isActiveDrag = useSharedValue(false)
@@ -283,6 +293,7 @@ function TaskGroupBox({
     .shouldCancelWhenOutside(false)
     .onStart(() => {
       isActiveDrag.value = true
+      dragStartScrollY.value = currentScrollY.value
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
@@ -311,13 +322,15 @@ function TaskGroupBox({
       if (nextX < allowedMinX) nextX = allowedMinX
 
       translateX.value = nextX
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!isActiveDrag.value) return
 
       const SNAP_MIN = 5
       const SNAP = SNAP_MIN * pixelsPerMin
-      let snappedY = Math.round(translateY.value / SNAP) * SNAP
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      let snappedY = Math.round((translateY.value + scrollDelta) / SNAP) * SNAP
 
       const minY = -topBase
       const maxY = dayPx - topBase - height
@@ -329,15 +342,22 @@ function TaskGroupBox({
       const dayOffset = Math.round(translateX.value / dayColWidth)
       translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
       isActiveDrag.value = false
+      if (onDragEnd) runOnJS(onDragEnd)()
       runOnJS(handleDropGroup)(snappedY, dayOffset)
     })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
-  const style = useAnimatedStyle(() => ({
-    top: topBase + translateY.value,
-    transform: [{ translateX: translateX.value }],
-  }))
+  const style = useAnimatedStyle(() => {
+    const scrollDelta = isActiveDrag.value
+      ? currentScrollY.value - dragStartScrollY.value
+      : 0
+    const minVisibleTop = isActiveDrag.value ? currentScrollY.value : 0
+    return {
+      top: Math.max(minVisibleTop, topBase + translateY.value + scrollDelta),
+      transform: [{ translateX: translateX.value }],
+    }
+  })
 
   const onToggleGroupTask = async (task: any) => {
     const taskId = String(task.id)
@@ -484,6 +504,9 @@ type DraggableTaskBoxProps = {
   rowH: number
   column?: number
   columnsTotal?: number
+  scrollY: SharedValue<number>
+  onDragMove?: (position: number | { top: number; bottom: number }) => void
+  onDragEnd?: () => void
   openDetail: (id: string) => void
   onLocalChange?: (payload: {
     id: string
@@ -503,6 +526,9 @@ function DraggableTaskBox({
   dayIndex,
   weekCount,
   rowH,
+  scrollY,
+  onDragMove,
+  onDragEnd,
   column = 0,
   columnsTotal = 1,
   onLocalChange,
@@ -514,6 +540,8 @@ function DraggableTaskBox({
   const topBase = startMin * pixelsPerMin
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
   const height = rowH
   const [done, setDone] = useState(initialDone)
   const isActiveDrag = useSharedValue(false)
@@ -629,6 +657,7 @@ function DraggableTaskBox({
     .shouldCancelWhenOutside(false)
     .onStart(() => {
       isActiveDrag.value = true
+      dragStartScrollY.value = currentScrollY.value
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
 
@@ -655,13 +684,15 @@ function DraggableTaskBox({
       }
       if (nextX < allowedMinX) nextX = allowedMinX
       translateX.value = nextX
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!isActiveDrag.value) return
 
       const SNAP_MIN = 5
       const SNAP = SNAP_MIN * pixelsPerMin
-      let snappedY = Math.round(translateY.value / SNAP) * SNAP
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      let snappedY = Math.round((translateY.value + scrollDelta) / SNAP) * SNAP
 
       const minY = -topBase
       const maxY = dayPx - topBase - height
@@ -673,15 +704,22 @@ function DraggableTaskBox({
       const dayOffset = Math.round(translateX.value / dayColWidth)
       translateX.value = withTiming(dayColWidth * dayOffset, { duration: 80 })
       isActiveDrag.value = false
+      if (onDragEnd) runOnJS(onDragEnd)()
       runOnJS(handleDrop)(snappedY, dayOffset)
     })
 
   const composedGesture = Gesture.Simultaneous(longPress, drag)
 
-  const style = useAnimatedStyle(() => ({
-    top: topBase + translateY.value,
-    transform: [{ translateX: translateX.value }],
-  }))
+  const style = useAnimatedStyle(() => {
+    const scrollDelta = isActiveDrag.value
+      ? currentScrollY.value - dragStartScrollY.value
+      : 0
+    const minVisibleTop = isActiveDrag.value ? currentScrollY.value : 0
+    return {
+      top: Math.max(minVisibleTop, topBase + translateY.value + scrollDelta),
+      transform: [{ translateX: translateX.value }],
+    }
+  })
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -749,6 +787,9 @@ type DraggableFlexalbeEventProps = {
   weekDates: string[]
   dayIndex: number
   rowH: number
+  scrollY: SharedValue<number>
+  onDragMove?: (position: number | { top: number; bottom: number }) => void
+  onDragEnd?: () => void
   openEventDetail: (id: string, occDate?: string) => void
   isRepeat?: boolean
 }
@@ -767,6 +808,9 @@ function DraggableFlexalbeEvent({
   weekDates,
   dayIndex,
   rowH,
+  scrollY,
+  onDragMove,
+  onDragEnd,
   openEventDetail,
   isRepeat,
 }: DraggableFlexalbeEventProps) {
@@ -777,6 +821,8 @@ function DraggableFlexalbeEvent({
   const topBase = (startMin / 60) * rowH
   const translateY = useSharedValue(0)
   const translateX = useSharedValue(0)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
   const isDragging = useSharedValue(0)
   const isActiveDrag = useSharedValue(false)
   const dragStartTop = useSharedValue(topBase)
@@ -892,6 +938,7 @@ function DraggableFlexalbeEvent({
     .onStart(() => {
       isActiveDrag.value = true
       isDragging.value = 1
+      dragStartScrollY.value = currentScrollY.value
       dragStartTop.value = topBase + translateY.value
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy)
     })
@@ -934,12 +981,14 @@ function DraggableFlexalbeEvent({
       if (nextX > allowedMaxX) nextX = allowedMaxX
       if (nextX < allowedMinX) nextX = allowedMinX
       translateX.value = nextX
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!isActiveDrag.value) return
 
       const SNAP = 5 * pixelsPerMin
-      let snappedY = Math.round(translateY.value / SNAP) * SNAP
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      let snappedY = Math.round((translateY.value + scrollDelta) / SNAP) * SNAP
 
       const minY = -topBase
       const maxY = dayPx - topBase - height
@@ -958,6 +1007,7 @@ function DraggableFlexalbeEvent({
       isActiveDrag.value = false
       isDragging.value = withDelay(200, withTiming(0))
       dropBoost.value = withDelay(220, withTiming(0))
+      if (onDragEnd) runOnJS(onDragEnd)()
 
       runOnJS(handleDrop)(snappedY, dayOffset)
     })
@@ -972,7 +1022,12 @@ function DraggableFlexalbeEvent({
         : column * 2 + (isRepeat ? 0 : 1) // 일반일정(1) > 반복일정(0)
 
     return {
-      top: topBase + translateY.value,
+      top: Math.max(
+        isActiveDrag.value ? currentScrollY.value : 0,
+        topBase +
+          translateY.value +
+          (isActiveDrag.value ? currentScrollY.value - dragStartScrollY.value : 0),
+      ),
       transform: [{ translateX: translateX.value }],
       zIndex: baseZ,
       elevation: isDragging.value || dropBoost.value ? 50 : 0,
@@ -1094,6 +1149,21 @@ const {
   const gridScrollRef = useRef<ScrollView>(null)
   const gridOffsetRef = useRef({ x: 0, y: 0 })
   const scrollOffsetRef = useRef(0)
+  const gridScrollY = useSharedValue(0)
+  const syncGridScrollY = useCallback(
+    (offsetY: number) => {
+      gridScrollY.value = offsetY
+      scrollOffsetRef.current = offsetY
+    },
+    [gridScrollY],
+  )
+  const {
+    measureViewport: measureGridScrollViewport,
+    setContentHeight: setTimelineContentHeight,
+    setScrollY: setTimelineScrollY,
+    stopAutoScroll: stopTimelineAutoScroll,
+    updateAutoScroll: updateTimelineAutoScroll,
+  } = useTimelineAutoScroll({ scrollRef: gridScrollRef, onScrollSync: syncGridScrollY })
 
   const SINGLE_HEIGHT = 27
 
@@ -1721,8 +1791,9 @@ const {
   }, [])
 
   const handleGridScroll = useCallback((offsetY: number) => {
-    scrollOffsetRef.current = offsetY
-  }, [])
+    syncGridScrollY(offsetY)
+    setTimelineScrollY(offsetY)
+  }, [setTimelineScrollY, syncGridScrollY])
 
   if (loading && !weekDates.length) {
     return (
@@ -1794,6 +1865,11 @@ const {
               openEventDetail={openEventDetail}
               openTaskPopupFromApi={openTaskPopupFromApi}
               onGridScroll={handleGridScroll}
+              measureScrollViewport={measureGridScrollViewport}
+              onTimelineContentSizeChange={setTimelineContentHeight}
+              onTimelineDragMove={updateTimelineAutoScroll}
+              onTimelineDragEnd={stopTimelineAutoScroll}
+              gridScrollY={gridScrollY}
               onTimedTaskCompletedChange={handleTimedTaskCompletedChange}
               taskGroupCollapseToken={taskGroupCollapseToken}
               DraggableFlexibleEventComponent={MemoDraggableFlexibleEvent}

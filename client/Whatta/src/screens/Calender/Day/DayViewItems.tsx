@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
+  type SharedValue,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -31,6 +32,9 @@ type DraggableTaskBoxProps = {
   events: any[]
   cardLeft: number
   cardWidth: number
+  scrollY: SharedValue<number>
+  onDragMove?: (absoluteY: number) => void
+  onDragEnd?: () => void
 }
 
 export function DraggableTaskBox({
@@ -43,10 +47,15 @@ export function DraggableTaskBox({
   events,
   cardLeft,
   cardWidth,
+  scrollY,
+  onDragMove,
+  onDragEnd,
 }: DraggableTaskBoxProps) {
   const translateY = useSharedValue(startHour * 60 * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
   const [done, setDone] = useState(initialDone)
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -83,6 +92,7 @@ export function DraggableTaskBox({
     .onStart(() => {
       runOnJS(triggerHaptic)()
       dragEnabled.value = true
+      dragStartScrollY.value = currentScrollY.value
     })
 
   const drag = Gesture.Pan()
@@ -93,13 +103,23 @@ export function DraggableTaskBox({
       const nextY = translateY.value + e.changeY
       translateY.value = Math.max(0, Math.min(maxY, nextY))
       translateX.value += e.changeX
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
+      if (onDragEnd) runOnJS(onDragEnd)()
 
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
-      const snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      const maxY = 23 * 60 * PIXELS_PER_MIN
+      const snappedY = Math.max(
+        0,
+        Math.min(
+          maxY,
+          Math.round((translateY.value + scrollDelta) / SNAP_UNIT) * SNAP_UNIT,
+        ),
+      )
 
       translateY.value = withSpring(snappedY)
       translateX.value = withSpring(0)
@@ -115,9 +135,22 @@ export function DraggableTaskBox({
     })
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
-  }))
+  const style = useAnimatedStyle(() => {
+    const scrollDelta = dragEnabled.value
+      ? currentScrollY.value - dragStartScrollY.value
+      : 0
+    const maxY = 23 * 60 * PIXELS_PER_MIN
+    const minVisibleTop = dragEnabled.value ? currentScrollY.value : 0
+    return {
+      transform: [
+        {
+          translateY:
+            Math.max(minVisibleTop, Math.min(maxY, translateY.value + scrollDelta)) + 2,
+        },
+        { translateX: translateX.value },
+      ],
+    }
+  })
 
   const startMin = startHour * 60
   const endMin = startMin + 60
@@ -191,6 +224,9 @@ export function DraggableTaskGroupBox({
   onPress,
   cardLeft,
   cardWidth,
+  scrollY,
+  onDragMove,
+  onDragEnd,
 }: {
   group: DayViewTask[]
   startMin: number
@@ -198,10 +234,15 @@ export function DraggableTaskGroupBox({
   onPress: () => void
   cardLeft: number
   cardWidth: number
+  scrollY: SharedValue<number>
+  onDragMove?: (absoluteY: number) => void
+  onDragEnd?: () => void
 }) {
   const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -256,6 +297,7 @@ export function DraggableTaskGroupBox({
     .onStart(() => {
       runOnJS(triggerHaptic)()
       dragEnabled.value = true
+      dragStartScrollY.value = currentScrollY.value
     })
 
   const drag = Gesture.Pan()
@@ -265,13 +307,16 @@ export function DraggableTaskGroupBox({
       const nextY = translateY.value + e.changeY
       translateY.value = Math.max(0, Math.min(maxY, nextY))
       translateX.value += e.changeX
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
+      if (onDragEnd) runOnJS(onDragEnd)()
 
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
-      let snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      let snappedY = Math.round((translateY.value + scrollDelta) / SNAP_UNIT) * SNAP_UNIT
       snappedY = Math.max(0, Math.min(23 * 60 * PIXELS_PER_MIN, snappedY))
 
       translateY.value = withSpring(snappedY)
@@ -282,9 +327,22 @@ export function DraggableTaskGroupBox({
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
 
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value + 2 }, { translateX: translateX.value }],
-  }))
+  const style = useAnimatedStyle(() => {
+    const scrollDelta = dragEnabled.value
+      ? currentScrollY.value - dragStartScrollY.value
+      : 0
+    const maxY = 23 * 60 * PIXELS_PER_MIN
+    const minVisibleTop = dragEnabled.value ? currentScrollY.value : 0
+    return {
+      transform: [
+        {
+          translateY:
+            Math.max(minVisibleTop, Math.min(maxY, translateY.value + scrollDelta)) + 2,
+        },
+        { translateX: translateX.value },
+      ],
+    }
+  })
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -344,6 +402,9 @@ type DraggableFixedEventProps = {
   onPress?: () => void
   cardLeft: number
   cardWidth: number
+  scrollY: SharedValue<number>
+  onDragMove?: (absoluteY: number) => void
+  onDragEnd?: () => void
 }
 
 export function DraggableFixedEvent({
@@ -356,6 +417,9 @@ export function DraggableFixedEvent({
   onPress,
   cardLeft,
   cardWidth,
+  scrollY,
+  onDragMove,
+  onDragEnd,
 }: DraggableFixedEventProps) {
   const rawHeight = (endMin - startMin) * PIXELS_PER_MIN
   const height = rawHeight
@@ -364,6 +428,8 @@ export function DraggableFixedEvent({
 
   const translateY = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -546,6 +612,7 @@ export function DraggableFixedEvent({
     .onStart(() => {
       runOnJS(triggerHaptic)()
       dragEnabled.value = true
+      dragStartScrollY.value = currentScrollY.value
     })
 
   // ===== 드래그 =====
@@ -559,13 +626,22 @@ export function DraggableFixedEvent({
       const maxTop = totalHeight - rawHeight
       const clampedTop = Math.max(minTop, Math.min(maxTop, topOffset))
       translateY.value = clampedTop - startMin * PIXELS_PER_MIN
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
+      if (onDragEnd) runOnJS(onDragEnd)()
 
       const totalHeight = 24 * 60 * PIXELS_PER_MIN
-      const topOffset = startMin * PIXELS_PER_MIN + translateY.value
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      const topOffset = Math.max(
+        0,
+        Math.min(
+          totalHeight - rawHeight,
+          startMin * PIXELS_PER_MIN + translateY.value + scrollDelta,
+        ),
+      )
 
       const minTop = 0
       const maxTop = totalHeight - rawHeight
@@ -581,9 +657,20 @@ export function DraggableFixedEvent({
   const composedGesture = Gesture.Simultaneous(hold, drag)
 
   // ===== 스타일 =====
-  const style = useAnimatedStyle(() => ({
-    top: startMin * PIXELS_PER_MIN + translateY.value,
-  }))
+  const style = useAnimatedStyle(() => {
+    const scrollDelta = dragEnabled.value
+      ? currentScrollY.value - dragStartScrollY.value
+      : 0
+    const totalHeight = 24 * 60 * PIXELS_PER_MIN
+    const maxTop = totalHeight - rawHeight
+    const minVisibleTop = dragEnabled.value ? currentScrollY.value : 0
+    return {
+      top: Math.max(
+        minVisibleTop,
+        Math.min(maxTop, startMin * PIXELS_PER_MIN + translateY.value + scrollDelta),
+      ),
+    }
+  })
 
   const fmt = (min: number) =>
     `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
@@ -636,6 +723,9 @@ type DraggableFlexibleEventProps = {
   events: any[]
   cardLeft: number
   cardWidth: number
+  scrollY: SharedValue<number>
+  onDragMove?: (absoluteY: number) => void
+  onDragEnd?: () => void
 }
 
 export function DraggableFlexibleEvent({
@@ -652,6 +742,9 @@ export function DraggableFlexibleEvent({
   events,
   cardLeft,
   cardWidth,
+  scrollY,
+  onDragMove,
+  onDragEnd,
 }: DraggableFlexibleEventProps) {
   const durationMin = endMin - startMin
   const totalHeight = 24 * 60 * PIXELS_PER_MIN
@@ -663,6 +756,8 @@ export function DraggableFlexibleEvent({
   const translateY = useSharedValue(startMin * PIXELS_PER_MIN)
   const translateX = useSharedValue(0)
   const dragEnabled = useSharedValue(false)
+  const currentScrollY = scrollY
+  const dragStartScrollY = useSharedValue(scrollY.value)
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -862,6 +957,7 @@ export function DraggableFlexibleEvent({
     .onStart(() => {
       runOnJS(triggerHaptic)()
       dragEnabled.value = true
+      dragStartScrollY.value = currentScrollY.value
     })
 
   const drag = Gesture.Pan()
@@ -875,16 +971,19 @@ export function DraggableFlexibleEvent({
 
       translateY.value = Math.max(minTop, Math.min(maxTop, nextY))
       translateX.value += e.changeX
+      if (onDragMove) runOnJS(onDragMove)(e.absoluteY)
     })
     .onEnd(() => {
       if (!dragEnabled.value) return
       dragEnabled.value = false
+      if (onDragEnd) runOnJS(onDragEnd)()
 
       const SNAP_UNIT = 5 * PIXELS_PER_MIN
       const minTop = 0
       const maxTop = totalHeight - rawHeight
 
-      let snappedY = Math.round(translateY.value / SNAP_UNIT) * SNAP_UNIT
+      const scrollDelta = currentScrollY.value - dragStartScrollY.value
+      let snappedY = Math.round((translateY.value + scrollDelta) / SNAP_UNIT) * SNAP_UNIT
       snappedY = Math.max(minTop, Math.min(maxTop, snappedY))
 
       translateY.value = withSpring(snappedY)
@@ -895,10 +994,17 @@ export function DraggableFlexibleEvent({
 
   const composedGesture = Gesture.Simultaneous(hold, drag)
 
-  const style = useAnimatedStyle(() => ({
-    top: translateY.value + offsetY,
-    transform: [{ translateX: translateX.value }],
-  }))
+  const style = useAnimatedStyle(() => {
+    const scrollDelta = dragEnabled.value
+      ? currentScrollY.value - dragStartScrollY.value
+      : 0
+    const minTop = dragEnabled.value ? currentScrollY.value : 0
+    const maxTop = totalHeight - rawHeight
+    return {
+      top: Math.max(minTop, Math.min(maxTop, translateY.value + scrollDelta)) + offsetY,
+      transform: [{ translateX: translateX.value }],
+    }
+  })
 
   // 겹침용 계단식 offset
   const STAGGER = 40
