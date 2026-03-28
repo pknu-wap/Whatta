@@ -7,6 +7,7 @@ import RemainderScreen from '@/screens/MyPage/RemainderTimeScreen'
 import SummaryScreean from '@/screens/MyPage/SummaryTimeScreen'
 import TrafficAlertStack from '@/navigation/TrafficAlertStack'
 import AiChatScreen from '@/screens/MyPage/Ai/AiChatScreen'
+import PreferencesScreen from '@/screens/MyPage/PreferencesScreen'
 
 export type MyPageStackList = {
   MyPageList: undefined
@@ -49,8 +50,8 @@ export default function MyPageStack({ initialRouteName = 'MyPageList' }: MyPageS
       />
       <Stack.Screen
         name="Preferences"
-        component={PlaceholderScreen}
-        options={{ title: '환경설정' }}
+        component={PreferencesScreen}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="CalendarNotif"

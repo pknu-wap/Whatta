@@ -129,7 +129,7 @@ export default function MyPageScreen({ navigation }: Props) {
 
   const onPressMyItem = (route: keyof MyPageStackList) => {
     if (route === 'Preferences') {
-      onPressColorSetChip()
+      navigation.navigate('Preferences')
       return
     }
 
