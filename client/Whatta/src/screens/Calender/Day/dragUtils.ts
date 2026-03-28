@@ -10,6 +10,8 @@ interface Params {
   taskBoxRectRef: React.MutableRefObject<any>
   gridRectRef: React.MutableRefObject<any>
   gridScrollYRef: React.MutableRefObject<number>
+  onDragMove?: (absoluteY: number) => void
+  onDragEnd?: () => void
 }
 
 export function useDayDrag({
@@ -18,6 +20,8 @@ export function useDayDrag({
   measureLayouts,
   taskBoxRectRef,
   gridRectRef,
+  onDragMove,
+  onDragEnd,
 }: Params) {
   const draggingTaskIdRef = useRef<string | null>(null)
   const dragReadyRef = useRef(false)
@@ -37,6 +41,7 @@ export function useDayDrag({
     const onCancel = () => {
       draggingTaskIdRef.current = null
       dragReadyRef.current = false
+      onDragEnd?.()
     }
 
     bus.on('xdrag:ready', onReady)
@@ -46,7 +51,19 @@ export function useDayDrag({
       bus.off('xdrag:ready', onReady)
       bus.off('xdrag:cancel', onCancel)
     }
-  }, [])
+  }, [onDragEnd])
+
+  useEffect(() => {
+    const onMove = ({ y }: any) => {
+      if (!draggingTaskIdRef.current || !dragReadyRef.current) return
+      if (typeof y === 'number') {
+        onDragMove?.(y)
+      }
+    }
+
+    bus.on('xdrag:move', onMove)
+    return () => bus.off('xdrag:move', onMove)
+  }, [onDragMove])
 
   // drop
   useEffect(() => {
@@ -58,6 +75,7 @@ export function useDayDrag({
       if (!id) return
       if (!dragReadyRef.current) {
         draggingTaskIdRef.current = null
+        onDragEnd?.()
         return
       }
 
@@ -118,10 +136,11 @@ export function useDayDrag({
         }
 
         draggingTaskIdRef.current = null
+        onDragEnd?.()
       })
     }
 
     bus.on('xdrag:drop', onDrop)
     return () => bus.off('xdrag:drop', onDrop)
-  }, [fetchDailyEvents, measureLayouts])
+  }, [fetchDailyEvents, measureLayouts, onDragEnd])
 }

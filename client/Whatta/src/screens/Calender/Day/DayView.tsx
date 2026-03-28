@@ -55,6 +55,7 @@ import RangeScheduleBar from '@/components/calendar-items/schedule/RangeSchedule
 import TaskItemCard from '@/components/calendar-items/task/TaskItemCard'
 import { SCREEN_H } from './constants'
 import DayTimeline from './DayTimeline'
+import { useTimelineAutoScroll } from '@/screens/Calender/useTimelineAutoScroll'
 
 function FullBleed({
   children,
@@ -509,15 +510,6 @@ export default function DayView({ active = true }: { active?: boolean }) {
     return computeEventOverlap(normalized)
   }, [events])
 
-  useDayDrag({
-    anchorDateRef,
-    fetchDailyEvents,
-    measureLayouts,
-    taskBoxRectRef,
-    gridRectRef,
-    gridScrollYRef,
-  })
-
   const taskGroups = useMemo(
     () =>
       groupTasksByOverlap(tasks).map((group) => ({
@@ -608,6 +600,13 @@ export default function DayView({ active = true }: { active?: boolean }) {
   const [thumbTop, setThumbTop] = useState(0)
   const boxScrollRef = useRef<ScrollView>(null)
   const gridScrollRef = useRef<ScrollView>(null)
+  const {
+    measureViewport: measureGridScrollViewport,
+    setContentHeight: setTimelineContentHeight,
+    setScrollY: setTimelineScrollY,
+    stopAutoScroll: stopTimelineAutoScroll,
+    updateAutoScroll: updateTimelineAutoScroll,
+  } = useTimelineAutoScroll({ scrollRef: gridScrollRef })
 
   const onLayoutWrap = (e: any) => setWrapH(e.nativeEvent.layout.height)
   const onContentSizeChange = (_: number, h: number) => setContentH(h)
@@ -622,6 +621,21 @@ export default function DayView({ active = true }: { active?: boolean }) {
       (layoutMeasurement.height - thumbH(layoutMeasurement.height, contentSize.height))
     setThumbTop(top)
   }
+
+  useEffect(() => {
+    setTimelineScrollY(gridScrollY)
+  }, [gridScrollY, setTimelineScrollY])
+
+  useDayDrag({
+    anchorDateRef,
+    fetchDailyEvents,
+    measureLayouts,
+    taskBoxRectRef,
+    gridRectRef,
+    gridScrollYRef,
+    onDragMove: updateTimelineAutoScroll,
+    onDragEnd: stopTimelineAutoScroll,
+  })
   const showScrollbar = contentH > wrapH
   const topItemWidth = Math.max(72, windowWidth - HORIZONTAL_PAD * 2 - TIME_COL_W)
   const anchorDateMeta = useMemo(() => {
@@ -933,7 +947,12 @@ export default function DayView({ active = true }: { active?: boolean }) {
               gridScrollRef={gridScrollRef}
               gridWrapRef={gridWrapRef}
               measureLayouts={measureLayouts}
+              measureScrollViewport={measureGridScrollViewport}
+              onTimelineContentSizeChange={setTimelineContentHeight}
+              onTimelineDragMove={updateTimelineAutoScroll}
+              onTimelineDragEnd={stopTimelineAutoScroll}
               setGridScrollY={setGridScrollY}
+              gridScrollY={gridScrollY}
               isToday={isToday}
               nowTop={nowTop}
               overlappedEvents={overlappedEvents}

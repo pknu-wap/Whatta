@@ -25,7 +25,12 @@ type DayTimelineProps = {
   gridScrollRef: React.RefObject<ScrollView | null>
   gridWrapRef: React.RefObject<View | null>
   measureLayouts: () => void
+  measureScrollViewport: () => void
+  onTimelineContentSizeChange: (height: number) => void
+  onTimelineDragMove: (absoluteY: number) => void
+  onTimelineDragEnd: () => void
   setGridScrollY: React.Dispatch<React.SetStateAction<number>>
+  gridScrollY: number
   isToday: boolean
   nowTop: number | null
   overlappedEvents: any[]
@@ -53,7 +58,12 @@ export default function DayTimeline({
   gridScrollRef,
   gridWrapRef,
   measureLayouts,
+  measureScrollViewport,
+  onTimelineContentSizeChange,
+  onTimelineDragMove,
+  onTimelineDragEnd,
   setGridScrollY,
+  gridScrollY,
   isToday,
   nowTop,
   overlappedEvents,
@@ -82,7 +92,13 @@ export default function DayTimeline({
       style={S.gridScroll}
       contentContainerStyle={[S.gridContent, { position: 'relative' }]}
       showsVerticalScrollIndicator={false}
-      onLayout={measureLayouts}
+      onLayout={() => {
+        measureLayouts()
+        measureScrollViewport()
+      }}
+      onContentSizeChange={(_, height) => {
+        onTimelineContentSizeChange(height)
+      }}
       onScroll={(e) => {
         setGridScrollY(e.nativeEvent.contentOffset.y)
       }}
@@ -132,6 +148,9 @@ export default function DayTimeline({
               onPress={() => openEventDetail(evt)}
               cardLeft={dayCardLeft}
               cardWidth={dayCardWidth}
+              scrollY={gridScrollY}
+              onDragMove={onTimelineDragMove}
+              onDragEnd={onTimelineDragEnd}
             />
           )
         }
@@ -151,6 +170,9 @@ export default function DayTimeline({
             events={overlappedEvents}
             cardLeft={dayCardLeft}
             cardWidth={dayCardWidth}
+            scrollY={gridScrollY}
+            onDragMove={onTimelineDragMove}
+            onDragEnd={onTimelineDragEnd}
           />
         )
       })}
@@ -170,6 +192,9 @@ export default function DayTimeline({
               onPress={() => setOpenGroupId(groupId)}
               cardLeft={dayCardLeft}
               cardWidth={dayCardWidth}
+              scrollY={gridScrollY}
+              onDragMove={onTimelineDragMove}
+              onDragEnd={onTimelineDragEnd}
             />
           )
         }
@@ -186,6 +211,9 @@ export default function DayTimeline({
             events={overlappedEvents}
             cardLeft={dayCardLeft}
             cardWidth={dayCardWidth}
+            scrollY={gridScrollY}
+            onDragMove={onTimelineDragMove}
+            onDragEnd={onTimelineDragEnd}
           />
         ))
       })}
