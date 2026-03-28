@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, ScrollView, useWindowDimensions } from 'react-native'
+import type { SharedValue } from 'react-native-reanimated'
 
 import { PIXELS_PER_MIN } from './constants'
 import S from './S'
@@ -29,8 +30,8 @@ type DayTimelineProps = {
   onTimelineContentSizeChange: (height: number) => void
   onTimelineDragMove: (absoluteY: number) => void
   onTimelineDragEnd: () => void
-  setGridScrollY: React.Dispatch<React.SetStateAction<number>>
-  gridScrollY: number
+  onGridScroll: (offsetY: number) => void
+  gridScrollY: SharedValue<number>
   isToday: boolean
   nowTop: number | null
   overlappedEvents: any[]
@@ -62,7 +63,7 @@ export default function DayTimeline({
   onTimelineContentSizeChange,
   onTimelineDragMove,
   onTimelineDragEnd,
-  setGridScrollY,
+  onGridScroll,
   gridScrollY,
   isToday,
   nowTop,
@@ -100,7 +101,7 @@ export default function DayTimeline({
         onTimelineContentSizeChange(height)
       }}
       onScroll={(e) => {
-        setGridScrollY(e.nativeEvent.contentOffset.y)
+        onGridScroll(e.nativeEvent.contentOffset.y)
       }}
       scrollEventThrottle={16}
     >

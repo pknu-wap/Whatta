@@ -7,8 +7,14 @@ type ViewportRect = {
   height: number
 }
 
+type DragBounds = {
+  top: number
+  bottom: number
+}
+
 type Params = {
   scrollRef: React.RefObject<ScrollView | null>
+  onScrollSync?: (offsetY: number) => void
 }
 
 const EDGE_THRESHOLD_MIN = 72
@@ -16,7 +22,7 @@ const EDGE_THRESHOLD_MAX = 128
 const MAX_SPEED_PX_PER_SEC = 900
 const MIN_SPEED_RATIO = 0.2
 
-export function useTimelineAutoScroll({ scrollRef }: Params) {
+export function useTimelineAutoScroll({ scrollRef, onScrollSync }: Params) {
   const viewportRectRef = useRef<ViewportRect>({ top: 0, bottom: 0, height: 0 })
   const contentHeightRef = useRef(0)
   const scrollYRef = useRef(0)
@@ -94,14 +100,15 @@ export function useTimelineAutoScroll({ scrollRef }: Params) {
       }
 
       scrollYRef.current = nextScroll
+      onScrollSync?.(nextScroll)
       scrollRef.current?.scrollTo({ y: nextScroll, animated: false })
       rafRef.current = requestAnimationFrame(step)
     },
-    [scrollRef, stopAutoScroll],
+    [onScrollSync, scrollRef, stopAutoScroll],
   )
 
   const updateAutoScroll = useCallback(
-    (absoluteY: number) => {
+    (position: number | DragBounds) => {
       const rect = viewportRectRef.current
       if (!rect.height) {
         measureViewport()
@@ -114,13 +121,15 @@ export function useTimelineAutoScroll({ scrollRef }: Params) {
       )
 
       let nextSpeed = 0
+      const dragTop = typeof position === 'number' ? position : position.top
+      const dragBottom = typeof position === 'number' ? position : position.bottom
 
-      if (absoluteY < rect.top + threshold) {
-        const ratio = Math.min(1, (rect.top + threshold - absoluteY) / threshold)
+      if (dragTop < rect.top + threshold) {
+        const ratio = Math.min(1, (rect.top + threshold - dragTop) / threshold)
         nextSpeed =
           -MAX_SPEED_PX_PER_SEC * (MIN_SPEED_RATIO + (1 - MIN_SPEED_RATIO) * ratio)
-      } else if (absoluteY > rect.bottom - threshold) {
-        const ratio = Math.min(1, (absoluteY - (rect.bottom - threshold)) / threshold)
+      } else if (dragBottom > rect.bottom - threshold) {
+        const ratio = Math.min(1, (dragBottom - (rect.bottom - threshold)) / threshold)
         nextSpeed =
           MAX_SPEED_PX_PER_SEC * (MIN_SPEED_RATIO + (1 - MIN_SPEED_RATIO) * ratio)
       }

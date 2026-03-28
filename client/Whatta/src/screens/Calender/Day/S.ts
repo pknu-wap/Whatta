@@ -218,6 +218,7 @@ const S = StyleSheet.create({
   taskBoxWrap: {
     position: 'relative',
     overflow: 'visible',
+    zIndex: 20,
   },
 
   fadeBelow: {
@@ -233,6 +234,12 @@ const S = StyleSheet.create({
     height: 0,
   },
 
+  timelineViewport: {
+    flex: 1,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+
   gridContent: {
     paddingTop: 4,
     paddingBottom: DAY_GRID_BOTTOM_SPACER,
@@ -240,6 +247,7 @@ const S = StyleSheet.create({
 
   gridLayer: {
     position: 'relative',
+    overflow: 'hidden',
   },
 
   gridOverlay: {
