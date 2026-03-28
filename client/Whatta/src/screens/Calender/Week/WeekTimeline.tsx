@@ -7,6 +7,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native'
+import type { SharedValue } from 'react-native-reanimated'
 
 import { layoutDayEvents } from '@/screens/Calender/Week/layout'
 
@@ -27,6 +28,11 @@ type WeekTimelineProps = {
   openEventDetail: (id: string, occDate?: string) => void
   openTaskPopupFromApi: (taskId: string) => void
   onGridScroll: (offsetY: number) => void
+  measureScrollViewport: () => void
+  onTimelineContentSizeChange: (height: number) => void
+  onTimelineDragMove: (position: number | { top: number; bottom: number }) => void
+  onTimelineDragEnd: () => void
+  gridScrollY: SharedValue<number>
   onTimedTaskCompletedChange: (payload: {
     id: string
     dateISO: string
@@ -137,6 +143,11 @@ function WeekTimeline({
   openEventDetail,
   openTaskPopupFromApi,
   onGridScroll,
+  measureScrollViewport,
+  onTimelineContentSizeChange,
+  onTimelineDragMove,
+  onTimelineDragEnd,
+  gridScrollY,
   onTimedTaskCompletedChange,
   taskGroupCollapseToken,
   DraggableFlexibleEventComponent,
@@ -147,9 +158,11 @@ function WeekTimeline({
     <View ref={gridContainerRef} style={T.flex1}>
       <ScrollView
         ref={gridScrollRef}
+        onLayout={measureScrollViewport}
         onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) =>
           onGridScroll(e.nativeEvent.contentOffset.y)
         }
+        onContentSizeChange={(_, height) => onTimelineContentSizeChange(height)}
         scrollEventThrottle={16}
         style={styles.timelineScroll}
         contentContainerStyle={[styles.timelineContent, { paddingBottom: rowH * 2.8 }]}
@@ -284,6 +297,9 @@ function WeekTimeline({
                           weekDates={weekDates}
                           dayIndex={colIdx}
                           rowH={rowH}
+                          scrollY={gridScrollY}
+                          onDragMove={onTimelineDragMove}
+                          onDragEnd={onTimelineDragEnd}
                           openEventDetail={openEventDetail}
                           isRepeat={ev.isRepeat}
                         />
@@ -303,6 +319,9 @@ function WeekTimeline({
                           dayIndex={colIdx}
                           weekCount={weekDates.length}
                           rowH={rowH}
+                          scrollY={gridScrollY}
+                          onDragMove={onTimelineDragMove}
+                          onDragEnd={onTimelineDragEnd}
                           column={block.column}
                           columnsTotal={block.columnsTotal}
                           openTaskPopupFromApi={openTaskPopupFromApi}
@@ -333,6 +352,9 @@ function WeekTimeline({
                           dayIndex={colIdx}
                           weekCount={weekDates.length}
                           rowH={rowH}
+                          scrollY={gridScrollY}
+                          onDragMove={onTimelineDragMove}
+                          onDragEnd={onTimelineDragEnd}
                           column={block.column}
                           columnsTotal={block.columnsTotal}
                           openDetail={openTaskPopupFromApi}
