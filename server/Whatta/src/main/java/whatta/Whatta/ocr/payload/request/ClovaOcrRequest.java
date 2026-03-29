@@ -1,7 +1,7 @@
 package whatta.Whatta.ocr.payload.request;
 
 import lombok.Builder;
-import whatta.Whatta.ocr.payload.dto.OcrRequestImage;
+import whatta.Whatta.ocr.payload.dto.ClovaRequestImage;
 
 import java.util.List;
 
@@ -11,7 +11,7 @@ public record ClovaOcrRequest(
         String requestId,
         Long timestamp,
         String lang, //ko
-        List<OcrRequestImage> images,
+        List<ClovaRequestImage> images,
         Boolean enableTableDetection //표추출 사용여부 false
 ) {
 }
