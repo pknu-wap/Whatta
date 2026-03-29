@@ -37,44 +37,53 @@ public class OcrService {
 
     public ImageToEventResponse uploadImage(String userid, TimetableImageUploadRequest request) {
         ResolvedOcrImage resolvedImage = resolveImage(userid, request);
+        String cleanupObjectKey = request.image().hasObjectKey()
+                ? request.image().sanitizedObjectKey()
+                : null;
 
-        //ocr로 텍스트 가져옴
-        ClovaOcrResponse ocrResponse = ocrClient.callApi(resolvedImage.clovaImage());
-        List<whatta.Whatta.ocr.payload.dto.OcrText> ocrTexts = ClovaOcrMapper.toOcrTextList(ocrResponse);
-        //opencv로 각 시간표 범위 좌표 추출
-        DetectedBlock detectedBlock = scheduleBlockDetector.findTimeBox(resolvedImage.imageBytes());
-        //ocr로 받은 텍스트와 색깔 범위 매칭
-        List<MatchedScheduleBlock> matches = ScheduleMatcher.matchAll(detectedBlock, ocrTexts);
-        //요일 순 정렬
-        matches.sort(new Comparator<MatchedScheduleBlock>() {
-            @Override
-            public int compare(MatchedScheduleBlock a, MatchedScheduleBlock b) {
-                int dayCmp = Integer.compare(weekdayIndex(a.weekDay()), weekdayIndex(b.weekDay()));
-                if (dayCmp != 0) {
-                    return dayCmp;
+        try {
+            //ocr로 텍스트 가져옴
+            ClovaOcrResponse ocrResponse = ocrClient.callApi(resolvedImage.clovaImage());
+            List<whatta.Whatta.ocr.payload.dto.OcrText> ocrTexts = ClovaOcrMapper.toOcrTextList(ocrResponse);
+            //opencv로 각 시간표 범위 좌표 추출
+            DetectedBlock detectedBlock = scheduleBlockDetector.findTimeBox(resolvedImage.imageBytes());
+            //ocr로 받은 텍스트와 색깔 범위 매칭
+            List<MatchedScheduleBlock> matches = ScheduleMatcher.matchAll(detectedBlock, ocrTexts);
+            //요일 순 정렬
+            matches.sort(new Comparator<MatchedScheduleBlock>() {
+                @Override
+                public int compare(MatchedScheduleBlock a, MatchedScheduleBlock b) {
+                    int dayCmp = Integer.compare(weekdayIndex(a.weekDay()), weekdayIndex(b.weekDay()));
+                    if (dayCmp != 0) {
+                        return dayCmp;
+                    }
+                    // weekDay가 같으면 시작 시간(HH:mm) 문자열 비교로 정렬
+                    return a.startTime().compareTo(b.startTime());
                 }
-                // weekDay가 같으면 시작 시간(HH:mm) 문자열 비교로 정렬
-                return a.startTime().compareTo(b.startTime());
+            });
+            //text를 title과 content로 분리하고 dto로 생성
+            List<ImageToEventResponse.ImageToEvent> response = new ArrayList<>();
+            for(MatchedScheduleBlock block : matches) {
+                String[] result = ScheduleBlockMapper.splitTitleAndContent(block.texts());
+                if (isNumericOnlyNoise(result[0], result[1])) {
+                    continue;
+                }
+                response.add(ImageToEventResponse.ImageToEvent.builder()
+                                .title(result[0])
+                                .content(result[1])
+                                .weekDay(block.weekDay())
+                                .startTime(block.startTime())
+                                .endTime(block.endTime())
+                        .build());
             }
-        });
-        //text를 title과 content로 분리하고 dto로 생성
-        List<ImageToEventResponse.ImageToEvent> response = new ArrayList<>();
-        for(MatchedScheduleBlock block : matches) {
-            String[] result = ScheduleBlockMapper.splitTitleAndContent(block.texts());
-            if (isNumericOnlyNoise(result[0], result[1])) {
-                continue;
+            return ImageToEventResponse.builder()
+                    .events(response)
+                    .build();
+        } finally {
+            if (cleanupObjectKey != null && !cleanupObjectKey.isBlank()) {
+                imageStorageService.deleteObjectQuietly(userid, cleanupObjectKey);
             }
-            response.add(ImageToEventResponse.ImageToEvent.builder()
-                            .title(result[0])
-                            .content(result[1])
-                            .weekDay(block.weekDay())
-                            .startTime(block.startTime())
-                            .endTime(block.endTime())
-                    .build());
         }
-        return ImageToEventResponse.builder()
-                .events(response)
-                .build();
     }
 
     @Builder
