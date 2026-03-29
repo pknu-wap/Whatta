@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import whatta.Whatta.ocr.payload.dto.ClovaRequestImage;
 import whatta.Whatta.ocr.payload.response.ClovaOcrResponse;
 import whatta.Whatta.ocr.payload.request.ClovaOcrRequest;
-import whatta.Whatta.ocr.payload.request.ImageUploadRequest;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -29,7 +29,7 @@ public class ClovaOcrClient {
 
     ObjectMapper objectMapper = new ObjectMapper();
 
-    public ClovaOcrResponse callApi(ImageUploadRequest request) {
+    public ClovaOcrResponse callApi(ClovaRequestImage image) {
         try{
             // ----------- 요청 전송 ---------------------
             HttpURLConnection connection = creatHeader();
@@ -38,7 +38,7 @@ public class ClovaOcrClient {
                     .requestId(UUID.randomUUID().toString())
                     .timestamp(System.currentTimeMillis())
                     .lang("ko")
-                    .images(List.of(request.image()))
+                    .images(List.of(image))
                     .enableTableDetection(false)
                     .build();
 

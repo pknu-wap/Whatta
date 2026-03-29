@@ -23,8 +23,14 @@ public class ScheduleBlockDetector {
     private static final int DARK_MODE_V_THRESHOLD_MIN = 40;
 
     public DetectedBlock findTimeBox (String imageData) {
-        //TODO: imageData 검증 필요
-        Mat bgrImage = ImageIOUtil.fromBase64(imageData);
+        return findTimeBox(ImageIOUtil.fromBase64(imageData));
+    }
+
+    public DetectedBlock findTimeBox(byte[] imageBytes) {
+        return findTimeBox(ImageIOUtil.fromBytes(imageBytes));
+    }
+
+    private DetectedBlock findTimeBox(Mat bgrImage) {
         try {
             return detectColoredBoxes(bgrImage);
         } finally {

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import whatta.Whatta.ocr.payload.request.ImageUploadRequest;
+import whatta.Whatta.ocr.payload.request.TimetableImageUploadRequest;
 import whatta.Whatta.ocr.service.OcrService;
 import whatta.Whatta.global.payload.Response;
 
@@ -31,12 +31,12 @@ public class OcrController {
             + "<br><br> <b>이미지 업로드 안내</b>"
             + "<br> - format : jpg | jpeg | png"
             + "<br> - name : 이미지 구별을 위함 (정해진 형식 없음)"
-            + "<br> - url : 이미지를 불러올 수 있는 공개된 URL (사실 앱 안에서 사용할 일이 없을 듯)"
             + "<br> - data : Base64 인코딩된 이미지 데이터"
-            + "<br><br> *** images.url 또는 images.data 중 하나 필수 입력 ***"
-            + "<br>    (둘 다 입력 시 image.data 우선함)")
+            + "<br> - objectKey : storage 업로드 후 받은 키"
+            + "<br><br> *** image.objectKey 또는 image.data 중 하나 필수 입력 ***"
+            + "<br>    (둘 다 입력 시 image.objectKey 우선함)")
     public ResponseEntity<?> uploadImage (@AuthenticationPrincipal String userId,
-                                          @RequestBody @Validated ImageUploadRequest request) {
+                                          @RequestBody @Validated TimetableImageUploadRequest request) {
         return Response.ok("success upload image", ocrService.uploadImage(userId, request));
     }
 }

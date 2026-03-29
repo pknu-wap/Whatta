@@ -1,5 +1,6 @@
 package whatta.Whatta.image.service;
 
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.HttpMethod;
@@ -108,6 +109,34 @@ public class ImageStorageService {
 
         BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).build();
         return signGetUrl(blobInfo).toString();
+    }
+
+    public void validateOwnedObjectKeyForTarget(String userId, String objectKey, StorageUploadTarget target) {
+        if (!isOwnedObjectKey(userId, objectKey, target)) {
+            throw new RestApiException(ErrorCode.INVALID_STORAGE_OBJECT_KEY);
+        }
+    }
+
+    public byte[] downloadObjectBytes(String userId, String objectKey) {
+        validateBucketName();
+        validateOwnedObjectKey(userId, objectKey);
+
+        try {
+            Blob blob = gcsStorage.get(BlobId.of(bucketName, objectKey));
+            if (blob == null) {
+                throw new RestApiException(ErrorCode.INVALID_STORAGE_OBJECT_KEY);
+            }
+            return blob.getContent();
+        } catch (RestApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[GCS][DOWNLOAD][ERROR] bucket={} objectKey={} message={}",
+                    bucketName,
+                    objectKey,
+                    e.getMessage(),
+                    e);
+            throw new RestApiException(ErrorCode.GCS_OBJECT_DOWNLOAD_FAILED);
+        }
     }
 
     public void deleteObjectQuietly(String userId, String objectKey) {
@@ -226,6 +255,15 @@ public class ImageStorageService {
         return segments.length >= 5
                 && ROOT_PREFIX.equals(segments[0])
                 && userId.equals(segments[2]);
+    }
+
+    private boolean isOwnedObjectKey(String userId, String objectKey, StorageUploadTarget target) {
+        if (!isOwnedObjectKey(userId, objectKey) || target == null) {
+            return false;
+        }
+
+        String[] segments = objectKey.trim().split("/");
+        return target.getPathSegment().equals(segments[1]);
     }
 
     private void validateBucketName() {
