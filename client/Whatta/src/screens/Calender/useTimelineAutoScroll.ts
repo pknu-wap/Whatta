@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import type { ScrollView } from 'react-native'
 
 type ViewportRect = {
@@ -13,7 +13,7 @@ type DragBounds = {
 }
 
 type Params = {
-  scrollRef: React.RefObject<ScrollView | null>
+  scrollRef: RefObject<ScrollView | null>
   onScrollSync?: (offsetY: number) => void
 }
 

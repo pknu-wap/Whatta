@@ -1,15 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type MutableRefObject } from 'react'
 import { bus } from '@/lib/eventBus'
 import { updateTask } from '@/api/task'
 import { PIXELS_PER_MIN } from './constants'
 
 interface Params {
-  anchorDateRef: React.MutableRefObject<string>
+  anchorDateRef: MutableRefObject<string>
   fetchDailyEvents: () => void
   measureLayouts: () => void
-  taskBoxRectRef: React.MutableRefObject<any>
-  gridRectRef: React.MutableRefObject<any>
-  gridScrollYRef: React.MutableRefObject<number>
+  taskBoxRectRef: MutableRefObject<any>
+  gridRectRef: MutableRefObject<any>
+  gridScrollYRef: MutableRefObject<number>
   onDragMove?: (absoluteY: number) => void
   onDragEnd?: () => void
 }
